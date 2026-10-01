@@ -12,9 +12,9 @@ import androidx.compose.ui.unit.dp
 /** Flexible columns keep long values and large text readable without clipping. */
 @Composable fun DetailRow(label:String,value:String,modifier:Modifier=Modifier) {
     Row(modifier.fillMaxWidth().testTag("detail-$label").semantics(mergeDescendants=true){}
-        .padding(vertical=12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-        Text(label,modifier=Modifier.weight(0.34f),style=MaterialTheme.typography.bodyMedium,
+        .padding(vertical=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Text(label,modifier=Modifier.weight(0.34f).alignByBaseline(),style=MaterialTheme.typography.bodyMedium,
             color=MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value,modifier=Modifier.weight(0.66f),style=MaterialTheme.typography.bodyLarge)
+        Text(value,modifier=Modifier.weight(0.66f).alignByBaseline(),style=MaterialTheme.typography.bodyLarge)
     }
 }

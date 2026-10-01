@@ -12,7 +12,8 @@ object AssetValuation {
         return snapshot.instruments.map { instrument ->
             val positions = grouped[instrument.id].orEmpty()
             val profits = positions.map(InvestmentProfitCalculator::fromReadModel)
-            InstrumentAssets(instrument, positions.map(::marketValue).fold(BigDecimal.ZERO, BigDecimal::add),
+            InstrumentAssets(instrument, positions.filter { it.holding_quantity_e8 > 0 }
+                .map(::marketValue).fold(BigDecimal.ZERO, BigDecimal::add),
                 sumKnown(profits.map { it.unrealized }), sumKnown(profits.map { it.realized }))
         }
     }
@@ -29,13 +30,14 @@ object AssetValuation {
                 it.currency to BigDecimal.valueOf(it.principal_minor, it.currency.fraction_digits)
             }
             val positions = positionsByAccount[account.id].orEmpty()
-            val values = positions.map { it.currency to marketValue(it) }
-            val floating = positions.filter { it.holding_quantity_e8 > 0 }.map {
+            val held = positions.filter { it.holding_quantity_e8 > 0 }
+            val values = held.map { it.currency to marketValue(it) }
+            val floating = held.map {
                 val profit = InvestmentProfitCalculator.fromReadModel(it)
                 it.currency to (profit.unrealized ?: BigDecimal.ZERO)
             }
-            val floatingMissing = positions.filter { it.holding_quantity_e8 > 0 && (it.remainingCost == null || !it.chronologyValid ||
-                it.algorithmVersion != InvestmentProfitCalculator.ALGORITHM_VERSION) }
+            val floatingMissing = held.filter { it.remainingCost == null || !it.chronologyValid ||
+                it.algorithmVersion != InvestmentProfitCalculator.ALGORITHM_VERSION }
                 .map { MissingAmount(if (it.chronologyValid) MissingKind.CURRENT_COST else MissingKind.INVALID_HISTORY,
                     it.currency.code, it.id) }.toSet()
             val realized = positions.map { it.currency to (InvestmentProfitCalculator.fromReadModel(it).realized ?: BigDecimal.ZERO) }
@@ -64,14 +66,13 @@ object AssetValuation {
         val base = settings.baseCurrency ?: return ConvertedTotal(BigDecimal.ZERO, null,
             initialMissing + MissingAmount(MissingKind.BASE_CURRENCY))
         val rates = settings.rates.filter { it.targetCurrency == base }.associateBy { it.sourceCurrency.code }
-        val missing = initialMissing.toMutableSet()
         var result = BigDecimal.ZERO
         for ((currency, value) in amounts) {
             if (value.signum() == 0) continue
-            val rate = if (currency == base) BigDecimal.ONE else rates[currency.code]?.rate
-            if (rate == null) missing.add(MissingAmount(MissingKind.EXCHANGE_RATE, currency.code))
-            else result = result.add(value.multiply(rate))
+            // A manually configured pair overrides the user-selected 1:1 default.
+            val rate = if (currency == base) BigDecimal.ONE else rates[currency.code]?.rate ?: BigDecimal.ONE
+            result = result.add(value.multiply(rate))
         }
-        return ConvertedTotal(result, base, missing)
+        return ConvertedTotal(result, base, initialMissing)
     }
 }

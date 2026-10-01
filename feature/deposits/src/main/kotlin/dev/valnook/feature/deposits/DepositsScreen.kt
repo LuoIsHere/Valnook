@@ -31,7 +31,7 @@ import kotlinx.coroutines.delay
 }
 @Composable fun DepositsContent(rows:List<TermDeposit>,today:Long,on_form:()->Unit,on_more:()->Unit,
     on_open:(Long)->Unit={},on_archive:(()->Unit)?=null,closed:Boolean=false,hasMore:Boolean=rows.size>=50) {
-    LazyColumn(contentPadding=PaddingValues(Space.md),verticalArrangement=Arrangement.spacedBy(Space.md)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(Space.md,Space.md),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         if(closed)item{Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.titleLarge)}
         else if(on_archive!=null)item{ActionButton(onClick=on_archive,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.settled_deposits))}}
         item{Text(stringResource(R.string.term_formula),style=MaterialTheme.typography.bodyMedium)}

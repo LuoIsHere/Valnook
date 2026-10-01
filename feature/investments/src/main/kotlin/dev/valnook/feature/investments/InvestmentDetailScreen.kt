@@ -20,13 +20,14 @@ import dev.valnook.domain.model.*
         return
     }
     val profit = InvestmentProfitCalculator.fromReadModel(asset)
-    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { InvestmentCard(asset) }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        item { HoldingColumns() }
+        item { HoldingRow(asset) }
         item {
             Text("持仓成本总额 " + money(profit.remainingCost, asset.currency))
             Text("累计已实现盈亏 " + money(profit.realized, asset.currency))
         }
-        item { Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton({ onCreateTrade(Direction.BUY, asset) }, Modifier.weight(1f)) { Text("买入") }
             ActionButton({ onCreateTrade(Direction.SELL, asset) }, Modifier.weight(1f)) { Text("卖出") }
         } }

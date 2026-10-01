@@ -64,7 +64,9 @@ object InvestmentProfitCalculator {
         val quantity = BigDecimal.valueOf(quantityE8, 8)
         val average = if (quantityE8 > 0 && valid) cost?.divide(quantity, ALLOCATION_SCALE, RoundingMode.HALF_UP) else null
         val floating = if (valid) cost?.let { quantity.multiply(BigDecimal.valueOf(priceE8, 8)).subtract(it) } else null
+        val percentage = if (quantityE8 > 0 && floating != null && cost != null && cost.signum() > 0)
+            floating.multiply(BigDecimal("100")).divide(cost, ALLOCATION_SCALE, RoundingMode.HALF_UP) else null
         return InvestmentProfit(average, if (valid) realized else null, floating, cost != null && valid,
-            valid, cost, realized != null && valid, conflictId)
+            valid, cost, realized != null && valid, conflictId, percentage)
     }
 }

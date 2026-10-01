@@ -43,9 +43,8 @@ import java.time.*
                 state.executionPriceInput, { value -> vm.update { it.copy(executionPriceInput = value) } }, true,
                 submission.editable && !state.unknownOpeningCost)
             if (state.mode == TradeFormMode.OPENING) {
-                Row { Checkbox(state.unknownOpeningCost, { value -> vm.update { it.copy(unknownOpeningCost = value) } },
-                    enabled = submission.editable)
-                    Text("成本未知，稍后补全") }
+                CheckboxRow("成本未知，稍后补全", state.unknownOpeningCost,
+                    { value -> vm.update { it.copy(unknownOpeningCost = value) } }, enabled = submission.editable)
             }
             if (state.mode != TradeFormMode.OPENING_COST) {
                 DateField("记账日期", state.occurredAt.toLocalDate().toString(), { value -> vm.update {
@@ -57,9 +56,8 @@ import java.time.*
             }
             if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.EDIT) {
                 vm.amountPreview()?.let { Text("成交金额 " + it) }
-                Row { Checkbox(state.cashLinked, { value -> vm.update { it.copy(cashLinked = value) } },
-                    enabled = submission.editable)
-                    Text("联动该账户 " + state.currency?.code.orEmpty() + " 现金") }
+                CheckboxRow("联动该账户 " + state.currency?.code.orEmpty() + " 现金", state.cashLinked,
+                    { value -> vm.update { it.copy(cashLinked = value) } }, enabled = submission.editable)
             }
         }
         if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.EDIT || state.mode == TradeFormMode.DELETE)
@@ -73,13 +71,19 @@ import java.time.*
 @Composable fun InstrumentEditScreen(vm: InstrumentEditViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
-    val types by vm.types.collectAsStateWithLifecycle()
+    val typeState by vm.types.collectAsStateWithLifecycle()
+    val types = (typeState as? AssetTypesState.Ready)?.rows.orEmpty()
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
     if (!state.loaded) { Text(if (state.loadFailed) "标的读取失败" else "正在读取")
         return }
     FormLayout("标的资料与当前价", submission.phase == SubmissionPhase.WORKING,
-        submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
+        submission.phase != SubmissionPhase.SUCCEEDED && types.isNotEmpty(), vm::submit) {
         Field("名称", state.name, { value -> vm.update { it.copy(name = value) } }, enabled = submission.editable)
+        when {
+            typeState == AssetTypesState.Loading -> Text("正在读取资产类型")
+            typeState == AssetTypesState.Failed -> Text("资产类型读取失败，请返回后重试", color = MaterialTheme.colorScheme.error)
+            types.isEmpty() -> Text("请先在所有投资品中创建资产类型", color = MaterialTheme.colorScheme.error)
+        }
         Field("代码", state.symbol, { value -> vm.update { it.copy(symbol = value) } }, enabled = submission.editable)
         ChoiceField("资产类型", state.typeId?.toString().orEmpty(), types.map { it.id.toString() to it.name },
             { value -> vm.update { it.copy(typeId = value.toLong()) } }, submission.editable)
@@ -89,11 +93,9 @@ import java.time.*
         if (state.currencyLocked) Text("币种已锁定：任一账户已保存期初持仓或交易")
         Field("当前每份价格（最多5位小数）", state.priceInput,
             { value -> vm.update { it.copy(priceInput = value) } }, true, submission.editable)
-        if (!state.currencyLocked && state.expectedRevision != null) Row {
-            Checkbox(state.currencyPriceConfirmed, { value -> vm.update { it.copy(currencyPriceConfirmed = value) } },
-                enabled = submission.editable)
-            Text("已核对当前价格的币种含义")
-        }
+        if (!state.currencyLocked && state.expectedRevision != null)
+            CheckboxRow("已核对当前价格的币种含义", state.currencyPriceConfirmed,
+                { value -> vm.update { it.copy(currencyPriceConfirmed = value) } }, enabled = submission.editable)
         when (submission.error) {
             ErrorCode.CURRENCY_LOCKED -> Text("币种已永久锁定，不能因清仓或删除交易而更改。", color = MaterialTheme.colorScheme.error)
             ErrorCode.PRICE_CONFIRMATION -> Text("更换币种后，请核对当前价格并勾选确认。", color = MaterialTheme.colorScheme.error)

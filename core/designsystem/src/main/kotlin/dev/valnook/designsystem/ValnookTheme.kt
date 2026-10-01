@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-object Space { val xs=4.dp; val sm=8.dp; val md=16.dp; val lg=24.dp; val xl=32.dp }
+object Space { val xs=4.dp; val sm=6.dp; val md=12.dp; val lg=20.dp; val xl=24.dp }
 private val light=lightColorScheme(primary=Color(0xFF486477),onPrimary=Color.White,
     background=Color(0xFFF7F8FA),surface=Color(0xFFF7F8FA),surfaceContainer=Color(0xFFEDF0F3),
     surfaceContainerLow=Color(0xFFF0F4F7),surfaceContainerHigh=Color(0xFFEAF0F4),surfaceContainerHighest=Color(0xFFE5EDF2),

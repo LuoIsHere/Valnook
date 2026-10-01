@@ -32,7 +32,7 @@ class AssetTypesViewModel(repository: InvestmentRepository) : ViewModel() {
         return
     }
     val types = current.rows
-    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ActionButton(onCreate, Modifier.fillMaxWidth()) { Text("新增类型") } }
         items(types, key = { it.id }) { type ->
             ActionButton({ onEdit(type) }, Modifier.fillMaxWidth()) { Text(type.name + " · 编辑") }

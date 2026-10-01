@@ -13,5 +13,6 @@ data class InvestmentProfit(
     val chronology_valid: Boolean,
     val remainingCost: BigDecimal? = null,
     val realizedComplete: Boolean = realized != null,
-    val conflictTradeId: Long? = null
+    val conflictTradeId: Long? = null,
+    val unrealizedPercent: BigDecimal? = null
 )

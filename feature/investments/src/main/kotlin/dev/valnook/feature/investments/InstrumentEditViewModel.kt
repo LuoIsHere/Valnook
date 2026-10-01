@@ -19,7 +19,9 @@ class InstrumentEditViewModel(private val instrumentId: Long?, private val instr
     private val session = SubmissionSession(commands, viewModelScope,
         saved.get<String>("submission")?.let(SubmissionPhase::valueOf) ?: SubmissionPhase.IDLE) { saved["submission"] = it.name }
     val submission = session.state
-    val types = investments.observe_types().stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyList())
+    val types = investments.observe_types().map<List<AssetType>, AssetTypesState> { AssetTypesState.Ready(it) }
+        .catch { emit(AssetTypesState.Failed) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), AssetTypesState.Loading)
     private val mutable = MutableStateFlow(InstrumentEditUiState(saved["name"] ?: "", saved["symbol"] ?: "",
         saved["typeId"], Currency.of(saved["currency"] ?: "CNY"), saved["price"] ?: "", saved["revision"],
         saved["locked"] ?: false, saved["confirmed"] ?: false, saved["loaded"] ?: false))

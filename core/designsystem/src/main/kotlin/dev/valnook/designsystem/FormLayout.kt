@@ -12,12 +12,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun FormLayout(title: String, busy: Boolean, enabled: Boolean, onSave: () -> Unit,
     saveLabel: String = "保存", content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(pageContentPadding()),
+        verticalArrangement = Arrangement.spacedBy(Space.md)) {
         Text(title, style = MaterialTheme.typography.headlineSmall)
         content()
         Button(onClick = onSave, enabled = !busy && enabled,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Text(saveLabel)
         }
     }

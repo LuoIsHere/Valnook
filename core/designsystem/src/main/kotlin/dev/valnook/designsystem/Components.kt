@@ -31,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import dev.valnook.core.designsystem.R
 import java.time.LocalDate
 import java.time.LocalTime
@@ -132,33 +133,44 @@ import java.util.Locale
     options:List<Pair<String,String>>,excluded:Set<String> = emptySet()) {
     var expanded by rememberSaveable {mutableStateOf(false)}
     var query by rememberSaveable {mutableStateOf("")}
-    val selected_name=options.firstOrNull{it.first==selected}?.second.orEmpty()
-    SelectorField(stringResource(R.string.currency),listOf(selected,selected_name).filter{it.isNotBlank()}.joinToString(" · "),
+    val pickerRates=LocalCurrencyPickerRates.current
+    SelectorField(stringResource(R.string.currency),selected,
         {query="";expanded=true},enabled)
-    if(expanded) Dialog(onDismissRequest={expanded=false}) {
-        Surface(shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surface) {
-            Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.md),
-                verticalArrangement=Arrangement.spacedBy(Space.md)) {
-                Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
-                Field(stringResource(R.string.search_currency),query,{query=it})
-                val matches=options.filter{it.first !in excluded &&
-                    (it.first.contains(query.trim(),true)||it.second.contains(query.trim(),true))}
-                LazyColumn(Modifier.weight(1f,fill=false).fillMaxWidth().testTag("currency-list")) {
-                    if(matches.isEmpty())item{EmptyState(stringResource(R.string.no_currency_match))}
-                    items(matches,key={it.first}){(code,name)->
-                        Row(Modifier.fillMaxWidth().clickable {on_change(code);expanded=false}.padding(vertical=12.dp),
-                            verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.md)) {
-                            Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainer,
-                                modifier=Modifier.width(56.dp)) {
-                                Text(code,Modifier.padding(vertical=12.dp),style=MaterialTheme.typography.labelLarge,
-                                    textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+    if(expanded) Dialog(onDismissRequest={expanded=false},properties=DialogProperties(decorFitsSystemWindows=false)) {
+        Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(12.dp)) {
+            Surface(shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surface) {
+                Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.md),
+                    verticalArrangement=Arrangement.spacedBy(Space.md)) {
+                    Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
+                    Text(pickerRates.baseCode?.let { "汇率 → $it" } ?: "汇率 · 尚未设置主币种",
+                        style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Field(stringResource(R.string.search_currency),query,{query=it})
+                    val matches=options.filter{it.first !in excluded &&
+                        (it.first.contains(query.trim(),true)||it.second.contains(query.trim(),true))}
+                    LazyColumn(Modifier.weight(1f,fill=false).fillMaxWidth().testTag("currency-list")) {
+                        if(matches.isEmpty())item{EmptyState(stringResource(R.string.no_currency_match))}
+                        items(matches,key={it.first}){(code,name)->
+                            Row(Modifier.fillMaxWidth().clickable {on_change(code);expanded=false}.padding(vertical=8.dp),
+                                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.md)) {
+                                Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainer,
+                                    modifier=Modifier.width(56.dp)) {
+                                    Text(code,Modifier.padding(vertical=12.dp),style=MaterialTheme.typography.labelLarge,
+                                        textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+                                }
+                                Text(name,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
+                                val configured=if(code==pickerRates.baseCode) "1" else pickerRates.rates[code]
+                                Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
+                                    Text(configured ?: "1",Modifier.testTag("currency-rate-$code"),
+                                        style=MaterialTheme.typography.bodyMedium,textAlign=androidx.compose.ui.text.style.TextAlign.End)
+                                    if(configured==null)Text("默认",style=MaterialTheme.typography.bodySmall,
+                                        color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if(code==selected)Text("✓",color=MaterialTheme.colorScheme.primary)
                             }
-                            Text(name,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
-                            if(code==selected)Text("✓",color=MaterialTheme.colorScheme.primary)
                         }
                     }
+                    TextButton(onClick={expanded=false},modifier=Modifier.align(Alignment.End)){Text(stringResource(R.string.cancel))}
                 }
-                TextButton(onClick={expanded=false},modifier=Modifier.align(Alignment.End)){Text(stringResource(R.string.cancel))}
             }
         }
     }

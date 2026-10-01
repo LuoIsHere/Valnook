@@ -34,7 +34,7 @@ import java.time.format.DateTimeFormatter
         stringResource(R.string.change_amount) to cash_change_text(entry),
         stringResource(R.string.entry_source) to cash_source_label(entry.source),
         stringResource(R.string.entry_account) to account_name,
-        stringResource(R.string.currency) to (entry.currency.code+" · "+entry.currency.name),
+        stringResource(R.string.currency) to entry.currency.code,
         stringResource(R.string.record_date) to time.toLocalDate().toString(),
         stringResource(R.string.record_time) to time.format(DateTimeFormatter.ofPattern("HH:mm")),
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})

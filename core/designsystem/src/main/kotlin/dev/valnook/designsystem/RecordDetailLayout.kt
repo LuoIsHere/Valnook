@@ -9,7 +9,7 @@ import androidx.compose.ui.unit.dp
 
 /** A shared, scrollable record layout; feature modules supply values and actions. */
 @Composable fun RecordDetailLayout(title:String,rows:List<Pair<String,String>>,actions:@Composable ColumnScope.()->Unit) {
-    LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(Space.md)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         item{Text(title,style=MaterialTheme.typography.titleLarge)}
         item {
             OutlinedCard(Modifier.fillMaxWidth()) {

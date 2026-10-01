@@ -28,6 +28,17 @@ class InvestmentProfitCalculatorTest {
         decimal("2850", added.remainingCost); decimal("142.5", added.average_cost)
         decimal("150", added.realized); decimal("350", added.unrealized)
     }
+    @Test fun floating_percentage_uses_remaining_cost_and_has_no_fabricated_zero_denominator() {
+        decimal("20", Calculator.calculate(asset("10", "10", "100", "120"), emptyList()).unrealizedPercent)
+        decimal("-10", Calculator.calculate(asset("10", "10", "200", "180"), emptyList()).unrealizedPercent)
+        val partial = Calculator.calculate(asset("5", price = "120"), listOf(
+            trade(1, Direction.BUY, "10", "100"), trade(2, Direction.SELL, "5", "110")))
+        decimal("500", partial.remainingCost)
+        decimal("20", partial.unrealizedPercent)
+        assertNull(Calculator.calculate(asset("10", "10", null), emptyList()).unrealizedPercent)
+        assertNull(Calculator.calculate(asset("10", "10", "0"), emptyList()).unrealizedPercent)
+        assertNull(Calculator.calculate(asset("0"), emptyList()).unrealizedPercent)
+    }
     @Test fun later_buy_does_not_reprice_prior_sale() {
         val result = Calculator.calculate(asset("15"), listOf(trade(1, Direction.BUY, "10", "100"),
             trade(2, Direction.SELL, "5", "120"), trade(3, Direction.BUY, "10", "200")))

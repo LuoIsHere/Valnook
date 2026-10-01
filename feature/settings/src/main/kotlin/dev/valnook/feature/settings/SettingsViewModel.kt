@@ -42,11 +42,14 @@ class SettingsViewModel(private val repository: SettingsRepository, private val 
     fun addRate() {
         if (state.value.busy || state.value.baseCurrency == null) return
         val source = Currency.supported.firstOrNull { it != state.value.baseCurrency && state.value.rows.none { row -> row.sourceCurrency == it } } ?: return
-        change(state.value.copy(rows = state.value.rows + FxRateDraft(source, "")))
+        change(state.value.copy(rows = state.value.rows + FxRateDraft(source, "1")))
     }
     fun updateRow(index: Int, source: Currency? = null, rate: String? = null) {
         if (!state.value.busy) change(state.value.copy(rows = state.value.rows.mapIndexed { i, row ->
-            if (i != index) row else row.copy(sourceCurrency = source ?: row.sourceCurrency, rateInput = rate ?: row.rateInput)
+            if (i != index) row else row.copy(sourceCurrency = source ?: row.sourceCurrency,
+                rateInput = rate ?: if (source == null) row.rateInput else state.value.existingRates
+                    .firstOrNull { it.sourceCurrency == source && it.targetCurrency == state.value.baseCurrency }
+                    ?.rate?.toPlainString() ?: "1")
         }))
     }
     fun removeRate(index: Int) {

@@ -93,4 +93,18 @@ class SettingsViewModelTest {
         assertEquals(1L, vm.state.value.revision)
         assertEquals(1, repository.writes)
     }
+    @Test fun new_pairs_start_at_one_and_do_not_reuse_a_rate_to_another_base() = runTest(dispatcher) {
+        val repository = Repository(AppSettings(cny, listOf(FxRate(usd, hkd, BigDecimal("7.8")))))
+        val vm = SettingsViewModel(repository, SavedStateHandle())
+        runCurrent()
+        vm.addRate()
+        assertEquals("1", vm.state.value.rows.single().rateInput)
+        vm.updateRow(0, source = usd)
+        assertEquals("1", vm.state.value.rows.single().rateInput)
+        vm.save()
+        runCurrent()
+        assertTrue(vm.state.value.saved)
+        assertEquals(BigDecimal.ONE, repository.value.rates.single { it.sourceCurrency == usd && it.targetCurrency == cny }.rate)
+        assertEquals(BigDecimal("7.8"), repository.value.rates.single { it.targetCurrency == hkd }.rate)
+    }
 }

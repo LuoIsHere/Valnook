@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -39,22 +40,20 @@ private fun missingText(total: ConvertedTotal): String = total.missing.map {
     }
 }
 @Composable fun AccountsContent(overview: AssetOverview, onOpen: (Long) -> Unit) {
-    LazyColumn(Modifier.fillMaxSize().testTag("accounts-list"), contentPadding = PaddingValues(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("accounts-list"), contentPadding = pageContentPadding(),
+        verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item {
-            OutlinedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("总资产", style = MaterialTheme.typography.titleMedium)
-                    Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium)
-                    Text("可用现金 " + totalText(overview.cash), style = MaterialTheme.typography.bodyMedium)
-                    if (!overview.total.complete) Text("汇总不完整 · " + missingText(overview.total), color = MaterialTheme.colorScheme.error)
-                }
+            Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Text("总资产", style = MaterialTheme.typography.titleMedium)
+                Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium)
+                Text("可用现金 " + totalText(overview.cash), style = MaterialTheme.typography.bodyMedium)
+                if (!overview.total.complete) Text("汇总不完整 · " + missingText(overview.total), color = MaterialTheme.colorScheme.error)
             }
         }
         if (overview.accounts.isEmpty()) item { EmptyState("点击右上角＋新增账户") }
         items(overview.accounts, key = { it.account.id }) { row ->
             OutlinedCard(onClick = { onOpen(row.account.id) }, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.fillMaxWidth().padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         val name: @Composable () -> Unit = {
                             Text(row.account.name, style = MaterialTheme.typography.titleLarge,
@@ -64,21 +63,25 @@ private fun missingText(total: ConvertedTotal): String = total.missing.map {
                             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End,
                                 verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(totalText(row.total), style = MaterialTheme.typography.titleMedium)
-                                Text("可用现金 " + totalText(row.cash), style = MaterialTheme.typography.bodySmall)
                             }
                         }
                         if (maxWidth < 300.dp || LocalDensity.current.fontScale > 1.3f) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                                 name()
                                 amount()
                             }
-                        } else Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Box(Modifier.weight(1f)) { name() }
                             Box(Modifier.weight(1.3f)) { amount() }
                         }
                     }
                     if (!row.total.complete) Text("部分汇总 · " + missingText(row.total), color = MaterialTheme.colorScheme.error)
-                    if (row.account.note.isNotEmpty()) Text(row.account.note, style = MaterialTheme.typography.bodySmall)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(row.account.note, Modifier.weight(1f).alignByBaseline(), style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("可用现金 " + totalText(row.cash), Modifier.weight(1.3f).alignByBaseline(),
+                            style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
+                    }
                 }
             }
         }
@@ -99,8 +102,8 @@ private fun missingText(total: ConvertedTotal): String = total.missing.map {
         Field("备注", state.note, vm::changeNote, enabled = submission.editable)
         Text("现金余额", style = MaterialTheme.typography.titleMedium)
         state.rows.forEach { row ->
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
                         CurrencyChoice(row.currency.code, { vm.changeRow(row.key, currency = Currency.of(it)) },
                             submission.editable && !row.locked, Currency.supported.map { it.code to it.name },

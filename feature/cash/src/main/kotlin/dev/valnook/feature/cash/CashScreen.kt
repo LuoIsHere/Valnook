@@ -15,27 +15,23 @@ import dev.valnook.core.designsystem.R
 import dev.valnook.domain.model.*
 import java.time.*
 
-@Composable fun CashScreen(vm:CashViewModel,on_open:(String)->Unit={},on_form:()->Unit) {
+@Composable fun CashScreen(vm:CashViewModel,on_open:(String)->Unit) {
     val state by vm.balances.collectAsStateWithLifecycle()
     when (val current = state) {
         CashBalancesState.Loading -> CircularProgressIndicator()
         CashBalancesState.Failed -> Text("余额读取失败，请返回后重试")
-        is CashBalancesState.Ready -> CashContent(current.rows,{on_form()},{on_open(it.currency.code)})
+        is CashBalancesState.Ready -> CashContent(current.rows) { on_open(it.currency.code) }
     }
 }
-@Composable fun CashContent(rows:List<CashBalance>,on_edit:(CashBalance?)->Unit,
-    on_open:(CashBalance)->Unit={on_edit(it)}) {
-    LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(Space.md)) {
+@Composable fun CashContent(rows:List<CashBalance>,on_open:(CashBalance)->Unit) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
         items(rows,key={it.currency.code}) {cash->
             val history_label=stringResource(R.string.cash_changes)+" · "+cash.currency.code
             OutlinedCard(onClick={on_open(cash)},modifier=Modifier.fillMaxWidth()
                 .semantics{contentDescription=history_label}) {
-                CashBalanceSummary(cash.currency,cash.balance_minor){on_edit(cash)}
+                CashBalanceSummary(cash.currency,cash.balance_minor,null)
             }
-        }
-        if(rows.size<Currency.supported.size)item{
-            Button(onClick={on_edit(null)},modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.add_currency_account))}
         }
     }
 }
@@ -56,11 +52,11 @@ import java.time.*
     val entries = ledger.rows
     val currency=Currency.of(code)
     val balance=balances.firstOrNull{it.currency.code==code}
-    LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(Space.md)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         item{
             OutlinedCard(Modifier.fillMaxWidth()){
                 if (balance == null) Text("该币种现金账户尚未建立", Modifier.padding(Space.md))
-                else CashBalanceSummary(currency,balance.balance_minor,on_edit={{on_form()}})
+                else CashBalanceSummary(currency,balance.balance_minor,on_edit=on_form)
             }
         }
         item{Text(stringResource(R.string.cash_changes),style=MaterialTheme.typography.titleLarge)}

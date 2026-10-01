@@ -37,15 +37,25 @@ class AssetValuationTest {
         decimal("700", AssetValuation.calculate(snapshot("7.0")).realized.amount)
         assertEquals("100", snapshot().positions.first().realizedProfit)
     }
-    @Test fun missing_base_pair_and_cost_are_distinct() {
+    @Test fun missing_base_and_cost_stay_distinct_with_default_exchange_rates() {
         val base = AssetValuation.calculate(snapshot().copy(settings = AppSettings()))
         assertNull(base.total.currency); assertTrue(base.total.missing.any { it.kind == MissingKind.BASE_CURRENCY })
         val pair = AssetValuation.calculate(snapshot().copy(settings = AppSettings(cny)))
-        assertTrue(pair.total.missing.any { it.kind == MissingKind.EXCHANGE_RATE })
+        assertTrue(pair.total.complete); decimal("3600", pair.total.amount)
         val cost = AssetValuation.calculate(snapshot().copy(positions = listOf(position(1, cost = null))))
         assertTrue(cost.total.complete); assertFalse(cost.floating.complete); assertTrue(cost.realized.complete)
         val switched = AssetValuation.calculate(snapshot().copy(settings = snapshot().settings.copy(baseCurrency = Currency.of("HKD"))))
-        assertFalse(switched.total.complete)
+        assertTrue(switched.total.complete); decimal("3600", switched.total.amount)
+    }
+    @Test fun default_one_applies_to_cash_deposits_market_and_profits_until_a_pair_is_set() {
+        val input = snapshot().copy(settings = AppSettings(cny), positions = listOf(position(1, cost = "800")))
+        val result = AssetValuation.calculate(input)
+        assertTrue(result.total.complete); assertTrue(result.floating.complete); assertTrue(result.realized.complete)
+        decimal("3600", result.total.amount); decimal("1600", result.cash.amount)
+        decimal("1000", result.investmentValue.amount); decimal("200", result.floating.amount); decimal("100", result.realized.amount)
+        val configured = AssetValuation.calculate(input.copy(settings = snapshot().settings))
+        decimal("16620", configured.total.amount); decimal("1440", configured.floating.amount); decimal("720", configured.realized.amount)
+        assertEquals("800", input.positions.single().remainingCost)
     }
     @Test fun zero_values_need_no_fx_and_closed_history_stays_in_totals() {
         val initial = snapshot().copy(positions = listOf(position(1, 0, "0")))
@@ -83,6 +93,23 @@ class AssetValuationTest {
         val result = AssetValuation.calculate(snapshot().copy(positions = listOf(first, second)))
         decimal("18000", result.investmentValue.amount)
         assertTrue(result.investmentValue.complete)
+    }
+    @Test fun current_market_totals_exclude_realized_profit_and_closed_positions() {
+        val positions = listOf(position(1, 100000000, "80", "20"),
+            position(1, 0, "0", "500").copy(id = 3), position(2, 0, "0", "700"))
+            .map { it.copy(instrumentId = 7) }
+        val input = snapshot().copy(cash = emptyList(), deposits = emptyList(), positions = positions,
+            instruments = listOf(Instrument(7, "QQQ", "QQQ", 1, "ETF", usd, 10000000, true, 1, 0)))
+        val result = AssetValuation.calculate(input)
+        decimal("720", result.investmentValue.amount); decimal("720", result.total.amount)
+        decimal("720", result.accounts.first().investmentValue.amount)
+        decimal("0", result.accounts.last().investmentValue.amount)
+        decimal("8784", result.realized.amount)
+        val summary = AssetValuation.instrumentSummaries(input).single()
+        decimal("100", summary.marketValue); decimal("1220", summary.realized!!)
+        val cleared = input.copy(positions = positions.map { it.copy(holding_quantity_e8 = 0, remainingCost = "0") })
+        decimal("0", AssetValuation.calculate(cleared).investmentValue.amount)
+        decimal("8784", AssetValuation.calculate(cleared).realized.amount)
     }
     @Test fun shared_instrument_totals_include_closed_history_and_unused_catalog_items() {
         val instrument = Instrument(7, "QQQ", "QQQ", 1, "ETF", usd, 18000000, true, 1, 0)

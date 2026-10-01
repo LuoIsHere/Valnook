@@ -46,7 +46,7 @@ import java.time.LocalDate
     val rows=listOf(
         stringResource(R.string.entry_account) to account_name,
         stringResource(R.string.principal) to (Decimal.format_display(deposit.principal_minor,currency.fraction_digits)+" "+currency.code),
-        stringResource(R.string.currency) to (currency.code+" · "+currency.name),
+        stringResource(R.string.currency) to currency.code,
         stringResource(R.string.rate) to Decimal.format_e8(deposit.annual_rate_percent_e8),
         stringResource(R.string.start_date) to LocalDate.ofEpochDay(deposit.start_epoch_day).toString(),
         stringResource(R.string.end_date) to LocalDate.ofEpochDay(deposit.end_epoch_day).toString(),

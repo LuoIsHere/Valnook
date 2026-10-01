@@ -39,7 +39,7 @@ import java.time.format.DateTimeFormatter
         stringResource(R.string.quantity) to Decimal.format_e8(trade.quantity_e8),
         stringResource(R.string.execution_price) to (Decimal.format_e8(trade.execution_price_e8)+" "+trade.currency.code),
         stringResource(R.string.trade_amount) to (Decimal.format_display(trade.amount_minor,trade.currency.fraction_digits)+" "+trade.currency.code),
-        stringResource(R.string.currency) to (trade.currency.code+" · "+trade.currency.name),
+        stringResource(R.string.currency) to trade.currency.code,
         stringResource(R.string.trade_date) to time.toLocalDate().toString(),
         stringResource(R.string.record_time) to time.format(DateTimeFormatter.ofPattern("HH:mm")),
         stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))

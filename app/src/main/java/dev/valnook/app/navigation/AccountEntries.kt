@@ -34,7 +34,7 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
                 when (tab) {
                     0 -> {
                         val vm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle()) }
-                        CashScreen(vm, { open(CashKey(route.id, it)) }) { open(AccountEditKey(route.id)) }
+                        CashScreen(vm) { open(CashKey(route.id, it)) }
                     }
                     1 -> {
                         val vm = pageViewModel { DepositsViewModel(route.id, false, graph.depositPages, graph.clock) }

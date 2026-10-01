@@ -1,11 +1,11 @@
 package dev.valnook.app.navigation
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
@@ -16,7 +16,8 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.*
 import androidx.navigation3.ui.NavDisplay
 import dev.valnook.app.di.AppGraph
-import dev.valnook.designsystem.TopBarAction
+import dev.valnook.designsystem.*
+import dev.valnook.domain.model.AppSettings
 import dev.valnook.feature.settings.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -25,6 +26,12 @@ import dev.valnook.feature.settings.*
     val stack = rememberNavBackStack(InvestmentsKey, SettingsKey, AccountsKey)
     val current = stack.last()
     val accounts by remember(graph) { graph.accounts.observe_accounts() }.collectAsStateWithLifecycle(emptyList())
+    val settings by remember(graph) { graph.settings.observeSettings() }.collectAsStateWithLifecycle(AppSettings())
+    val pickerRates = remember(settings) {
+        val base = settings.baseCurrency?.code
+        CurrencyPickerRates(base, settings.rates.filter { it.targetCurrency.code == base }
+            .associate { it.sourceCurrency.code to it.rate.stripTrailingZeros().toPlainString() })
+    }
     val accountName: (Long) -> String = { id -> accounts.firstOrNull { it.id == id }?.name.orEmpty() }
     val open: (NavKey) -> Unit = { key -> if (stack.last() != key) stack.add(key) }
     val selectRoot: (NavKey) -> Unit = { key ->
@@ -45,52 +52,50 @@ import dev.valnook.feature.settings.*
         is AccountEditKey -> "编辑账户"
         is InstrumentLibraryKey, is AccountInvestmentsKey -> "所有投资品"
         is InstrumentKey -> "标的详情"
+        is AccountInstrumentKey -> accountName(current.accountId)
         else -> "Valnook"
     }
     val offset = with(LocalDensity.current) { 16.dp.roundToPx() }
     val barHeight = (64f * LocalDensity.current.fontScale.coerceAtLeast(1f)).dp
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(title, maxLines = 2) }, expandedHeight = barHeight, navigationIcon = {
-            if (!current.isRoot()) TopBarAction("返回", back)
-        }, actions = {
-            when (current) {
-                AccountsKey -> IconButton({ open(AccountEditKey()) }, Modifier.semantics { contentDescription = "新增账户" }) { Text("＋") }
-                is AccountKey -> TopBarAction("编辑", { open(AccountEditKey(current.id)) })
-                else -> Unit
-            }
-        })
-    }, bottomBar = {
-        if (current.isRoot()) Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)) {
-            Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceContainer,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), tonalElevation = 2.dp,
-                modifier = Modifier.fillMaxWidth().testTag("root-capsule")) {
-                Row(Modifier.padding(6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    listOf(AccountsKey to "账户", InvestmentsKey to "投资", SettingsKey to "设置").forEach { (key, label) ->
-                        val selected = current == key
-                        TextButton({ selectRoot(key) }, Modifier.weight(1f).heightIn(min = 48.dp).semantics { this.selected = selected },
-                            shape = RoundedCornerShape(50), colors = ButtonDefaults.textButtonColors(
-                                containerColor = if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)) {
-                            Text(label)
-                        }
-                    }
+    val density = LocalDensity.current
+    val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
+    val showCapsule = current.isRoot() && !keyboardOpen
+    var overlayHeightPx by remember { mutableIntStateOf(0) }
+    val systemBottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+    val bottomSpace = if (showCapsule) with(density) { overlayHeightPx.toDp() } else systemBottom
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
+            TopAppBar(title = { Text(title, maxLines = 2) }, expandedHeight = barHeight, navigationIcon = {
+                if (!current.isRoot()) TopBarAction("返回", back)
+            }, actions = {
+                when (current) {
+                    AccountsKey -> IconButton({ open(AccountEditKey()) }, Modifier.semantics { contentDescription = "新增账户" }) { Text("＋") }
+                    InvestmentsKey -> IconButton({ open(InstrumentLibraryKey) }, Modifier.semantics { contentDescription = "所有投资品" }) { MenuIcon() }
+                    is AccountKey -> TopBarAction("编辑", { open(AccountEditKey(current.id)) })
+                    else -> Unit
+                }
+            })
+        }) { padding ->
+            // Only top/horizontal insets shrink the viewport. Bottom space belongs inside lists/forms.
+            CompositionLocalProvider(LocalPageBottomSpace provides bottomSpace, LocalCurrencyPickerRates provides pickerRates) {
+                Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).testTag("page-viewport")) {
+                    NavDisplay(backStack = stack, onBack = back, sizeTransform = null,
+                        entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
+                        transitionSpec = { NavigationMotion.forward(offset) }, popTransitionSpec = { NavigationMotion.back(offset) },
+                        predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
+                            accountEntries(graph, open, back)
+                            investmentEntries(graph, open, back, accountName)
+                            ledgerEntries(graph, open, back, accountName)
+                            entry<SettingsKey> {
+                                val vm = pageViewModel { SettingsViewModel(graph.settings, createSavedStateHandle()) }
+                                SettingsScreen(vm)
+                            }
+                        })
                 }
             }
         }
-    }) { padding ->
-        // Scaffold supplies measured capsule height plus system inset, exactly once.
-        Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {
-            NavDisplay(backStack = stack, onBack = back, sizeTransform = null,
-                entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
-                transitionSpec = { NavigationMotion.forward(offset) }, popTransitionSpec = { NavigationMotion.back(offset) },
-                predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
-                    accountEntries(graph, open, back)
-                    investmentEntries(graph, open, back, accountName)
-                    ledgerEntries(graph, open, back, accountName)
-                    entry<SettingsKey> {
-                        val vm = pageViewModel { SettingsViewModel(graph.settings, createSavedStateHandle()) }
-                        SettingsScreen(vm)
-                    }
-                })
-        }
+        if (showCapsule) FloatingNavigationBar(current, selectRoot,
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
+                .testTag("floating-navigation-overlay"))
     }
 }

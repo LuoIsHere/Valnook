@@ -1,6 +1,5 @@
 package dev.valnook.feature.deposits
 
-import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,14 +27,11 @@ import java.time.LocalDate
             DateField("结束日期", state.endDate.toString(), { value -> vm.update { it.copy(endDate = LocalDate.parse(value)) } }, submission.editable)
         } else Text("本金 " + state.principalInput + " " + state.currency.code)
         Text("预计利息 " + (vm.preview() ?: "—") + " " + state.currency.code)
-        Row {
-            Checkbox(state.cashLinked, { value -> vm.update { it.copy(cashLinked = value) } }, enabled = submission.editable)
-            Text(if (vm.mode == DepositFormMode.CLOSE) "结算回款联动现金" else "开立扣款联动现金")
-        }
-        if (vm.mode == DepositFormMode.EDIT && state.closeCashLinked != null) Row {
-            Checkbox(state.closeCashLinked == true, { value -> vm.update { it.copy(closeCashLinked = value) } }, enabled = submission.editable)
-            Text("结算回款联动现金")
-        }
+        CheckboxRow(if (vm.mode == DepositFormMode.CLOSE) "结算回款联动现金" else "开立扣款联动现金",
+            state.cashLinked, { value -> vm.update { it.copy(cashLinked = value) } }, enabled = submission.editable)
+        if (vm.mode == DepositFormMode.EDIT && state.closeCashLinked != null)
+            CheckboxRow("结算回款联动现金", state.closeCashLinked == true,
+                { value -> vm.update { it.copy(closeCashLinked = value) } }, enabled = submission.editable)
         Text("仅勾选的现金联动会改变本账户对应币种余额")
         vm.cashImpactPreview()?.let { Text("本次该账户现金变化 " + it) }
         ErrorMessage(submission.error?.name)
