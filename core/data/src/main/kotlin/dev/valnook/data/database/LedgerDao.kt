@@ -25,6 +25,8 @@ interface LedgerDao {
     fun deposits(account_id: Long, limit: Int, status:String): Flow<List<DepositEntity>>
     @Query("SELECT id,savings_account_id,currency_code,principal_minor,annual_rate_percent_e8,start_epoch_day,end_epoch_day,interest_rule,calculation_version,rounding_mode,expected_interest_minor,status,open_cash_linked,close_cash_linked,open_operation_id,close_operation_id,closed_at_ms,created_at_ms,updated_at_ms,revision FROM term_deposits WHERE id=:id")
     suspend fun deposit(id: Long): DepositEntity?
+    @Query("SELECT * FROM term_deposits WHERE savings_account_id=:account_id AND id=:id")
+    fun observe_deposit(account_id: Long, id: Long): Flow<DepositEntity?>
     @Insert suspend fun insert_deposit(value: DepositEntity): Long
     @Query("UPDATE term_deposits SET revision=revision+1,status='CLOSED',close_cash_linked=:linked,close_operation_id=:operation_id,closed_at_ms=:now,updated_at_ms=:now WHERE id=:id AND status='OPEN'")
     suspend fun close_deposit(id: Long, linked: Boolean, operation_id: String, now: Long): Int
@@ -62,12 +64,16 @@ interface LedgerDao {
     @Insert suspend fun insert_trade(value: TradeEntity): Long
     @Query("SELECT id,investment_id,operation_id,direction,quantity_e8,execution_price_e8,amount_minor,currency_code,cash_linked,occurred_at_ms,created_at_ms,revision,is_deleted,updated_at_ms FROM investment_trades WHERE id=:id")
     suspend fun trade(id: Long): TradeEntity?
+    @Query("SELECT t.* FROM investment_trades t INNER JOIN investments i ON i.id=t.investment_id WHERE i.savings_account_id=:account_id AND t.id=:id AND t.is_deleted=0")
+    fun observe_trade(account_id: Long, id: Long): Flow<TradeEntity?>
     @Query("UPDATE investment_trades SET direction=:direction,quantity_e8=:quantity,execution_price_e8=:price,amount_minor=:amount,cash_linked=:linked,occurred_at_ms=:occurred,revision=revision+1,updated_at_ms=:now WHERE id=:id AND revision=:old_revision AND is_deleted=0")
     suspend fun edit_trade(id: Long, old_revision: Long, direction: String, quantity: Long, price: Long, amount: Long, linked: Boolean, occurred: Long, now: Long): Int
     @Query("UPDATE investment_trades SET is_deleted=1,revision=revision+1,updated_at_ms=:now WHERE id=:id AND revision=:old_revision AND is_deleted=0")
     suspend fun delete_trade(id: Long, old_revision: Long, now: Long): Int
     @Query("SELECT e.id,e.original_operation_id,e.savings_account_id,e.currency_code,e.source_kind,e.source_id,e.delta_minor,e.occurred_at_ms,e.note,e.revision,e.is_deleted,e.created_at_ms,e.updated_at_ms,t.investment_id FROM cash_entries e LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id WHERE e.savings_account_id=:account_id AND e.currency_code=:code AND e.is_deleted=0 ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :limit")
     fun cash_entries(account_id: Long, code: String, limit: Int): Flow<List<CashEntryWithSource>>
+    @Query("SELECT e.*,t.investment_id FROM cash_entries e LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id WHERE e.savings_account_id=:account_id AND e.id=:entry_id AND e.is_deleted=0")
+    fun observe_cash_entry(account_id: Long, entry_id: Long): Flow<CashEntryWithSource?>
     @Query("SELECT id,original_operation_id,savings_account_id,currency_code,source_kind,source_id,delta_minor,occurred_at_ms,note,revision,is_deleted,created_at_ms,updated_at_ms FROM cash_entries WHERE id=:id")
     suspend fun cash_entry(id: Long): CashEntryEntity?
     @Query("SELECT id,original_operation_id,savings_account_id,currency_code,source_kind,source_id,delta_minor,occurred_at_ms,note,revision,is_deleted,created_at_ms,updated_at_ms FROM cash_entries WHERE source_kind=:kind AND source_id=:source_id")

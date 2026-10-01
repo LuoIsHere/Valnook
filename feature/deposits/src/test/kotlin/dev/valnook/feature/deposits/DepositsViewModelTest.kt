@@ -18,6 +18,7 @@ class DepositsViewModelTest {
             LocalDate.parse("2026-04-01").toEpochDay(),7397,true,true,true,4)
         val repo=object:DepositRepository {
             override suspend fun get_deposit(id:Long)=deposit
+            override fun observe_deposit(account_id:Long,id:Long)=flowOf<TermDeposit?>(deposit)
             override fun observe_deposits(account_id:Long,limit:Int,closed:Boolean)=flowOf(emptyList<TermDeposit>())
         }
         val requests=mutableListOf<FinancialCommand>()
@@ -33,7 +34,7 @@ class DepositsViewModelTest {
     }
     @Test fun opening_preview_matches_committed_inputs_and_link_defaults_off()=runTest(dispatcher) {
         val captured=mutableListOf<FinancialCommand>()
-        val repo=object:DepositRepository{override suspend fun get_deposit(id:Long):TermDeposit?=null;override fun observe_deposits(account_id:Long,limit:Int,closed:Boolean)=flowOf(emptyList<TermDeposit>())}
+        val repo=object:DepositRepository{override suspend fun get_deposit(id:Long):TermDeposit?=null;override fun observe_deposit(account_id:Long,id:Long)=flowOf<TermDeposit?>(null);override fun observe_deposits(account_id:Long,limit:Int,closed:Boolean)=flowOf(emptyList<TermDeposit>())}
         val command=object:FinancialCommands{override suspend fun execute(command:FinancialCommand):OperationResult{
             captured+=command;return OperationResult("TERM",1)}}
         val vm=DepositsViewModel(1,repo,command,Clock.fixed(Instant.parse("2026-09-30T12:00:00Z"),ZoneOffset.UTC),SavedStateHandle())
@@ -44,7 +45,7 @@ class DepositsViewModelTest {
     @Test fun refreshing_midnight_changes_today_without_financial_command()=runTest(dispatcher) {
         var instant=Instant.parse("2026-09-30T23:59:59Z")
         val clock=object:Clock(){override fun getZone()=ZoneOffset.UTC;override fun withZone(zone:ZoneId)=this;override fun instant()=instant}
-        val repo=object:DepositRepository{override suspend fun get_deposit(id:Long):TermDeposit?=null;override fun observe_deposits(account_id:Long,limit:Int,closed:Boolean)=flowOf(emptyList<TermDeposit>())}
+        val repo=object:DepositRepository{override suspend fun get_deposit(id:Long):TermDeposit?=null;override fun observe_deposit(account_id:Long,id:Long)=flowOf<TermDeposit?>(null);override fun observe_deposits(account_id:Long,limit:Int,closed:Boolean)=flowOf(emptyList<TermDeposit>())}
         val command=object:FinancialCommands{override suspend fun execute(command:FinancialCommand):OperationResult=error("must not execute")}
         val vm=DepositsViewModel(1,repo,command,clock,SavedStateHandle());val before=vm.today.value
         instant=instant.plusSeconds(2);vm.refresh_today();assertEquals(before+1,vm.today.value);runCurrent()

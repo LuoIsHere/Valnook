@@ -13,9 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.core.designsystem.R
 import dev.valnook.domain.model.*
-import dev.valnook.domain.money.DecimalRules as Decimal
 import java.time.*
-import java.time.format.DateTimeFormatter
 
 @Composable fun CashScreen(vm:CashViewModel,on_open:(String)->Unit={},on_form:()->Unit) {
     val rows by vm.balances.collectAsStateWithLifecycle()
@@ -37,7 +35,7 @@ import java.time.format.DateTimeFormatter
         }
     }
 }
-@Composable fun CashDetail(vm:CashViewModel,code:String,on_form:()->Unit,on_source:(CashEntry)->Unit) {
+@Composable fun CashDetail(vm:CashViewModel,code:String,on_form:()->Unit,on_entry:(Long)->Unit) {
     val balances by vm.balances.collectAsStateWithLifecycle()
     val entries by vm.entries.collectAsStateWithLifecycle()
     LaunchedEffect(code){vm.watch_currency(code)}
@@ -58,21 +56,7 @@ import java.time.format.DateTimeFormatter
             Column(verticalArrangement=Arrangement.spacedBy(Space.sm)) {
                 if(previous_date!=time.toLocalDate())Text(time.toLocalDate().toString(),
                     style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
-                        Text((if(entry.delta_minor>0)"+" else "")+Decimal.format_display(entry.delta_minor,currency.fraction_digits)+" "+currency.code,
-                            style=MaterialTheme.typography.titleLarge.copy(fontFeatureSettings="tnum"))
-                        Text(stringResource(when(entry.source_kind){"TRADE"->R.string.source_trade;"TERM_OPEN"->R.string.source_deposit_open;
-                            "TERM_CLOSE"->R.string.source_deposit_close;else->R.string.manual_balance_change})+
-                            " · "+time.format(DateTimeFormatter.ofPattern("HH:mm")),style=MaterialTheme.typography.bodyMedium)
-                        if(entry.note.isNotBlank())Text(entry.note,style=MaterialTheme.typography.bodyMedium)
-                        if(entry.editable)ActionButton(onClick={vm.begin_entry(entry);on_form()}){Text(stringResource(R.string.edit_cash_change))}
-                        else if(entry.source_kind=="TRADE")ActionButton(onClick={on_source(entry)}){Text(stringResource(R.string.view_source_trade))}
-                        else if(entry.source_kind in listOf("TERM_OPEN","TERM_CLOSE"))ActionButton(onClick={on_source(entry)}){Text(stringResource(R.string.view_source_deposit))}
-                        else Text(stringResource(R.string.source_deposit_hint),style=MaterialTheme.typography.bodySmall,
-                            color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+                CashEntryItem(entry){on_entry(entry.id)}
             }
         }
         if(entries.size>=50)item{TextButton(onClick=vm::load_more_entries){Text(stringResource(R.string.load_more))}}

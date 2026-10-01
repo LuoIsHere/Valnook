@@ -29,6 +29,9 @@ import dev.valnook.domain.model.InvestmentSection
 @Serializable data class AccountKey(val id:Long):NavKey
 @Serializable data class AssetKey(val account_id:Long,val id:Long):NavKey
 @Serializable data class CashKey(val account_id:Long,val currency:String):NavKey
+@Serializable data class CashEntryKey(val account_id:Long,val entry_id:Long):NavKey
+@Serializable data class TradeDetailKey(val account_id:Long,val trade_id:Long):NavKey
+@Serializable data class DepositDetailKey(val account_id:Long,val deposit_id:Long):NavKey
 @Serializable data class TradeEditKey(val account_id:Long,val trade_id:Long):NavKey
 @Serializable data class DepositEditKey(val account_id:Long,val deposit_id:Long):NavKey
 @Serializable data class PortfolioKey(val account_id:Long,val section:String):NavKey
@@ -41,12 +44,16 @@ import dev.valnook.domain.model.InvestmentSection
     val accounts by accounts_vm.accounts.collectAsStateWithLifecycle()
     val stack=rememberNavBackStack(AccountsKey)
     val current=stack.last()
-    val account_id=when(current){is AccountKey->current.id;is AssetKey->current.account_id;is CashKey->current.account_id;is TradeEditKey->current.account_id;is DepositEditKey->current.account_id;is PortfolioKey->current.account_id;is FormKey->current.account_id;else->0L}
+    val account_id=when(current){is AccountKey->current.id;is AssetKey->current.account_id;is CashKey->current.account_id;is CashEntryKey->current.account_id;is TradeDetailKey->current.account_id;is DepositDetailKey->current.account_id;is TradeEditKey->current.account_id;is DepositEditKey->current.account_id;is PortfolioKey->current.account_id;is FormKey->current.account_id;else->0L}
     val account=accounts.firstOrNull{it.id==account_id}
     val back:()->Unit={if(stack.size>1)stack.removeAt(stack.lastIndex)}
+    val transition_offset=with(LocalDensity.current){16.dp.roundToPx()}
     PageScaffold(account?.name ?: stringResource(R.string.app_name),current!=AccountsKey,back,
         if(current is AccountKey&&account!=null) ({accounts_vm.begin(account);stack.add(FormKey("accounts",account_id))}) else null) {
-        NavDisplay(backStack=stack,onBack=back,entryProvider=entryProvider {
+        NavDisplay(backStack=stack,onBack=back,sizeTransform=null,
+            transitionSpec={NavigationMotion.forward(transition_offset)},
+            popTransitionSpec={NavigationMotion.back(transition_offset)},
+            predictivePopTransitionSpec={NavigationMotion.no_preview()},entryProvider=entryProvider {
             entry<AccountsKey> {AccountsScreen(accounts_vm,{stack.add(AccountKey(it))},{stack.add(FormKey("accounts",0))})}
             entry<AccountKey> { route ->
                 val cash_vm:CashViewModel=viewModel(viewModelStoreOwner=owner,key="cash-${route.id}",factory=viewModelFactory {
@@ -66,7 +73,8 @@ import dev.valnook.domain.model.InvestmentSection
                     holder.SaveableStateProvider(tab) {
                         when(tab) {
                             0->CashScreen(cash_vm,{stack.add(CashKey(route.id,it))}){stack.add(FormKey("cash",route.id))}
-                            1->DepositsScreen(deposit_vm,{stack.add(FormKey("deposits",route.id))},{stack.add(PortfolioKey(route.id,"SETTLED"))})
+                            1->DepositsScreen(deposit_vm,{stack.add(FormKey("deposits",route.id))},
+                                {stack.add(DepositDetailKey(route.id,it))},{stack.add(PortfolioKey(route.id,"SETTLED"))})
                             else->InvestmentsScreen(investment_vm,{stack.add(AssetKey(route.id,it))},{stack.add(FormKey("investments",route.id))},
                                 {stack.add(PortfolioKey(route.id,it.name))})
                         }
@@ -77,7 +85,7 @@ import dev.valnook.domain.model.InvestmentSection
                 if(route.section=="SETTLED") {
                     val vm:DepositsViewModel=viewModel(viewModelStoreOwner=owner,key="deposit-${route.account_id}",factory=viewModelFactory {
                         initializer{DepositsViewModel(route.account_id,graph.deposits,graph.commands,graph.clock,createSavedStateHandle())}})
-                    DepositsScreen(vm,{stack.add(FormKey("deposits",route.account_id))},closed=true)
+                    DepositsScreen(vm,{stack.add(FormKey("deposits",route.account_id))},{stack.add(DepositDetailKey(route.account_id,it))},closed=true)
                 } else {
                     val vm:InvestmentsViewModel=viewModel(viewModelStoreOwner=owner,key="investment-${route.account_id}",factory=viewModelFactory {
                         initializer{InvestmentsViewModel(route.account_id,graph.investments,graph.commands,graph.clock,createSavedStateHandle())}})
@@ -88,13 +96,46 @@ import dev.valnook.domain.model.InvestmentSection
             entry<AssetKey> {route->
                 val vm:InvestmentsViewModel=viewModel(viewModelStoreOwner=owner,key="investment-${route.account_id}",factory=viewModelFactory {
                     initializer{InvestmentsViewModel(route.account_id,graph.investments,graph.commands,graph.clock,createSavedStateHandle())}})
-                InvestmentDetail(vm,route.id){stack.add(FormKey("investments",route.account_id))}
+                InvestmentDetail(vm,route.id,{stack.add(TradeDetailKey(route.account_id,it))}){stack.add(FormKey("investments",route.account_id))}
+            }
+            entry<TradeDetailKey> {route->
+                val detail_vm:TradeDetailViewModel=viewModel(viewModelStoreOwner=owner,key="trade-detail-${route.account_id}-${route.trade_id}",factory=viewModelFactory {
+                    initializer{TradeDetailViewModel(route.account_id,route.trade_id,graph.investments)}})
+                val edit_vm:InvestmentsViewModel=viewModel(viewModelStoreOwner=owner,key="investment-${route.account_id}",factory=viewModelFactory {
+                    initializer{InvestmentsViewModel(route.account_id,graph.investments,graph.commands,graph.clock,createSavedStateHandle())}})
+                TradeDetailScreen(detail_vm,accounts.firstOrNull{it.id==route.account_id}?.name.orEmpty(),
+                    {asset,trade->edit_vm.begin("EDIT_TRADE",asset,trade=trade);stack.add(FormKey("investments",route.account_id))},
+                    {asset,trade->edit_vm.begin("DELETE_TRADE",asset,trade=trade);stack.add(FormKey("investments",route.account_id))})
+            }
+            entry<DepositDetailKey> {route->
+                val detail_vm:DepositDetailViewModel=viewModel(viewModelStoreOwner=owner,key="deposit-detail-${route.account_id}-${route.deposit_id}",factory=viewModelFactory {
+                    initializer{DepositDetailViewModel(route.account_id,route.deposit_id,graph.deposits,graph.clock)}})
+                val edit_vm:DepositsViewModel=viewModel(viewModelStoreOwner=owner,key="deposit-${route.account_id}",factory=viewModelFactory {
+                    initializer{DepositsViewModel(route.account_id,graph.deposits,graph.commands,graph.clock,createSavedStateHandle())}})
+                DepositDetailScreen(detail_vm,accounts.firstOrNull{it.id==route.account_id}?.name.orEmpty(),
+                    {edit_vm.begin_edit(it);stack.add(FormKey("deposits",route.account_id))},
+                    {edit_vm.begin(it);stack.add(FormKey("deposits",route.account_id))})
             }
             entry<CashKey> {route->
                 val vm:CashViewModel=viewModel(viewModelStoreOwner=owner,key="cash-${route.account_id}",factory=viewModelFactory {
                     initializer{CashViewModel(route.account_id,graph.cash,graph.commands,createSavedStateHandle(),graph.clock)}})
-                CashDetail(vm,route.currency,{stack.add(FormKey("cash",route.account_id))},{entry->
-                    entry.source_id?.let{stack.add(if(entry.source_kind=="TRADE")TradeEditKey(route.account_id,it) else DepositEditKey(route.account_id,it))}
+                CashDetail(vm,route.currency,{stack.add(FormKey("cash",route.account_id))},{id->
+                    stack.add(CashEntryKey(route.account_id,id))
+                })
+            }
+            entry<CashEntryKey> {route->
+                val detail_vm:CashEntryViewModel=viewModel(viewModelStoreOwner=owner,key="cash-entry-${route.account_id}-${route.entry_id}",factory=viewModelFactory {
+                    initializer{CashEntryViewModel(route.account_id,route.entry_id,graph.cash)}})
+                val cash_vm:CashViewModel=viewModel(viewModelStoreOwner=owner,key="cash-${route.account_id}",factory=viewModelFactory {
+                    initializer{CashViewModel(route.account_id,graph.cash,graph.commands,createSavedStateHandle(),graph.clock)}})
+                CashEntryDetailScreen(detail_vm,accounts.firstOrNull{it.id==route.account_id}?.name.orEmpty(),{entry->
+                    if(entry.editable){cash_vm.begin_entry(entry);stack.add(FormKey("cash",route.account_id))}
+                    else entry.source_id?.let {
+                        when(entry.source_kind) {
+                            "TRADE"->stack.add(TradeEditKey(route.account_id,it))
+                            "TERM_OPEN","TERM_CLOSE"->stack.add(DepositEditKey(route.account_id,it))
+                        }
+                    }
                 })
             }
             entry<TradeEditKey> {route->
@@ -143,8 +184,8 @@ import dev.valnook.domain.model.InvestmentSection
 @Composable private fun PageScaffold(title:String,can_back:Boolean,on_back:()->Unit,on_edit:(()->Unit)?,content:@Composable ()->Unit) {
     val bar_height=(64f*LocalDensity.current.fontScale.coerceAtLeast(1f)).dp
     Scaffold(topBar={TopAppBar(title={Text(title,maxLines=2)},expandedHeight=bar_height,navigationIcon={
-        if(can_back)TextButton(onClick=on_back){Text(stringResource(R.string.back))}
-    },actions={if(on_edit!=null)ActionButton(onClick=on_edit){Text(stringResource(R.string.edit))}})}) {padding->
+        if(can_back)TopBarAction(stringResource(R.string.back),on_back)
+    },actions={if(on_edit!=null)TopBarAction(stringResource(R.string.edit),on_edit)})}) {padding->
         Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding)) {content()}
     }
 }

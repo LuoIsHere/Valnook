@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="cash_entry_detail">流水详情</string>
+    <string name="entry_source">来源</string>
+    <string name="entry_account">所属账户</string>
+    <string name="no_note">无</string>
+    <string name="cash_entry_unavailable">这条流水已删除或已取消现金联动。</string>
+    <string name="cash_entry_load_error">暂时无法读取流水，请重试。</string>
+</resources>

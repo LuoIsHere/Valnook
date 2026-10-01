@@ -4,6 +4,7 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -17,21 +18,21 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.delay
 
-@Composable fun DepositsScreen(vm:DepositsViewModel,on_form:()->Unit,on_archive:()->Unit={},closed:Boolean=false) {
+@Composable fun DepositsScreen(vm:DepositsViewModel,on_form:()->Unit,on_open:(Long)->Unit,on_archive:()->Unit={},closed:Boolean=false) {
     val rows by (if(closed)vm.settled else vm.deposits).collectAsStateWithLifecycle();val today by vm.today.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME){vm.refresh_today()}
     LaunchedEffect(Unit){while(true){delay(30000);vm.refresh_today()}}
-    DepositsContent(rows,today,{vm.begin(it);on_form()},vm::load_more,{vm.begin_edit(it);on_form()},on_archive,closed)
+    DepositsContent(rows,today,{vm.begin(null);on_form()},vm::load_more,on_open,on_archive,closed)
 }
-@Composable fun DepositsContent(rows:List<TermDeposit>,today:Long,on_form:(TermDeposit?)->Unit,on_more:()->Unit,
-    on_edit:((TermDeposit)->Unit)?=null,on_archive:(()->Unit)?=null,closed:Boolean=false) {
+@Composable fun DepositsContent(rows:List<TermDeposit>,today:Long,on_form:()->Unit,on_more:()->Unit,
+    on_open:(Long)->Unit={},on_archive:(()->Unit)?=null,closed:Boolean=false) {
     LazyColumn(contentPadding=PaddingValues(Space.md),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         if(closed)item{Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.titleLarge)}
         else if(on_archive!=null)item{ActionButton(onClick=on_archive,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.settled_deposits))}}
         item{Text(stringResource(R.string.term_formula),style=MaterialTheme.typography.bodyMedium)}
         if(rows.isEmpty())item{EmptyState(stringResource(if(closed)R.string.empty_settled_deposits else R.string.empty_deposits))}
         items(rows,key={it.id}) { d ->
-            Card(Modifier.fillMaxWidth()) {
+            Card(onClick={on_open(d.id)},modifier=Modifier.fillMaxWidth().testTag("deposit-record-${d.id}")) {
                 Column(Modifier.padding(Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
                     AmountText(Decimal.format_display(d.principal_minor,d.currency.fraction_digits),d.currency.code)
                     Text(stringResource(R.string.deposit_detail,Decimal.format_e8(d.annual_rate_percent_e8),
@@ -40,16 +41,12 @@ import kotlinx.coroutines.delay
                     val progress=Decimal.progress(d.start_epoch_day,d.end_epoch_day,today)
                     LinearProgressIndicator(progress={progress.toFloat()},modifier=Modifier.fillMaxWidth())
                     Text(stringResource(R.string.progress_value,progress.multiply(java.math.BigDecimal("100")).toInt()))
-                    Text(stringResource(when {d.closed->R.string.closed;today<d.start_epoch_day->R.string.upcoming;
-                        today>=d.end_epoch_day->R.string.matured;else->R.string.active}))
-                    if(!d.closed&&today>=d.end_epoch_day)
-                        ActionButton(onClick={on_form(d)}){Text(stringResource(R.string.close_deposit))}
-                    if(on_edit!=null)ActionButton(onClick={on_edit(d)}){Text(stringResource(R.string.edit_deposit))}
+                    Text(deposit_status(d,today))
                 }
             }
         }
         if(rows.size>=50)item{TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}}
-        if(!closed)item{Button(onClick={on_form(null)},modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.open_deposit))}}
+        if(!closed)item{Button(onClick=on_form,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.open_deposit))}}
     }
 }
 @Composable fun DepositForm(vm:DepositsViewModel,account:String,on_back:()->Unit,on_reload:(()->Unit)?=null) {

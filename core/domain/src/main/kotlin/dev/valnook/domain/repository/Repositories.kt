@@ -10,13 +10,16 @@ interface AccountRepository {
 interface CashRepository {
     fun observe_cash(account_id: Long): Flow<List<CashBalance>>
     fun observe_entries(account_id: Long, currency_code: String, limit: Int): Flow<List<CashEntry>>
+    fun observe_entry(account_id: Long, entry_id: Long): Flow<CashEntry?>
 }
 interface DepositRepository {
     suspend fun get_deposit(id: Long): TermDeposit?
+    fun observe_deposit(account_id: Long, id: Long): Flow<TermDeposit?>
     fun observe_deposits(account_id: Long, limit: Int, closed: Boolean = false): Flow<List<TermDeposit>>
 }
 interface InvestmentRepository {
     suspend fun get_trade(id: Long): Trade?
+    fun observe_trade(account_id: Long, id: Long): Flow<Trade?>
     fun observe_investment(id: Long): Flow<Investment?>
     fun observe_investments(account_id: Long, limit: Int, section: InvestmentSection = InvestmentSection.HOLDING): Flow<List<Investment>>
     fun observe_profit(id: Long): Flow<InvestmentProfit?>

@@ -13,6 +13,7 @@ class CashViewModelTest {
     private val reads=object:CashRepository{
         override fun observe_cash(account_id:Long)=flowOf(emptyList<CashBalance>())
         override fun observe_entries(account_id:Long,currency_code:String,limit:Int)=flowOf(emptyList<CashEntry>())
+        override fun observe_entry(account_id:Long,entry_id:Long)=flowOf<CashEntry?>(null)
     }
     @Before fun prepare(){Dispatchers.setMain(dispatcher)}
     @After fun close(){Dispatchers.resetMain()}

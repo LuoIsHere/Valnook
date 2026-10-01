@@ -9,6 +9,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
@@ -29,8 +31,11 @@ import dev.valnook.domain.money.DecimalRules as R
 import dev.valnook.designsystem.*
 import dev.valnook.feature.accounts.AccountsContent
 import dev.valnook.feature.cash.CashContent
+import dev.valnook.feature.cash.CashEntryDetailContent
 import dev.valnook.feature.deposits.DepositsContent
+import dev.valnook.feature.deposits.DepositDetailContent
 import dev.valnook.feature.investments.InvestmentCard
+import dev.valnook.feature.investments.TradeDetailContent
 import java.io.File
 import java.time.LocalDate
 import java.util.UUID
@@ -88,6 +93,10 @@ class UiFlowTest {
         rule.onNode(hasScrollAction()).performScrollToNode(hasText(text))
         rule.onNodeWithText(text).performClick()
     }
+    private fun click_record(tag:String) {
+        rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag(tag))
+        rule.onNodeWithTag(tag).performClick()
+    }
     private fun show_scene(name:String,content:@Composable ()->Unit) {
         rule.runOnUiThread {rule.activity.setContent {key(name){content()}}}
     }
@@ -109,6 +118,23 @@ class UiFlowTest {
         assertTrue(bitmap.width>0&&bitmap.height>0)
         if(expected_width!=null)assertEquals(expected_width,bitmap.width)
     }
+    private fun window_shot(name:String,bottom_action:String?=null) {
+        val action=bottom_action?.let{rule.onNodeWithText(it).performScrollTo().assertIsDisplayed()}
+        rule.waitForIdle()
+        rule.waitUntil(5000){rule.runOnUiThread {
+            ViewCompat.getRootWindowInsets(rule.activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime())!=true
+        }}
+        // Platform IME/dialog animations are not driven by Compose's test clock.
+        android.os.SystemClock.sleep(300)
+        val nav_bottom=rule.runOnUiThread {
+            ViewCompat.getRootWindowInsets(rule.activity.window.decorView)!!.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+        }
+        val bitmap=requireNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
+        try {
+            if(action!=null)assertTrue("Action overlaps system navigation",action.fetchSemanticsNode().boundsInWindow.bottom<=bitmap.height-nav_bottom)
+            PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+        }finally{bitmap.recycle()}
+    }
     @Test fun account_navigation_cash_errors_and_rotation_restoration() {
         wait_text("合成账户 A")
         rule.onNodeWithText("合成账户 A").performClick()
@@ -127,24 +153,46 @@ class UiFlowTest {
             R.parse_e8("3"),LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),false))}
         wait_text("合成账户 A");rule.onNodeWithText("合成账户 A").performClick()
         rule.onNodeWithText("定期").performClick();wait_text("已到期，待结算");shot("deposit-matured")
-        rule.onNodeWithText("结束存单").performClick()
+        rule.onNodeWithText("结束存单").assertDoesNotExist()
+        rule.onNodeWithText("修改存单记录").assertDoesNotExist()
+        click_record("deposit-record-1");wait_text("存单详情");shot("deposit-record-detail")
+        click_list("修改存单记录")
+        rule.onNodeWithText("年利率（%）").performTextReplacement("6")
+        save();wait_text("存单详情");wait_text("147.95 CNY")
+        rule.activityRule.scenario.recreate();wait_text("存单详情");wait_text("147.95 CNY")
+        click_list("结束存单")
         rule.onNode(isToggleable()).assertIsOff().performClick().assertIsOn()
         shot("deposit-link-confirmation")
-        save();wait_text("已结算")
+        save();wait_text("存单详情");wait_text("已结束")
+        rule.onNodeWithText("结束存单").assertDoesNotExist()
+        rule.onNodeWithText("返回").performClick();wait_text("已结算")
         rule.onNodeWithText("已结束").assertDoesNotExist()
         rule.onNodeWithText("已结算").performClick();wait_text("已结束");shot("settled-deposits")
-        runBlocking{assertEquals(1007397,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)}
+        runBlocking{assertEquals(1014795,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)}
         rule.onNodeWithText("结束存单").assertDoesNotExist()
+        rule.onNodeWithText("修改存单记录").assertDoesNotExist()
+        click_record("deposit-record-1");wait_text("存单详情")
+        click_list("修改存单记录")
+        rule.onNodeWithText("本金").performTextReplacement("20000")
+        save();wait_text("存单详情");wait_text("20 000.00 CNY");wait_text("295.89 CNY")
+        window_shot("settled-deposit-detail-window","修改存单记录")
+        runBlocking{assertEquals(2029589,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)}
+        rule.onNodeWithText("返回").performClick();wait_text("已结算")
         rule.onNodeWithText("返回").performClick()
         rule.onNodeWithText("现金").performClick();wait_text("CNY · 人民币")
         rule.onNodeWithContentDescription("余额变化 · CNY").performClick()
+        wait_text("存单回款");rule.onNodeWithText("修改来源存单记录").assertDoesNotExist()
+        click_list("存单回款");wait_text("流水详情")
         wait_text("修改来源存单记录");click_list("修改来源存单记录")
-        rule.onNodeWithText("本金").performTextReplacement("20000")
-        save();wait_text("+20 147.95 CNY");shot("deposit-source-corrected")
+        rule.onNodeWithText("本金").performTextReplacement("30000")
+        save();wait_text("+30 443.84 CNY");shot("deposit-source-corrected")
+        rule.onNodeWithText("流水详情").assertExists()
+        rule.onNodeWithText("返回").performClick();wait_text("余额变化")
+        rule.onNodeWithText("+30 443.84 CNY").assertExists()
         runBlocking {
-            assertEquals(2014795,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)
+            assertEquals(3044384,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)
             assertEquals("CLOSED",db.ledger().deposit(1)!!.status)
-            assertEquals(2014795L,db.ledger().source_entry("TERM_CLOSE",1)!!.delta_minor)
+            assertEquals(3044384L,db.ledger().source_entry("TERM_CLOSE",1)!!.delta_minor)
         }
     }
     @Test fun investment_trade_price_and_history_are_independent() {
@@ -171,15 +219,24 @@ class UiFlowTest {
             assertNull(db.ledger().cash_one(account_id,"CNY"))
             assertEquals(java.time.LocalDateTime.parse("2026-09-01T15:30").atZone(java.time.ZoneId.of("Asia/Hong_Kong")).toInstant().toEpochMilli(),rows.single().occurred_at_ms)
         }
+        rule.onNodeWithText("修改买卖记录").assertDoesNotExist()
+        rule.onNodeWithText("删除买卖记录").assertDoesNotExist()
+        click_record("trade-record-1");wait_text("交易详情");wait_text("180.00 CNY")
+        shot("trade-record-detail")
+        rule.activityRule.scenario.recreate();wait_text("交易详情");wait_text("180.00 CNY")
         click_list("修改买卖记录")
         rule.onNodeWithText("成交份额").performTextReplacement("3")
         rule.onNodeWithText("成交单价 · CNY").performTextReplacement("80")
-        save();wait_text("交易历史")
+        save();wait_text("交易详情");wait_text("240.00 CNY")
+        window_shot("trade-detail-window","修改买卖记录")
+        rule.onNodeWithText("返回").performClick();wait_text("交易历史")
         rule.onNode(hasScrollAction()).performScrollToIndex(0)
         wait_text("持有 13 份");shot("trade-corrected")
-        click_list("删除买卖记录")
+        click_record("trade-record-1");wait_text("交易详情");click_list("删除买卖记录")
         rule.onNodeWithText("确认删除").performScrollTo().performClick()
-        wait_text("交易历史");rule.onNode(hasScrollAction()).performScrollToIndex(0)
+        wait_text("这笔交易已删除或不存在。")
+        rule.onNodeWithText("修改买卖记录").assertDoesNotExist()
+        rule.onNodeWithText("返回").performClick();wait_text("交易历史");rule.onNode(hasScrollAction()).performScrollToIndex(0)
         wait_text("持有 10 份")
         runBlocking{assertTrue(db.ledger().first_trades(1,50).isEmpty());assertEquals(R.parse_e8("120"),db.ledger().investment(1)!!.current_price_e8)}
     }
@@ -203,23 +260,44 @@ class UiFlowTest {
         rule.onNodeWithText("取消").performScrollTo().performClick()
         wait_text("USD · 美元")
         rule.onNodeWithContentDescription("余额变化 · USD").performClick()
-        wait_text("手动余额调整");click_list("修改余额变化")
+        wait_text("手动余额调整");rule.onNodeWithText("修改余额变化").assertDoesNotExist()
+        shot("cash-entry-list");click_list("手动余额调整");wait_text("流水详情")
+        shot("cash-entry-detail");window_shot("cash-entry-detail-window","修改余额变化");click_list("修改余额变化")
         rule.onNodeWithText("变化金额").performTextReplacement("90.00")
         rule.onNodeWithText("备注").performTextInput("余额调整验证")
+        rule.onNodeWithText("备注").performImeAction()
+        window_shot("cash-entry-form-window","保存")
+        rule.onNodeWithContentDescription("记账日期:",substring=true).performScrollTo().performClick()
+        window_shot("cash-date-dialog-window")
+        onView(withId(android.R.id.button2)).perform(click())
+        rule.onNodeWithContentDescription("记账时间:",substring=true).performScrollTo().performClick()
+        window_shot("cash-time-dialog-window")
+        onView(withId(android.R.id.button2)).perform(click())
         save();wait_text("+90.00 USD");shot("cash-corrected")
+        rule.onNodeWithText("余额调整验证").assertExists()
+        rule.onNodeWithText("返回").performClick();wait_text("余额变化")
+        rule.onNodeWithText("余额调整验证").assertDoesNotExist()
         val trade_id=runBlocking {
             val type=graph.investments.save_type(null,"合成基金")
             val asset=graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(),account_id,"来源投资","",type,"USD",0,R.parse_e8("120"))).id
             graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(),asset,Direction.BUY,R.parse_e8("1"),R.parse_e8("10"),graph.clock.millis(),true)).id
         }
-        wait_text("修改来源买卖记录");click_list("修改来源买卖记录")
+        wait_text("投资买卖");click_list("投资买卖");wait_text("流水详情")
+        click_list("修改来源买卖记录")
         rule.onNodeWithText("成交份额").performTextReplacement("2")
         save();wait_text("-20.00 USD");shot("cash-source-corrected")
+        rule.activityRule.scenario.recreate();wait_text("流水详情");wait_text("-20.00 USD")
         runBlocking {
             assertEquals(7000,db.ledger().cash_one(account_id,"USD")!!.balance_minor)
             assertEquals(R.parse_e8("2"),db.ledger().trade(trade_id)!!.quantity_e8)
             assertEquals(-2000L,db.ledger().source_entry("TRADE",trade_id)!!.delta_minor)
         }
+        click_list("修改来源买卖记录")
+        rule.onNode(isToggleable()).performScrollTo().assertIsOn().performClick()
+        save();wait_text("这条流水已删除或已取消现金联动。")
+        rule.onNodeWithText("修改来源买卖记录").assertDoesNotExist();shot("cash-entry-unlinked")
+        rule.onNodeWithText("返回").performClick();wait_text("余额变化")
+        rule.onNodeWithText("投资买卖").assertDoesNotExist()
     }
     @Test fun required_opening_cost_profit_and_closed_portfolio_reentry() {
         runBlocking{graph.investments.save_type(null,"合成基金")}
@@ -291,6 +369,58 @@ class UiFlowTest {
                 }
             }
             shot("cash-cards-${if(dark)"dark" else "light"}-$width-$scale","cash-cards",(width*density).toInt())
+            show_scene("detail-$name") {
+                CompositionLocalProvider(LocalDensity provides Density(density,scale)) {
+                    ValnookTheme(dark) {
+                        Box(Modifier.fillMaxSize()) {
+                            Box(Modifier.width(width.dp).height(height.dp).testTag("cash-detail")) {
+                                CashEntryDetailContent(CashEntry(1,1,Currency.of("USD"),-123456789,graph.clock.millis(),
+                                    "CASH_SET",null,null,"一条较长的备注，用于验证窄屏和大字体下的信息完整显示。",1),a.first().name,{})
+                            }
+                        }
+                    }
+                }
+            }
+            shot("cash-detail-${if(dark)"dark" else "light"}-$width-$scale","cash-detail",(width*density).toInt())
+            rule.onNode(hasScrollAction()).performScrollToNode(hasText("修改余额变化"))
+            rule.onNodeWithText("修改余额变化").assertIsDisplayed()
+            if(width in listOf(320,840)&&scale==2f) {
+                show_scene("trade-detail-$name") {
+                    CompositionLocalProvider(LocalDensity provides Density(density,scale)) {
+                        ValnookTheme(dark) {
+                            Box(Modifier.fillMaxSize()) {
+                                Box(Modifier.width(width.dp).height(height.dp).testTag("trade-detail")) {
+                                    TradeDetailContent(asset,Trade(1,1,Direction.BUY,R.parse_e8("10000"),R.parse_e8("120"),
+                                        120000000,Currency.of("USD"),true,graph.clock.millis()),a.first().name,{},{})
+                                }
+                            }
+                        }
+                    }
+                }
+                shot("trade-detail-${if(dark)"dark" else "light"}-$width-$scale","trade-detail",(width*density).toInt())
+                for(label in listOf("修改买卖记录","删除买卖记录")) {
+                    rule.onNode(hasScrollAction()).performScrollToNode(hasText(label))
+                    rule.onNodeWithText(label).assertIsDisplayed()
+                }
+                show_scene("deposit-detail-$name") {
+                    CompositionLocalProvider(LocalDensity provides Density(density,scale)) {
+                        ValnookTheme(dark) {
+                            Box(Modifier.fillMaxSize()) {
+                                Box(Modifier.width(width.dp).height(height.dp).testTag("deposit-detail")) {
+                                    DepositDetailContent(TermDeposit(1,1,Currency.of("CNY"),123456789,R.parse_e8("3"),
+                                        LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),913242,false,true,null),
+                                        LocalDate.parse("2026-09-30").toEpochDay(),a.first().name,{},{})
+                                }
+                            }
+                        }
+                    }
+                }
+                shot("deposit-detail-${if(dark)"dark" else "light"}-$width-$scale","deposit-detail",(width*density).toInt())
+                for(label in listOf("修改存单记录","结束存单")) {
+                    rule.onNode(hasScrollAction()).performScrollToNode(hasText(label))
+                    rule.onNodeWithText(label).assertIsDisplayed()
+                }
+            }
         }
         show_scene("accounts-empty"){ValnookTheme{AccountsContent(emptyList(),{},{})}};shot("accounts-empty")
         show_scene("deposits-gallery"){ValnookTheme{DepositsContent(deposits,LocalDate.parse("2026-04-01").toEpochDay(),{},{})}};shot("deposits-gallery")

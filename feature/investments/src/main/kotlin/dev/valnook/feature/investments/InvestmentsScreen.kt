@@ -52,7 +52,7 @@ import java.time.format.DateTimeFormatter
     if(on_open==null)OutlinedCard(Modifier.fillMaxWidth(),content=content)
     else OutlinedCard(onClick=on_open,modifier=Modifier.fillMaxWidth(),content=content)
 }
-@Composable fun InvestmentDetail(vm:InvestmentsViewModel,id:Long,on_form:()->Unit) {
+@Composable fun InvestmentDetail(vm:InvestmentsViewModel,id:Long,on_trade:(Long)->Unit,on_form:()->Unit) {
     val detail by vm.detail.collectAsStateWithLifecycle();val trades by vm.trades.collectAsStateWithLifecycle()
     val profit by vm.profit.collectAsStateWithLifecycle()
     val error by vm.history_error.collectAsStateWithLifecycle()
@@ -75,21 +75,7 @@ import java.time.format.DateTimeFormatter
             val previous=trades.getOrNull(index-1)?.let{Instant.ofEpochMilli(it.occurred_at_ms).atZone(ZoneId.systemDefault()).toLocalDate()}
             Column(verticalArrangement=Arrangement.spacedBy(Space.sm)) {
             if(date!=previous)Text(date.toString(),style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
-                    Text(stringResource(R.string.trade_value,stringResource(if(trade.direction==Direction.BUY)R.string.buy else R.string.sell),
-                        Decimal.format_e8(trade.quantity_e8),Decimal.format_e8(trade.execution_price_e8),
-                        Decimal.format_units(trade.amount_minor,trade.currency.fraction_digits),trade.currency.code,
-                        Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))))
-                    Text(stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
-                    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(Space.sm)) {
-                        ActionButton(onClick={vm.begin("EDIT_TRADE",asset,trade=trade);on_form()},modifier=Modifier.weight(1f)){Text(stringResource(R.string.edit_trade))}
-                        ActionButton(onClick={vm.begin("DELETE_TRADE",asset,trade=trade);on_form()},modifier=Modifier.weight(1f),destructive=true){
-                            Text(stringResource(R.string.delete_trade))
-                        }
-                    }
-                }
-            }
+            TradeHistoryItem(trade){on_trade(trade.id)}
             }
         }
         item{ErrorMessage(error)}

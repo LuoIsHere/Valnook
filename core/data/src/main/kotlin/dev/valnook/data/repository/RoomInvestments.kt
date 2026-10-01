@@ -24,6 +24,7 @@ private fun TradeEntity.to_model()=Trade(id,investment_id,Direction.valueOf(dire
 
 class RoomInvestments(private val db: ValnookDatabase, private val clock: Clock) : InvestmentRepository {
     private val dao = db.ledger()
+    override fun observe_trade(account_id:Long,id:Long)=dao.observe_trade(account_id,id).map{it?.to_model()}
     override suspend fun get_trade(id: Long): Trade? = dao.trade(id)?.takeUnless{it.is_deleted}?.let {
         Trade(it.id,it.investment_id,Direction.valueOf(it.direction),it.quantity_e8,it.execution_price_e8,
             it.amount_minor,Currency.of(it.currency_code),it.cash_linked,it.occurred_at_ms,it.revision)

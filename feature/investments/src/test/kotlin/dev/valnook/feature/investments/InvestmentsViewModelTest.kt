@@ -16,6 +16,7 @@ class InvestmentsViewModelTest {
     private val asset=Investment(1,1,1,"类型","资产","",Currency.of("CNY"),R.parse_e8("10"),R.parse_e8("10"),R.parse_e8("100"),0)
     private val repo=object:InvestmentRepository{
         override suspend fun get_trade(id:Long):Trade?=null
+        override fun observe_trade(account_id:Long,id:Long)=flowOf<Trade?>(null)
         override fun observe_investment(id:Long)=flowOf(asset)
         override fun observe_investments(account_id:Long,limit:Int,section:InvestmentSection)=flowOf(listOf(asset))
         override fun observe_profit(id:Long)=flowOf<InvestmentProfit?>(null)
