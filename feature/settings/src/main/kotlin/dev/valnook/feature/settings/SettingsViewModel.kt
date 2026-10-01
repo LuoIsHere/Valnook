@@ -1,99 +1,169 @@
 package dev.valnook.feature.settings
 
-import androidx.lifecycle.*
-import dev.valnook.domain.model.*
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dev.valnook.domain.model.AppLanguage
+import dev.valnook.domain.model.AppSettings
+import dev.valnook.domain.model.Currency
+import dev.valnook.domain.model.DomainException
+import dev.valnook.domain.model.ErrorCode
+import dev.valnook.domain.model.FxRate
+import dev.valnook.domain.model.GainLossColorScheme
 import dev.valnook.domain.repository.SettingsRepository
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import java.math.BigDecimal
 
 data class FxRateDraft(val sourceCurrency: Currency, val rateInput: String)
-data class FxSettingsUiState(val baseCurrency: Currency? = null, val rows: List<FxRateDraft> = emptyList(),
-    val existingRates: List<FxRate> = emptyList(), val revision: Long = 0, val loaded: Boolean = false,
-    val busy: Boolean = false, val error: String? = null, val saved: Boolean = false)
-class SettingsViewModel(private val repository: SettingsRepository, private val handle: SavedStateHandle) : ViewModel() {
-    private val mutable = MutableStateFlow(FxSettingsUiState())
+
+data class SettingsUiState(
+    val settings: AppSettings = AppSettings(),
+    val rows: List<FxRateDraft> = emptyList(),
+    val loaded: Boolean = false,
+    val busy: Boolean = false,
+    val error: ErrorCode? = null,
+    val loadFailed: Boolean = false,
+    val saved: Boolean = false
+)
+
+class SettingsViewModel(
+    private val repository: SettingsRepository,
+    private val handle: SavedStateHandle
+) : ViewModel() {
+    private val mutable = MutableStateFlow(SettingsUiState())
     val state = mutable.asStateFlow()
-    init { reload() }
+
+    init {
+        reload()
+    }
+
     fun reload() = viewModelScope.launch {
         try {
             val persisted = repository.observeSettings().first()
             val base = handle.get<String>("base")?.let(Currency::of) ?: persisted.baseCurrency
             val codes = handle.get<ArrayList<String>>("sources")
-            val rows = codes?.map { FxRateDraft(Currency.of(it), handle["rate-$it"] ?: "") } ?:
-                persisted.rates.filter { it.targetCurrency == base }.map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) }
-            mutable.value = FxSettingsUiState(base, rows, persisted.rates,
-                handle.get<Long>("revision") ?: persisted.revision, true)
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { mutable.value = state.value.copy(error = "读取失败，请重试") }
+            val rows = codes?.map { FxRateDraft(Currency.of(it), handle["rate-$it"] ?: "") }
+                ?: persisted.rates.filter { it.targetCurrency == base }
+                    .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) }
+            mutable.value = SettingsUiState(persisted.copy(baseCurrency = base), rows, loaded = true)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            mutable.value = state.value.copy(loadFailed = true)
+        }
     }
-    private fun change(value: FxSettingsUiState) {
+
+    private fun change(value: SettingsUiState) {
         mutable.value = value.copy(error = null, saved = false)
-        handle["base"] = value.baseCurrency?.code
-        handle["revision"] = value.revision
+        handle["base"] = value.settings.baseCurrency?.code
         handle["sources"] = ArrayList(value.rows.map { it.sourceCurrency.code })
         value.rows.forEach { handle["rate-${it.sourceCurrency.code}"] = it.rateInput }
     }
+
     fun selectBase(currency: Currency) {
         if (state.value.busy) return
-        change(state.value.copy(baseCurrency = currency, rows = state.value.existingRates.filter { it.targetCurrency == currency }
-            .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) }))
+        val persisted = state.value.settings
+        change(state.value.copy(settings = persisted.copy(baseCurrency = currency),
+            rows = persisted.rates.filter { it.targetCurrency == currency }
+                .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) }))
     }
+
     fun addRate() {
-        if (state.value.busy || state.value.baseCurrency == null) return
-        val source = Currency.supported.firstOrNull { it != state.value.baseCurrency && state.value.rows.none { row -> row.sourceCurrency == it } } ?: return
-        change(state.value.copy(rows = state.value.rows + FxRateDraft(source, "1")))
+        val current = state.value
+        if (current.busy || current.settings.baseCurrency == null) return
+        val source = Currency.supported.firstOrNull { currency ->
+            currency != current.settings.baseCurrency && current.rows.none { it.sourceCurrency == currency }
+        } ?: return
+        change(current.copy(rows = current.rows + FxRateDraft(source, "1")))
     }
+
     fun updateRow(index: Int, source: Currency? = null, rate: String? = null) {
-        if (!state.value.busy) change(state.value.copy(rows = state.value.rows.mapIndexed { i, row ->
-            if (i != index) row else row.copy(sourceCurrency = source ?: row.sourceCurrency,
-                rateInput = rate ?: if (source == null) row.rateInput else state.value.existingRates
-                    .firstOrNull { it.sourceCurrency == source && it.targetCurrency == state.value.baseCurrency }
+        if (state.value.busy) return
+        change(state.value.copy(rows = state.value.rows.mapIndexed { rowIndex, row ->
+            if (rowIndex != index) row else row.copy(sourceCurrency = source ?: row.sourceCurrency,
+                rateInput = rate ?: if (source == null) row.rateInput else state.value.settings.rates
+                    .firstOrNull { it.sourceCurrency == source && it.targetCurrency == state.value.settings.baseCurrency }
                     ?.rate?.toPlainString() ?: "1")
         }))
     }
+
     fun removeRate(index: Int) {
         if (!state.value.busy) change(state.value.copy(rows = state.value.rows.filterIndexed { i, _ -> i != index }))
     }
-    fun save() {
-        if (state.value.busy) return
-        val input = state.value
-        val settings = try {
-            val base = input.baseCurrency ?: throw DomainException(ErrorCode.CURRENCY)
-            if (input.rows.map { it.sourceCurrency.code }.distinct().size != input.rows.size)
+
+    fun saveRates() {
+        val current = state.value
+        if (current.busy) return
+        val next = try {
+            val base = current.settings.baseCurrency ?: throw DomainException(ErrorCode.CURRENCY)
+            if (current.rows.map { it.sourceCurrency.code }.distinct().size != current.rows.size) {
                 throw DomainException(ErrorCode.DUPLICATE_CURRENCY)
-            val rates = input.rows.map { row ->
-                if (!Regex("[0-9]+(?:\\.[0-9]+)?").matches(row.rateInput) || row.rateInput.length > 64)
+            }
+            val rates = current.rows.map { row ->
+                if (!Regex("[0-9]+(?:\\.[0-9]+)?").matches(row.rateInput) || row.rateInput.length > 64) {
                     throw DomainException(ErrorCode.FORMAT)
+                }
                 val value = BigDecimal(row.rateInput)
                 if (value.signum() <= 0) throw DomainException(ErrorCode.POSITIVE)
                 if (value.stripTrailingZeros().scale() > 12) throw DomainException(ErrorCode.PRECISION)
-                FxRate(row.sourceCurrency, base, value)
+                if (value.precision() > 40) throw DomainException(ErrorCode.OVERFLOW)
+                FxRate(row.sourceCurrency, base, value.stripTrailingZeros())
             }
-            AppSettings(base, input.existingRates.filter { it.targetCurrency != base } + rates, input.revision)
-        } catch (error: DomainException) { mutable.value = input.copy(error = error.code.name)
-        return }
-        mutable.value = input.copy(busy = true, error = null)
+            current.settings.copy(rates = current.settings.rates.filter { it.targetCurrency != base } + rates)
+        } catch (error: DomainException) {
+            mutable.value = current.copy(error = error.code)
+            return
+        }
+        persist(next)
+    }
+
+    fun saveLanguage(language: AppLanguage) = persist(state.value.settings.copy(language = language))
+
+    fun saveGainLossColors(scheme: GainLossColorScheme) =
+        persist(state.value.settings.copy(gainLossColors = scheme))
+
+    private fun persist(next: AppSettings) {
+        val current = state.value
+        if (current.busy || !current.loaded) return
+        mutable.value = current.copy(busy = true, error = null, saved = false)
         viewModelScope.launch {
             try {
-                repository.saveSettings(settings, input.revision)
-                val actual = repository.observeSettings().first()
-                change(input.copy(existingRates = actual.rates, revision = actual.revision))
-                mutable.value = state.value.copy(saved = true, busy = false)
-            } catch (cancelled: CancellationException) { throw cancelled }
-            catch (error: DomainException) { mutable.value = input.copy(error = error.code.name) }
-            catch (_: Exception) {
-                // Metadata writes also reconcile a lost receipt instead of blindly overwriting.
-                val actual = try { repository.observeSettings().first() }
-                    catch (cancelled: CancellationException) { throw cancelled }
-                    catch (_: Exception) { null }
-                val expectedPairs = settings.rates.associate { (it.sourceCurrency to it.targetCurrency) to it.rate.stripTrailingZeros() }
-                val actualPairs = actual?.rates?.associate { (it.sourceCurrency to it.targetCurrency) to it.rate.stripTrailingZeros() }
-                if (actual != null && actual.baseCurrency == settings.baseCurrency && actualPairs == expectedPairs) {
-                    change(input.copy(existingRates = actual.rates, revision = actual.revision))
-                    mutable.value = state.value.copy(saved = true)
-                } else mutable.value = input.copy(error = "保存结果待核对，请重新加载")
+                repository.saveSettings(next, current.settings.revision)
+                handle.remove<String>("base")
+                handle.remove<ArrayList<String>>("sources")
+                val stored = repository.observeSettings().first { it.revision > current.settings.revision }
+                mutable.value = SettingsUiState(stored,
+                    stored.rates.filter { it.targetCurrency == stored.baseCurrency }
+                        .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) },
+                    loaded = true, saved = true)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: DomainException) {
+                mutable.value = current.copy(error = error.code)
+            } catch (_: Exception) {
+                val stored = runCatching { repository.observeSettings().first() }.getOrNull()
+                if (stored != null && stored.matches(next)) {
+                    mutable.value = SettingsUiState(stored,
+                        stored.rates.filter { it.targetCurrency == stored.baseCurrency }
+                            .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) },
+                        loaded = true, saved = true)
+                } else {
+                    mutable.value = current.copy(error = ErrorCode.STALE_RECORD)
+                }
             }
         }
     }
+
+    private fun AppSettings.matches(other: AppSettings): Boolean =
+        baseCurrency == other.baseCurrency && language == other.language &&
+            gainLossColors == other.gainLossColors && rates.size == other.rates.size &&
+            rates.all { rate -> other.rates.any { candidate ->
+                candidate.sourceCurrency == rate.sourceCurrency &&
+                    candidate.targetCurrency == rate.targetCurrency &&
+                    candidate.rate.compareTo(rate.rate) == 0
+            } }
 }

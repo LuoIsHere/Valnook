@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.ui.Modifier
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -28,10 +29,16 @@ private val typography=Typography(
     bodyMedium=TextStyle(fontFamily=FontFamily.SansSerif,fontSize=14.sp,lineHeight=22.sp),
     bodySmall=TextStyle(fontFamily=FontFamily.SansSerif,fontSize=12.sp,lineHeight=18.sp),
     labelLarge=TextStyle(fontFamily=FontFamily.SansSerif,fontWeight=FontWeight.Medium,fontSize=14.sp,lineHeight=20.sp))
-@Composable fun ValnookTheme(dark_theme:Boolean=isSystemInDarkTheme(),content:@Composable ()->Unit) {
+@Composable fun ValnookTheme(dark_theme:Boolean=isSystemInDarkTheme(),redGain:Boolean=false,content:@Composable ()->Unit) {
+    val green = if (dark_theme) Color(0xFF49C996) else Color(0xFF168457)
+    val red = if (dark_theme) Color(0xFFFF737D) else Color(0xFFC62828)
+    val palette = GainLossPalette(if(redGain) red else green,if(redGain) green else red,
+        if(dark_theme) dark.onSurfaceVariant else light.onSurfaceVariant)
     MaterialTheme(colorScheme=if(dark_theme) dark else light,typography=typography,
         shapes=Shapes(small=RoundedCornerShape(12.dp),medium=RoundedCornerShape(16.dp),large=RoundedCornerShape(20.dp))) {
-        Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background,
-            contentColor=MaterialTheme.colorScheme.onSurface) {content()}
+        CompositionLocalProvider(LocalGainLossPalette provides palette) {
+            Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background,
+                contentColor=MaterialTheme.colorScheme.onSurface) {content()}
+        }
     }
 }

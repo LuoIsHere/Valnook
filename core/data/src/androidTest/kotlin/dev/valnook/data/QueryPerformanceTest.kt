@@ -68,14 +68,15 @@ class QueryPerformanceTest {
         val random = Random(20261001)
         for (id in 1..fixture.accounts) {
             sql.execSQL("INSERT INTO savings_accounts VALUES (?,?,'synthetic',0,0,1)", arrayOf<Any>(id, "fixture-account-$id"))
-            sql.execSQL("INSERT INTO cash_balances VALUES (?,'CNY',100000000,100,0)", arrayOf<Any>(id))
+            sql.execSQL("INSERT INTO cash_accounts VALUES (?,'CNY',100000000,100,0,?,'CNY fixture','synthetic',1,0)",
+                arrayOf<Any>(id, id))
         }
         sql.execSQL("INSERT INTO asset_types VALUES (1,'ETF','etf',0,0)")
-        sql.execSQL("INSERT INTO app_settings VALUES (1,'CNY',1)")
+        sql.execSQL("INSERT INTO app_settings VALUES (1,'CNY',1,'SYSTEM','GREEN_GAIN')")
         sql.execSQL("INSERT INTO fx_rates VALUES ('USD','CNY','7.2',0)")
         for (id in 1..fixture.instruments) {
             val associated = if (fixture.hotspot) 1 else positionCount(fixture) / 2
-            sql.execSQL("INSERT INTO instruments VALUES (?,1,?,?,'USD',18000000,?,1,0,0,0)",
+            sql.execSQL("INSERT INTO instruments VALUES (?,1,?,?,'USD',18000000,?,1,0,0,0,0)",
                 arrayOf<Any>(id, "fixture-${id.toString().padStart(5, '0')}", "F$id", if (id <= associated) 1 else 0))
         }
         val positions = positionCount(fixture)
@@ -96,8 +97,8 @@ class QueryPerformanceTest {
         }
         operations(sql, fixture.trades, "trade", "INVESTMENT_TRADE")
         sql.compileStatement("""INSERT INTO investment_trades(id,investment_id,operation_id,direction,
-            quantity_e8,execution_price_e8,amount_minor,currency_code,cash_linked,occurred_at_ms,
-            created_at_ms,revision,is_deleted,updated_at_ms) VALUES (?,?,?,?,100000000,?,?,'USD',0,?,0,1,?,0)""").use { statement ->
+            quantity_e8,execution_price_e8,amount_minor,currency_code,cash_linked,cash_account_id,occurred_at_ms,
+            created_at_ms,revision,is_deleted,updated_at_ms) VALUES (?,?,?,?,100000000,?,?,'USD',0,NULL,?,0,1,?,0)""").use { statement ->
             for (id in 1..fixture.trades) {
                 val position = if (fixture.hotspot) 1 else (id - 1) % positions + 1
                 val sell = fixture.hotspot && id % 2 == 0
@@ -133,31 +134,45 @@ class QueryPerformanceTest {
         val entries = fixture.accounts * 100
         operations(sql, fixture.accounts, "usd-cash", "CASH_ENTRY", entries)
         for (id in 1..fixture.accounts) {
-            sql.execSQL("INSERT INTO cash_balances VALUES (?,'USD',10000,1,0)", arrayOf<Any>(id))
-            sql.execSQL("INSERT INTO cash_entries VALUES (?, ?,?,'USD','CASH_SET',NULL,10000,0,'',1,0,0,0)",
-                arrayOf<Any>(entries + id, "usd-cash-$id", id))
-            sql.execSQL("INSERT INTO cash_movements VALUES (?,?,?,'USD','CASH_SET',10000,0,10000,0)",
-                arrayOf<Any>(entries + id, "usd-cash-$id", id))
+            val cashId = fixture.accounts + id
+            sql.execSQL("INSERT INTO cash_accounts VALUES (?,'USD',10000,1,0,?,'USD fixture','synthetic',1,0)",
+                arrayOf<Any>(id, cashId))
+            sql.execSQL("""INSERT INTO cash_entries(id,original_operation_id,savings_account_id,currency_code,
+                cash_account_id,source_kind,source_id,delta_minor,occurred_at_ms,note,revision,is_deleted,created_at_ms,updated_at_ms)
+                VALUES (?,?,?,'USD',?,'CASH_SET',NULL,10000,0,'',1,0,0,0)""",
+                arrayOf<Any>(entries + id, "usd-cash-$id", id, cashId))
+            sql.execSQL("""INSERT INTO cash_movements(id,operation_id,savings_account_id,currency_code,
+                cash_account_id,reason,delta_minor,balance_before_minor,balance_after_minor,created_at_ms)
+                VALUES (?,?,?,'USD',?,'CASH_SET',10000,0,10000,0)""",
+                arrayOf<Any>(entries + id, "usd-cash-$id", id, cashId))
         }
         operations(sql, entries, "cash", "CASH_ENTRY")
-        sql.compileStatement("INSERT INTO cash_entries VALUES (?, ?,?,'CNY','CASH_SET',NULL,?,?,'',1,0,0,0)").use { statement ->
+        sql.compileStatement("""INSERT INTO cash_entries(id,original_operation_id,savings_account_id,currency_code,
+            cash_account_id,source_kind,source_id,delta_minor,occurred_at_ms,note,revision,is_deleted,created_at_ms,updated_at_ms)
+            VALUES (?,?,?,'CNY',?,'CASH_SET',NULL,?,?,'',1,0,0,0)""").use { statement ->
             for (id in 1..entries) {
                 statement.bindLong(1, id.toLong())
                 statement.bindString(2, "cash-$id")
-                statement.bindLong(3, ((id - 1) / 100 + 1).toLong())
-                statement.bindLong(4, 1000000)
-                statement.bindLong(5, id.toLong())
+                val accountId = ((id - 1) / 100 + 1).toLong()
+                statement.bindLong(3, accountId)
+                statement.bindLong(4, accountId)
+                statement.bindLong(5, 1000000)
+                statement.bindLong(6, id.toLong())
                 statement.executeInsert()
             }
         }
-        sql.compileStatement("INSERT INTO cash_movements VALUES (?,?,?,'CNY','CASH_SET',1000000,?,?,0)").use { statement ->
+        sql.compileStatement("""INSERT INTO cash_movements(id,operation_id,savings_account_id,currency_code,
+            cash_account_id,reason,delta_minor,balance_before_minor,balance_after_minor,created_at_ms)
+            VALUES (?,?,?,'CNY',?,'CASH_SET',1000000,?,?,0)""").use { statement ->
             for (id in 1..entries) {
                 statement.bindLong(1, id.toLong())
                 statement.bindString(2, "cash-$id")
-                statement.bindLong(3, ((id - 1) / 100 + 1).toLong())
+                val accountId = ((id - 1) / 100 + 1).toLong()
+                statement.bindLong(3, accountId)
+                statement.bindLong(4, accountId)
                 val before = (id - 1) % 100 * 1000000L
-                statement.bindLong(4, before)
-                statement.bindLong(5, before + 1000000)
+                statement.bindLong(5, before)
+                statement.bindLong(6, before + 1000000)
                 statement.executeInsert()
             }
         }
@@ -172,9 +187,9 @@ class QueryPerformanceTest {
                 arrayOf<Any>(id, (id - 1) % fixture.accounts + 1, if (id % 2 == 0) "USD" else "CNY", "deposit-$id"))
         }
         sql.query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
-        sql.query("""SELECT COUNT(*) FROM cash_balances b WHERE b.balance_minor !=
-            (SELECT COALESCE(SUM(e.delta_minor),0) FROM cash_entries e WHERE e.savings_account_id=b.savings_account_id AND e.currency_code=b.currency_code AND e.is_deleted=0)
-            OR b.balance_minor != (SELECT COALESCE(SUM(m.delta_minor),0) FROM cash_movements m WHERE m.savings_account_id=b.savings_account_id AND m.currency_code=b.currency_code)""").use {
+        sql.query("""SELECT COUNT(*) FROM cash_accounts b WHERE b.balance_minor !=
+            (SELECT COALESCE(SUM(e.delta_minor),0) FROM cash_entries e WHERE e.cash_account_id=b.id AND e.is_deleted=0)
+            OR b.balance_minor != (SELECT COALESCE(SUM(m.delta_minor),0) FROM cash_movements m WHERE m.cash_account_id=b.id)""").use {
             assertTrue(it.moveToFirst())
             assertEquals("Synthetic ledger imbalance", 0, it.getInt(0))
         }

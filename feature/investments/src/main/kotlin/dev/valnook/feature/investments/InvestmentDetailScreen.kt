@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -16,7 +17,8 @@ import dev.valnook.domain.model.*
     val state by vm.state.collectAsStateWithLifecycle()
     val asset = state.asset
     if (asset == null) {
-        Text(if (!state.loaded) "正在读取持仓" else if (state.failed) "读取失败" else "记录不可用")
+        Text(stringResource(if (!state.loaded) R.string.investment_loading else if (state.failed)
+            R.string.investment_read_failed else R.string.investment_record_unavailable))
         return
     }
     val profit = InvestmentProfitCalculator.fromReadModel(asset)
@@ -24,17 +26,17 @@ import dev.valnook.domain.model.*
         item { HoldingColumns() }
         item { HoldingRow(asset) }
         item {
-            Text("持仓成本总额 " + money(profit.remainingCost, asset.currency))
-            Text("累计已实现盈亏 " + money(profit.realized, asset.currency))
+            Text(stringResource(R.string.investment_remaining_cost, money(profit.remainingCost, asset.currency)))
+            Text(stringResource(R.string.investment_realized_total, money(profit.realized, asset.currency)))
         }
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton({ onCreateTrade(Direction.BUY, asset) }, Modifier.weight(1f)) { Text("买入") }
-            ActionButton({ onCreateTrade(Direction.SELL, asset) }, Modifier.weight(1f)) { Text("卖出") }
+            ActionButton({ onCreateTrade(Direction.BUY, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_buy)) }
+            ActionButton({ onCreateTrade(Direction.SELL, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_sell)) }
         } }
-        if (asset.opening_quantity_e8 > 0) item { ActionButton({ onCost(asset) }) { Text("修改期初成本") } }
-        item { Text("交易历史", style = MaterialTheme.typography.titleLarge) }
-        if (state.trades.isEmpty()) item { EmptyState("暂无交易记录") }
+        if (asset.opening_quantity_e8 > 0) item { ActionButton({ onCost(asset) }) { Text(stringResource(R.string.investment_edit_opening_cost)) } }
+        item { Text(stringResource(R.string.investment_trade_history), style = MaterialTheme.typography.titleLarge) }
+        if (state.trades.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_trades)) }
         items(state.trades, key = { it.id }) { TradeHistoryItem(it) { onTrade(it.id) } }
-        if (state.hasMore) item { TextButton(vm::loadMore) { Text("加载更多") } }
+        if (state.hasMore) item { TextButton(vm::loadMore) { Text(stringResource(R.string.investment_load_more)) } }
     }
 }

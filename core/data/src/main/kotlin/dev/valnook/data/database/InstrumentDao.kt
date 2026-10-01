@@ -17,6 +17,8 @@ interface InstrumentDao {
     @Update suspend fun updateInstrument(value: InstrumentEntity): Int
     @Query("UPDATE instruments SET currency_locked=1 WHERE id=:id")
     suspend fun lockCurrency(id: Long): Int
+    @Query("UPDATE instruments SET currency_locked=1,symbol_locked=1 WHERE id=:id")
+    suspend fun lockTradeIdentity(id: Long): Int
     @Query("SELECT * FROM asset_types ORDER BY normalized_name,id")
     fun types(): Flow<List<TypeEntity>>
     @Query("SELECT * FROM asset_types WHERE id=:id")

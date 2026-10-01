@@ -10,6 +10,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.calculation.*
@@ -21,23 +22,24 @@ import java.math.RoundingMode
 fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: () -> Unit, onAccount: (Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val current = state as? PortfolioState.Ready
-    if (current == null) { Text(if (state == PortfolioState.Failed) "标的读取失败" else "正在读取标的")
+    if (current == null) { Text(stringResource(if (state == PortfolioState.Failed) R.string.instrument_load_failed else R.string.instrument_loading))
         return }
     val instrument = current.snapshot.instruments.firstOrNull { it.id == instrumentId }
-    if (instrument == null) { EmptyState("标的不存在")
+    if (instrument == null) { EmptyState(stringResource(R.string.instrument_not_found))
         return }
     val summary = current.instrumentSummaries.first { it.instrument.id == instrumentId }
     val associated = current.snapshot.positions.filter { it.instrumentId == instrumentId }.associateBy { it.account_id }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item { InstrumentIdentity(instrument) }
         item {
-            Text("跨账户总市值 " + money(summary.marketValue, instrument.currency), style = MaterialTheme.typography.titleMedium)
-            AccountProfitRow("已实现盈亏 " + money(summary.realized, instrument.currency),
-                "浮动盈亏 " + money(summary.floating, instrument.currency), summary.floating?.signum() ?: 0)
+            Text(stringResource(R.string.instrument_cross_account_value, money(summary.marketValue, instrument.currency)), style = MaterialTheme.typography.titleMedium)
+            AccountProfitRow(stringResource(R.string.investment_realized_value, money(summary.realized, instrument.currency)),
+                stringResource(R.string.investment_unrealized_value, money(summary.floating, instrument.currency)),
+                summary.realized?.signum() ?: 0, summary.floating?.signum() ?: 0)
         }
-        item { ActionButton(onEdit) { Text("编辑标的与当前价格") } }
-        item { Text("按账户分别计算成本", style = MaterialTheme.typography.titleMedium) }
-        if (current.snapshot.accounts.isEmpty()) item { EmptyState("请先创建账户") }
+        item { ActionButton(onEdit) { Text(stringResource(R.string.instrument_edit_action)) } }
+        item { Text(stringResource(R.string.instrument_cost_by_account), style = MaterialTheme.typography.titleMedium) }
+        if (current.snapshot.accounts.isEmpty()) item { EmptyState(stringResource(R.string.instrument_create_account_first)) }
         items(current.snapshot.accounts, key = { it.id }) { account ->
             val position = associated[account.id]
             Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { onAccount(account.id) }
@@ -50,15 +52,16 @@ fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: (
                             style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.End)
                     }
                 }
-                if (position == null) Text("尚无持仓与交易记录", style = MaterialTheme.typography.bodySmall)
+                if (position == null) Text(stringResource(R.string.instrument_no_account_history), style = MaterialTheme.typography.bodySmall)
                 else {
                     val profit = InvestmentProfitCalculator.fromReadModel(position)
                     val average = profit.average_cost?.setScale(8, RoundingMode.HALF_UP)
-                        ?.stripTrailingZeros()?.toPlainString()?.plus(" " + instrument.currency.code) ?: "待补全"
-                    Text(DecimalRules.format_e8(position.holding_quantity_e8) + " 份 · 成本 " +
-                        average + " /份", style = MaterialTheme.typography.bodySmall)
-                    AccountProfitRow("已实现盈亏 " + money(profit.realized, instrument.currency),
-                        "浮动盈亏 " + money(profit.unrealized, instrument.currency), profit.unrealized?.signum() ?: 0)
+                        ?.stripTrailingZeros()?.toPlainString()?.plus(" " + instrument.currency.code) ?: "—"
+                    Text(stringResource(R.string.instrument_position_cost,
+                        DecimalRules.format_e8(position.holding_quantity_e8), average), style = MaterialTheme.typography.bodySmall)
+                    AccountProfitRow(stringResource(R.string.investment_realized_value, money(profit.realized, instrument.currency)),
+                        stringResource(R.string.investment_unrealized_value, money(profit.unrealized, instrument.currency)),
+                        profit.realized?.signum() ?: 0, profit.unrealized?.signum() ?: 0)
                 }
             }
         }

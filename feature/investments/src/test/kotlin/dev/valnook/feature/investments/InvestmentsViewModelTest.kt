@@ -35,8 +35,19 @@ class InvestmentsViewModelTest {
         override fun observeInstrument(id:Long)=flowOf<Instrument?>(instrument)
         override suspend fun saveInstrument(command:SaveInstrument)=error("not used")
     }
+    private val cash=object:CashRepository {
+        override fun observe_cash(account_id:Long)=flowOf(listOf(
+            CashAccount(1,Currency.of("CNY"),50000,1,id=51,name="交易现金")
+        ))
+        override fun observeCashAccount(cashAccountId:Long)=flowOf<CashAccount?>(null)
+        override fun observeCashEntries(cashAccountId:Long,limit:Int)=flowOf(emptyList<CashEntry>())
+        override fun observeCashEntry(cashAccountId:Long,entryId:Long)=flowOf<CashEntry?>(null)
+        override fun observe_entries(account_id:Long,currency_code:String,limit:Int)=flowOf(emptyList<CashEntry>())
+        override fun observe_entry(account_id:Long,entry_id:Long)=flowOf<CashEntry?>(null)
+    }
     @Test fun source_trade_load_and_typed_date_restore_do_not_submit()=runTest(dispatcher) {
-        val source=Trade(999,1,Direction.BUY,R.parse_e8("2"),R.parse_e8("90"),18000,Currency.of("CNY"),true,clock.millis(),4)
+        val source=Trade(999,1,Direction.BUY,R.parse_e8("2"),R.parse_e8("90"),18000,Currency.of("CNY"),
+            true,clock.millis(),4,cashAccountId=51)
         val repository=object:InvestmentRepository by repo {override suspend fun get_trade(id:Long)=source}
         val requests=mutableListOf<FinancialCommand>()
         val commands=object:FinancialCommands {override suspend fun execute(command:FinancialCommand):OperationResult {
@@ -44,10 +55,10 @@ class InvestmentsViewModelTest {
             return OperationResult("INVESTMENT_TRADE",999)
         }}
         val saved=SavedStateHandle()
-        val vm=TradeFormViewModel(1,TradeFormMode.EDIT,null,null,999,Direction.BUY,repository,instruments,commands,clock,saved)
+        val vm=TradeFormViewModel(1,TradeFormMode.EDIT,null,null,999,Direction.BUY,repository,instruments,cash,commands,clock,saved)
         runCurrent()
         vm.update {it.copy(quantityInput="3",executionPriceInput="80",occurredAt=LocalDateTime.parse("2026-09-01T20:00"))}
-        val restored=TradeFormViewModel(1,TradeFormMode.EDIT,null,null,999,Direction.BUY,repository,instruments,commands,clock,
+        val restored=TradeFormViewModel(1,TradeFormMode.EDIT,null,null,999,Direction.BUY,repository,instruments,cash,commands,clock,
             SavedStateHandle(saved.keys().associateWith{saved.get<Any?>(it)}))
         runCurrent()
         assertTrue(requests.isEmpty())
@@ -67,7 +78,7 @@ class InvestmentsViewModelTest {
             if(requests.size==1)throw java.io.IOException()
             return OperationResult("INVESTMENT_TRADE",7)
         }}
-        val vm=TradeFormViewModel(1,TradeFormMode.DELETE,null,null,7,Direction.SELL,repository,instruments,commands,clock,SavedStateHandle())
+        val vm=TradeFormViewModel(1,TradeFormMode.DELETE,null,null,7,Direction.SELL,repository,instruments,cash,commands,clock,SavedStateHandle())
         runCurrent()
         assertTrue(requests.isEmpty())
         vm.submit()
@@ -111,7 +122,7 @@ class InvestmentsViewModelTest {
             if(requests.size==1)throw java.io.IOException()
             return OperationResult("TRADE",1)
         }}
-        val vm=TradeFormViewModel(1,TradeFormMode.CREATE,1,null,null,Direction.BUY,repo,instruments,commands,clock,SavedStateHandle())
+        val vm=TradeFormViewModel(1,TradeFormMode.CREATE,1,null,null,Direction.BUY,repo,instruments,cash,commands,clock,SavedStateHandle())
         runCurrent()
         vm.update {it.copy(quantityInput="2",executionPriceInput="90")}
         assertEquals("180.00 CNY",vm.amountPreview())

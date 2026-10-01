@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 abstract class OverviewDao {
     @Query("SELECT * FROM savings_accounts ORDER BY id")
     abstract suspend fun allAccounts(): List<AccountEntity>
-    @Query("SELECT * FROM cash_balances ORDER BY savings_account_id,currency_code")
+    @Query("SELECT * FROM cash_accounts ORDER BY savings_account_id,name,id")
     abstract suspend fun allCash(): List<CashEntity>
     @Query("SELECT * FROM term_deposits WHERE status='OPEN' ORDER BY savings_account_id,id")
     abstract suspend fun openDeposits(): List<DepositEntity>
@@ -24,6 +24,8 @@ abstract class OverviewDao {
     @Update abstract suspend fun updateSettings(value: SettingsEntity): Int
     @Query("DELETE FROM fx_rates")
     abstract suspend fun clearRates()
+    @Query("UPDATE app_settings SET base_currency=NULL,revision=revision+1 WHERE id=1")
+    abstract suspend fun clearFinancialSettings(): Int
     @Insert abstract suspend fun insertRates(values: List<FxRateEntity>)
     @Transaction
     open suspend fun snapshot(): OverviewRows = OverviewRows(allAccounts(), allCash(), openDeposits(),

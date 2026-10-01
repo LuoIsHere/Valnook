@@ -11,31 +11,32 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.*
 import dev.valnook.domain.command.SubmissionPhase
 import java.math.RoundingMode
 
-private fun totalText(total: ConvertedTotal): String = total.currency?.let {
+@Composable private fun totalText(total: ConvertedTotal): String = total.currency?.let {
     total.amount.setScale(it.fraction_digits, RoundingMode.HALF_UP).toPlainString() + " " + it.code
-} ?: "请设置主币种"
+} ?: stringResource(R.string.accounts_set_base_currency)
 
-private fun missingText(total: ConvertedTotal): String = total.missing.map {
+@Composable private fun missingText(total: ConvertedTotal): String = total.missing.mapNotNull {
     when (it.kind) {
-        MissingKind.BASE_CURRENCY -> "未设置主币种"
-        MissingKind.EXCHANGE_RATE -> "缺少 ${it.currencyCode} 汇率"
-        MissingKind.CURRENT_COST -> "当前成本待补全"
-        MissingKind.HISTORICAL_COST -> "历史成本待补全"
-        MissingKind.INVALID_HISTORY -> "历史记录异常"
+        MissingKind.BASE_CURRENCY -> stringResource(R.string.accounts_missing_base)
+        MissingKind.EXCHANGE_RATE -> null
+        MissingKind.CURRENT_COST -> stringResource(R.string.accounts_missing_current_cost)
+        MissingKind.HISTORICAL_COST -> stringResource(R.string.accounts_missing_historical_cost)
+        MissingKind.INVALID_HISTORY -> stringResource(R.string.accounts_invalid_history)
     }
-}.distinct().joinToString("、")
+}.distinct().joinToString(" · ")
 
 @Composable fun AccountsScreen(vm: AccountsViewModel, onOpen: (Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         AccountsState.Loading -> CircularProgressIndicator()
-        AccountsState.Failed -> Text("账户读取失败，请返回后重试")
+        AccountsState.Failed -> Text(stringResource(R.string.accounts_load_failed))
         is AccountsState.Ready -> AccountsContent(current.overview, onOpen)
     }
 }
@@ -44,13 +45,13 @@ private fun missingText(total: ConvertedTotal): String = total.missing.map {
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item {
             Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text("总资产", style = MaterialTheme.typography.titleMedium)
+                Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.titleMedium)
                 Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium)
-                Text("可用现金 " + totalText(overview.cash), style = MaterialTheme.typography.bodyMedium)
-                if (!overview.total.complete) Text("汇总不完整 · " + missingText(overview.total), color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.accounts_available_cash, totalText(overview.cash)), style = MaterialTheme.typography.bodyMedium)
+                if (!overview.total.complete) Text(stringResource(R.string.accounts_summary_incomplete, missingText(overview.total)), color = MaterialTheme.colorScheme.error)
             }
         }
-        if (overview.accounts.isEmpty()) item { EmptyState("点击右上角＋新增账户") }
+        if (overview.accounts.isEmpty()) item { EmptyState(stringResource(R.string.accounts_empty)) }
         items(overview.accounts, key = { it.account.id }) { row ->
             OutlinedCard(onClick = { onOpen(row.account.id) }, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.fillMaxWidth().padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -75,11 +76,11 @@ private fun missingText(total: ConvertedTotal): String = total.missing.map {
                             Box(Modifier.weight(1.3f)) { amount() }
                         }
                     }
-                    if (!row.total.complete) Text("部分汇总 · " + missingText(row.total), color = MaterialTheme.colorScheme.error)
+                    if (!row.total.complete) Text(stringResource(R.string.accounts_partial_summary, missingText(row.total)), color = MaterialTheme.colorScheme.error)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(row.account.note, Modifier.weight(1f).alignByBaseline(), style = MaterialTheme.typography.bodySmall,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("可用现金 " + totalText(row.cash), Modifier.weight(1.3f).alignByBaseline(),
+                        Text(stringResource(R.string.accounts_available_cash, totalText(row.cash)), Modifier.weight(1.3f).alignByBaseline(),
                             style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
                     }
                 }
@@ -92,32 +93,36 @@ private fun missingText(total: ConvertedTotal): String = total.missing.map {
     val submission by vm.submission.collectAsStateWithLifecycle()
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
     if (!state.loaded) {
-        if (state.loadError) TextButton(onClick = vm::reload) { Text("读取失败，重试") } else CircularProgressIndicator()
+        if (state.loadError) TextButton(onClick = vm::reload) { Text(stringResource(R.string.account_edit_load_failed)) } else CircularProgressIndicator()
         return
     }
-    FormLayout("编辑账户", submission.phase == SubmissionPhase.WORKING,
+    FormLayout(stringResource(R.string.account_edit_title), submission.phase == SubmissionPhase.WORKING,
         submission.phase != SubmissionPhase.SUCCEEDED, vm::submit,
-        if (submission.phase == SubmissionPhase.UNKNOWN) "核对并重试" else "保存") {
-        Field("名称", state.name, vm::changeName, enabled = submission.editable)
-        Field("备注", state.note, vm::changeNote, enabled = submission.editable)
-        Text("现金余额", style = MaterialTheme.typography.titleMedium)
+        if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.account_review_retry) else stringResource(R.string.account_save)) {
+        Field(stringResource(R.string.account_name), state.name, vm::changeName, enabled = submission.editable)
+        Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable)
+        Text(stringResource(R.string.account_cash_accounts), style = MaterialTheme.typography.titleMedium)
         state.rows.forEach { row ->
-            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            OutlinedCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Field(stringResource(R.string.account_cash_name), row.nameInput, { vm.changeRow(row.key, name = it) }, enabled = submission.editable)
+                Field(stringResource(R.string.account_note), row.noteInput, { vm.changeRow(row.key, note = it) }, enabled = submission.editable)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
                         CurrencyChoice(row.currency.code, { vm.changeRow(row.key, currency = Currency.of(it)) },
-                            submission.editable && !row.locked, Currency.supported.map { it.code to it.name },
-                            state.rows.filter { it.key != row.key }.map { it.currency.code }.toSet())
+                            submission.editable && !row.currencyLocked, Currency.supported.map { it.code to it.name })
                     }
-                    Box(Modifier.weight(1.3f)) { Field("余额", row.balanceInput,
+                    Box(Modifier.weight(1.3f)) { Field(stringResource(R.string.account_balance), row.balanceInput,
                         { vm.changeRow(row.key, balance = it) }, true, submission.editable) }
                 }
-                if (row.locked) Text("币种已锁定：该币种余额已成功保存或发生现金联动", style = MaterialTheme.typography.bodySmall)
-                else TextButton(onClick = { vm.removeRow(row.key) }, enabled = submission.editable) { Text("取消此行") }
+                if (!row.currencyLocked) TextButton(onClick = { vm.removeRow(row.key) }, enabled = submission.editable) {
+                    Text(stringResource(R.string.account_cancel_cash))
+                }
+                }
             }
         }
-        ActionButton(vm::addRow, enabled = submission.editable) { Text("＋ 添加币种") }
+        ActionButton(vm::addRow, enabled = submission.editable) { Text(stringResource(R.string.account_add_cash)) }
         ErrorMessage(submission.error?.name)
-        if (submission.phase == SubmissionPhase.UNKNOWN) Text("保存结果待核对，使用原操作重试")
+        if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.account_unknown_result))
     }
 }

@@ -4,13 +4,18 @@ import java.math.BigDecimal
 
 data class Instrument(val id: Long, val name: String, val symbol: String, val typeId: Long,
     val typeName: String, val currency: Currency, val currentPriceE5: Long,
-    val currencyLocked: Boolean, val revision: Long, val priceUpdatedAtMs: Long)
+    val currencyLocked: Boolean, val revision: Long, val priceUpdatedAtMs: Long,
+    val symbolLocked: Boolean = false)
 
 data class FxRate(val sourceCurrency: Currency, val targetCurrency: Currency, val rate: BigDecimal)
-data class AppSettings(val baseCurrency: Currency? = null, val rates: List<FxRate> = emptyList(), val revision: Long = 0)
+enum class AppLanguage { SYSTEM, ZH_HANS, ENGLISH }
+enum class GainLossColorScheme { GREEN_GAIN, RED_GAIN }
+data class AppSettings(val baseCurrency: Currency? = null, val rates: List<FxRate> = emptyList(), val revision: Long = 0,
+    val language: AppLanguage = AppLanguage.SYSTEM,
+    val gainLossColors: GainLossColorScheme = GainLossColorScheme.GREEN_GAIN)
 
 /** One transactional snapshot. Totals include all accounts, independently of visible pages. */
-data class AssetSnapshot(val accounts: List<SavingsAccount>, val cash: List<CashBalance>,
+data class AssetSnapshot(val accounts: List<SavingsAccount>, val cash: List<CashAccount>,
     val deposits: List<TermDeposit>, val positions: List<Investment>,
     val instruments: List<Instrument>, val settings: AppSettings)
 

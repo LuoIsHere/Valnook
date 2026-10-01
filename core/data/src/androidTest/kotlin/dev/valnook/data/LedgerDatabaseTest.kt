@@ -215,9 +215,44 @@ class LedgerDatabaseTest {
         assertEquals(1000000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         assertEquals(800,db.ledger().cash_one(a,"USD")!!.balance_minor)
         assertEquals(900,db.ledger().cash_one(b,"CNY")!!.balance_minor)
-        assertEquals(3,count("cash_balances"))
+        assertEquals(3,count("cash_accounts"))
         accounts.save_account(a,"改名","备注")
         assertEquals("B",db.ledger().account(b)!!.name)
+    } }
+    @Test fun same_currency_cash_accounts_are_independent_and_trade_target_moves_atomically() { runBlocking {
+        val account = account()
+        commands.execute(SaveAccount(id(), account, 1, "A", "synthetic", listOf(
+            CashBalanceChange("USD", 100000, null, name = "Broker cash"),
+            CashBalanceChange("USD", 50000, null, name = "Savings cash")
+        )))
+        val cash = db.cash().cashCandidates(account, "USD")
+        assertEquals(listOf("Broker cash", "Savings cash"), cash.map { it.name })
+        val type = investments.save_type(null, "ETF")
+        val instrument = commands.execute(SaveInstrument(id(), null, null, "QQQ", "QQQ", type,
+            "USD", 20000000)).id
+        val trade = commands.execute(RecordAccountTrade(id(), account, instrument, Direction.BUY,
+            e("1"), e("200"), 100, true, cash[0].id)).id
+        assertEquals(80000L, db.cash().cashAccount(cash[0].id)!!.balance_minor)
+        assertEquals(50000L, db.cash().cashAccount(cash[1].id)!!.balance_minor)
+
+        val otherAccount = account("Other")
+        set(otherAccount, 50000, "USD")
+        val wrongTarget = db.cash().cashCandidates(otherAccount, "USD").single().id
+        expect(ErrorCode.WRONG_CASH_ACCOUNT) {
+            commands.execute(EditInvestmentTrade(id(), trade, 1, Direction.BUY, e("1"), e("200"),
+                100, true, wrongTarget))
+        }
+        assertEquals(80000L, db.cash().cashAccount(cash[0].id)!!.balance_minor)
+        assertEquals(50000L, db.cash().cashAccount(cash[1].id)!!.balance_minor)
+
+        commands.execute(EditInvestmentTrade(id(), trade, 1, Direction.BUY, e("1"), e("200"),
+            100, true, cash[1].id))
+        assertEquals(100000L, db.cash().cashAccount(cash[0].id)!!.balance_minor)
+        assertEquals(30000L, db.cash().cashAccount(cash[1].id)!!.balance_minor)
+        assertEquals(cash[1].id, db.trades().trade(trade)!!.cash_account_id)
+        assertEquals(1L, count("investment_trades"))
+        assertEquals(1L, count("investments"))
+        assertFalse(db.openHelper.writableDatabase.query("PRAGMA foreign_key_check").moveToFirst())
     } }
     @Test fun deposits_have_independent_interest_and_optional_linkage() { runBlocking {
         val a=account(); set(a,2000000)
@@ -286,10 +321,10 @@ class LedgerDatabaseTest {
     @Test fun insufficient_missing_currency_and_oversell_roll_back() { runBlocking {
         val a=account(); val i=asset(a)
         val baseline=count("operations")
-        expect(ErrorCode.INSUFFICIENT_CASH) { commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("100"),1,true)) }
-        expect(ErrorCode.INSUFFICIENT_HOLDING) { commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("11"),e("100"),1,true)) }
-        expect(ErrorCode.INSUFFICIENT_CASH) { commands.execute(OpenTermDeposit(id(),a,"USD",10000,e("1"),day("2026-01-01"),day("2026-04-01"),true)) }
-        assertEquals(0,count("investment_trades")); assertEquals(0,count("cash_balances"))
+        expect(ErrorCode.WRONG_CASH_ACCOUNT) { commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("100"),1,true)) }
+        expect(ErrorCode.INSUFFICIENT_HOLDING) { commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("11"),e("100"),1,false)) }
+        expect(ErrorCode.WRONG_CASH_ACCOUNT) { commands.execute(OpenTermDeposit(id(),a,"USD",10000,e("1"),day("2026-01-01"),day("2026-04-01"),true)) }
+        assertEquals(0,count("investment_trades")); assertEquals(0,count("cash_accounts"))
         assertEquals(0,count("term_deposits")); assertEquals(baseline,count("operations"))
         assertEquals(e("10"),db.ledger().investment(i)!!.holding_quantity_e8)
     } }
@@ -352,9 +387,10 @@ class LedgerDatabaseTest {
         commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("1"),100,false))
         assertTrue(investments.trade_page(i,null).first().id>ids.first())
     } }
-    @Test fun foreign_keys_unique_constraints_and_type_maintenance() { runBlocking {
+    @Test fun duplicate_currency_cash_accounts_foreign_keys_and_type_maintenance() { runBlocking {
         val a=account(); set(a,100)
-        try { db.ledger().insert_cash(CashEntity(a,"CNY",0,1,0)); fail() } catch(_:android.database.sqlite.SQLiteConstraintException) {}
+        db.ledger().insert_cash(CashEntity(a,"CNY",0,1,0,name="Second CNY"))
+        assertEquals(2,db.cash().cashCandidates(a,"CNY").size)
         try { db.ledger().insert_cash(CashEntity(9999,"USD",0,1,0)); fail() } catch(_:android.database.sqlite.SQLiteConstraintException) {}
         val t=investments.save_type(null,"  Fund  ")
         expect(ErrorCode.DUPLICATE_TYPE) { investments.save_type(null,"fund") }

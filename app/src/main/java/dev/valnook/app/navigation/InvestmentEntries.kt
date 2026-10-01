@@ -49,7 +49,8 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     }
     entry<TradeFormKey> { route ->
         val vm = pageViewModel { TradeFormViewModel(route.accountId, route.mode, route.instrumentId, route.positionId,
-            route.tradeId, route.direction, graph.investments, graph.instruments, graph.commands, graph.clock, createSavedStateHandle()) }
+            route.tradeId, route.direction, graph.investments, graph.instruments, graph.cash,
+            graph.commands, graph.clock, createSavedStateHandle()) }
         TradeForm(vm, back)
     }
 }

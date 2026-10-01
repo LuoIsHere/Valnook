@@ -13,10 +13,11 @@ import java.util.UUID
 enum class DepositFormMode { CREATE, EDIT, CLOSE }
 data class DepositFormUiState(val currency: Currency, val principalInput: String, val rateInput: String,
     val startDate: LocalDate, val endDate: LocalDate, val cashLinked: Boolean,
-    val closeCashLinked: Boolean?, val revision: Long?, val loaded: Boolean = false, val failed: Boolean = false,
+    val closeCashLinked: Boolean?, val revision: Long?, val cashAccountId: Long? = null,
+    val closeCashAccountId: Long? = null, val loaded: Boolean = false, val failed: Boolean = false,
     val originalCashContributionMinor: Long = 0)
 class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMode, private val depositId: Long?,
-    repository: DepositRepository, commands: FinancialCommands, private val clock: Clock,
+    repository: DepositRepository, cashRepository: CashRepository, commands: FinancialCommands, private val clock: Clock,
     private val saved: SavedStateHandle) : ViewModel() {
     private val operationId = saved.get<String>("operationId") ?: UUID.randomUUID().toString().also { saved["operationId"] = it }
     private val session = SubmissionSession(commands, viewModelScope,
@@ -26,9 +27,12 @@ class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMod
         saved["principal"] ?: "", saved["rate"] ?: "",
         saved.get<String>("start")?.let(LocalDate::parse) ?: LocalDate.now(clock),
         saved.get<String>("end")?.let(LocalDate::parse) ?: LocalDate.now(clock).plusMonths(3),
-        saved["linked"] ?: false, saved["closeLinked"], saved["revision"], saved["loaded"] ?: false,
+        saved["linked"] ?: false, saved["closeLinked"], saved["revision"], saved["cashAccountId"],
+        saved["closeCashAccountId"], saved["loaded"] ?: false,
         originalCashContributionMinor = saved["originalCashContribution"] ?: 0))
     val state = mutable.asStateFlow()
+    val cashAccounts = cashRepository.observe_cash(accountId).catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyList())
     init {
         if (!state.value.loaded) viewModelScope.launch {
             try {
@@ -38,7 +42,8 @@ class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMod
                     R.format_units(deposit.principal_minor, deposit.currency.fraction_digits),
                     R.format_e8(deposit.annual_rate_percent_e8), LocalDate.ofEpochDay(deposit.start_epoch_day),
                     LocalDate.ofEpochDay(deposit.end_epoch_day), if (mode == DepositFormMode.CLOSE) false else deposit.open_cash_linked,
-                    deposit.close_cash_linked, deposit.revision, true,
+                    deposit.close_cash_linked, deposit.revision, deposit.openCashAccountId,
+                    deposit.closeCashAccountId, true,
                     originalCashContributionMinor = if (mode == DepositFormMode.CLOSE) 0 else R.add(
                         if (deposit.open_cash_linked) -deposit.principal_minor else 0,
                         if (deposit.closed && deposit.close_cash_linked == true)
@@ -57,12 +62,26 @@ class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMod
         saved["linked"] = value.cashLinked
         saved["closeLinked"] = value.closeCashLinked
         saved["revision"] = value.revision
+        saved["cashAccountId"] = value.cashAccountId
+        saved["closeCashAccountId"] = value.closeCashAccountId
         saved["loaded"] = value.loaded
         saved["originalCashContribution"] = value.originalCashContributionMinor
     }
     fun update(transform: (DepositFormUiState) -> DepositFormUiState) {
         if (submission.value.editable) updateInternal(transform(state.value))
     }
+    fun setOpenCashLinked(linked: Boolean) = update { current ->
+        val candidates = cashAccounts.value.filter { it.currency == current.currency }
+        current.copy(cashLinked = linked,
+            cashAccountId = if (!linked) null else current.cashAccountId ?: candidates.singleOrNull()?.id)
+    }
+    fun selectOpenCashAccount(id: Long) = update { it.copy(cashLinked = true, cashAccountId = id) }
+    fun setCloseCashLinked(linked: Boolean) = update { current ->
+        val candidates = cashAccounts.value.filter { it.currency == current.currency }
+        current.copy(closeCashLinked = linked,
+            closeCashAccountId = if (!linked) null else current.closeCashAccountId ?: candidates.singleOrNull()?.id)
+    }
+    fun selectCloseCashAccount(id: Long) = update { it.copy(closeCashLinked = true, closeCashAccountId = id) }
     fun preview(): String? = runCatching {
         val input = state.value
         R.format_units(R.interest(R.parse_minor(input.principalInput, input.currency, true), R.parse_e8(input.rateInput),
@@ -84,11 +103,15 @@ class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMod
         when (mode) {
             DepositFormMode.CREATE -> OpenTermDeposit(operationId, accountId, input.currency.code,
                 R.parse_minor(input.principalInput, input.currency, true), R.parse_e8(input.rateInput),
-                input.startDate.toEpochDay(), input.endDate.toEpochDay(), input.cashLinked)
+                input.startDate.toEpochDay(), input.endDate.toEpochDay(), input.cashLinked,
+                if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null)
             DepositFormMode.EDIT -> EditTermDeposit(operationId, requireNotNull(depositId), requireNotNull(input.revision),
                 R.parse_minor(input.principalInput, input.currency, true), R.parse_e8(input.rateInput),
-                input.startDate.toEpochDay(), input.endDate.toEpochDay(), input.cashLinked, input.closeCashLinked)
-            DepositFormMode.CLOSE -> CloseTermDeposit(operationId, requireNotNull(depositId), input.cashLinked)
+                input.startDate.toEpochDay(), input.endDate.toEpochDay(), input.cashLinked, input.closeCashLinked,
+                if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null,
+                if (input.closeCashLinked == true) input.closeCashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null)
+            DepositFormMode.CLOSE -> CloseTermDeposit(operationId, requireNotNull(depositId), input.cashLinked,
+                if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null)
         }
     }
     fun consumeSuccess(): Boolean {

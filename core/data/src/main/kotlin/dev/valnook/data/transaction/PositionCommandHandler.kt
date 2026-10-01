@@ -18,6 +18,7 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         cash.currency(instrument.currency_code)
         if (positions.position(command.accountId, command.instrumentId) != null) throw DomainException(ErrorCode.OPERATION_CONFLICT)
         R.check_nonnegative(command.quantityE8)
+        if (command.quantityE8 > 0 && command.costPriceE8 == null) throw DomainException(ErrorCode.FORMAT)
         command.costPriceE8?.let { R.check_nonnegative(it, true) }
         val cost = if (command.quantityE8 == 0L) "0" else command.costPriceE8?.let {
             java.math.BigDecimal.valueOf(R.amount(command.quantityE8, it, Currency.of(instrument.currency_code)),
@@ -51,26 +52,29 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         val position = positions.position(command.accountId, command.instrumentId)?.id ?: opening(
             SaveOpeningPosition(command.operation_id, command.accountId, command.instrumentId, 0, null, command.occurredAtMs), now).id
         return record(RecordInvestmentTrade(command.operation_id, position, command.direction, command.quantityE8,
-            command.executionPriceE8, command.occurredAtMs, command.cashLinked), now)
+            command.executionPriceE8, command.occurredAtMs, command.cashLinked, command.cashAccountId), now)
     }
 
     suspend fun record(command: RecordInvestmentTrade, now: Long): OperationResult {
         val position = positions.investment(command.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val amount = R.amount(command.quantity_e8, command.execution_price_e8, cash.currency(instrument.currency_code), true)
+        val cashAccountId = cash.resolveLink(position.savings_account_id, instrument.currency_code,
+            command.cash_linked, command.cashAccountId)
         if (command.direction == Direction.SELL && command.quantity_e8 > position.holding_quantity_e8)
             throw DomainException(ErrorCode.INSUFFICIENT_HOLDING)
         val id = trades.insert_trade(TradeEntity(investment_id = position.id, operation_id = command.operation_id,
             direction = command.direction.name, quantity_e8 = command.quantity_e8, execution_price_e8 = command.execution_price_e8,
-            amount_minor = amount, currency_code = instrument.currency_code, cash_linked = command.cash_linked,
+            amount_minor = amount, currency_code = instrument.currency_code, cash_linked = cashAccountId != null,
+            cash_account_id = cashAccountId,
             occurred_at_ms = command.occurred_at_ms, created_at_ms = now, updated_at_ms = now))
         fault(TransactionPoint.AFTER_BUSINESS)
         rebuild(position, now)
-        db.instruments().lockCurrency(position.instrument_id)
-        if (command.cash_linked) {
+        db.instruments().lockTradeIdentity(position.instrument_id)
+        if (cashAccountId != null) {
             val delta = impact(command.direction, amount)
-            cash.change(command.operation_id, position.savings_account_id, instrument.currency_code, delta, command.direction.name, now)
-            cash.entry(command.operation_id, position.savings_account_id, instrument.currency_code, "TRADE", id, delta, command.occurred_at_ms, now)
+            cash.change(command.operation_id, cashAccountId, delta, command.direction.name, now)
+            cash.entry(command.operation_id, cashAccountId, "TRADE", id, delta, command.occurred_at_ms, now)
         }
         return OperationResult("INVESTMENT_TRADE", id)
     }
@@ -92,11 +96,13 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         val position = positions.investment(old.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val amount = R.amount(command.quantity_e8, command.execution_price_e8, cash.currency(instrument.currency_code), true)
+        val cashAccountId = cash.resolveLink(position.savings_account_id, instrument.currency_code,
+            command.cash_linked, command.cashAccountId)
         if (trades.edit_trade(old.id, old.revision, command.direction.name, command.quantity_e8, command.execution_price_e8,
-                amount, command.cash_linked, command.occurred_at_ms, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
+                amount, cashAccountId, command.occurred_at_ms, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
         fault(TransactionPoint.AFTER_BUSINESS)
         rebuild(position, now)
-        syncCash(command.operation_id, old, position, command.direction, amount, command.cash_linked,
+        syncCash(command.operation_id, old, position, command.direction, amount, cashAccountId,
             command.occurred_at_ms, now, "TRADE_EDIT")
         return OperationResult("INVESTMENT_TRADE", old.id)
     }
@@ -108,7 +114,7 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         fault(TransactionPoint.AFTER_BUSINESS)
         rebuild(position, now)
         syncCash(command.operation_id, old, position, Direction.valueOf(old.direction), old.amount_minor,
-            false, old.occurred_at_ms, now, "TRADE_DELETE")
+            null, old.occurred_at_ms, now, "TRADE_DELETE")
         return OperationResult("INVESTMENT_TRADE", old.id)
     }
 
@@ -138,18 +144,24 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
     private fun impact(direction: Direction, amount: Long): Long = if (direction == Direction.BUY) -amount else amount
 
     private suspend fun syncCash(operationId: String, old: TradeEntity, position: InvestmentEntity,
-        direction: Direction, amount: Long, linked: Boolean, occurred: Long, now: Long, reason: String) {
-        val oldImpact = if (old.cash_linked) impact(Direction.valueOf(old.direction), old.amount_minor) else 0
-        val newImpact = if (linked) impact(direction, amount) else 0
+        direction: Direction, amount: Long, cashAccountId: Long?, occurred: Long, now: Long, reason: String) {
+        val oldImpact = if (old.cash_account_id != null) impact(Direction.valueOf(old.direction), old.amount_minor) else 0
+        val newImpact = if (cashAccountId != null) impact(direction, amount) else 0
         val entry = db.cash().source_entry("TRADE", old.id)
-        if (old.cash_linked) check(entry != null && !entry.is_deleted && entry.delta_minor == oldImpact)
-        if (!old.cash_linked && !linked) return
+        if (old.cash_account_id != null) check(entry != null && !entry.is_deleted && entry.delta_minor == oldImpact)
+        if (old.cash_account_id == null && cashAccountId == null) return
         // Only this record's difference affects cash; replay never repeats previous cash effects.
-        cash.change(operationId, position.savings_account_id, old.currency_code,
-            R.replace_contribution(0, oldImpact, newImpact), reason, now)
-        if (entry == null) cash.entry(old.operation_id, position.savings_account_id, old.currency_code,
+        cash.applyPlan(operationId, old.cash_account_id, oldImpact, cashAccountId, newImpact, reason, now)
+        if (entry == null) cash.entry(old.operation_id, requireNotNull(cashAccountId),
             "TRADE", old.id, newImpact, occurred, now)
-        else if (db.cash().edit_entry(entry.id, entry.revision, if (linked) newImpact else entry.delta_minor,
-                occurred, entry.note, !linked, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
+        else {
+            val targetId = cashAccountId ?: entry.cash_account_id
+            val target = db.cash().cashAccount(targetId) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
+            if (db.cash().editEntry(entry.id, entry.revision, target.id, target.savings_account_id,
+                    target.currency_code, if (cashAccountId != null) newImpact else entry.delta_minor,
+                    occurred, entry.note, cashAccountId == null, now) != 1) {
+                throw DomainException(ErrorCode.STALE_RECORD)
+            }
+        }
     }
 }

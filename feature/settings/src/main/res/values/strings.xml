@@ -1,0 +1,39 @@
+<resources>
+    <string name="settings_title">Settings</string>
+    <string name="settings_load_failed">Could not load settings</string>
+    <string name="settings_base_currency">Base currency</string>
+    <string name="settings_not_set">Not set</string>
+    <string name="settings_exchange_rates">Exchange rates</string>
+    <string name="settings_fx_default">Currencies without a saved rate use 1:1</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_gain_loss_colors">Gain/loss colors</string>
+    <string name="settings_demo_mode">Demo mode</string>
+    <string name="settings_demo_summary">Uses temporary sample data for this session</string>
+    <string name="settings_demo_loading">Preparing isolated sample data…</string>
+    <string name="settings_demo_failed">Could not switch data mode. Your current data was not changed.</string>
+    <string name="settings_danger_zone">Danger zone</string>
+    <string name="settings_clear_data">Clear data</string>
+    <string name="settings_no_base">No base currency selected; original-currency features remain available</string>
+    <string name="settings_fx_direction">1 source currency = r %1$s</string>
+    <string name="settings_rate">Rate (up to 12 decimal places)</string>
+    <string name="settings_remove_rate">Remove this rate</string>
+    <string name="settings_add_rate">+ Add rate</string>
+    <string name="settings_saved">Settings saved</string>
+    <string name="settings_saving">Saving</string>
+    <string name="settings_save">Save settings</string>
+    <string name="settings_language_system">System default</string>
+    <string name="settings_language_zh">简体中文</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_green_gain">Green gains, red losses</string>
+    <string name="settings_red_gain">Red gains, green losses</string>
+    <string name="settings_color_gain">Gain +100.00</string>
+    <string name="settings_color_loss">Loss -100.00</string>
+    <string name="settings_color_zero">Zero 0.00</string>
+    <string name="settings_clear_warning">This action cannot be undone in the app.</string>
+    <string name="settings_clear_scope">Accounts, cash accounts, deposits, instruments, holdings, trades, base currency, and rates will be cleared. Language and gain/loss colors are kept.</string>
+    <string name="settings_clear_input">Enter the code exactly</string>
+    <string name="settings_clear_failed">Clear failed. Existing data remains consistent; try again.</string>
+    <string name="settings_clearing">Clearing</string>
+    <string name="settings_confirm_clear">Clear all listed data</string>
+    <string name="settings_demo_banner">Demo mode · sample data</string>
+</resources>

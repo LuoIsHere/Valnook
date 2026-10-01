@@ -6,6 +6,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.*
 import androidx.lifecycle.createSavedStateHandle
 import androidx.navigation3.runtime.*
+import androidx.compose.ui.res.stringResource
+import dev.valnook.app.R
 import dev.valnook.app.di.AppGraph
 import dev.valnook.feature.accounts.*
 import dev.valnook.feature.cash.*
@@ -26,7 +28,8 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
         val holder = rememberSaveableStateHolder()
         Column {
             PrimaryTabRow(selectedTabIndex = tab) {
-                listOf("现金", "定期", "投资").forEachIndexed { index, title ->
+                listOf(stringResource(R.string.account_tab_cash), stringResource(R.string.account_tab_deposits),
+                    stringResource(R.string.account_tab_investments)).forEachIndexed { index, title ->
                     Tab(tab == index, { tab = index }, text = { Text(title) })
                 }
             }

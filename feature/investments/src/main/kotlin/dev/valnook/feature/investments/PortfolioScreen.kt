@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -20,45 +21,51 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 
 internal fun money(value: BigDecimal?, currency: Currency): String =
-    value?.setScale(currency.fraction_digits, RoundingMode.HALF_UP)?.toPlainString()?.plus(" " + currency.code) ?: "待补全"
-internal fun converted(total: ConvertedTotal): String =
-    total.currency?.let { money(total.amount, it) } ?: "请设置主币种"
-@Composable private fun TotalLine(label: String, total: ConvertedTotal, prominent: Boolean = false) {
+    value?.setScale(currency.fraction_digits, RoundingMode.HALF_UP)?.toPlainString()?.plus(" " + currency.code) ?: "—"
+@Composable internal fun converted(total: ConvertedTotal): String =
+    total.currency?.let { money(total.amount, it) } ?: stringResource(R.string.investment_set_base)
+@Composable private fun TotalLine(label: String, total: ConvertedTotal, prominent: Boolean = false,
+    colorByValue: Boolean = false) {
+    val valueColor = if (colorByValue && total.complete) profitColor(total.amount.signum())
+        else MaterialTheme.colorScheme.onSurface
     if (prominent) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = MaterialTheme.typography.titleMedium)
         Text(converted(total), Modifier.testTag("investment-market-total"),
             style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"))
-    } else Text(label + " " + converted(total), style = MaterialTheme.typography.titleMedium)
-    if (!total.complete) Text("不完整 · " + total.missing.joinToString("、") {
+    } else Text(label + " " + converted(total), style = MaterialTheme.typography.titleMedium, color = valueColor)
+    val missing = total.missing.mapNotNull {
         when (it.kind) {
-            MissingKind.BASE_CURRENCY -> "未设置主币种"
-            MissingKind.EXCHANGE_RATE -> "缺少 ${it.currencyCode} 汇率"
-            MissingKind.CURRENT_COST -> "持仓成本待补全"
-            MissingKind.HISTORICAL_COST -> "历史成本待补全"
-            MissingKind.INVALID_HISTORY -> "历史记录异常"
+            MissingKind.BASE_CURRENCY -> stringResource(R.string.investment_missing_base)
+            MissingKind.EXCHANGE_RATE -> null
+            MissingKind.CURRENT_COST -> stringResource(R.string.investment_missing_current_cost)
+            MissingKind.HISTORICAL_COST -> stringResource(R.string.investment_missing_historical_cost)
+            MissingKind.INVALID_HISTORY -> stringResource(R.string.investment_invalid_history)
         }
-    }, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+    }.distinct().joinToString(" · ")
+    if (!total.complete && missing.isNotEmpty()) Text(stringResource(R.string.investment_incomplete, missing),
+        color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }
 @Composable fun InvestmentHome(vm: PortfolioViewModel, onAccount: (Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         PortfolioState.Loading -> CircularProgressIndicator()
-        PortfolioState.Failed -> Text("投资读取失败，请返回后重试")
+        PortfolioState.Failed -> Text(stringResource(R.string.investment_load_failed))
         is PortfolioState.Ready -> {
             val groups = current.snapshot.positions.filter { it.holding_quantity_e8 > 0 }.groupBy { it.account_id }
             LazyColumn(Modifier.fillMaxSize().testTag("investment-home"), contentPadding = pageContentPadding(),
                 verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 item {
                     Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                        TotalLine("总投资市值", current.overview.investmentValue, prominent = true)
-                        TotalLine("总浮动盈亏", current.overview.floating)
-                        TotalLine("累计已实现盈亏", current.overview.realized)
-                        Text("按当前手动汇率折算，非历史汇兑收益", style = MaterialTheme.typography.bodySmall)
+                        TotalLine(stringResource(R.string.investment_total_value), current.overview.investmentValue, prominent = true)
+                        TotalLine(stringResource(R.string.investment_total_unrealized), current.overview.floating, colorByValue = true)
+                        TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized, colorByValue = true)
+                        Text(stringResource(R.string.investment_current_fx_hint), style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                if (groups.isEmpty()) item { EmptyState("暂无持仓，历史已实现盈亏仍参与汇总") }
+                if (groups.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_holdings_summary)) }
                 items(current.overview.accounts.filter { it.account.id in groups }, key = { it.account.id }) { account ->
                     var expanded by rememberSaveable(account.account.id) { mutableStateOf(false) }
+                    val openDescription = stringResource(R.string.investment_open_account, account.account.name)
                     Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -67,17 +74,19 @@ internal fun converted(total: ConvertedTotal): String =
                                 style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(converted(account.investmentValue), Modifier.weight(1.3f)
                                 .clickable(role = androidx.compose.ui.semantics.Role.Button) { onAccount(account.account.id) }
-                                .semantics { contentDescription = "查看 ${account.account.name} 持仓与记录" }
+                                .semantics { contentDescription = openDescription }
                                 .testTag("investment-account-total-${account.account.id}"),
                                 style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.End)
                         }
-                        AccountProfitRow("已实现盈亏 " + converted(account.realized),
-                            "浮动盈亏 " + converted(account.floating), account.floating.amount.signum(),
+                        AccountProfitRow(stringResource(R.string.investment_realized_value, converted(account.realized)),
+                            stringResource(R.string.investment_unrealized_value, converted(account.floating)),
+                            if (account.realized.complete) account.realized.amount.signum() else 0,
+                            if (account.floating.complete) account.floating.amount.signum() else 0,
                             realizedModifier = Modifier.testTag("account-realized-${account.account.id}"),
                             floatingModifier = Modifier.testTag("account-floating-${account.account.id}"))
                         if (!account.investmentValue.complete || !account.floating.complete || !account.realized.complete)
-                            Text("部分汇总 · 请检查主币种或成本记录", style = MaterialTheme.typography.bodySmall,
+                            Text(stringResource(R.string.investment_partial_summary), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error)
                         if (expanded) {
                             HoldingColumns()
@@ -93,15 +102,15 @@ internal fun converted(total: ConvertedTotal): String =
     onPosition: (Long) -> Unit, onBuy: () -> Unit, onAll: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val current = state as? PortfolioState.Ready
-    if (current == null) { Text(if (state == PortfolioState.Failed) "读取失败" else "正在读取")
+    if (current == null) { Text(stringResource(if (state == PortfolioState.Failed) R.string.investment_read_failed else R.string.investment_loading))
         return }
     val positions = current.snapshot.positions.filter { it.account_id == accountId && (all || it.holding_quantity_e8 > 0) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item { Text(if (all) "所有投资品" else "当前持仓", style = MaterialTheme.typography.titleLarge) }
-        if (!all) item { ActionButton(onAll, Modifier.fillMaxWidth()) { Text("所有投资品") } }
-        if (positions.isEmpty()) item { EmptyState(if (all) "尚未关联投资品" else "暂无持仓") }
+        item { Text(stringResource(if (all) R.string.investment_all_instruments else R.string.investment_current_holdings), style = MaterialTheme.typography.titleLarge) }
+        if (!all) item { ActionButton(onAll, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_all_instruments)) } }
+        if (positions.isEmpty()) item { EmptyState(stringResource(if (all) R.string.investment_no_associations else R.string.investment_no_holdings)) }
         item { HoldingColumns() }
         items(positions, key = { it.id }) { HoldingRow(it) { onPosition(it.id) } }
-        item { Button(onClick = onBuy, modifier = Modifier.fillMaxWidth()) { Text("选择全局标的买入") } }
+        item { Button(onClick = onBuy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_choose_to_buy)) } }
     }
 }

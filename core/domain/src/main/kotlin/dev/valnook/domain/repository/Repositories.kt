@@ -8,7 +8,10 @@ interface AccountRepository {
     suspend fun save_account(id: Long?, name: String, note: String): Long
 }
 interface CashRepository {
-    fun observe_cash(account_id: Long): Flow<List<CashBalance>>
+    fun observe_cash(account_id: Long): Flow<List<CashAccount>>
+    fun observeCashAccount(cashAccountId: Long): Flow<CashAccount?>
+    fun observeCashEntries(cashAccountId: Long, limit: Int): Flow<List<CashEntry>>
+    fun observeCashEntry(cashAccountId: Long, entryId: Long): Flow<CashEntry?>
     fun observe_entries(account_id: Long, currency_code: String, limit: Int): Flow<List<CashEntry>>
     fun observe_entry(account_id: Long, entry_id: Long): Flow<CashEntry?>
 }
@@ -39,15 +42,18 @@ interface FinancialCommands {
 
 sealed interface FinancialCommand { val operation_id: String }
 data class SetCashBalance(override val operation_id: String, val account_id: Long,
-    val currency_code: String, val balance_minor: Long, val expected_revision: Long?) : FinancialCommand
+    val currency_code: String, val balance_minor: Long, val expected_revision: Long?,
+    val cashAccountId: Long? = null, val name: String = "", val note: String = "") : FinancialCommand
 data class OpenTermDeposit(override val operation_id: String, val account_id: Long,
     val currency_code: String, val principal_minor: Long, val annual_rate_percent_e8: Long,
-    val start_epoch_day: Long, val end_epoch_day: Long, val cash_linked: Boolean) : FinancialCommand
+    val start_epoch_day: Long, val end_epoch_day: Long, val cash_linked: Boolean,
+    val cashAccountId: Long? = null) : FinancialCommand
 data class CloseTermDeposit(override val operation_id: String, val deposit_id: Long,
-    val cash_linked: Boolean) : FinancialCommand
+    val cash_linked: Boolean, val cashAccountId: Long? = null) : FinancialCommand
 data class EditTermDeposit(override val operation_id: String, val deposit_id: Long, val expected_revision: Long,
     val principal_minor: Long, val annual_rate_percent_e8: Long, val start_epoch_day: Long,
-    val end_epoch_day: Long, val open_cash_linked: Boolean, val close_cash_linked: Boolean?) : FinancialCommand
+    val end_epoch_day: Long, val open_cash_linked: Boolean, val close_cash_linked: Boolean?,
+    val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null) : FinancialCommand
 data class CreateInvestment(override val operation_id: String, val account_id: Long,
     val name: String, val symbol: String, val type_id: Long, val currency_code: String,
     val opening_quantity_e8: Long, val current_price_e8: Long, val opening_cost_price_e8: Long? = null) : FinancialCommand
@@ -56,11 +62,12 @@ data class SetOpeningInvestmentCost(override val operation_id: String, val inves
     val expected_revision: Long, val price_e8: Long) : FinancialCommand
 data class RecordInvestmentTrade(override val operation_id: String, val investment_id: Long,
     val direction: Direction, val quantity_e8: Long, val execution_price_e8: Long,
-    val occurred_at_ms: Long, val cash_linked: Boolean) : FinancialCommand
+    val occurred_at_ms: Long, val cash_linked: Boolean, val cashAccountId: Long? = null) : FinancialCommand
 
 data class EditInvestmentTrade(override val operation_id: String, val trade_id: Long,
     val expected_revision: Long, val direction: Direction, val quantity_e8: Long,
-    val execution_price_e8: Long, val occurred_at_ms: Long, val cash_linked: Boolean) : FinancialCommand
+    val execution_price_e8: Long, val occurred_at_ms: Long, val cash_linked: Boolean,
+    val cashAccountId: Long? = null) : FinancialCommand
 
 data class DeleteInvestmentTrade(override val operation_id: String, val trade_id: Long,
     val expected_revision: Long) : FinancialCommand

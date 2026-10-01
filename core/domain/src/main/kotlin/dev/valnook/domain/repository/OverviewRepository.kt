@@ -19,7 +19,12 @@ interface InstrumentRepository {
     suspend fun saveInstrument(command: SaveInstrument): OperationResult
 }
 
-data class CashBalanceChange(val currencyCode: String, val balanceMinor: Long, val expectedRevision: Long?)
+interface DataMaintenance {
+    suspend fun clearBusinessData()
+}
+
+data class CashBalanceChange(val currencyCode: String, val balanceMinor: Long, val expectedRevision: Long?,
+    val cashAccountId: Long? = null, val name: String = currencyCode, val note: String = "")
 data class SaveAccount(override val operation_id: String, val accountId: Long?, val expectedRevision: Long?,
     val name: String, val note: String, val cashChanges: List<CashBalanceChange>) : FinancialCommand
 
@@ -32,6 +37,6 @@ data class SaveOpeningPosition(override val operation_id: String, val accountId:
 
 data class RecordAccountTrade(override val operation_id: String, val accountId: Long, val instrumentId: Long,
     val direction: Direction, val quantityE8: Long, val executionPriceE8: Long,
-    val occurredAtMs: Long, val cashLinked: Boolean) : FinancialCommand
+    val occurredAtMs: Long, val cashLinked: Boolean, val cashAccountId: Long? = null) : FinancialCommand
 
 data class SaveAssetType(override val operation_id: String, val typeId: Long?, val name: String) : FinancialCommand

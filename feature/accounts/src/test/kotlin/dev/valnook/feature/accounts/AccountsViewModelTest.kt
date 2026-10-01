@@ -14,14 +14,15 @@ import org.junit.Assert.*
 class AccountsViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val snapshot = AssetSnapshot(listOf(SavingsAccount(7, "旧名称", "旧备注", 3)),
-        listOf(CashBalance(7, Currency.of("CNY"), 100, 8)), emptyList(), emptyList(), emptyList(), AppSettings())
+        listOf(CashAccount(7, Currency.of("CNY"), 100, 8, id = 11, name = "人民币现金")),
+        emptyList(), emptyList(), emptyList(), AppSettings())
     private val repository = object : OverviewRepository {
         override fun observeSnapshot() = flowOf(snapshot)
         override suspend fun snapshot() = snapshot
     }
     @Before fun prepare() { Dispatchers.setMain(dispatcher) }
     @After fun close() { Dispatchers.resetMain() }
-    @Test fun atomic_account_command_keeps_stable_identity_and_omits_unchanged_balance() = runTest(dispatcher) {
+    @Test fun atomic_account_command_keeps_stable_cash_identity() = runTest(dispatcher) {
         var request: SaveAccount? = null
         val commands = object : FinancialCommands {
             override suspend fun execute(command: FinancialCommand): OperationResult {
@@ -37,7 +38,7 @@ class AccountsViewModelTest {
         assertEquals(7L, request!!.accountId)
         assertEquals(3L, request!!.expectedRevision)
         assertEquals("旧备注", request!!.note)
-        assertTrue(request!!.cashChanges.isEmpty())
+        assertEquals(listOf(CashBalanceChange("CNY", 100, 8, 11, "人民币现金", "")), request!!.cashChanges)
         assertTrue(vm.consumeSuccess())
         assertFalse(vm.consumeSuccess())
     }
@@ -52,11 +53,11 @@ class AccountsViewModelTest {
         val saved = SavedStateHandle()
         val vm = AccountEditViewModel(7, repository, commands, saved)
         runCurrent()
-        vm.changeRow("CNY", currency = Currency.of("USD"), balance = "2.00")
+        vm.changeRow("11", currency = Currency.of("USD"), balance = "2.00")
         assertEquals("CNY", vm.state.value.rows.first().currency.code)
         vm.addRow()
         val new = vm.state.value.rows.last()
-        vm.changeRow(new.key, currency = Currency.of("USD"), balance = "0")
+        vm.changeRow(new.key, name = "美元现金", currency = Currency.of("USD"), balance = "0")
         val restored = AccountEditViewModel(7, repository, commands, SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
         runCurrent()
         assertTrue(requests.isEmpty())
@@ -64,7 +65,10 @@ class AccountsViewModelTest {
         restored.submit()
         runCurrent()
         assertEquals(1, requests.size)
-        assertEquals(listOf(CashBalanceChange("CNY", 200, 8), CashBalanceChange("USD", 0, null)), requests.single().cashChanges)
+        assertEquals(listOf(
+            CashBalanceChange("CNY", 200, 8, 11, "人民币现金", ""),
+            CashBalanceChange("USD", 0, null, null, "美元现金", "")
+        ), requests.single().cashChanges)
     }
     @Test fun unknown_receipt_reconciles_original_operation_without_second_write() = runTest(dispatcher) {
         var writes = 0
@@ -104,7 +108,7 @@ class AccountsViewModelTest {
         }
         val vm = AccountEditViewModel(7, repository, commands, SavedStateHandle())
         runCurrent()
-        vm.changeRow("CNY", balance = "2.00")
+        vm.changeRow("11", balance = "2.00")
         vm.submit()
         runCurrent()
         assertEquals(ErrorCode.STALE_BALANCE, vm.submission.value.error)
@@ -115,6 +119,7 @@ class AccountsViewModelTest {
         val vm = AccountEditViewModel(7, repository, commands, SavedStateHandle())
         runCurrent()
         vm.addRow()
+        vm.changeRow(vm.state.value.rows.last().key, balance = "invalid")
         vm.submit()
         runCurrent()
         assertEquals(SubmissionPhase.INVALID, vm.submission.value.phase)

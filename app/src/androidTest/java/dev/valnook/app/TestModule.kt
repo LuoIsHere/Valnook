@@ -32,4 +32,5 @@ object TestModule {
     @Provides @Singleton fun instruments(db:ValnookDatabase,commands:FinancialCommands):InstrumentRepository=RoomInstruments(db,commands)
     @Provides @Singleton fun cashPages(cash:CashRepository):PagedCashRepository=cash as PagedCashRepository
     @Provides @Singleton fun depositPages(deposits:DepositRepository):PagedDepositRepository=deposits as PagedDepositRepository
+    @Provides @Singleton fun maintenance(db:ValnookDatabase):DataMaintenance=RoomDataMaintenance(db)
 }

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.command.SubmissionPhase
@@ -14,58 +15,67 @@ import java.time.*
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     val instruments by vm.availableInstruments.collectAsStateWithLifecycle()
+    val cashAccounts by vm.cashAccounts.collectAsStateWithLifecycle()
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
     if (!state.loaded || state.failed) {
-        Text(if (state.failed) "记录读取失败，请返回后重试" else "正在读取")
+        Text(stringResource(if (state.failed) R.string.investment_trade_load_failed else R.string.investment_loading))
         return
     }
-    val title = when (state.mode) {
-        TradeFormMode.CREATE -> if (state.direction == Direction.BUY) "买入" else "卖出"
-        TradeFormMode.EDIT -> "修改交易"
-        TradeFormMode.DELETE -> "删除交易"
-        TradeFormMode.OPENING -> "期初持仓"
-        TradeFormMode.OPENING_COST -> "期初成本"
-    }
+    val title = stringResource(when (state.mode) {
+        TradeFormMode.CREATE -> if (state.direction == Direction.BUY) R.string.investment_buy else R.string.investment_sell
+        TradeFormMode.EDIT -> R.string.investment_edit_trade
+        TradeFormMode.DELETE -> R.string.investment_delete_trade
+        TradeFormMode.OPENING -> R.string.investment_opening_position
+        TradeFormMode.OPENING_COST -> R.string.investment_opening_cost
+    })
     FormLayout(title, submission.phase == SubmissionPhase.WORKING, submission.phase != SubmissionPhase.SUCCEEDED,
-        vm::submit, if (submission.phase == SubmissionPhase.UNKNOWN) "核对并重试" else if (state.mode == TradeFormMode.DELETE) "确认删除" else "保存") {
+        vm::submit, if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.investment_review_retry)
+        else if (state.mode == TradeFormMode.DELETE) stringResource(R.string.investment_confirm_delete)
+        else stringResource(R.string.investment_save)) {
         if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.OPENING) {
-            ChoiceField("投资品", state.instrumentId?.toString().orEmpty(), instruments.map { it.id.toString() to (it.name + " · " + it.symbol) },
+            ChoiceField(stringResource(R.string.investment_instrument), state.instrumentId?.toString().orEmpty(), instruments.map { it.id.toString() to (it.name + " · " + it.symbol) },
                 { id -> instruments.firstOrNull { it.id.toString() == id }?.let(vm::chooseInstrument) }, submission.editable)
         } else Text(state.name)
-        if (state.mode == TradeFormMode.DELETE) Text("删除后将重算后续成本，并修正此交易原有的现金影响。")
+        if (state.mode == TradeFormMode.DELETE) Text(stringResource(R.string.investment_delete_hint))
         else {
-            if (state.mode == TradeFormMode.EDIT) ChoiceField("交易方向", state.direction.name,
-                listOf(Direction.BUY.name to "买入", Direction.SELL.name to "卖出"),
+            if (state.mode == TradeFormMode.EDIT) ChoiceField(stringResource(R.string.investment_trade_direction), state.direction.name,
+                listOf(Direction.BUY.name to stringResource(R.string.investment_buy),
+                    Direction.SELL.name to stringResource(R.string.investment_sell)),
                 { value -> vm.update { it.copy(direction = Direction.valueOf(value)) } }, submission.editable)
-            if (state.mode != TradeFormMode.OPENING_COST) Field("份额", state.quantityInput,
+            if (state.mode != TradeFormMode.OPENING_COST) Field(stringResource(R.string.investment_quantity), state.quantityInput,
                 { value -> vm.update { it.copy(quantityInput = value) } }, true, submission.editable)
-            Field(if (state.mode == TradeFormMode.OPENING || state.mode == TradeFormMode.OPENING_COST) "期初成本单价" else "成交单价",
+            Field(stringResource(if (state.mode == TradeFormMode.OPENING || state.mode == TradeFormMode.OPENING_COST)
+                R.string.investment_opening_cost_price else R.string.investment_execution_price),
                 state.executionPriceInput, { value -> vm.update { it.copy(executionPriceInput = value) } }, true,
-                submission.editable && !state.unknownOpeningCost)
-            if (state.mode == TradeFormMode.OPENING) {
-                CheckboxRow("成本未知，稍后补全", state.unknownOpeningCost,
-                    { value -> vm.update { it.copy(unknownOpeningCost = value) } }, enabled = submission.editable)
-            }
+                submission.editable)
             if (state.mode != TradeFormMode.OPENING_COST) {
-                DateField("记账日期", state.occurredAt.toLocalDate().toString(), { value -> vm.update {
+                DateField(stringResource(R.string.investment_record_date), state.occurredAt.toLocalDate().toString(), { value -> vm.update {
                     it.copy(occurredAt = LocalDateTime.of(LocalDate.parse(value), it.occurredAt.toLocalTime()))
                 } }, submission.editable)
-                TimeField("记账时间", state.occurredAt.toLocalTime().toString(), { value -> vm.update {
+                TimeField(stringResource(R.string.investment_record_time), state.occurredAt.toLocalTime().toString(), { value -> vm.update {
                     it.copy(occurredAt = LocalDateTime.of(it.occurredAt.toLocalDate(), LocalTime.parse(value)))
                 } }, submission.editable)
             }
             if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.EDIT) {
-                vm.amountPreview()?.let { Text("成交金额 " + it) }
-                CheckboxRow("联动该账户 " + state.currency?.code.orEmpty() + " 现金", state.cashLinked,
-                    { value -> vm.update { it.copy(cashLinked = value) } }, enabled = submission.editable)
+                vm.amountPreview()?.let { Text(stringResource(R.string.investment_trade_amount, it)) }
+                CheckboxRow(stringResource(R.string.investment_link_cash, state.currency?.code.orEmpty()), state.cashLinked,
+                    vm::setCashLinked, enabled = submission.editable)
+                if (state.cashLinked) {
+                    val candidates = cashAccounts.filter { it.currency == state.currency }
+                    if (candidates.isEmpty()) Text(stringResource(R.string.investment_cash_missing), color = MaterialTheme.colorScheme.error)
+                    else ChoiceField(stringResource(R.string.investment_cash_account), state.cashAccountId?.toString().orEmpty(),
+                        candidates.map { it.id.toString() to (it.name + " · " + it.currency.code + " · " +
+                            dev.valnook.domain.money.DecimalRules.format_display(it.balance_minor, it.currency.fraction_digits)) },
+                        { vm.selectCashAccount(it.toLong()) }, submission.editable)
+                }
             }
         }
         if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.EDIT || state.mode == TradeFormMode.DELETE)
-            vm.cashImpactPreview()?.let { Text("本次该账户现金变化 " + it) }
+            vm.cashImpactPreview()?.let { Text(stringResource(R.string.investment_cash_change, it)) }
         if (submission.error == ErrorCode.HISTORY_CONFLICT)
-            Text("修改会使历史持仓为负，或使交易早于期初持仓。请核对日期和份额。", color = MaterialTheme.colorScheme.error)
+            Text(stringResource(R.string.investment_history_conflict), color = MaterialTheme.colorScheme.error)
         else ErrorMessage(submission.error?.name)
-        if (submission.phase == SubmissionPhase.UNKNOWN) Text("结果待核对，重试沿用原操作 ID")
+        if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
     }
 }
 @Composable fun InstrumentEditScreen(vm: InstrumentEditViewModel, onBack: () -> Unit) {
@@ -74,42 +84,43 @@ import java.time.*
     val typeState by vm.types.collectAsStateWithLifecycle()
     val types = (typeState as? AssetTypesState.Ready)?.rows.orEmpty()
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
-    if (!state.loaded) { Text(if (state.loadFailed) "标的读取失败" else "正在读取")
+    if (!state.loaded) { Text(stringResource(if (state.loadFailed) R.string.instrument_load_failed else R.string.instrument_loading))
         return }
-    FormLayout("标的资料与当前价", submission.phase == SubmissionPhase.WORKING,
+    FormLayout(stringResource(R.string.instrument_edit_title), submission.phase == SubmissionPhase.WORKING,
         submission.phase != SubmissionPhase.SUCCEEDED && types.isNotEmpty(), vm::submit) {
-        Field("名称", state.name, { value -> vm.update { it.copy(name = value) } }, enabled = submission.editable)
+        Field(stringResource(R.string.instrument_name), state.name, { value -> vm.update { it.copy(name = value) } }, enabled = submission.editable)
         when {
-            typeState == AssetTypesState.Loading -> Text("正在读取资产类型")
-            typeState == AssetTypesState.Failed -> Text("资产类型读取失败，请返回后重试", color = MaterialTheme.colorScheme.error)
-            types.isEmpty() -> Text("请先在所有投资品中创建资产类型", color = MaterialTheme.colorScheme.error)
+            typeState == AssetTypesState.Loading -> Text(stringResource(R.string.instrument_types_loading))
+            typeState == AssetTypesState.Failed -> Text(stringResource(R.string.instrument_types_failed), color = MaterialTheme.colorScheme.error)
+            types.isEmpty() -> Text(stringResource(R.string.instrument_type_required), color = MaterialTheme.colorScheme.error)
         }
-        Field("代码", state.symbol, { value -> vm.update { it.copy(symbol = value) } }, enabled = submission.editable)
-        ChoiceField("资产类型", state.typeId?.toString().orEmpty(), types.map { it.id.toString() to it.name },
+        Field(stringResource(R.string.instrument_symbol), state.symbol, { value -> vm.update { it.copy(symbol = value) } },
+            enabled = submission.editable && !state.symbolLocked)
+        ChoiceField(stringResource(R.string.instrument_asset_class), state.typeId?.toString().orEmpty(), types.map { it.id.toString() to it.name },
             { value -> vm.update { it.copy(typeId = value.toLong()) } }, submission.editable)
         CurrencyChoice(state.currency.code, { value -> vm.update {
             it.copy(currency = Currency.of(value), currencyPriceConfirmed = false)
         } }, submission.editable && !state.currencyLocked, Currency.supported.map { it.code to it.name })
-        if (state.currencyLocked) Text("币种已锁定：任一账户已保存期初持仓或交易")
-        Field("当前每份价格（最多5位小数）", state.priceInput,
+        Field(stringResource(R.string.instrument_current_price), state.priceInput,
             { value -> vm.update { it.copy(priceInput = value) } }, true, submission.editable)
         if (!state.currencyLocked && state.expectedRevision != null)
-            CheckboxRow("已核对当前价格的币种含义", state.currencyPriceConfirmed,
+            CheckboxRow(stringResource(R.string.instrument_confirm_currency_price), state.currencyPriceConfirmed,
                 { value -> vm.update { it.copy(currencyPriceConfirmed = value) } }, enabled = submission.editable)
         when (submission.error) {
-            ErrorCode.CURRENCY_LOCKED -> Text("币种已永久锁定，不能因清仓或删除交易而更改。", color = MaterialTheme.colorScheme.error)
-            ErrorCode.PRICE_CONFIRMATION -> Text("更换币种后，请核对当前价格并勾选确认。", color = MaterialTheme.colorScheme.error)
+            ErrorCode.CURRENCY_LOCKED -> Text(stringResource(R.string.instrument_currency_locked_error), color = MaterialTheme.colorScheme.error)
+            ErrorCode.SYMBOL_LOCKED -> Text(stringResource(R.string.instrument_symbol_locked_error), color = MaterialTheme.colorScheme.error)
+            ErrorCode.PRICE_CONFIRMATION -> Text(stringResource(R.string.instrument_price_confirmation_error), color = MaterialTheme.colorScheme.error)
             else -> ErrorMessage(submission.error?.name)
         }
-        if (submission.phase == SubmissionPhase.UNKNOWN) Text("结果待核对，重试使用原操作")
+        if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
     }
 }
 @Composable fun TypeEditScreen(vm: TypeEditViewModel, onBack: () -> Unit) {
     val name by vm.name.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
-    FormLayout("资产类型", submission.phase == SubmissionPhase.WORKING, submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
-        Field("名称", name, vm::updateName, enabled = submission.editable)
+    FormLayout(stringResource(R.string.instrument_type_title), submission.phase == SubmissionPhase.WORKING, submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
+        Field(stringResource(R.string.instrument_name), name, vm::updateName, enabled = submission.editable)
         ErrorMessage(submission.error?.name)
     }
 }

@@ -7,6 +7,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -17,7 +21,8 @@ fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, on
     val state by vm.state.collectAsStateWithLifecycle()
     val current = state as? InstrumentLibraryState.Ready
     if (current == null) {
-        Text(if (state == InstrumentLibraryState.Failed) "标的库读取失败，请返回后重试" else "正在读取标的库")
+        Text(stringResource(if (state == InstrumentLibraryState.Failed) R.string.instrument_library_failed
+            else R.string.instrument_library_loading))
         return
     }
     var query by rememberSaveable { mutableStateOf("") }
@@ -25,26 +30,38 @@ fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, on
     LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton(onCreate, Modifier.weight(1f), enabled = current.hasTypes) { Text("新增标的") }
-            ActionButton(onTypes, Modifier.weight(1f)) { Text("资产类型管理") }
+            ActionButton(onCreate, Modifier.weight(1f), enabled = current.hasTypes) { Text(stringResource(R.string.instrument_add)) }
+            ActionButton(onTypes, Modifier.weight(1f)) { Text(stringResource(R.string.instrument_manage_types)) }
         } }
         if (!current.hasTypes) item {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text("请先创建资产类型，再新增标的")
-                ActionButton(onTypes) { Text("创建资产类型") }
+                Text(stringResource(R.string.instrument_create_type_first))
+                ActionButton(onTypes) { Text(stringResource(R.string.instrument_create_type)) }
             }
         }
-        item { Field("搜索名称或代码", query, { query = it }) }
-        if (matches.isEmpty()) item { EmptyState(if (query.isBlank()) "尚无投资标的" else "没有匹配的标的") }
+        item { Field(stringResource(R.string.instrument_search), query, { query = it }) }
+        if (matches.isEmpty()) item { EmptyState(stringResource(if (query.isBlank()) R.string.instrument_empty else R.string.instrument_no_match)) }
         items(matches, key = { it.instrument.id }) { summary ->
             val instrument = summary.instrument
             Column(Modifier.fillMaxWidth().clickable { onOpen(instrument.id) }.padding(vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                InstrumentIdentity(instrument)
-                Text("当前价 " + BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString() + " " + instrument.currency.code,
-                    style = MaterialTheme.typography.bodySmall)
-                AccountProfitRow("已实现盈亏 " + money(summary.realized, instrument.currency),
-                    "浮动盈亏 " + money(summary.floating, instrument.currency), summary.floating?.signum() ?: 0)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.md),
+                    verticalAlignment = Alignment.Top) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                        Text(instrument.name, style = MaterialTheme.typography.titleMedium, maxLines = 2,
+                            overflow = TextOverflow.Ellipsis)
+                        Text(instrument.symbol.ifBlank { "—" }, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                    }
+                    Text(stringResource(R.string.instrument_price_per_unit,
+                        BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString(),
+                        instrument.currency.code), style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.End, maxLines = 2)
+                }
+                AccountProfitRow(stringResource(R.string.investment_realized_value, money(summary.realized, instrument.currency)),
+                    stringResource(R.string.investment_unrealized_value, money(summary.floating, instrument.currency)),
+                    summary.realized?.signum() ?: 0, summary.floating?.signum() ?: 0)
             }
         }
     }

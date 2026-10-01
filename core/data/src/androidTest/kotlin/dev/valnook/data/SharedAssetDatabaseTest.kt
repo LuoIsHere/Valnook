@@ -104,19 +104,21 @@ class SharedAssetDatabaseTest {
         assertTrue(investments.observe_investments(a, 50, InvestmentSection.ALL).first().isNotEmpty())
         assertTrue(instruments.observeInstruments().first().isNotEmpty())
     }
-    @Test fun opening_cost_unknown_then_reentry_restores_current_but_not_historical_profit() = runBlocking {
+    @Test fun opening_cost_is_required_and_reentry_preserves_realized_profit() = runBlocking {
         val shared = instrument()
-        commands.execute(SaveOpeningPosition(id(), a, shared, e("10"), null, 100))
+        expect(ErrorCode.FORMAT) { commands.execute(SaveOpeningPosition(id(), a, shared, e("10"), null, 100)) }
+        commands.execute(SaveOpeningPosition(id(), a, shared, e("10"), e("100"), 100))
         assertTrue(db.instruments().instrument(shared)!!.currency_locked)
         expect(ErrorCode.HISTORY_CONFLICT) { trade(a, shared, Direction.BUY, "1", "100", 50) }
         trade(a, shared, Direction.SELL, "10", "120", 200)
         trade(a, shared, Direction.BUY, "1", "200", 300)
         val position = db.positions().position(a, shared)!!
-        assertEquals("200", position.remaining_cost); assertNull(position.realized_profit)
+        assertEquals("200", position.remaining_cost); assertEquals("200", position.realized_profit)
         val price = db.instruments().instrument(shared)!!
         commands.execute(SaveInstrument(id(), shared, price.revision, "QQQ", "QQQ", type, "USD", 20000000))
         val profit = investments.observe_profit(position.id).first()!!
-        assertTrue(profit.cost_complete); assertFalse(profit.realizedComplete); decimal("0", profit.unrealized!!)
+        assertTrue(profit.cost_complete); assertTrue(profit.realizedComplete); decimal("200", profit.realized!!)
+        decimal("0", profit.unrealized!!)
     }
     @Test fun historical_correction_replays_only_affected_position_and_cash_delta_once() = runBlocking {
         val shared = instrument()

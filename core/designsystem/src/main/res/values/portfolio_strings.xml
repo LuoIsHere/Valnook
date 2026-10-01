@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="closed_investments">已清仓</string>
-    <string name="pending_investments">待建仓</string>
-    <string name="settled_deposits">已结算</string>
-    <string name="empty_closed_investments">尚无已清仓的投资项目。</string>
-    <string name="empty_pending_investments">尚无待建仓的投资项目。</string>
-    <string name="empty_settled_deposits">尚无已结算的存单。</string>
-    <string name="profit_summary">历史盈亏</string>
-    <string name="average_buy_cost">买入成本价</string>
-    <string name="realized_profit">已实现盈亏</string>
-    <string name="unrealized_profit">未实现盈亏</string>
-    <string name="opening_cost">期初买入单价</string>
-    <string name="edit_opening_cost">修改期初成本</string>
-    <string name="opening_cost_required">有期初持仓时，必须填写其买入单价。</string>
-    <string name="cost_incomplete">期初成本待补全，补填后显示盈亏。</string>
-    <string name="profit_order_invalid">部分卖出日期早于可用持仓，请修正交易日期后查看已实现盈亏。</string>
-    <string name="profit_rule">按累计买入份额加权计算成本，包含期初持仓；卖出不改变成本价。已实现盈亏使用卖出当时的买入均价。</string>
-    <string name="no_cost_yet">暂无买入成本</string>
+    <string name="closed_investments">Closed positions</string>
+    <string name="pending_investments">Pending positions</string>
+    <string name="settled_deposits">Settled deposits</string>
+    <string name="empty_closed_investments">No closed positions yet.</string>
+    <string name="empty_pending_investments">No pending positions yet.</string>
+    <string name="empty_settled_deposits">No settled deposits yet.</string>
+    <string name="profit_summary">Historical P/L</string>
+    <string name="average_buy_cost">Average buy cost</string>
+    <string name="realized_profit">Realized P/L</string>
+    <string name="unrealized_profit">Unrealized P/L</string>
+    <string name="opening_cost">Opening purchase price</string>
+    <string name="edit_opening_cost">Edit opening cost</string>
+    <string name="opening_cost_required">A purchase price is required for an opening position.</string>
+    <string name="cost_incomplete">Opening cost is incomplete. Complete it to show P/L.</string>
+    <string name="profit_order_invalid">A sale occurs before enough holdings are available. Correct the trade date to view realized P/L.</string>
+    <string name="profit_rule">Cost uses the weighted average of all purchases, including the opening position. Sales do not change the average cost. Realized P/L uses the average cost at the time of sale.</string>
+    <string name="no_cost_yet">No purchase cost yet</string>
 </resources>

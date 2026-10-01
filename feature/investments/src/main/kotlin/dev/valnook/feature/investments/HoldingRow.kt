@@ -7,9 +7,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -17,18 +17,19 @@ import androidx.compose.ui.unit.dp
 import dev.valnook.domain.calculation.*
 import dev.valnook.domain.model.Investment
 import dev.valnook.domain.money.DecimalRules
+import dev.valnook.designsystem.LocalGainLossPalette
 import java.math.BigDecimal
 import java.math.RoundingMode
 
 @Composable
 internal fun profitColor(sign: Int): Color = when {
-    sign > 0 -> if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color(0xFF49C996) else Color(0xFF168457)
-    sign < 0 -> MaterialTheme.colorScheme.error
-    else -> MaterialTheme.colorScheme.onSurface
+    sign > 0 -> LocalGainLossPalette.current.gain
+    sign < 0 -> LocalGainLossPalette.current.loss
+    else -> LocalGainLossPalette.current.neutral
 }
 
 private fun number(value: BigDecimal?, digits: Int): String =
-    value?.setScale(digits, RoundingMode.HALF_UP)?.toPlainString() ?: "待补全"
+    value?.setScale(digits, RoundingMode.HALF_UP)?.toPlainString() ?: "—"
 
 private fun signed(value: BigDecimal?, digits: Int): String =
     (if (value?.signum() == 1) "+" else "") + number(value, digits)
@@ -50,7 +51,7 @@ fun HoldingRow(asset: Investment, onOpen: (() -> Unit)? = null) {
     val market = number(AssetValuation.marketValue(asset), asset.currency.fraction_digits)
     val price = DecimalRules.format_e8(asset.current_price_e8)
     val cost = profit.average_cost?.setScale(8, RoundingMode.HALF_UP)?.stripTrailingZeros()?.toPlainString() ?: "—"
-    val quantity = DecimalRules.format_e8(asset.holding_quantity_e8) + " 份"
+    val quantity = stringResource(R.string.investment_units, DecimalRules.format_e8(asset.holding_quantity_e8))
     val floating = signed(profit.unrealized, asset.currency.fraction_digits)
     val percentage = profit.unrealizedPercent?.let { signed(it, 2) + "%" } ?: "—"
     val color = profitColor(profit.unrealized?.signum() ?: 0)
@@ -74,15 +75,16 @@ fun HoldingRow(asset: Investment, onOpen: (() -> Unit)? = null) {
         } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             name()
             if (fontScale <= 1.3f) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) { Text("市值 / 数量", style = MaterialTheme.typography.labelSmall)
+                Column(Modifier.weight(1f)) { Text(stringResource(R.string.investment_value_quantity), style = MaterialTheme.typography.labelSmall)
                     Metric(market, quantity, Modifier.fillMaxWidth()) }
-                Column(Modifier.weight(1f)) { Text("现价 / 成本", style = MaterialTheme.typography.labelSmall)
+                Column(Modifier.weight(1f)) { Text(stringResource(R.string.investment_price_cost), style = MaterialTheme.typography.labelSmall)
                     Metric(price, cost, Modifier.fillMaxWidth()) }
-                Column(Modifier.weight(1f)) { Text("浮动盈亏", style = MaterialTheme.typography.labelSmall)
+                Column(Modifier.weight(1f)) { Text(stringResource(R.string.investment_unrealized), style = MaterialTheme.typography.labelSmall)
                     Metric(floating, percentage, Modifier.fillMaxWidth(), color) }
             } else {
-                listOf(Triple("市值 / 数量", market, quantity), Triple("现价 / 成本", price, cost),
-                    Triple("浮动盈亏", floating, percentage)).forEachIndexed { index, (label, main, sub) ->
+                listOf(Triple(stringResource(R.string.investment_value_quantity), market, quantity),
+                    Triple(stringResource(R.string.investment_price_cost), price, cost),
+                    Triple(stringResource(R.string.investment_unrealized), floating, percentage)).forEachIndexed { index, (label, main, sub) ->
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
@@ -98,7 +100,10 @@ fun HoldingRow(asset: Investment, onOpen: (() -> Unit)? = null) {
 internal fun HoldingColumns() {
     if (LocalDensity.current.fontScale <= 1.3f) BoxWithConstraints(Modifier.fillMaxWidth()) {
         if (maxWidth >= 330.dp) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("名称 / 代码" to 1.3f, "市值 / 数量" to 1f, "现价 / 成本" to 1f, "浮动盈亏" to 1f).forEach { (title, weight) ->
+            listOf(stringResource(R.string.investment_name_symbol) to 1.3f,
+                stringResource(R.string.investment_value_quantity) to 1f,
+                stringResource(R.string.investment_price_cost) to 1f,
+                stringResource(R.string.investment_unrealized) to 1f).forEach { (title, weight) ->
                 Text(title, Modifier.weight(weight), style = MaterialTheme.typography.labelSmall,
                     textAlign = if (weight > 1f) TextAlign.Start else TextAlign.End,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -410,7 +410,10 @@ class UiFlowTest {
 
     @Test fun synthetic_gallery_light_dark_narrow_wide_and_large_text() {
         val a=listOf(SavingsAccount(1,"合成账户 · 很长的账户名称与备注","当前持有的多币种资产"))
-        val balances=listOf(CashBalance(1,Currency.of("CNY"),Long.MAX_VALUE,1),CashBalance(1,Currency.of("JPY"),0,1))
+        val balances=listOf(
+            CashBalance(1,Currency.of("CNY"),Long.MAX_VALUE,1,id=1,name="合成人民币"),
+            CashBalance(1,Currency.of("JPY"),0,1,id=2,name="合成日元")
+        )
         val deposits=listOf(TermDeposit(1,1,Currency.of("CNY"),1000000,R.parse_e8("3"),
             LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),7397,false,true,null))
         val asset=Investment(1,1,1,"合成基金","一项名称非常长的合成投资资产","TEST-VERY-LONG-SYMBOL-1234567890123456789012345678901234567890",Currency.of("USD"),0,R.parse_e8("38.991"),R.parse_e8("26.1161"),0,remainingCost="1000",realizedProfit="0")
@@ -483,8 +486,9 @@ class UiFlowTest {
                 }
             }
             shot("cash-detail-${if(dark)"dark" else "light"}-$width-$scale","cash-detail",(width*density).toInt())
-            rule.onNode(hasScrollAction()).performScrollToNode(hasText("修改余额变化"))
-            rule.onNodeWithText("修改余额变化").assertIsDisplayed()
+            val editCash = rule.activity.getString(dev.valnook.core.designsystem.R.string.edit_cash_change)
+            rule.onNode(hasScrollAction()).performScrollToNode(hasText(editCash))
+            rule.onNodeWithText(editCash).assertIsDisplayed()
             if(width in listOf(320,840)&&scale==2f) {
                 show_scene("trade-detail-$name") {
                     CompositionLocalProvider(LocalDensity provides Density(density,scale)) {
@@ -499,7 +503,10 @@ class UiFlowTest {
                     }
                 }
                 shot("trade-detail-${if(dark)"dark" else "light"}-$width-$scale","trade-detail",(width*density).toInt())
-                for(label in listOf("修改买卖记录","删除买卖记录")) {
+                for(label in listOf(
+                    rule.activity.getString(dev.valnook.core.designsystem.R.string.edit_trade),
+                    rule.activity.getString(dev.valnook.core.designsystem.R.string.delete_trade)
+                )) {
                     rule.onNode(hasScrollAction()).performScrollToNode(hasText(label))
                     rule.onNodeWithText(label).assertIsDisplayed()
                 }
@@ -517,7 +524,10 @@ class UiFlowTest {
                     }
                 }
                 shot("deposit-detail-${if(dark)"dark" else "light"}-$width-$scale","deposit-detail",(width*density).toInt())
-                for(label in listOf("修改存单记录","结束存单")) {
+                for(label in listOf(
+                    rule.activity.getString(dev.valnook.core.designsystem.R.string.edit_deposit),
+                    rule.activity.getString(dev.valnook.core.designsystem.R.string.close_deposit)
+                )) {
                     rule.onNode(hasScrollAction()).performScrollToNode(hasText(label))
                     rule.onNodeWithText(label).assertIsDisplayed()
                 }

@@ -1,15 +1,15 @@
 <resources>
-    <string name="trade_detail_title">交易详情</string>
-    <string name="deposit_detail_title">存单详情</string>
-    <string name="record_load_error">暂时无法读取记录，请重试。</string>
-    <string name="trade_unavailable">这笔交易已删除或不存在。</string>
-    <string name="deposit_unavailable">这张存单不存在。</string>
-    <string name="record_investment">投资品</string>
-    <string name="trade_amount">成交金额</string>
-    <string name="record_cash_link">现金联动</string>
-    <string name="record_status">状态</string>
-    <string name="record_progress">存期进度</string>
-    <string name="deposit_not_settled">尚未结算</string>
+    <string name="trade_detail_title">Trade details</string>
+    <string name="deposit_detail_title">Deposit details</string>
+    <string name="record_load_error">Could not load this record. Try again.</string>
+    <string name="trade_unavailable">This trade was deleted or does not exist.</string>
+    <string name="deposit_unavailable">This deposit does not exist.</string>
+    <string name="record_investment">Instrument</string>
+    <string name="trade_amount">Trade amount</string>
+    <string name="record_cash_link">Cash link</string>
+    <string name="record_status">Status</string>
+    <string name="record_progress">Term progress</string>
+    <string name="deposit_not_settled">Not settled</string>
     <string name="trade_summary">%1$s · %2$s %3$s</string>
-    <string name="trade_quantity_price">%1$s 份 × %2$s %3$s</string>
+    <string name="trade_quantity_price">%1$s units × %2$s %3$s</string>
 </resources>

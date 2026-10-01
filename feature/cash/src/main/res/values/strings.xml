@@ -1,0 +1,22 @@
+<resources>
+    <string name="cash_balance_load_failed">Could not load balances. Go back and try again.</string>
+    <string name="cash_history_load_failed">Could not load cash history. Go back and try again.</string>
+    <string name="cash_account_load_failed">Could not load this cash account</string>
+    <string name="cash_edit_balance">Edit balance</string>
+    <string name="cash_current_balance">Current balance</string>
+    <string name="cash_review_retry">Review and retry</string>
+    <string name="cash_save">Save</string>
+    <string name="cash_balance_change">Balance change %1$s</string>
+    <string name="cash_record_unavailable">Record unavailable</string>
+    <string name="cash_loading">Loading</string>
+    <string name="cash_edit_change">Edit balance change</string>
+    <string name="cash_change_direction">Direction</string>
+    <string name="cash_increase">Increase</string>
+    <string name="cash_decrease">Decrease</string>
+    <string name="cash_change_amount">Change amount</string>
+    <string name="cash_record_date">Record date</string>
+    <string name="cash_record_time">Record time</string>
+    <string name="cash_note">Note</string>
+    <string name="cash_edit_entry_hint">Correct this record’s effect on the balance. Use Edit balance to set the current balance directly.</string>
+    <string name="cash_correction_preview">Balance correction %1$s</string>
+</resources>

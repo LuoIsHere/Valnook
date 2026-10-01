@@ -10,6 +10,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.core.designsystem.R
+import dev.valnook.feature.deposits.R as DepositsR
 import dev.valnook.domain.model.*
 import dev.valnook.domain.money.DecimalRules as Decimal
 import java.time.*
@@ -25,7 +26,7 @@ import kotlinx.coroutines.delay
     LaunchedEffect(Unit){while(true){delay(30000);vm.refresh_today()}}
     when (val current = state) {
         DepositsState.Loading -> CircularProgressIndicator()
-        DepositsState.Failed -> Text("存单读取失败，请返回后重试")
+        DepositsState.Failed -> Text(stringResource(DepositsR.string.deposits_load_failed))
         is DepositsState.Ready -> DepositsContent(current.rows,today,on_form,vm::load_more,on_open,on_archive,closed,current.hasMore)
     }
 }

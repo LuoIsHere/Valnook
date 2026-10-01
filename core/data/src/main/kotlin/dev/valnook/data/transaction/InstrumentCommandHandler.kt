@@ -22,9 +22,13 @@ internal class InstrumentCommandHandler(private val db: ValnookDatabase, private
             if (old.currency_locked) throw DomainException(ErrorCode.CURRENCY_LOCKED)
             if (!command.currencyPriceConfirmed) throw DomainException(ErrorCode.PRICE_CONFIRMATION)
         }
+        if (old != null && old.symbol_locked && old.symbol != command.symbol.trim()) {
+            throw DomainException(ErrorCode.SYMBOL_LOCKED)
+        }
         val value = InstrumentEntity(id = old?.id ?: 0, asset_type_id = command.typeId, name = name,
             symbol = command.symbol.trim(), currency_code = currency.code, current_price_e5 = command.currentPriceE5,
             currency_locked = old?.currency_locked ?: false, revision = R.add(old?.revision ?: 0, 1),
+            symbol_locked = old?.symbol_locked ?: false,
             price_updated_at_ms = if (old?.current_price_e5 == command.currentPriceE5 && old.currency_code == currency.code)
                 old.price_updated_at_ms else now,
             created_at_ms = old?.created_at_ms ?: now, updated_at_ms = now)

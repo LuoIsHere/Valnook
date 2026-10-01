@@ -14,11 +14,11 @@ sealed interface CashEntryState {
     data class Ready(val entry:CashEntry):CashEntryState
 }
 
-class CashEntryViewModel(account_id:Long,entry_id:Long,repository:CashRepository):ViewModel() {
+class CashEntryViewModel(cashAccountId:Long,entryId:Long,repository:CashRepository):ViewModel() {
     private val attempts=MutableStateFlow(0)
     @OptIn(ExperimentalCoroutinesApi::class)
     val state=attempts.flatMapLatest {
-        repository.observe_entry(account_id,entry_id)
+        repository.observeCashEntry(cashAccountId,entryId)
             .map<CashEntry?,CashEntryState>{entry->if(entry==null)CashEntryState.Missing else CashEntryState.Ready(entry)}
             .onStart {emit(CashEntryState.Loading)}
             .catch {emit(CashEntryState.Failed)}

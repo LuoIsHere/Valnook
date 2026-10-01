@@ -14,7 +14,7 @@ enum class CashChangeDirection { INCREASE, DECREASE }
 data class CashEntryDraft(val currency: Currency?, val amountInput: String, val direction: CashChangeDirection,
     val occurredAt: LocalDateTime, val note: String, val revision: Long?, val loaded: Boolean = false,
     val failed: Boolean = false, val originalDeltaMinor: Long = 0)
-class CashEntryEditViewModel(private val accountId: Long, private val entryId: Long, repository: CashRepository,
+class CashEntryEditViewModel(private val cashAccountId: Long, private val entryId: Long, repository: CashRepository,
     commands: FinancialCommands, private val clock: Clock, private val saved: SavedStateHandle) : ViewModel() {
     private val operationId = saved.get<String>("operationId") ?: UUID.randomUUID().toString().also { saved["operationId"] = it }
     private val session = SubmissionSession(commands, viewModelScope,
@@ -28,7 +28,7 @@ class CashEntryEditViewModel(private val accountId: Long, private val entryId: L
     init {
         if (!state.value.loaded) viewModelScope.launch {
             try {
-                val entry = repository.observe_entry(accountId, entryId).first() ?: throw DomainException(ErrorCode.NOT_FOUND)
+                val entry = repository.observeCashEntry(cashAccountId, entryId).first() ?: throw DomainException(ErrorCode.NOT_FOUND)
                 if (!entry.editable) throw DomainException(ErrorCode.SOURCE_RECORD)
                 updateInternal(CashEntryDraft(entry.currency,
                     java.math.BigDecimal.valueOf(entry.delta_minor, entry.currency.fraction_digits).abs().toPlainString(),

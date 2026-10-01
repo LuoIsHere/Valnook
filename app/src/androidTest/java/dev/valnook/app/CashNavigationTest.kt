@@ -63,14 +63,21 @@ class CashNavigationTest {
         .bufferedReader().use{it.readText()}
 
     @Test fun system_back_has_no_preview_and_preserves_keyboard_and_dialog_priority() {
+        val cashChanges = rule.activity.getString(dev.valnook.core.designsystem.R.string.cash_changes)
+        val manualChange = rule.activity.getString(dev.valnook.core.designsystem.R.string.manual_balance_change)
+        val entryDetail = rule.activity.getString(dev.valnook.core.designsystem.R.string.cash_entry_detail)
+        val editChange = rule.activity.getString(dev.valnook.feature.cash.R.string.cash_edit_change)
+        val direction = rule.activity.getString(dev.valnook.feature.cash.R.string.cash_change_direction)
+        val changeAmount = rule.activity.getString(dev.valnook.feature.cash.R.string.cash_change_amount)
+        val recordDate = rule.activity.getString(dev.valnook.feature.cash.R.string.cash_record_date)
         wait_text("返回手势测试")
         rule.onNodeWithText("返回手势测试").performClick()
         wait_text("USD")
         screenshot("topbar-transparent")
-        rule.onNodeWithContentDescription("余额变化 · USD").performClick()
-        wait_text("手动余额调整")
-        rule.onNodeWithText("手动余额调整").performClick()
-        wait_text("流水详情")
+        rule.onNodeWithContentDescription("$cashChanges · USD").performClick()
+        wait_text(manualChange)
+        rule.onNodeWithText(manualChange).performClick()
+        wait_text(entryDetail)
         rule.waitForIdle()
         SystemClock.sleep(250)
         val before=screenshot("back-gesture-before")
@@ -99,19 +106,19 @@ class CashNavigationTest {
             before.recycle();during.recycle()
         }
         rule.waitForIdle()
-        rule.onNodeWithText("流水详情").assertIsDisplayed()
+        rule.onNodeWithText(entryDetail).assertIsDisplayed()
 
         // Wait for System UI to finish the canceled gesture before starting another.
         // Its edge-back animation is independent of Compose's test clock.
         SystemClock.sleep(500)
         back_gesture(width,y)
-        wait_text("余额变化")
-        rule.onNodeWithText("流水详情").assertDoesNotExist()
+        wait_text(cashChanges)
+        rule.onNodeWithText(entryDetail).assertDoesNotExist()
 
-        rule.onNodeWithText("手动余额调整").performClick()
-        wait_text("流水详情")
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("修改余额变化"))
-        val edit = rule.onNodeWithText("修改余额变化").assertIsDisplayed()
+        rule.onNodeWithText(manualChange).performClick()
+        wait_text(entryDetail)
+        rule.onNode(hasScrollAction()).performScrollToNode(hasText(editChange))
+        val edit = rule.onNodeWithText(editChange).assertIsDisplayed()
         val safeBottom = rule.runOnUiThread {
             val view = rule.activity.window.decorView
             view.height - ViewCompat.getRootWindowInsets(view)!!.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
@@ -119,8 +126,8 @@ class CashNavigationTest {
         assertTrue("Edit action overlaps gesture navigation", edit.fetchSemanticsNode().boundsInWindow.bottom <= safeBottom)
         screenshot("cash-detail-before-edit").recycle()
         edit.performClick()
-        wait_text("增减方向")
-        rule.onNode(hasSetTextAction() and hasText("变化金额")).performClick()
+        wait_text(direction)
+        rule.onNode(hasSetTextAction() and hasText(changeAmount)).performClick()
         rule.waitUntil(5000){ime_visible()}
         // Insets change before the platform IME finishes opening/registering back.
         SystemClock.sleep(400)
@@ -144,15 +151,15 @@ class CashNavigationTest {
         }
         SystemClock.sleep(300)
         screenshot("keyboard-after-back").recycle()
-        rule.onNodeWithText("增减方向").assertExists()
+        rule.onNodeWithText(direction).assertExists()
 
-        rule.onNodeWithContentDescription("记账日期:",substring=true).performScrollTo().performClick()
+        rule.onNodeWithContentDescription("$recordDate:",substring=true).performScrollTo().performClick()
         onView(isAssignableFrom(DatePicker::class.java)).check(matches(isDisplayed()))
         pressBack()
         onView(isAssignableFrom(DatePicker::class.java)).check(doesNotExist())
-        rule.onNodeWithText("增减方向").assertExists()
+        rule.onNodeWithText(direction).assertExists()
         pressBack()
-        wait_text("流水详情")
+        wait_text(entryDetail)
     }
 
     private fun show_screen_keyboard() {

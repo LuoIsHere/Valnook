@@ -16,7 +16,7 @@ import dev.valnook.domain.repository.*
 class AppGraph @Inject constructor(val accounts:AccountRepository,val cash:CashRepository,
     val deposits:DepositRepository,val investments:InvestmentRepository,val commands:FinancialCommands,val clock:Clock,
     val overview:OverviewRepository,val settings:SettingsRepository,val instruments:InstrumentRepository,
-    val cashPages:PagedCashRepository,val depositPages:PagedDepositRepository)
+    val cashPages:PagedCashRepository,val depositPages:PagedDepositRepository,val maintenance:DataMaintenance)
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
@@ -32,4 +32,5 @@ object AppModule {
     @Provides @Singleton fun overview(db:ValnookDatabase):OverviewRepository=RoomOverview(db)
     @Provides @Singleton fun settings(db:ValnookDatabase,clock:Clock):SettingsRepository=RoomSettings(db,clock)
     @Provides @Singleton fun instruments(db:ValnookDatabase,commands:FinancialCommands):InstrumentRepository=RoomInstruments(db,commands)
+    @Provides @Singleton fun maintenance(db:ValnookDatabase):DataMaintenance=RoomDataMaintenance(db)
 }

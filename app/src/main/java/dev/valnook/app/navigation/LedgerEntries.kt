@@ -11,24 +11,31 @@ import dev.valnook.feature.investments.TradeFormMode
 internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (NavKey) -> Unit,
     back: () -> Unit, accountName: (Long) -> String) {
     entry<CashKey> { route ->
-        val vm = pageViewModel { CashViewModel(route.account_id, graph.cash, graph.cashPages, createSavedStateHandle()) }
-        CashDetail(vm, route.currency, { open(AccountEditKey(route.account_id)) }, { open(CashEntryKey(route.account_id, it)) })
+        val vm = pageViewModel { CashViewModel(route.accountId, graph.cash, graph.cashPages, createSavedStateHandle()) }
+        CashDetail(vm, route.cashAccountId,
+            { open(CashBalanceEditKey(route.accountId, route.cashAccountId)) },
+            { open(CashEntryKey(route.accountId, route.cashAccountId, it)) })
+    }
+    entry<CashBalanceEditKey> { route ->
+        val vm = pageViewModel { CashBalanceEditViewModel(route.accountId, route.cashAccountId,
+            graph.cash, graph.commands, createSavedStateHandle()) }
+        CashBalanceEditScreen(vm, back)
     }
     entry<CashEntryKey> { route ->
-        val vm = pageViewModel { CashEntryViewModel(route.account_id, route.entry_id, graph.cash) }
-        CashEntryDetailScreen(vm, accountName(route.account_id), { entry ->
-            if (entry.editable) open(CashEntryEditKey(route.account_id, entry.id))
+        val vm = pageViewModel { CashEntryViewModel(route.cashAccountId, route.entryId, graph.cash) }
+        CashEntryDetailScreen(vm, accountName(route.accountId), { entry ->
+            if (entry.editable) open(CashEntryEditKey(route.accountId, route.cashAccountId, entry.id))
             else entry.source_id?.let { sourceId ->
                 when (entry.source) {
-                    CashSource.TRADE -> open(TradeFormKey(route.account_id, TradeFormMode.EDIT, tradeId = sourceId))
-                    CashSource.TERM_OPEN, CashSource.TERM_CLOSE -> open(DepositFormKey(route.account_id, DepositFormMode.EDIT, sourceId))
+                    CashSource.TRADE -> open(TradeFormKey(route.accountId, TradeFormMode.EDIT, tradeId = sourceId))
+                    CashSource.TERM_OPEN, CashSource.TERM_CLOSE -> open(DepositFormKey(route.accountId, DepositFormMode.EDIT, sourceId))
                     CashSource.CASH_SET -> Unit
                 }
             }
         })
     }
     entry<CashEntryEditKey> { route ->
-        val vm = pageViewModel { CashEntryEditViewModel(route.accountId, route.entryId, graph.cash, graph.commands, graph.clock, createSavedStateHandle()) }
+        val vm = pageViewModel { CashEntryEditViewModel(route.cashAccountId, route.entryId, graph.cash, graph.commands, graph.clock, createSavedStateHandle()) }
         CashEntryEditScreen(vm, back)
     }
     entry<SettledDepositsKey> { route ->
@@ -43,7 +50,7 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
     }
     entry<DepositFormKey> { route ->
         val vm = pageViewModel { DepositFormViewModel(route.accountId, route.mode, route.id, graph.deposits,
-            graph.commands, graph.clock, createSavedStateHandle()) }
+            graph.cash, graph.commands, graph.clock, createSavedStateHandle()) }
         DepositForm(vm, back)
     }
 }

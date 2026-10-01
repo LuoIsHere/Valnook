@@ -9,6 +9,7 @@ import androidx.room.*
 data class InstrumentEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0,
     val asset_type_id: Long, val name: String, val symbol: String, val currency_code: String,
     val current_price_e5: Long, val currency_locked: Boolean, val revision: Long,
+    val symbol_locked: Boolean = false,
     val price_updated_at_ms: Long, val created_at_ms: Long, val updated_at_ms: Long)
 
 data class InstrumentWithType(@Embedded val instrument: InstrumentEntity, val type_name: String)

@@ -1,7 +1,7 @@
 <resources>
-    <string name="edit_deposit">修改存单记录</string>
-    <string name="view_source_deposit">修改来源存单记录</string>
-    <string name="deposit_open_link">开立时联动现金</string>
-    <string name="deposit_close_link">结算时联动现金</string>
-    <string name="deposit_edit_hint">修改本金、利率或存期后，利息和已联动的现金会按差额同步更新。已结束存单保持结束状态，到期日须为过去或今天。</string>
+    <string name="edit_deposit">Edit deposit record</string>
+    <string name="view_source_deposit">Edit source deposit record</string>
+    <string name="deposit_open_link">Cash link on opening</string>
+    <string name="deposit_close_link">Cash link on settlement</string>
+    <string name="deposit_edit_hint">Changing the principal, rate, or term updates interest and linked cash by the difference. A settled deposit stays settled, and its maturity date must be today or earlier.</string>
 </resources>

@@ -9,6 +9,10 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data object AccountsKey : NavKey
 @Serializable data object InvestmentsKey : NavKey
 @Serializable data object SettingsKey : NavKey
+@Serializable data object FxSettingsKey : NavKey
+@Serializable data object LanguageSettingsKey : NavKey
+@Serializable data object GainLossColorsKey : NavKey
+@Serializable data object ClearDataKey : NavKey
 @Serializable data class AccountKey(val id: Long) : NavKey
 @Serializable data class AccountEditKey(val id: Long? = null) : NavKey
 @Serializable data class AccountInvestmentsKey(val accountId: Long, val all: Boolean = false) : NavKey
@@ -19,9 +23,10 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data class InstrumentEditKey(val id: Long? = null) : NavKey
 @Serializable data object TypesKey : NavKey
 @Serializable data class TypeEditKey(val id: Long? = null, val name: String = "") : NavKey
-@Serializable data class CashKey(val account_id: Long, val currency: String) : NavKey
-@Serializable data class CashEntryKey(val account_id: Long, val entry_id: Long) : NavKey
-@Serializable data class CashEntryEditKey(val accountId: Long, val entryId: Long) : NavKey
+@Serializable data class CashKey(val accountId: Long, val cashAccountId: Long) : NavKey
+@Serializable data class CashBalanceEditKey(val accountId: Long, val cashAccountId: Long) : NavKey
+@Serializable data class CashEntryKey(val accountId: Long, val cashAccountId: Long, val entryId: Long) : NavKey
+@Serializable data class CashEntryEditKey(val accountId: Long, val cashAccountId: Long, val entryId: Long) : NavKey
 @Serializable data class TradeDetailKey(val account_id: Long, val trade_id: Long) : NavKey
 @Serializable data class DepositDetailKey(val account_id: Long, val deposit_id: Long) : NavKey
 @Serializable data class SettledDepositsKey(val accountId: Long) : NavKey

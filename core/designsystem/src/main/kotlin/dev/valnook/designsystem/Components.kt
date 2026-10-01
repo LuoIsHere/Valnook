@@ -142,7 +142,8 @@ import java.util.Locale
                 Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.md),
                     verticalArrangement=Arrangement.spacedBy(Space.md)) {
                     Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
-                    Text(pickerRates.baseCode?.let { "汇率 → $it" } ?: "汇率 · 尚未设置主币种",
+                    Text(pickerRates.baseCode?.let { stringResource(R.string.currency_rate_to, it) }
+                        ?: stringResource(R.string.currency_rate_no_base),
                         style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     Field(stringResource(R.string.search_currency),query,{query=it})
                     val matches=options.filter{it.first !in excluded &&
@@ -162,7 +163,7 @@ import java.util.Locale
                                 Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
                                     Text(configured ?: "1",Modifier.testTag("currency-rate-$code"),
                                         style=MaterialTheme.typography.bodyMedium,textAlign=androidx.compose.ui.text.style.TextAlign.End)
-                                    if(configured==null)Text("默认",style=MaterialTheme.typography.bodySmall,
+                                    if(configured==null)Text(stringResource(R.string.currency_rate_default),style=MaterialTheme.typography.bodySmall,
                                         color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if(code==selected)Text("✓",color=MaterialTheme.colorScheme.primary)

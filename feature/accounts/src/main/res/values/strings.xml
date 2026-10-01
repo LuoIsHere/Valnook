@@ -1,0 +1,25 @@
+<resources>
+    <string name="accounts_load_failed">Could not load accounts. Go back and try again.</string>
+    <string name="accounts_total_assets">Total assets</string>
+    <string name="accounts_available_cash">Available cash %1$s</string>
+    <string name="accounts_set_base_currency">Set a base currency</string>
+    <string name="accounts_summary_incomplete">Incomplete total · %1$s</string>
+    <string name="accounts_partial_summary">Partial total · %1$s</string>
+    <string name="accounts_missing_base">Base currency is not set</string>
+    <string name="accounts_missing_current_cost">Current cost is incomplete</string>
+    <string name="accounts_missing_historical_cost">Historical cost is incomplete</string>
+    <string name="accounts_invalid_history">Transaction history is invalid</string>
+    <string name="accounts_empty">Use + in the top right to add an account</string>
+    <string name="account_edit_load_failed">Could not load. Try again.</string>
+    <string name="account_edit_title">Edit account</string>
+    <string name="account_name">Name</string>
+    <string name="account_note">Note</string>
+    <string name="account_cash_accounts">Cash accounts</string>
+    <string name="account_cash_name">Cash account name</string>
+    <string name="account_balance">Balance</string>
+    <string name="account_cancel_cash">Cancel this cash account</string>
+    <string name="account_add_cash">+ Add cash account</string>
+    <string name="account_review_retry">Review and retry</string>
+    <string name="account_save">Save</string>
+    <string name="account_unknown_result">Check the result, then retry with the original operation</string>
+</resources>

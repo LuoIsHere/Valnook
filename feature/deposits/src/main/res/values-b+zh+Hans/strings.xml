@@ -1,0 +1,21 @@
+<resources>
+    <string name="deposit_load_failed">存单读取失败</string>
+    <string name="deposits_load_failed">存单读取失败，请返回后重试</string>
+    <string name="deposit_loading">正在读取</string>
+    <string name="deposit_open">开立存单</string>
+    <string name="deposit_edit">修改存单</string>
+    <string name="deposit_settle">结算存单</string>
+    <string name="deposit_principal">本金</string>
+    <string name="deposit_rate">年利率（%）</string>
+    <string name="deposit_start_date">开始日期</string>
+    <string name="deposit_end_date">到期日期</string>
+    <string name="deposit_principal_value">本金 %1$s %2$s</string>
+    <string name="deposit_interest_value">预计利息 %1$s %2$s</string>
+    <string name="deposit_link_open">开立扣款联动现金</string>
+    <string name="deposit_link_close">结算回款联动现金</string>
+    <string name="deposit_cash_missing">请先创建同币种现金账户</string>
+    <string name="deposit_cash_account">现金账户</string>
+    <string name="deposit_settlement_cash_account">结算现金账户</string>
+    <string name="deposit_link_hint">仅勾选的现金联动会改变本账户对应币种余额</string>
+    <string name="deposit_cash_change">本次该账户现金变化 %1$s</string>
+</resources>

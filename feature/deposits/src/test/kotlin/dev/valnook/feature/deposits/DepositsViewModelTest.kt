@@ -15,11 +15,22 @@ class DepositsViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val clock = Clock.fixed(Instant.parse("2026-09-30T12:00:00Z"), ZoneOffset.UTC)
     private val deposit = TermDeposit(999, 1, Currency.of("CNY"), 1000000, 300000000,
-        LocalDate.parse("2026-01-01").toEpochDay(), LocalDate.parse("2026-04-01").toEpochDay(), 7397, true, true, true, 4)
+        LocalDate.parse("2026-01-01").toEpochDay(), LocalDate.parse("2026-04-01").toEpochDay(), 7397,
+        true, true, true, 4, openCashAccountId = 51, closeCashAccountId = 51)
     private val repo = object : DepositRepository {
         override suspend fun get_deposit(id: Long) = deposit
         override fun observe_deposit(account_id: Long, id: Long) = flowOf<TermDeposit?>(deposit)
         override fun observe_deposits(account_id: Long, limit: Int, closed: Boolean) = flowOf(emptyList<TermDeposit>())
+    }
+    private val cash = object : CashRepository {
+        override fun observe_cash(account_id: Long) = flowOf(listOf(
+            CashAccount(1, Currency.of("CNY"), 2_000_000, 1, id = 51, name = "结算现金")
+        ))
+        override fun observeCashAccount(cashAccountId: Long) = flowOf<CashAccount?>(null)
+        override fun observeCashEntries(cashAccountId: Long, limit: Int) = flowOf(emptyList<CashEntry>())
+        override fun observeCashEntry(cashAccountId: Long, entryId: Long) = flowOf<CashEntry?>(null)
+        override fun observe_entries(account_id: Long, currency_code: String, limit: Int) = flowOf(emptyList<CashEntry>())
+        override fun observe_entry(account_id: Long, entry_id: Long) = flowOf<CashEntry?>(null)
     }
     @Before fun prepare() { Dispatchers.setMain(dispatcher) }
     @After fun close() { Dispatchers.resetMain() }
@@ -30,10 +41,10 @@ class DepositsViewModelTest {
             return OperationResult("TERM_DEPOSIT", 999)
         } }
         val saved = SavedStateHandle()
-        val vm = DepositFormViewModel(1, DepositFormMode.EDIT, 999, repo, commands, clock, saved)
+        val vm = DepositFormViewModel(1, DepositFormMode.EDIT, 999, repo, cash, commands, clock, saved)
         runCurrent()
         vm.update { it.copy(rateInput = "4") }
-        val restored = DepositFormViewModel(1, DepositFormMode.EDIT, 999, repo, commands, clock,
+        val restored = DepositFormViewModel(1, DepositFormMode.EDIT, 999, repo, cash, commands, clock,
             SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
         runCurrent()
         assertTrue(requests.isEmpty())
@@ -51,7 +62,7 @@ class DepositsViewModelTest {
             request = command as OpenTermDeposit
             return OperationResult("TERM_DEPOSIT", 1)
         } }
-        val vm = DepositFormViewModel(1, DepositFormMode.CREATE, null, repo, commands, clock, SavedStateHandle())
+        val vm = DepositFormViewModel(1, DepositFormMode.CREATE, null, repo, cash, commands, clock, SavedStateHandle())
         runCurrent()
         vm.update { it.copy(principalInput = "10000", rateInput = "3",
             startDate = LocalDate.parse("2026-01-01"), endDate = LocalDate.parse("2026-04-01")) }

@@ -15,9 +15,15 @@ import org.junit.Assert.*
 class CashViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val clock = Clock.fixed(Instant.parse("2026-09-30T12:00:00Z"), ZoneId.of("Asia/Hong_Kong"))
-    private val entry = CashEntry(1, 1, Currency.of("KWD"), -1234, clock.millis(), CashSource.CASH_SET, null, null, "old", 2)
+    private val account = CashAccount(1, Currency.of("KWD"), 5000, 2, id = 1, name = "KWD cash")
+    private val entry = CashEntry(1, 1, Currency.of("KWD"), -1234, clock.millis(), CashSource.CASH_SET,
+        null, null, "old", 2, cashAccountId = 1, cashAccountName = account.name)
     private val reads = object : CashRepository {
-        override fun observe_cash(account_id: Long) = flowOf(emptyList<CashBalance>())
+        override fun observe_cash(account_id: Long) = flowOf(listOf(account))
+        override fun observeCashAccount(cashAccountId: Long) = flowOf<CashAccount?>(account.takeIf { it.id == cashAccountId })
+        override fun observeCashEntries(cashAccountId: Long, limit: Int) = flowOf(listOf(entry))
+        override fun observeCashEntry(cashAccountId: Long, entryId: Long) =
+            flowOf<CashEntry?>(entry.takeIf { it.cashAccountId == cashAccountId && it.id == entryId })
         override fun observe_entries(account_id: Long, currency_code: String, limit: Int) = flowOf(listOf(entry))
         override fun observe_entry(account_id: Long, entry_id: Long) = flowOf<CashEntry?>(entry)
     }
@@ -67,7 +73,7 @@ class CashViewModelTest {
     }
     @Test fun source_linked_entry_cannot_be_edited_as_manual_balance() = runTest(dispatcher) {
         val repository = object : CashRepository by reads {
-            override fun observe_entry(account_id: Long, entry_id: Long) = flowOf(entry.copy(source = CashSource.TRADE))
+            override fun observeCashEntry(cashAccountId: Long, entryId: Long) = flowOf(entry.copy(source = CashSource.TRADE))
         }
         val commands = object : FinancialCommands { override suspend fun execute(command: FinancialCommand): OperationResult = error("must not write") }
         val vm = CashEntryEditViewModel(1, 1, repository, commands, clock, SavedStateHandle())
@@ -89,9 +95,19 @@ class CashViewModelTest {
                 return if (cursor == null) (100L downTo 51L).map { entry.copy(id = it, occurred_at_ms = it) }
                     else listOf(entry.copy(id = 50, occurred_at_ms = 50))
             }
+            override fun observeCashAccountRevision(cashAccountId: Long) = flow {
+                active++
+                try { emit(1L)
+                    awaitCancellation() } finally { active-- }
+            }
+            override suspend fun cashAccountPage(cashAccountId: Long, cursor: LedgerCursor?, size: Int): List<CashEntry> {
+                cursors += cursor
+                return if (cursor == null) (100L downTo 51L).map { entry.copy(id = it, occurred_at_ms = it) }
+                    else listOf(entry.copy(id = 50, occurred_at_ms = 50))
+            }
         }
         val vm = CashViewModel(1, reads, pages, SavedStateHandle())
-        vm.watch_currency("KWD")
+        vm.watchCashAccount(1)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.entries.collect() }
         runCurrent()
         vm.load_more_entries()

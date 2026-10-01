@@ -1,0 +1,21 @@
+<resources>
+    <string name="deposit_load_failed">Could not load the deposit</string>
+    <string name="deposits_load_failed">Could not load deposits. Go back and try again.</string>
+    <string name="deposit_loading">Loading</string>
+    <string name="deposit_open">Open deposit</string>
+    <string name="deposit_edit">Edit deposit</string>
+    <string name="deposit_settle">Settle deposit</string>
+    <string name="deposit_principal">Principal</string>
+    <string name="deposit_rate">Annual rate (%)</string>
+    <string name="deposit_start_date">Start date</string>
+    <string name="deposit_end_date">Maturity date</string>
+    <string name="deposit_principal_value">Principal %1$s %2$s</string>
+    <string name="deposit_interest_value">Expected interest %1$s %2$s</string>
+    <string name="deposit_link_open">Deduct from a cash account when opened</string>
+    <string name="deposit_link_close">Return funds to a cash account when settled</string>
+    <string name="deposit_cash_missing">Create a cash account in the same currency first</string>
+    <string name="deposit_cash_account">Cash account</string>
+    <string name="deposit_settlement_cash_account">Settlement cash account</string>
+    <string name="deposit_link_hint">Only enabled cash links change the selected account’s balance</string>
+    <string name="deposit_cash_change">Cash change for this account %1$s</string>
+</resources>

@@ -12,51 +12,48 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.core.designsystem.R
+import dev.valnook.feature.cash.R as CashR
 import dev.valnook.domain.model.*
 import java.time.*
 
-@Composable fun CashScreen(vm:CashViewModel,on_open:(String)->Unit) {
+@Composable fun CashScreen(vm:CashViewModel,on_open:(Long)->Unit) {
     val state by vm.balances.collectAsStateWithLifecycle()
     when (val current = state) {
         CashBalancesState.Loading -> CircularProgressIndicator()
-        CashBalancesState.Failed -> Text("余额读取失败，请返回后重试")
-        is CashBalancesState.Ready -> CashContent(current.rows) { on_open(it.currency.code) }
+        CashBalancesState.Failed -> Text(stringResource(CashR.string.cash_balance_load_failed))
+        is CashBalancesState.Ready -> CashContent(current.rows) { on_open(it.id) }
     }
 }
-@Composable fun CashContent(rows:List<CashBalance>,on_open:(CashBalance)->Unit) {
+@Composable fun CashContent(rows:List<CashAccount>,on_open:(CashAccount)->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
-        items(rows,key={it.currency.code}) {cash->
-            val history_label=stringResource(R.string.cash_changes)+" · "+cash.currency.code
+        items(rows,key={it.id}) {cash->
+            val history_label=stringResource(R.string.cash_changes)+" · "+cash.name
             OutlinedCard(onClick={on_open(cash)},modifier=Modifier.fillMaxWidth()
                 .semantics{contentDescription=history_label}) {
-                CashBalanceSummary(cash.currency,cash.balance_minor,null)
+                CashBalanceSummary(cash,null)
             }
         }
     }
 }
-@Composable fun CashDetail(vm:CashViewModel,code:String,on_form:()->Unit,on_entry:(Long)->Unit) {
-    val balanceState by vm.balances.collectAsStateWithLifecycle()
+@Composable fun CashDetail(vm:CashViewModel,cashAccountId:Long,on_form:()->Unit,on_entry:(Long)->Unit) {
     val ledgerState by vm.entries.collectAsStateWithLifecycle()
-    LaunchedEffect(code){vm.watch_currency(code)}
-    if (balanceState == CashBalancesState.Failed || ledgerState == CashLedgerState.Failed) {
-        Text("现金记录读取失败，请返回后重试")
+    LaunchedEffect(cashAccountId){vm.watchCashAccount(cashAccountId)}
+    if (ledgerState == CashLedgerState.Failed) {
+        Text(stringResource(CashR.string.cash_history_load_failed))
         return
     }
-    val balances = (balanceState as? CashBalancesState.Ready)?.rows
     val ledger = ledgerState as? CashLedgerState.Ready
-    if (balances == null || ledger == null) {
+    if (ledger == null) {
         CircularProgressIndicator()
         return
     }
     val entries = ledger.rows
-    val currency=Currency.of(code)
-    val balance=balances.firstOrNull{it.currency.code==code}
+    val balance=ledger.account
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         item{
             OutlinedCard(Modifier.fillMaxWidth()){
-                if (balance == null) Text("该币种现金账户尚未建立", Modifier.padding(Space.md))
-                else CashBalanceSummary(currency,balance.balance_minor,on_edit=on_form)
+                CashBalanceSummary(balance,on_edit=on_form)
             }
         }
         item{Text(stringResource(R.string.cash_changes),style=MaterialTheme.typography.titleLarge)}
@@ -75,5 +72,5 @@ import java.time.*
 }
 @Preview(showBackground=true,widthDp=360,fontScale=2f)
 @Preview(showBackground=true,widthDp=420,uiMode=android.content.res.Configuration.UI_MODE_NIGHT_YES)
-@Composable fun CashPreview(){ValnookTheme{CashContent(listOf(CashBalance(1,Currency.of("CNY"),9223372036854775807,1),
-    CashBalance(1,Currency.of("USD"),1234567,1),CashBalance(1,Currency.of("JPY"),0,1)),{})}}
+@Composable fun CashPreview(){ValnookTheme{CashContent(listOf(CashAccount(1,Currency.of("CNY"),9223372036854775807,1,1,"日常现金"),
+    CashAccount(1,Currency.of("USD"),1234567,1,2,"美元交易资金"),CashAccount(1,Currency.of("JPY"),0,1,3,"日元备用")),{})}}

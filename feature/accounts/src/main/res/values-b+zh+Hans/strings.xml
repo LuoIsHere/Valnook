@@ -1,0 +1,25 @@
+<resources>
+    <string name="accounts_load_failed">账户读取失败，请返回后重试</string>
+    <string name="accounts_total_assets">总资产</string>
+    <string name="accounts_available_cash">可用现金 %1$s</string>
+    <string name="accounts_set_base_currency">请设置主币种</string>
+    <string name="accounts_summary_incomplete">汇总不完整 · %1$s</string>
+    <string name="accounts_partial_summary">部分汇总 · %1$s</string>
+    <string name="accounts_missing_base">未设置主币种</string>
+    <string name="accounts_missing_current_cost">当前成本待补全</string>
+    <string name="accounts_missing_historical_cost">历史成本待补全</string>
+    <string name="accounts_invalid_history">历史记录异常</string>
+    <string name="accounts_empty">点击右上角＋新增账户</string>
+    <string name="account_edit_load_failed">读取失败，重试</string>
+    <string name="account_edit_title">编辑账户</string>
+    <string name="account_name">名称</string>
+    <string name="account_note">备注</string>
+    <string name="account_cash_accounts">现金账户</string>
+    <string name="account_cash_name">现金账户名称</string>
+    <string name="account_balance">余额</string>
+    <string name="account_cancel_cash">取消此现金账户</string>
+    <string name="account_add_cash">＋ 添加现金账户</string>
+    <string name="account_review_retry">核对并重试</string>
+    <string name="account_save">保存</string>
+    <string name="account_unknown_result">保存结果待核对，使用原操作重试</string>
+</resources>

@@ -11,7 +11,8 @@ import java.util.UUID
 
 data class InstrumentEditUiState(val name: String = "", val symbol: String = "", val typeId: Long? = null,
     val currency: Currency = Currency.of("CNY"), val priceInput: String = "", val expectedRevision: Long? = null,
-    val currencyLocked: Boolean = false, val currencyPriceConfirmed: Boolean = false, val loaded: Boolean = false,
+    val currencyLocked: Boolean = false, val symbolLocked: Boolean = false,
+    val currencyPriceConfirmed: Boolean = false, val loaded: Boolean = false,
     val loadFailed: Boolean = false)
 class InstrumentEditViewModel(private val instrumentId: Long?, private val instruments: InstrumentRepository,
     investments: InvestmentRepository, commands: FinancialCommands, private val saved: SavedStateHandle) : ViewModel() {
@@ -24,7 +25,8 @@ class InstrumentEditViewModel(private val instrumentId: Long?, private val instr
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), AssetTypesState.Loading)
     private val mutable = MutableStateFlow(InstrumentEditUiState(saved["name"] ?: "", saved["symbol"] ?: "",
         saved["typeId"], Currency.of(saved["currency"] ?: "CNY"), saved["price"] ?: "", saved["revision"],
-        saved["locked"] ?: false, saved["confirmed"] ?: false, saved["loaded"] ?: false))
+        saved["locked"] ?: false, saved["symbolLocked"] ?: false,
+        saved["confirmed"] ?: false, saved["loaded"] ?: false))
     val state = mutable.asStateFlow()
     init {
         if (!state.value.loaded) viewModelScope.launch {
@@ -33,7 +35,7 @@ class InstrumentEditViewModel(private val instrumentId: Long?, private val instr
                 updateInternal(if (instrument == null) state.value.copy(loaded = true) else InstrumentEditUiState(instrument.name,
                     instrument.symbol, instrument.typeId, instrument.currency,
                     java.math.BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString(),
-                    instrument.revision, instrument.currencyLocked, false, true))
+                    instrument.revision, instrument.currencyLocked, instrument.symbolLocked, false, true))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutable.value = state.value.copy(loadFailed = true) }
         }
@@ -47,6 +49,7 @@ class InstrumentEditViewModel(private val instrumentId: Long?, private val instr
         saved["price"] = value.priceInput
         saved["revision"] = value.expectedRevision
         saved["locked"] = value.currencyLocked
+        saved["symbolLocked"] = value.symbolLocked
         saved["confirmed"] = value.currencyPriceConfirmed
         saved["loaded"] = value.loaded
     }
