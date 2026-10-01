@@ -1,0 +1,232 @@
+package dev.valnook.designsystem
+
+import android.app.DatePickerDialog as NativeDatePickerDialog
+import android.app.TimePickerDialog as NativeTimePickerDialog
+import android.content.DialogInterface
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.*
+import androidx.compose.ui.window.Dialog
+import dev.valnook.core.designsystem.R
+import java.time.LocalDate
+import java.time.LocalTime
+import java.util.Locale
+
+data class DraftState(val fields:Map<String,String> = emptyMap(),val busy:Boolean=false,
+    val error:String?=null,val completed:Boolean=false,val locked:Boolean=false)
+
+@Composable fun ErrorMessage(code:String?) {
+    if(code==null) return
+    val resource=when(code) {
+        "NOT_FOUND"->R.string.error_not_found
+        "INSUFFICIENT_CASH"->R.string.error_cash
+        "INSUFFICIENT_HOLDING"->R.string.error_holding
+        "STALE_BALANCE"->R.string.error_stale
+        "STALE_RECORD"->R.string.error_record_stale
+        "SOURCE_RECORD"->R.string.error_source_record
+        "OPERATION_CONFLICT"->R.string.error_conflict
+        "ALREADY_CLOSED"->R.string.error_closed
+        "NOT_MATURED"->R.string.error_maturity
+        "PRECISION"->R.string.error_precision
+        "OVERFLOW"->R.string.error_overflow
+        "NAME"->R.string.error_name
+        "DUPLICATE_TYPE"->R.string.error_type
+        "AMOUNT_TOO_SMALL"->R.string.error_small
+        "DATE"->R.string.error_date
+        "POSITIVE"->R.string.error_positive
+        "STORAGE"->R.string.error_storage
+        else->R.string.error_format
+    }
+    Text(stringResource(resource),color=MaterialTheme.colorScheme.error,
+        style=MaterialTheme.typography.bodyMedium,
+        modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
+}
+@Composable fun AmountText(amount:String,currency:String) {
+    Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
+        Text(amount,style=MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings="tnum"))
+        Text(currency,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+@Composable fun EmptyState(message:String) {
+    Text(message,modifier=Modifier.fillMaxWidth().padding(vertical=Space.xl),
+        style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+}
+@Composable fun ActionButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
+    destructive:Boolean=false,content:@Composable RowScope.()->Unit) {
+    val colors=MaterialTheme.colorScheme
+    OutlinedButton(onClick=onClick,modifier=modifier.heightIn(min=48.dp),enabled=enabled,
+        shape=RoundedCornerShape(12.dp),
+        border=BorderStroke(1.dp,if(destructive)colors.error else colors.outlineVariant),
+        colors=ButtonDefaults.outlinedButtonColors(
+            containerColor=if(destructive)colors.errorContainer else colors.surfaceContainerLow,
+            contentColor=if(destructive)colors.onErrorContainer else colors.primary),
+        contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp),content=content)
+}
+@Composable fun Field(label:String,value:String,on_change:(String)->Unit,numeric:Boolean=false,enabled:Boolean=true) {
+    val minimum_height=(64f+32f*(LocalDensity.current.fontScale.coerceAtLeast(1f)-1f)).dp
+    val focus=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
+    Box(Modifier.fillMaxWidth().testTag("input-$label")) {
+    OutlinedTextField(value=value,onValueChange=on_change,label={Text(label)},singleLine=true,
+        textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(12.dp),
+        enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
+        keyboardOptions=KeyboardOptions(keyboardType=if(numeric) KeyboardType.Decimal else KeyboardType.Text,imeAction=ImeAction.Done),
+        keyboardActions=KeyboardActions(onDone={focus.clearFocus();keyboard?.hide()}))
+    }
+}
+/** Selection and numeric inputs share the same outline, label baseline and width. */
+@Composable fun SelectorField(label:String,value:String,on_select:()->Unit,enabled:Boolean=true) {
+    val minimum_height=(64f+32f*(LocalDensity.current.fontScale.coerceAtLeast(1f)-1f)).dp
+    val focus=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
+    val arrow_color=MaterialTheme.colorScheme.onSurfaceVariant
+    Box(Modifier.fillMaxWidth().testTag("input-$label")) {
+        OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},
+            singleLine=true,textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(12.dp),
+            enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
+            trailingIcon={Canvas(Modifier.size(18.dp)) {
+                val stroke=2.dp.toPx()
+                drawLine(arrow_color,Offset(size.width*0.2f,size.height*0.4f),Offset(size.width*0.5f,size.height*0.7f),stroke,StrokeCap.Round)
+                drawLine(arrow_color,Offset(size.width*0.5f,size.height*0.7f),Offset(size.width*0.8f,size.height*0.4f),stroke,StrokeCap.Round)
+            }},
+            colors=OutlinedTextFieldDefaults.colors(
+                disabledTextColor=MaterialTheme.colorScheme.onSurface,
+                disabledLabelColor=MaterialTheme.colorScheme.onSurfaceVariant))
+        Box(Modifier.matchParentSize().clickable(enabled=enabled,role=Role.Button,onClick={focus.clearFocus();keyboard?.hide();on_select()})
+            .semantics {contentDescription="$label: $value"})
+    }
+}
+@Composable fun ChoiceField(label:String,selected:String,options:List<Pair<String,String>>,
+    on_change:(String)->Unit,enabled:Boolean=true) {
+    var expanded by remember {mutableStateOf(false)}
+    Box(Modifier.fillMaxWidth()) {
+        SelectorField(label,options.firstOrNull{it.first==selected}?.second.orEmpty(),{expanded=true},enabled)
+        DropdownMenu(expanded,onDismissRequest={expanded=false}) {
+            options.forEach{(key,name)->DropdownMenuItem(text={Text(name)},onClick={on_change(key);expanded=false})}
+        }
+    }
+}
+@Composable fun CurrencyChoice(selected:String,on_change:(String)->Unit,enabled:Boolean=true,
+    options:List<Pair<String,String>>,excluded:Set<String> = emptySet()) {
+    var expanded by rememberSaveable {mutableStateOf(false)}
+    var query by rememberSaveable {mutableStateOf("")}
+    val selected_name=options.firstOrNull{it.first==selected}?.second.orEmpty()
+    SelectorField(stringResource(R.string.currency),listOf(selected,selected_name).filter{it.isNotBlank()}.joinToString(" · "),
+        {query="";expanded=true},enabled)
+    if(expanded) Dialog(onDismissRequest={expanded=false}) {
+        Surface(shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.md),
+                verticalArrangement=Arrangement.spacedBy(Space.md)) {
+                Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
+                Field(stringResource(R.string.search_currency),query,{query=it})
+                val matches=options.filter{it.first !in excluded &&
+                    (it.first.contains(query.trim(),true)||it.second.contains(query.trim(),true))}
+                LazyColumn(Modifier.weight(1f,fill=false).fillMaxWidth().testTag("currency-list")) {
+                    if(matches.isEmpty())item{EmptyState(stringResource(R.string.no_currency_match))}
+                    items(matches,key={it.first}){(code,name)->
+                        Row(Modifier.fillMaxWidth().clickable {on_change(code);expanded=false}.padding(vertical=12.dp),
+                            verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.md)) {
+                            Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainer,
+                                modifier=Modifier.width(56.dp)) {
+                                Text(code,Modifier.padding(vertical=12.dp),style=MaterialTheme.typography.labelLarge,
+                                    textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+                            }
+                            Text(name,modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
+                            if(code==selected)Text("✓",color=MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+                TextButton(onClick={expanded=false},modifier=Modifier.align(Alignment.End)){Text(stringResource(R.string.cancel))}
+            }
+        }
+    }
+}
+@Composable fun DateField(label:String,value:String,on_change:(String)->Unit,enabled:Boolean=true) {
+    var open by rememberSaveable {mutableStateOf(false)}
+    val context=LocalContext.current
+    val confirm=stringResource(R.string.confirm)
+    val cancel=stringResource(R.string.cancel)
+    SelectorField(label,value,{open=true},enabled)
+    if(open) DisposableEffect(context,confirm,cancel) {
+        val date=runCatching{LocalDate.parse(value)}.getOrElse{LocalDate.now()}
+        val dialog=NativeDatePickerDialog(context,{_,year,month,day->
+            on_change(LocalDate.of(year,month+1,day).toString());open=false
+        },date.year,date.monthValue-1,date.dayOfMonth)
+        dialog.setOnDismissListener {open=false}
+        dialog.show()
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE).text=confirm
+        dialog.getButton(DialogInterface.BUTTON_NEGATIVE).text=cancel
+        onDispose {dialog.setOnDismissListener(null);dialog.dismiss()}
+    }
+}
+@Composable fun TimeField(label:String,value:String,on_change:(String)->Unit,enabled:Boolean=true) {
+    var open by rememberSaveable {mutableStateOf(false)}
+    val context=LocalContext.current
+    val confirm=stringResource(R.string.confirm)
+    val cancel=stringResource(R.string.cancel)
+    SelectorField(label,value,{open=true},enabled)
+    if(open) DisposableEffect(context,confirm,cancel) {
+        val time=runCatching{LocalTime.parse(value)}.getOrElse{LocalTime.now()}
+        val dialog=NativeTimePickerDialog(context,{_,hour,minute->
+            on_change(String.format(Locale.ROOT,"%02d:%02d",hour,minute));open=false
+        },time.hour,time.minute,true)
+        dialog.setOnDismissListener {open=false}
+        dialog.show()
+        dialog.getButton(DialogInterface.BUTTON_POSITIVE).text=confirm
+        dialog.getButton(DialogInterface.BUTTON_NEGATIVE).text=cancel
+        onDispose {dialog.setOnDismissListener(null);dialog.dismiss()}
+    }
+}
+@Composable fun CashLinkOption(checked:Boolean,on_change:(Boolean)->Unit,account:String,currency:String,change:String,enabled:Boolean=true,label:String?=null) {
+    OutlinedCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(12.dp)) {
+        Column(Modifier.padding(Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
+            Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,
+                horizontalArrangement=Arrangement.spacedBy(Space.sm)) {
+                Text(label ?: stringResource(R.string.cash_link),modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
+                Checkbox(checked=checked,onCheckedChange=on_change,enabled=enabled)
+            }
+            Text(stringResource(if(checked) R.string.link_effect else R.string.no_link_effect,account,currency,change),
+                style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+@Composable fun FormPanel(title:String,state:DraftState,on_cancel:()->Unit,on_submit:()->Unit,
+    submit_label:String?=null,content:@Composable ColumnScope.()->Unit) {
+    val focus=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
+    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=Space.md),
+        verticalArrangement=Arrangement.spacedBy(Space.md)) {
+        Text(title,style=MaterialTheme.typography.headlineSmall); content(); ErrorMessage(state.error)
+        if(state.completed) Text(stringResource(R.string.saved))
+        Button(onClick={focus.clearFocus();keyboard?.hide();on_submit()},enabled=!state.busy&&!state.completed,shape=RoundedCornerShape(12.dp),
+            modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)) {
+            if(state.busy) CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)
+            else Text(if(state.locked)stringResource(R.string.retry) else submit_label ?: stringResource(R.string.save))
+        }
+        TextButton(onClick=on_cancel,enabled=!state.busy,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.cancel))}
+    }
+}

@@ -1,0 +1,1069 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 2,
+    "identityHash": "fdb61d854f028fc4269e57644bc6aa84",
+    "entities": [
+      {
+        "tableName": "savings_accounts",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `note` TEXT NOT NULL, `created_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updated_at_ms",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "currencies",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`code` TEXT NOT NULL, `fraction_digits` INTEGER NOT NULL, PRIMARY KEY(`code`))",
+        "fields": [
+          {
+            "fieldPath": "code",
+            "columnName": "code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fraction_digits",
+            "columnName": "fraction_digits",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "code"
+          ]
+        }
+      },
+      {
+        "tableName": "cash_balances",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`savings_account_id` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, `balance_minor` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, PRIMARY KEY(`savings_account_id`, `currency_code`), FOREIGN KEY(`savings_account_id`) REFERENCES `savings_accounts`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`currency_code`) REFERENCES `currencies`(`code`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "savings_account_id",
+            "columnName": "savings_account_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency_code",
+            "columnName": "currency_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "balance_minor",
+            "columnName": "balance_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updated_at_ms",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "savings_account_id",
+            "currency_code"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_cash_balances_currency_code",
+            "unique": false,
+            "columnNames": [
+              "currency_code"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cash_balances_currency_code` ON `${TABLE_NAME}` (`currency_code`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "savings_accounts",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "savings_account_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "currencies",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "currency_code"
+            ],
+            "referencedColumns": [
+              "code"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "term_deposits",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `savings_account_id` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, `principal_minor` INTEGER NOT NULL, `annual_rate_percent_e8` INTEGER NOT NULL, `start_epoch_day` INTEGER NOT NULL, `end_epoch_day` INTEGER NOT NULL, `interest_rule` TEXT NOT NULL, `calculation_version` INTEGER NOT NULL, `rounding_mode` TEXT NOT NULL, `expected_interest_minor` INTEGER NOT NULL, `status` TEXT NOT NULL, `open_cash_linked` INTEGER NOT NULL, `close_cash_linked` INTEGER, `open_operation_id` TEXT NOT NULL, `close_operation_id` TEXT, `closed_at_ms` INTEGER, `created_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, `revision` INTEGER NOT NULL DEFAULT 1, FOREIGN KEY(`savings_account_id`) REFERENCES `savings_accounts`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`currency_code`) REFERENCES `currencies`(`code`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`open_operation_id`) REFERENCES `operations`(`operation_id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`close_operation_id`) REFERENCES `operations`(`operation_id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "savings_account_id",
+            "columnName": "savings_account_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency_code",
+            "columnName": "currency_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "principal_minor",
+            "columnName": "principal_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "annual_rate_percent_e8",
+            "columnName": "annual_rate_percent_e8",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "start_epoch_day",
+            "columnName": "start_epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "end_epoch_day",
+            "columnName": "end_epoch_day",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "interest_rule",
+            "columnName": "interest_rule",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "calculation_version",
+            "columnName": "calculation_version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rounding_mode",
+            "columnName": "rounding_mode",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expected_interest_minor",
+            "columnName": "expected_interest_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "open_cash_linked",
+            "columnName": "open_cash_linked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "close_cash_linked",
+            "columnName": "close_cash_linked",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "open_operation_id",
+            "columnName": "open_operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "close_operation_id",
+            "columnName": "close_operation_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "closed_at_ms",
+            "columnName": "closed_at_ms",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updated_at_ms",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_term_deposits_savings_account_id_status_end_epoch_day_id",
+            "unique": false,
+            "columnNames": [
+              "savings_account_id",
+              "status",
+              "end_epoch_day",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_term_deposits_savings_account_id_status_end_epoch_day_id` ON `${TABLE_NAME}` (`savings_account_id`, `status`, `end_epoch_day`, `id`)"
+          },
+          {
+            "name": "index_term_deposits_currency_code",
+            "unique": false,
+            "columnNames": [
+              "currency_code"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_term_deposits_currency_code` ON `${TABLE_NAME}` (`currency_code`)"
+          },
+          {
+            "name": "index_term_deposits_open_operation_id",
+            "unique": true,
+            "columnNames": [
+              "open_operation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_term_deposits_open_operation_id` ON `${TABLE_NAME}` (`open_operation_id`)"
+          },
+          {
+            "name": "index_term_deposits_close_operation_id",
+            "unique": true,
+            "columnNames": [
+              "close_operation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_term_deposits_close_operation_id` ON `${TABLE_NAME}` (`close_operation_id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "savings_accounts",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "savings_account_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "currencies",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "currency_code"
+            ],
+            "referencedColumns": [
+              "code"
+            ]
+          },
+          {
+            "table": "operations",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "open_operation_id"
+            ],
+            "referencedColumns": [
+              "operation_id"
+            ]
+          },
+          {
+            "table": "operations",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "close_operation_id"
+            ],
+            "referencedColumns": [
+              "operation_id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "asset_types",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `normalized_name` TEXT NOT NULL, `created_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalized_name",
+            "columnName": "normalized_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updated_at_ms",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_asset_types_normalized_name",
+            "unique": true,
+            "columnNames": [
+              "normalized_name"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_asset_types_normalized_name` ON `${TABLE_NAME}` (`normalized_name`)"
+          }
+        ]
+      },
+      {
+        "tableName": "investments",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `savings_account_id` INTEGER NOT NULL, `asset_type_id` INTEGER NOT NULL, `name` TEXT NOT NULL, `symbol` TEXT NOT NULL, `currency_code` TEXT NOT NULL, `opening_quantity_e8` INTEGER NOT NULL, `holding_quantity_e8` INTEGER NOT NULL, `current_price_e8` INTEGER NOT NULL, `price_updated_at_ms` INTEGER NOT NULL, `revision` INTEGER NOT NULL, `created_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, FOREIGN KEY(`savings_account_id`) REFERENCES `savings_accounts`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`currency_code`) REFERENCES `currencies`(`code`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`asset_type_id`) REFERENCES `asset_types`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "savings_account_id",
+            "columnName": "savings_account_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "asset_type_id",
+            "columnName": "asset_type_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "symbol",
+            "columnName": "symbol",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency_code",
+            "columnName": "currency_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "opening_quantity_e8",
+            "columnName": "opening_quantity_e8",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "holding_quantity_e8",
+            "columnName": "holding_quantity_e8",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "current_price_e8",
+            "columnName": "current_price_e8",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "price_updated_at_ms",
+            "columnName": "price_updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updated_at_ms",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_investments_savings_account_id_name_id",
+            "unique": false,
+            "columnNames": [
+              "savings_account_id",
+              "name",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_investments_savings_account_id_name_id` ON `${TABLE_NAME}` (`savings_account_id`, `name`, `id`)"
+          },
+          {
+            "name": "index_investments_asset_type_id",
+            "unique": false,
+            "columnNames": [
+              "asset_type_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_investments_asset_type_id` ON `${TABLE_NAME}` (`asset_type_id`)"
+          },
+          {
+            "name": "index_investments_currency_code",
+            "unique": false,
+            "columnNames": [
+              "currency_code"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_investments_currency_code` ON `${TABLE_NAME}` (`currency_code`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "savings_accounts",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "savings_account_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "currencies",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "currency_code"
+            ],
+            "referencedColumns": [
+              "code"
+            ]
+          },
+          {
+            "table": "asset_types",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "asset_type_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "investment_trades",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `investment_id` INTEGER NOT NULL, `operation_id` TEXT NOT NULL, `direction` TEXT NOT NULL, `quantity_e8` INTEGER NOT NULL, `execution_price_e8` INTEGER NOT NULL, `amount_minor` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, `cash_linked` INTEGER NOT NULL, `occurred_at_ms` INTEGER NOT NULL, `created_at_ms` INTEGER NOT NULL, `revision` INTEGER NOT NULL DEFAULT 1, `is_deleted` INTEGER NOT NULL DEFAULT 0, `updated_at_ms` INTEGER NOT NULL DEFAULT 0, FOREIGN KEY(`investment_id`) REFERENCES `investments`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`operation_id`) REFERENCES `operations`(`operation_id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`currency_code`) REFERENCES `currencies`(`code`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "investment_id",
+            "columnName": "investment_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operation_id",
+            "columnName": "operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "direction",
+            "columnName": "direction",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "quantity_e8",
+            "columnName": "quantity_e8",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "execution_price_e8",
+            "columnName": "execution_price_e8",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "amount_minor",
+            "columnName": "amount_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency_code",
+            "columnName": "currency_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cash_linked",
+            "columnName": "cash_linked",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurred_at_ms",
+            "columnName": "occurred_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "is_deleted",
+            "columnName": "is_deleted",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "updated_at_ms",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_investment_trades_investment_id_is_deleted_occurred_at_ms_id",
+            "unique": false,
+            "columnNames": [
+              "investment_id",
+              "is_deleted",
+              "occurred_at_ms",
+              "id"
+            ],
+            "orders": [
+              "ASC",
+              "ASC",
+              "DESC",
+              "DESC"
+            ],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_investment_trades_investment_id_is_deleted_occurred_at_ms_id` ON `${TABLE_NAME}` (`investment_id` ASC, `is_deleted` ASC, `occurred_at_ms` DESC, `id` DESC)"
+          },
+          {
+            "name": "index_investment_trades_operation_id",
+            "unique": true,
+            "columnNames": [
+              "operation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_investment_trades_operation_id` ON `${TABLE_NAME}` (`operation_id`)"
+          },
+          {
+            "name": "index_investment_trades_currency_code",
+            "unique": false,
+            "columnNames": [
+              "currency_code"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_investment_trades_currency_code` ON `${TABLE_NAME}` (`currency_code`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "investments",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "investment_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          },
+          {
+            "table": "operations",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "operation_id"
+            ],
+            "referencedColumns": [
+              "operation_id"
+            ]
+          },
+          {
+            "table": "currencies",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "currency_code"
+            ],
+            "referencedColumns": [
+              "code"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "operations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`operation_id` TEXT NOT NULL, `kind` TEXT NOT NULL, `request_fingerprint` TEXT NOT NULL, `result_kind` TEXT, `result_id` INTEGER, `created_at_ms` INTEGER NOT NULL, PRIMARY KEY(`operation_id`))",
+        "fields": [
+          {
+            "fieldPath": "operation_id",
+            "columnName": "operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "request_fingerprint",
+            "columnName": "request_fingerprint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "result_kind",
+            "columnName": "result_kind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "result_id",
+            "columnName": "result_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "operation_id"
+          ]
+        }
+      },
+      {
+        "tableName": "cash_movements",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `operation_id` TEXT NOT NULL, `savings_account_id` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, `reason` TEXT NOT NULL, `delta_minor` INTEGER NOT NULL, `balance_before_minor` INTEGER NOT NULL, `balance_after_minor` INTEGER NOT NULL, `created_at_ms` INTEGER NOT NULL, FOREIGN KEY(`operation_id`) REFERENCES `operations`(`operation_id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`savings_account_id`, `currency_code`) REFERENCES `cash_balances`(`savings_account_id`, `currency_code`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "operation_id",
+            "columnName": "operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "savings_account_id",
+            "columnName": "savings_account_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency_code",
+            "columnName": "currency_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "reason",
+            "columnName": "reason",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "delta_minor",
+            "columnName": "delta_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "balance_before_minor",
+            "columnName": "balance_before_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "balance_after_minor",
+            "columnName": "balance_after_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_cash_movements_operation_id",
+            "unique": true,
+            "columnNames": [
+              "operation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_cash_movements_operation_id` ON `${TABLE_NAME}` (`operation_id`)"
+          },
+          {
+            "name": "index_cash_movements_savings_account_id_currency_code_id",
+            "unique": false,
+            "columnNames": [
+              "savings_account_id",
+              "currency_code",
+              "id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cash_movements_savings_account_id_currency_code_id` ON `${TABLE_NAME}` (`savings_account_id`, `currency_code`, `id`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "operations",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "operation_id"
+            ],
+            "referencedColumns": [
+              "operation_id"
+            ]
+          },
+          {
+            "table": "cash_balances",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "savings_account_id",
+              "currency_code"
+            ],
+            "referencedColumns": [
+              "savings_account_id",
+              "currency_code"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "cash_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `original_operation_id` TEXT NOT NULL, `savings_account_id` INTEGER NOT NULL, `currency_code` TEXT NOT NULL, `source_kind` TEXT NOT NULL, `source_id` INTEGER, `delta_minor` INTEGER NOT NULL, `occurred_at_ms` INTEGER NOT NULL, `note` TEXT NOT NULL, `revision` INTEGER NOT NULL, `is_deleted` INTEGER NOT NULL, `created_at_ms` INTEGER NOT NULL, `updated_at_ms` INTEGER NOT NULL, FOREIGN KEY(`savings_account_id`, `currency_code`) REFERENCES `cash_balances`(`savings_account_id`, `currency_code`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`original_operation_id`) REFERENCES `operations`(`operation_id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "original_operation_id",
+            "columnName": "original_operation_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "savings_account_id",
+            "columnName": "savings_account_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "currency_code",
+            "columnName": "currency_code",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source_kind",
+            "columnName": "source_kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source_id",
+            "columnName": "source_id",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "delta_minor",
+            "columnName": "delta_minor",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "occurred_at_ms",
+            "columnName": "occurred_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "revision",
+            "columnName": "revision",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "is_deleted",
+            "columnName": "is_deleted",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "created_at_ms",
+            "columnName": "created_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updated_at_ms",
+            "columnName": "updated_at_ms",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_cash_entries_original_operation_id",
+            "unique": true,
+            "columnNames": [
+              "original_operation_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_cash_entries_original_operation_id` ON `${TABLE_NAME}` (`original_operation_id`)"
+          },
+          {
+            "name": "index_cash_entries_source_kind_source_id",
+            "unique": true,
+            "columnNames": [
+              "source_kind",
+              "source_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_cash_entries_source_kind_source_id` ON `${TABLE_NAME}` (`source_kind`, `source_id`)"
+          },
+          {
+            "name": "index_cash_entries_savings_account_id_currency_code_is_deleted_occurred_at_ms_id",
+            "unique": false,
+            "columnNames": [
+              "savings_account_id",
+              "currency_code",
+              "is_deleted",
+              "occurred_at_ms",
+              "id"
+            ],
+            "orders": [
+              "ASC",
+              "ASC",
+              "ASC",
+              "DESC",
+              "DESC"
+            ],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_cash_entries_savings_account_id_currency_code_is_deleted_occurred_at_ms_id` ON `${TABLE_NAME}` (`savings_account_id` ASC, `currency_code` ASC, `is_deleted` ASC, `occurred_at_ms` DESC, `id` DESC)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "cash_balances",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "savings_account_id",
+              "currency_code"
+            ],
+            "referencedColumns": [
+              "savings_account_id",
+              "currency_code"
+            ]
+          },
+          {
+            "table": "operations",
+            "onDelete": "RESTRICT",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "original_operation_id"
+            ],
+            "referencedColumns": [
+              "operation_id"
+            ]
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'fdb61d854f028fc4269e57644bc6aa84')"
+    ]
+  }
+}
