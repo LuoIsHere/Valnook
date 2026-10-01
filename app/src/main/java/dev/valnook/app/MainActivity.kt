@@ -15,6 +15,6 @@ class MainActivity:ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.isNavigationBarContrastEnforced=false
-        setContent { ValnookTheme {ValnookRoot(graph)} }
+        setContent { ValnookTheme {ValnookRoot(graph) {finish()}} }
     }
 }

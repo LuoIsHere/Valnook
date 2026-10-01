@@ -16,8 +16,8 @@ internal fun valid_name(name: String): String {
     return result
 }
 class RoomAccounts(private val db: ValnookDatabase, private val clock: Clock) : AccountRepository {
-    private val dao = db.ledger()
-    override fun observe_accounts() = dao.accounts().map { rows -> rows.map { SavingsAccount(it.id,it.name,it.note) } }
+    private val dao = db.accounts()
+    override fun observe_accounts() = dao.accounts().map { rows -> rows.map { SavingsAccount(it.id,it.name,it.note,it.revision) } }
     override suspend fun save_account(id: Long?, name: String, note: String): Long = db.withTransaction {
         val label = valid_name(name)
         if (note.length > 2000) throw DomainException(ErrorCode.FORMAT)

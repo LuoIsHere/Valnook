@@ -4,7 +4,8 @@ import androidx.room.*
 
 @Entity(tableName = "savings_accounts")
 data class AccountEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String,
-    val note: String, val created_at_ms: Long, val updated_at_ms: Long)
+    val note: String, val created_at_ms: Long, val updated_at_ms: Long,
+    @ColumnInfo(defaultValue = "1") val revision: Long = 1)
 
 @Entity(tableName = "currencies")
 data class CurrencyEntity(@PrimaryKey val code: String, val fraction_digits: Int)
@@ -38,20 +39,25 @@ data class DepositEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0,
 data class TypeEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String,
     val normalized_name: String, val created_at_ms: Long, val updated_at_ms: Long)
 
-@Entity(tableName = "investments", foreignKeys = [ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["savings_account_id"], onDelete = ForeignKey.RESTRICT), ForeignKey(entity = CurrencyEntity::class, parentColumns = ["code"], childColumns = ["currency_code"], onDelete = ForeignKey.RESTRICT),
-    ForeignKey(entity = TypeEntity::class, parentColumns = ["id"], childColumns = ["asset_type_id"], onDelete = ForeignKey.RESTRICT)],
-    indices = [Index(value = ["savings_account_id", "name", "id"]),
+@Entity(tableName = "investments", foreignKeys = [ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["savings_account_id"], onDelete = ForeignKey.RESTRICT),
+    ForeignKey(entity = InstrumentEntity::class, parentColumns = ["id"], childColumns = ["instrument_id"], onDelete = ForeignKey.RESTRICT)],
+    indices = [Index(value = ["savings_account_id", "instrument_id"], unique = true),
+        Index(value = ["instrument_id", "savings_account_id"]),
         Index(value = ["savings_account_id", "position_state", "last_activity_at_ms", "id"], orders = [Index.Order.ASC,Index.Order.ASC,Index.Order.DESC,Index.Order.DESC]),
-        Index("asset_type_id"), Index("currency_code")])
+    ])
 data class InvestmentEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val savings_account_id: Long, val asset_type_id: Long, val name: String, val symbol: String,
-    val currency_code: String, val opening_quantity_e8: Long, val holding_quantity_e8: Long,
-    val current_price_e8: Long, val price_updated_at_ms: Long, val revision: Long,
+    val savings_account_id: Long, val instrument_id: Long,
+    val opening_quantity_e8: Long, val holding_quantity_e8: Long, val revision: Long,
     val created_at_ms: Long, val updated_at_ms: Long,
     val opening_cost_price_e8: Long? = null,
+    val opening_at_ms: Long,
+    val remaining_cost: String?, val realized_profit: String?,
+    val chronology_valid: Boolean, val algorithm_version: Int,
     @ColumnInfo(defaultValue = "'PENDING'") val position_state: String = "PENDING",
     @ColumnInfo(defaultValue = "0") val last_activity_at_ms: Long = 0)
-data class InvestmentWithType(@Embedded val asset: InvestmentEntity, val type_name: String)
+data class InvestmentWithType(@Embedded val asset: InvestmentEntity, val type_name: String,
+    val asset_type_id: Long, val name: String, val symbol: String, val currency_code: String,
+    val current_price_e5: Long, val price_updated_at_ms: Long)
 
 @Entity(tableName = "investment_trades", foreignKeys = [
     ForeignKey(entity = InvestmentEntity::class, parentColumns = ["id"], childColumns = ["investment_id"], onDelete = ForeignKey.RESTRICT),
@@ -71,7 +77,7 @@ data class TradeEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val in
         childColumns = ["savings_account_id", "currency_code"], onDelete = ForeignKey.RESTRICT),
     ForeignKey(entity = OperationEntity::class, parentColumns = ["operation_id"],
         childColumns = ["original_operation_id"], onDelete = ForeignKey.RESTRICT)],
-    indices = [Index(value = ["original_operation_id"], unique = true),
+    indices = [Index(value = ["original_operation_id", "currency_code"], unique = true),
         Index(value = ["source_kind", "source_id"], unique = true),
         Index(value = ["savings_account_id", "currency_code", "is_deleted", "occurred_at_ms", "id"],
             orders = [Index.Order.ASC,Index.Order.ASC,Index.Order.ASC,Index.Order.DESC,Index.Order.DESC])])
@@ -86,7 +92,7 @@ data class CashEntryWithSource(@Embedded val entry: CashEntryEntity, val investm
 @Entity(tableName = "cash_movements", foreignKeys = [ForeignKey(entity = OperationEntity::class, parentColumns = ["operation_id"], childColumns = ["operation_id"], onDelete = ForeignKey.RESTRICT),
     ForeignKey(entity = CashEntity::class, parentColumns = ["savings_account_id", "currency_code"],
         childColumns = ["savings_account_id", "currency_code"], onDelete = ForeignKey.RESTRICT)],
-    indices = [Index(value = ["operation_id"], unique = true), Index(value = ["savings_account_id", "currency_code", "id"])])
+    indices = [Index(value = ["operation_id", "currency_code"], unique = true), Index(value = ["savings_account_id", "currency_code", "id"])])
 data class MovementEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val operation_id: String,
     val savings_account_id: Long, val currency_code: String, val reason: String, val delta_minor: Long,
     val balance_before_minor: Long, val balance_after_minor: Long, val created_at_ms: Long)

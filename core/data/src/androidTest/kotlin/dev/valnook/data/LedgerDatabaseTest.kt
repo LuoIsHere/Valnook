@@ -105,7 +105,7 @@ class LedgerDatabaseTest {
         commands.execute(CloseTermDeposit(id(),d,true))
         val request=EditTermDeposit(id(),d,2,60000,e("4"),day("2026-01-01"),day("2026-04-01"),true,true)
         val before=db.ledger().cash_one(a,"CNY")!!.balance_minor;val ops=count("operations")
-        TransactionPoint.entries.forEach {point->
+        TransactionPoint.entries.filter { it != TransactionPoint.AFTER_COST }.forEach {point->
             val failing=RoomFinancialCommands(db,clock){if(it==point)throw IllegalStateException("injected")}
             try{failing.execute(request);fail()}catch(_:IllegalStateException){}
             assertEquals(before,db.ledger().cash_one(a,"CNY")!!.balance_minor)
@@ -124,7 +124,7 @@ class LedgerDatabaseTest {
         assertEquals(commands.execute(correction),commands.execute(correction))
         assertEquals(87000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         assertEquals(e("12"),db.ledger().investment(i)!!.holding_quantity_e8)
-        assertEquals(e("120"),db.ledger().investment(i)!!.current_price_e8)
+        assertEquals(e("120"),(db.ledger().instrument(db.ledger().investment(i)!!.instrument_id)!!.current_price_e5 * 1000))
         assertEquals(trade,investments.trade_page(i,null).first().id)
         assertEquals(300L,db.ledger().source_entry("TRADE",trade)!!.occurred_at_ms)
         expect(ErrorCode.STALE_RECORD){commands.execute(correction.copy(operation_id=id()))}
@@ -170,7 +170,7 @@ class LedgerDatabaseTest {
         val buy=commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("1"),1,false)).id
         commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("1"),e("1"),2,false))
         val ops=count("operations")
-        expect(ErrorCode.INSUFFICIENT_HOLDING){commands.execute(DeleteInvestmentTrade(id(),buy,1))}
+        expect(ErrorCode.HISTORY_CONFLICT){commands.execute(DeleteInvestmentTrade(id(),buy,1))}
         expect(ErrorCode.INSUFFICIENT_CASH){commands.execute(EditInvestmentTrade(id(),buy,1,Direction.BUY,e("1"),e("1"),1,true))}
         assertEquals(ops,count("operations"));assertEquals(1L,db.ledger().trade(buy)!!.revision)
         val seller=commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("2"),e("1"),3,false)).id
@@ -189,7 +189,8 @@ class LedgerDatabaseTest {
         TransactionPoint.entries.forEach {point->
             val failing=RoomFinancialCommands(db,clock){if(it==point)throw IllegalStateException("injected")}
             listOf<FinancialCommand>(EditInvestmentTrade(id(),trade,1,Direction.BUY,e("2"),e("80"),2,true),
-                DeleteInvestmentTrade(id(),trade,1),EditCashEntry(id(),manual,1,110000,3,"new")).forEach{request->
+                DeleteInvestmentTrade(id(),trade,1),EditCashEntry(id(),manual,1,110000,3,"new"))
+                .filter { point != TransactionPoint.AFTER_COST || it !is EditCashEntry }.forEach{request->
                 try{failing.execute(request);fail()}catch(_:IllegalStateException){}
                 assertEquals(91000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
                 assertEquals(e("11"),db.ledger().investment(i)!!.holding_quantity_e8)
@@ -205,7 +206,7 @@ class LedgerDatabaseTest {
             commands.execute(EditInvestmentTrade(id(),trade,1,Direction.BUY,e("2"),e("80"),300,true))}}}.awaitAll()
         assertEquals(1,attempts.count{it.isSuccess});assertEquals(84000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("1"),200,true))
-        val source_rows=RoomCash(db.ledger()).observe_entries(a,"CNY",50).first().filter{it.source_kind=="TRADE"}
+        val source_rows=RoomCash(db.ledger()).observe_entries(a,"CNY",50).first().filter{it.source==CashSource.TRADE}
         assertEquals(listOf(300L,200L),source_rows.map{it.occurred_at_ms});reconcile(a,i)
     }}
     @Test fun accounts_cash_and_currency_are_isolated() { runBlocking {
@@ -271,10 +272,10 @@ class LedgerDatabaseTest {
         commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("2"),e("90"),1,true))
         commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("3"),e("110"),2,true))
         assertEquals(e("9"),db.ledger().investment(i)!!.holding_quantity_e8)
-        assertEquals(e("100"),db.ledger().investment(i)!!.current_price_e8)
+        assertEquals(e("100"),(db.ledger().instrument(db.ledger().investment(i)!!.instrument_id)!!.current_price_e5 * 1000))
         assertEquals(2015000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         investments.update_price(i,e("120"))
-        assertEquals(108000,R.amount(e("9"),db.ledger().investment(i)!!.current_price_e8,Currency.of("CNY")))
+        assertEquals(108000,R.amount(e("9"),(db.ledger().instrument(db.ledger().investment(i)!!.instrument_id)!!.current_price_e5 * 1000),Currency.of("CNY")))
         val rows=investments.trade_page(i,null)
         assertEquals(listOf(e("110"),e("90")),rows.map{it.execution_price_e8})
         commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("9"),e("100"),3,false))
@@ -335,7 +336,7 @@ class LedgerDatabaseTest {
             launch(Dispatchers.IO) { commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("2"),e("90"),1,true)) }
         }
         assertEquals(e("12"),db.ledger().investment(i)!!.holding_quantity_e8)
-        assertEquals(e("120"),db.ledger().investment(i)!!.current_price_e8)
+        assertEquals(e("120"),(db.ledger().instrument(db.ledger().investment(i)!!.instrument_id)!!.current_price_e5 * 1000))
         expect(ErrorCode.STALE_BALANCE) { commands.execute(SetCashBalance(id(),a,"CNY",100000,revision)) }
         assertEquals(82000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
     } }

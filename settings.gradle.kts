@@ -26,3 +26,4 @@ rootProject.name = "Valnook"
 include(":app")
 include(":core:domain", ":core:data", ":core:designsystem")
 include(":feature:accounts", ":feature:cash", ":feature:deposits", ":feature:investments")
+include(":feature:settings")

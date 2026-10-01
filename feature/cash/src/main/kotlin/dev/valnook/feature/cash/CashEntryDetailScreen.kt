@@ -10,6 +10,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.core.designsystem.R
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.CashEntry
+import dev.valnook.domain.model.CashSource
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -31,7 +32,7 @@ import java.time.format.DateTimeFormatter
     val time=Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault())
     val rows=listOf(
         stringResource(R.string.change_amount) to cash_change_text(entry),
-        stringResource(R.string.entry_source) to cash_source_label(entry.source_kind),
+        stringResource(R.string.entry_source) to cash_source_label(entry.source),
         stringResource(R.string.entry_account) to account_name,
         stringResource(R.string.currency) to (entry.currency.code+" · "+entry.currency.name),
         stringResource(R.string.record_date) to time.toLocalDate().toString(),
@@ -39,10 +40,10 @@ import java.time.format.DateTimeFormatter
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
         ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
-            Text(stringResource(when(entry.source_kind) {
-                "TRADE"->R.string.view_source_trade
-                "TERM_OPEN","TERM_CLOSE"->R.string.view_source_deposit
-                else->R.string.edit_cash_change
+            Text(stringResource(when(entry.source) {
+                CashSource.TRADE->R.string.view_source_trade
+                CashSource.TERM_OPEN,CashSource.TERM_CLOSE->R.string.view_source_deposit
+                CashSource.CASH_SET->R.string.edit_cash_change
             }))
         }
     }

@@ -23,7 +23,7 @@ class DepositDetailViewModel(account_id:Long,deposit_id:Long,repository:DepositR
         repository.observe_deposit(account_id,deposit_id)
             .map<TermDeposit?,DepositDetailState>{if(it==null)DepositDetailState.Missing else DepositDetailState.Ready(it)}
             .onStart{emit(DepositDetailState.Loading)}.catch{emit(DepositDetailState.Failed)}
-    }.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),DepositDetailState.Loading)
+    }.stateIn(viewModelScope,SharingStarted.WhileSubscribed(0),DepositDetailState.Loading)
     private val _today=MutableStateFlow(LocalDate.now(clock).toEpochDay())
     val today=_today.asStateFlow()
     fun refresh_today(){_today.value=LocalDate.now(clock).toEpochDay()}

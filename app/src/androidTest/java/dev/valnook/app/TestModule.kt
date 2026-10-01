@@ -21,11 +21,15 @@ import dev.valnook.domain.repository.*
 object TestModule {
     @Provides @Singleton fun database(@ApplicationContext context:Context)=
         Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(ValnookDatabase.seed).build()
-    @Provides @Singleton fun clock():Clock=Clock.fixed(Instant.parse("2026-09-30T12:00:00Z"),ZoneId.of("Asia/Hong_Kong"))
+    @Provides @Singleton fun clock():Clock=Clock.fixed(Instant.parse("2026-09-30T12:00:00Z"),ZoneId.systemDefault())
     @Provides @Singleton fun accounts(db:ValnookDatabase,clock:Clock):AccountRepository=RoomAccounts(db,clock)
     @Provides @Singleton fun cash(db:ValnookDatabase):CashRepository=RoomCash(db.ledger())
     @Provides @Singleton fun deposits(db:ValnookDatabase):DepositRepository=RoomDeposits(db.ledger())
     @Provides @Singleton fun investments(db:ValnookDatabase,clock:Clock):InvestmentRepository=RoomInvestments(db,clock)
     @Provides @Singleton fun commands(db:ValnookDatabase,clock:Clock):FinancialCommands=RoomFinancialCommands(db,clock)
+    @Provides @Singleton fun overview(db:ValnookDatabase):OverviewRepository=RoomOverview(db)
+    @Provides @Singleton fun settings(db:ValnookDatabase,clock:Clock):SettingsRepository=RoomSettings(db,clock)
+    @Provides @Singleton fun instruments(db:ValnookDatabase,commands:FinancialCommands):InstrumentRepository=RoomInstruments(db,commands)
+    @Provides @Singleton fun cashPages(cash:CashRepository):PagedCashRepository=cash as PagedCashRepository
+    @Provides @Singleton fun depositPages(deposits:DepositRepository):PagedDepositRepository=deposits as PagedDepositRepository
 }
-

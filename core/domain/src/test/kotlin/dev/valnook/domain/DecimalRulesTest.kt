@@ -35,7 +35,8 @@ class DecimalRulesTest {
         assertEquals(2, R.amount(R.parse_e8("1"),R.parse_e8("1.5"),Currency.of("JPY")))
         assertEquals(10000, R.parse_minor("100.00", cny))
         assertEquals(100, R.parse_minor("100", Currency.of("JPY")))
-        error(ErrorCode.PRECISION) { R.parse_minor("1.0", Currency.of("JPY")) }
+        assertEquals(1L, R.parse_minor("1.0", Currency.of("JPY")))
+        error(ErrorCode.PRECISION) { R.parse_minor("1.01", Currency.of("JPY")) }
         error(ErrorCode.PRECISION) { R.parse_e8("1.000000001") }
         assertEquals(1, R.parse_e8("0.00000001"))
     }

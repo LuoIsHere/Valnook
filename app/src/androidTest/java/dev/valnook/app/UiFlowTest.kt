@@ -138,16 +138,23 @@ class UiFlowTest {
     @Test fun account_navigation_cash_errors_and_rotation_restoration() {
         wait_text("合成账户 A")
         rule.onNodeWithText("合成账户 A").performClick()
-        listOf("现金","定期","投资").forEach{rule.onNodeWithText(it).assertExists()}
-        rule.onNodeWithText("添加币种账户").performClick()
-        rule.onNodeWithText("当前余额").performTextInput("-1")
-        save();wait_text("请检查字段格式");shot("cash-input-error")
-        rule.onNodeWithText("当前余额").performTextReplacement("20000.00")
+        rule.onNodeWithTag("root-capsule").assertDoesNotExist()
+        listOf("现金", "定期", "投资").forEach { rule.onNodeWithText(it).assertExists() }
+        rule.onNodeWithText("编辑").performClick()
+        rule.onNodeWithText("＋ 添加币种").performScrollTo().performClick()
+        rule.onNodeWithText("余额").performScrollTo().performTextInput("-1")
+        save()
+        wait_text("请检查字段格式")
+        shot("cash-input-error")
+        rule.onNodeWithText("余额").performTextReplacement("20000.00")
         rule.activityRule.scenario.recreate()
-        wait_text("20000.00");rule.onNodeWithText("20000.00").assertExists()
-        save();wait_text("20 000.00");shot("cash-saved")
-        runBlocking{assertEquals(2000000,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)}
+        wait_text("20000.00")
+        save()
+        wait_text("20 000.00")
+        shot("cash-saved")
+        runBlocking { assertEquals(2000000L, db.cash().cash_one(account_id, "CNY")!!.balance_minor) }
     }
+
     @Test fun settlement_requires_explicit_cash_checkbox_and_returns_once() {
         runBlocking{graph.commands.execute(OpenTermDeposit(UUID.randomUUID().toString(),account_id,"CNY",1000000,
             R.parse_e8("3"),LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),false))}
@@ -196,140 +203,197 @@ class UiFlowTest {
         }
     }
     @Test fun investment_trade_price_and_history_are_independent() {
-        runBlocking{
-            val type=graph.investments.save_type(null,"合成基金")
-            graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(),account_id,"合成投资","TEST",type,"CNY",R.parse_e8("10"),R.parse_e8("100"),R.parse_e8("100")))
+        runBlocking {
+            val type = graph.investments.save_type(null, "合成基金")
+            graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(), account_id,
+                "合成投资", "TEST", type, "CNY", R.parse_e8("10"), R.parse_e8("100"), R.parse_e8("100")))
         }
-        wait_text("合成账户 A");rule.onNodeWithText("合成账户 A").performClick()
-        rule.onNodeWithText("投资").performClick();wait_text("合成投资")
-        rule.onNodeWithText("合成投资").performClick();wait_text("历史盈亏")
+        wait_text("合成账户 A")
+        rule.onNodeWithText("合成账户 A").performClick()
+        rule.onNodeWithText("投资").performClick()
+        wait_text("合成投资")
+        rule.onNodeWithText("合成投资").performClick()
+        wait_text("交易历史")
         click_list("买入")
-        rule.onNodeWithText("成交份额").performTextReplacement("2")
-        rule.onNodeWithText("成交单价 · CNY").performTextReplacement("90")
-        rule.onNodeWithContentDescription("成交日期:",substring=true).performScrollTo().performClick();native_picker(true)
-        rule.onNodeWithContentDescription("记账时间:",substring=true).performScrollTo().performClick();native_picker(false)
+        rule.onNodeWithText("份额").performScrollTo().performTextReplacement("2")
+        rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("90")
+        rule.onNodeWithContentDescription("记账日期:", substring = true).performScrollTo().performClick()
+        native_picker(true)
+        rule.onNodeWithContentDescription("记账时间:", substring = true).performScrollTo().performClick()
+        native_picker(false)
         rule.onNode(isToggleable()).performScrollTo().assertIsOff()
-        save();wait_text("持有 12 份");shot("investment-trade")
-        click_list("更新当前价")
-        rule.onNodeWithText("当前每份价格 · CNY").performTextReplacement("120")
-        save();wait_text("1 440.00");shot("investment-price")
-        runBlocking{
-            val rows=db.ledger().first_trades(1,50)
-            assertEquals(R.parse_e8("90"),rows.single().execution_price_e8)
-            assertNull(db.ledger().cash_one(account_id,"CNY"))
-            assertEquals(java.time.LocalDateTime.parse("2026-09-01T15:30").atZone(java.time.ZoneId.of("Asia/Hong_Kong")).toInstant().toEpochMilli(),rows.single().occurred_at_ms)
-        }
-        rule.onNodeWithText("修改买卖记录").assertDoesNotExist()
-        rule.onNodeWithText("删除买卖记录").assertDoesNotExist()
-        click_record("trade-record-1");wait_text("交易详情");wait_text("180.00 CNY")
-        shot("trade-record-detail")
-        rule.activityRule.scenario.recreate();wait_text("交易详情");wait_text("180.00 CNY")
+        save()
+        wait_text("持有 12 份")
+        shot("investment-trade")
+        click_record("trade-record-1")
+        wait_text("交易详情")
+        wait_text("180.00 CNY")
+        rule.activityRule.scenario.recreate()
+        wait_text("交易详情")
         click_list("修改买卖记录")
-        rule.onNodeWithText("成交份额").performTextReplacement("3")
-        rule.onNodeWithText("成交单价 · CNY").performTextReplacement("80")
-        save();wait_text("交易详情");wait_text("240.00 CNY")
-        window_shot("trade-detail-window","修改买卖记录")
-        rule.onNodeWithText("返回").performClick();wait_text("交易历史")
-        rule.onNode(hasScrollAction()).performScrollToIndex(0)
-        wait_text("持有 13 份");shot("trade-corrected")
-        click_record("trade-record-1");wait_text("交易详情");click_list("删除买卖记录")
+        rule.onNodeWithText("份额").performScrollTo().performTextReplacement("3")
+        rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("80")
+        save()
+        wait_text("240.00 CNY")
+        window_shot("trade-detail-window", "修改买卖记录")
+        rule.onNodeWithText("返回").performClick()
+        wait_text("交易历史")
+        click_record("trade-record-1")
+        wait_text("交易详情")
+        click_list("删除买卖记录")
         rule.onNodeWithText("确认删除").performScrollTo().performClick()
         wait_text("这笔交易已删除或不存在。")
-        rule.onNodeWithText("修改买卖记录").assertDoesNotExist()
-        rule.onNodeWithText("返回").performClick();wait_text("交易历史");rule.onNode(hasScrollAction()).performScrollToIndex(0)
-        wait_text("持有 10 份")
-        runBlocking{assertTrue(db.ledger().first_trades(1,50).isEmpty());assertEquals(R.parse_e8("120"),db.ledger().investment(1)!!.current_price_e8)}
+        rule.onNodeWithText("返回").performClick()
+        wait_text("交易历史")
+        rule.onNodeWithText("返回").performClick()
+        rule.onNodeWithText("返回").performClick()
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值")
+        click_list("所有投资品")
+        wait_text("合成投资")
+        rule.onNodeWithText("合成投资").performClick()
+        click_list("编辑标的与当前价格")
+        rule.onNodeWithText("当前每份价格（最多5位小数）").performScrollTo().performTextReplacement("120")
+        save()
+        wait_text("按账户分别计算成本")
+        shot("investment-price")
+        runBlocking {
+            assertTrue(db.trades().first_trades(1, 50).isEmpty())
+            assertEquals(R.parse_e8("10"), db.positions().investment(1)!!.holding_quantity_e8)
+            assertEquals(12000000L, db.instruments().instrument(1)!!.current_price_e5)
+            assertNull(db.cash().cash_one(account_id, "CNY"))
+        }
     }
+
     @Test fun searchable_multi_currency_accounts_and_cash_source_correction() {
-        wait_text("合成账户 A");rule.onNodeWithText("合成账户 A").performClick()
-        for((code,amount) in listOf("USD" to "100.00","JPY" to "100","KWD" to "1.234")) {
-            click_list("添加币种账户")
-            rule.onNodeWithContentDescription("币种:",substring=true).performClick()
-            rule.onNodeWithTag("currency-list").performScrollToNode(hasText("TND"))
-            rule.onNode(hasText("TND") and !hasSetTextAction()).assertIsDisplayed()
-            rule.onNodeWithText("搜索代码或币种名称").performTextInput(if(code=="KWD")"科威特" else code)
+        wait_text("合成账户 A")
+        rule.onNodeWithText("合成账户 A").performClick()
+        for ((code, amount) in listOf("USD" to "100.00", "JPY" to "100", "KWD" to "1.234")) {
+            rule.onNodeWithText("编辑").performClick()
+            rule.onNodeWithText("＋ 添加币种").performScrollTo().performClick()
+            val choices = rule.onAllNodesWithContentDescription("币种:", substring = true)
+            choices[choices.fetchSemanticsNodes().lastIndex].performScrollTo().performClick()
+            rule.onNodeWithText("搜索代码或币种名称").performTextInput(if (code == "KWD") "科威特" else code)
             rule.onNode(hasText(code) and !hasSetTextAction()).performClick()
-            rule.onNodeWithText("当前余额").performTextInput(amount)
-            save();wait_text(code+" · "+Currency.of(code).name)
+            val amounts = rule.onAllNodesWithText("余额")
+            amounts[amounts.fetchSemanticsNodes().lastIndex].performScrollTo().performTextInput(amount)
+            save()
+            wait_text(code + " · " + Currency.of(code).name)
         }
         shot("multi-currency")
-        runBlocking{assertEquals(1234,db.ledger().cash_one(account_id,"KWD")!!.balance_minor);assertEquals(3,graph.cash.observe_cash(account_id).first().size)}
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("USD · 美元"))
-        rule.onNode(hasText("修改余额") and hasAnyAncestor(hasContentDescription("余额变化 · USD"))).performClick()
-        wait_text("当前余额");rule.onNodeWithText("当前余额").assertTextContains("100.00")
-        rule.onNodeWithText("取消").performScrollTo().performClick()
-        wait_text("USD · 美元")
-        rule.onNodeWithContentDescription("余额变化 · USD").performClick()
-        wait_text("手动余额调整");rule.onNodeWithText("修改余额变化").assertDoesNotExist()
-        shot("cash-entry-list");click_list("手动余额调整");wait_text("流水详情")
-        shot("cash-entry-detail");window_shot("cash-entry-detail-window","修改余额变化");click_list("修改余额变化")
-        rule.onNodeWithText("变化金额").performTextReplacement("90.00")
-        rule.onNodeWithText("备注").performTextInput("余额调整验证")
-        rule.onNodeWithText("备注").performImeAction()
-        window_shot("cash-entry-form-window","保存")
-        rule.onNodeWithContentDescription("记账日期:",substring=true).performScrollTo().performClick()
-        window_shot("cash-date-dialog-window")
-        onView(withId(android.R.id.button2)).perform(click())
-        rule.onNodeWithContentDescription("记账时间:",substring=true).performScrollTo().performClick()
-        window_shot("cash-time-dialog-window")
-        onView(withId(android.R.id.button2)).perform(click())
-        save();wait_text("+90.00 USD");shot("cash-corrected")
-        rule.onNodeWithText("余额调整验证").assertExists()
-        rule.onNodeWithText("返回").performClick();wait_text("余额变化")
-        rule.onNodeWithText("余额调整验证").assertDoesNotExist()
-        val trade_id=runBlocking {
-            val type=graph.investments.save_type(null,"合成基金")
-            val asset=graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(),account_id,"来源投资","",type,"USD",0,R.parse_e8("120"))).id
-            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(),asset,Direction.BUY,R.parse_e8("1"),R.parse_e8("10"),graph.clock.millis(),true)).id
-        }
-        wait_text("投资买卖");click_list("投资买卖");wait_text("流水详情")
-        click_list("修改来源买卖记录")
-        rule.onNodeWithText("成交份额").performTextReplacement("2")
-        save();wait_text("-20.00 USD");shot("cash-source-corrected")
-        rule.activityRule.scenario.recreate();wait_text("流水详情");wait_text("-20.00 USD")
         runBlocking {
-            assertEquals(7000,db.ledger().cash_one(account_id,"USD")!!.balance_minor)
-            assertEquals(R.parse_e8("2"),db.ledger().trade(trade_id)!!.quantity_e8)
-            assertEquals(-2000L,db.ledger().source_entry("TRADE",trade_id)!!.delta_minor)
+            assertEquals(1234L, db.cash().cash_one(account_id, "KWD")!!.balance_minor)
+            assertEquals(3, graph.cash.observe_cash(account_id).first().size)
+        }
+        rule.onNodeWithContentDescription("余额变化 · USD").performScrollTo().performClick()
+        wait_text("手动余额调整")
+        rule.onNodeWithText("修改余额变化").assertDoesNotExist()
+        shot("cash-entry-list")
+        click_list("手动余额调整")
+        wait_text("流水详情")
+        window_shot("cash-entry-detail-window", "修改余额变化")
+        click_list("修改余额变化")
+        rule.onNodeWithText("变化金额").performScrollTo().performTextReplacement("90.00")
+        rule.onNodeWithText("备注").performScrollTo().performTextInput("余额调整验证")
+        rule.onNodeWithText("备注").performImeAction()
+        window_shot("cash-entry-form-window", "保存")
+        save()
+        wait_text("+90.00 USD")
+        shot("cash-corrected")
+        rule.onNodeWithText("返回").performClick()
+        val tradeId = runBlocking {
+            val type = graph.investments.save_type(null, "合成基金")
+            val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
+                null, "来源投资", "", type, "USD", 12000000)).id
+            graph.commands.execute(RecordAccountTrade(UUID.randomUUID().toString(), account_id, instrument,
+                Direction.BUY, R.parse_e8("1"), R.parse_e8("10"), graph.clock.millis(), true)).id
+        }
+        wait_text("投资买卖")
+        click_list("投资买卖")
+        wait_text("流水详情")
+        click_list("修改来源买卖记录")
+        rule.onNodeWithText("份额").performScrollTo().performTextReplacement("2")
+        save()
+        wait_text("-20.00 USD")
+        shot("cash-source-corrected")
+        rule.activityRule.scenario.recreate()
+        wait_text("流水详情")
+        wait_text("-20.00 USD")
+        runBlocking {
+            assertEquals(7000L, db.cash().cash_one(account_id, "USD")!!.balance_minor)
+            assertEquals(R.parse_e8("2"), db.trades().trade(tradeId)!!.quantity_e8)
+            assertEquals(-2000L, db.cash().source_entry("TRADE", tradeId)!!.delta_minor)
         }
         click_list("修改来源买卖记录")
         rule.onNode(isToggleable()).performScrollTo().assertIsOn().performClick()
-        save();wait_text("这条流水已删除或已取消现金联动。")
-        rule.onNodeWithText("修改来源买卖记录").assertDoesNotExist();shot("cash-entry-unlinked")
-        rule.onNodeWithText("返回").performClick();wait_text("余额变化")
-        rule.onNodeWithText("投资买卖").assertDoesNotExist()
+        save()
+        wait_text("这条流水已删除或已取消现金联动。")
+        rule.onNodeWithText("修改来源买卖记录").assertDoesNotExist()
+        shot("cash-entry-unlinked")
     }
-    @Test fun required_opening_cost_profit_and_closed_portfolio_reentry() {
-        runBlocking{graph.investments.save_type(null,"合成基金")}
-        wait_text("合成账户 A");rule.onNodeWithText("合成账户 A").performClick()
-        rule.onNodeWithText("投资").performClick();click_list("添加投资品")
-        rule.onNodeWithText("名称").performTextInput("QQQ")
-        rule.onNodeWithText("期初份额").performScrollTo().performTextReplacement("10")
-        rule.onNodeWithText("当前每份价格 · CNY").performScrollTo().performTextReplacement("120")
-        save();wait_text("请检查字段格式")
-        rule.onNodeWithText("期初买入单价 · CNY").performScrollTo().performTextInput("100")
-        save();wait_text("QQQ");rule.onNodeWithText("QQQ").performClick();wait_text("历史盈亏")
-        click_list("卖出")
-        rule.onNodeWithText("成交份额").performTextReplacement("10")
-        rule.onNodeWithText("成交单价 · CNY").performTextReplacement("130")
-        save();wait_text("持有 0 份")
-        rule.onNodeWithText("返回").performClick();wait_text("已清仓")
-        rule.onNodeWithText("QQQ").assertDoesNotExist()
-        rule.onNodeWithText("已清仓").performClick();wait_text("QQQ");shot("closed-investments")
-        rule.onNodeWithText("QQQ").performClick();wait_text("历史盈亏")
-        rule.onNode(hasScrollAction()).performScrollToNode(hasText("+300.00 CNY"));shot("realized-profit")
-        click_list("买入")
-        rule.onNodeWithText("成交份额").performTextReplacement("5")
-        rule.onNodeWithText("成交单价 · CNY").performTextReplacement("160")
-        save();wait_text("持有 5 份")
+
+    @Test fun opening_cost_profit_and_global_zero_position_reentry() {
         runBlocking {
-            val profit=graph.investments.observe_profit(1).first()!!
-            assertEquals(0,java.math.BigDecimal("120").compareTo(profit.average_cost!!))
-            assertEquals("300.00",profit.realized!!.toPlainString())
+            val type = graph.investments.save_type(null, "合成基金")
+            val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
+                null, "QQQ", "QQQ", type, "CNY", 12000000)).id
+            graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id,
+                instrument, R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis() - 1000))
         }
-        rule.onNodeWithText("返回").performClick();wait_text("尚无已清仓的投资项目。")
-        rule.onNodeWithText("返回").performClick();wait_text("QQQ")
+        wait_text("合成账户 A")
+        rule.onNodeWithText("合成账户 A").performClick()
+        rule.onNodeWithText("投资").performClick()
+        wait_text("QQQ")
+        rule.onAllNodesWithText("QQQ")[0].performClick()
+        wait_text("交易历史")
+        click_list("卖出")
+        rule.onNodeWithText("份额").performScrollTo().performTextReplacement("10")
+        rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("130")
+        save()
+        wait_text("持有 0 份")
+        rule.onNodeWithText("返回").performClick()
+        wait_text("暂无持仓")
+        rule.onNodeWithText("已清仓").assertDoesNotExist()
+        click_list("所有投资品")
+        wait_text("QQQ")
+        rule.onAllNodesWithText("QQQ")[0].performClick()
+        wait_text("累计已实现盈亏 300.00 CNY")
+        shot("global-zero-position")
+        click_list("买入")
+        rule.onNodeWithText("份额").performScrollTo().performTextReplacement("5")
+        rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("160")
+        save()
+        wait_text("持有 5 份")
+        runBlocking {
+            val profit = graph.investments.observe_profit(1).first()!!
+            assertEquals(0, java.math.BigDecimal("160").compareTo(profit.average_cost!!))
+            assertEquals(0, java.math.BigDecimal("300").compareTo(profit.realized!!))
+        }
     }
+    @Test fun root_capsule_state_and_popped_entry_stores_are_retained_and_released() {
+        wait_text("合成账户 A")
+        rule.onNodeWithTag("root-capsule").assertExists()
+        val baseline = dev.valnook.app.navigation.EntryLifetime.active.get()
+        val cleared = dev.valnook.app.navigation.EntryLifetime.cleared.get()
+        repeat(6) {
+            rule.onNodeWithText("合成账户 A").performClick()
+            rule.onNodeWithTag("root-capsule").assertDoesNotExist()
+            rule.onNodeWithText("编辑").performClick()
+            wait_text("现金余额")
+            rule.onNodeWithText("返回").performClick()
+            rule.onNodeWithText("返回").performClick()
+            wait_text("合成账户 B")
+            rule.waitUntil(5000) { dev.valnook.app.navigation.EntryLifetime.active.get() == baseline }
+        }
+        assertTrue(dev.valnook.app.navigation.EntryLifetime.cleared.get() >= cleared + 12)
+        rule.onNode(hasText("设置") and hasClickAction()).performClick()
+        wait_text("未设置主币种")
+        rule.onNodeWithTag("root-capsule").assertExists()
+        rule.onNode(hasText("账户") and hasClickAction()).performClick()
+        wait_text("合成账户 A")
+        window_shot("root-capsule-window")
+    }
+
     @Test fun synthetic_gallery_light_dark_narrow_wide_and_large_text() {
         val a=listOf(SavingsAccount(1,"合成账户 · 很长的账户名称与备注","当前持有的多币种资产"))
         val balances=listOf(CashBalance(1,Currency.of("CNY"),Long.MAX_VALUE,1),CashBalance(1,Currency.of("JPY"),0,1))
@@ -357,6 +421,19 @@ class UiFlowTest {
                 }
             }
             shot(name,"gallery",(width*density).toInt())
+            show_scene("accounts-$name") {
+                CompositionLocalProvider(LocalDensity provides Density(density,scale)) {
+                    ValnookTheme(dark) {
+                        Box(Modifier.fillMaxSize()) {
+                            Box(Modifier.width(width.dp).height(height.dp).testTag("account-cards")) {
+                                val snapshot = AssetSnapshot(a, balances, emptyList(), emptyList(), emptyList(), AppSettings(Currency.of("CNY")))
+                                AccountsContent(dev.valnook.domain.calculation.AssetValuation.calculate(snapshot), {})
+                            }
+                        }
+                    }
+                }
+            }
+            shot("account-cards-${if(dark)"dark" else "light"}-$width-$scale", "account-cards", (width*density).toInt())
             show_scene("cash-$name") {
                 CompositionLocalProvider(LocalDensity provides Density(density,scale)) {
                     ValnookTheme(dark) {
@@ -375,7 +452,7 @@ class UiFlowTest {
                         Box(Modifier.fillMaxSize()) {
                             Box(Modifier.width(width.dp).height(height.dp).testTag("cash-detail")) {
                                 CashEntryDetailContent(CashEntry(1,1,Currency.of("USD"),-123456789,graph.clock.millis(),
-                                    "CASH_SET",null,null,"一条较长的备注，用于验证窄屏和大字体下的信息完整显示。",1),a.first().name,{})
+                                    CashSource.CASH_SET,null,null,"一条较长的备注，用于验证窄屏和大字体下的信息完整显示。",1),a.first().name,{})
                             }
                         }
                     }
@@ -422,8 +499,72 @@ class UiFlowTest {
                 }
             }
         }
-        show_scene("accounts-empty"){ValnookTheme{AccountsContent(emptyList(),{},{})}};shot("accounts-empty")
+        show_scene("accounts-empty"){ValnookTheme{AccountsContent(dev.valnook.domain.calculation.AssetValuation.calculate(AssetSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), AppSettings())), {})}};shot("accounts-empty")
         show_scene("deposits-gallery"){ValnookTheme{DepositsContent(deposits,LocalDate.parse("2026-04-01").toEpochDay(),{},{})}};shot("deposits-gallery")
+    }
+    @Test fun all_account_totals_settings_and_root_scroll_survive_switches() {
+        runBlocking {
+            graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), account_id, 1,
+                "合成账户 A", "仅测试数据", listOf(CashBalanceChange("CNY", 100000, null), CashBalanceChange("USD", 10000, null))))
+            graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), 2, 1,
+                "合成账户 B", "账户隔离", listOf(CashBalanceChange("CNY", 50000, null))))
+            val type = graph.investments.save_type(null, "ETF")
+            val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null, null,
+                "QQQ", "QQQ", type, "USD", 10000000)).id
+            graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id, instrument,
+                R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis()))
+            graph.commands.execute(OpenTermDeposit(UUID.randomUUID().toString(), account_id, "USD", 100000,
+                0, LocalDate.parse("2026-01-01").toEpochDay(), LocalDate.parse("2027-01-01").toEpochDay(), false))
+            repeat(40) { graph.accounts.save_account(null, "合成长列表 ${it + 1}", "仅用于滚动验证") }
+        }
+        wait_text("合成账户 A")
+        rule.onNode(hasText("设置") and hasClickAction()).performClick()
+        wait_text("未设置主币种")
+        rule.onNodeWithContentDescription("币种:", substring = true).performScrollTo().performClick()
+        rule.onNodeWithText("搜索代码或币种名称").performTextInput("CNY")
+        rule.onNode(hasText("CNY") and !hasSetTextAction()).performClick()
+        rule.onNodeWithText("＋ 添加汇率").performScrollTo().performClick()
+        rule.onAllNodesWithContentDescription("币种:", substring = true)[1].performScrollTo().performClick()
+        rule.onNodeWithText("搜索代码或币种名称").performTextInput("USD")
+        rule.onNode(hasText("USD") and !hasSetTextAction()).performClick()
+        rule.onNodeWithText("汇率（最多12位小数）").performScrollTo().performTextInput("7.2")
+        rule.onNodeWithText("汇率（最多12位小数）").performImeAction()
+        rule.onNodeWithText("保存设置").performScrollTo().performClick()
+        wait_text("设置已保存")
+        rule.onNode(hasText("账户") and hasClickAction()).performClick()
+        wait_text("16620.00 CNY")
+        wait_text("可用现金 2220.00 CNY")
+        shot("all-account-total-16620")
+        rule.onNodeWithTag("accounts-list").performScrollToNode(hasText("合成长列表 40"))
+        rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
+        val capsuleTop = rule.onNodeWithTag("root-capsule").fetchSemanticsNode().boundsInWindow.top
+        assertTrue(rule.onNodeWithText("合成长列表 40").fetchSemanticsNode().boundsInWindow.bottom <= capsuleTop)
+        window_shot("long-list-above-capsule")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值 7200.00 CNY")
+        rule.onNodeWithText("合成账户 A ▾").performScrollTo().performClick()
+        wait_text("QQQ")
+        rule.onNode(hasText("设置") and hasClickAction()).performClick()
+        wait_text("主币种与手动汇率")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        rule.onNodeWithText("合成账户 A ▴").assertExists()
+        rule.onNode(hasText("账户") and hasClickAction()).performClick()
+        rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
+        val readiness = mutableListOf<Double>()
+        repeat(30) {
+            val start = System.nanoTime()
+            rule.onNode(hasText("投资") and hasClickAction()).performClick()
+            wait_text("总投资市值 7200.00 CNY")
+            rule.waitForIdle()
+            readiness.add((System.nanoTime() - start) / 1_000_000.0)
+            rule.onNode(hasText("账户") and hasClickAction()).performClick()
+            rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
+        }
+        readiness.sort()
+        val output = org.json.JSONObject().put("path", "root switch to investment ready semantics; retained snapshot")
+            .put("harness", "Compose test clock; not physical frame benchmark").put("accounts", 42)
+            .put("repetitions", 30).put("p50_ms", readiness[14]).put("p95_ms", readiness[28])
+        PlatformTestStorageRegistry.getInstance().openOutputFile("ui-readiness.json").use { it.write(output.toString(2).toByteArray()) }
     }
     @Test fun input_outlines_align_with_large_fonts_at_two_widths() {
         for((width,height) in listOf(320 to 720,360 to 800,420 to 900,600 to 960,840 to 360))for(scale in listOf(1f,2f)) {
@@ -433,7 +574,7 @@ class UiFlowTest {
                     ValnookTheme {
                         Box(Modifier.fillMaxSize()) {
                         Box(Modifier.width(width.dp).height(height.dp).testTag("inputs")) {
-                            FormPanel("参数输入",DraftState(),{},{}) {
+                            FormLayout("参数输入",false,true,{}) {
                                 CurrencyChoice("USD",{},options=Currency.supported.map{it.code to it.name})
                                 Field("当前余额","1234567.89",{})
                                 DateField("记账日期","2026-09-01",{})
@@ -451,7 +592,6 @@ class UiFlowTest {
             assertEquals(currency.bottom.value-currency.top.value,amount.bottom.value-amount.top.value,0.1f)
             shot("inputs-$width-$scale","inputs",(width*density).toInt())
             rule.onNodeWithText("保存").performScrollTo().assertIsDisplayed()
-            rule.onNodeWithText("取消").performScrollTo().assertIsDisplayed()
         }
     }
 }

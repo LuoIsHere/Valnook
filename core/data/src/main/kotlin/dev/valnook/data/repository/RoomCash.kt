@@ -1,18 +1,23 @@
 package dev.valnook.data.repository
 
 import dev.valnook.data.database.CashEntryWithSource
-import dev.valnook.data.database.LedgerDao
+import dev.valnook.data.database.CashDao
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.CashRepository
+import dev.valnook.domain.repository.PagedCashRepository
+import dev.valnook.domain.repository.LedgerCursor
 import kotlinx.coroutines.flow.map
 
 private fun CashEntryWithSource.to_model():CashEntry {
     val e=entry
     return CashEntry(e.id,e.savings_account_id,Currency.of(e.currency_code),e.delta_minor,e.occurred_at_ms,
-        e.source_kind,e.source_id,investment_id,e.note,e.revision)
+        CashSource.valueOf(e.source_kind),e.source_id,investment_id,e.note,e.revision)
 }
 
-class RoomCash(private val dao:LedgerDao):CashRepository {
+class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
+    override fun observeRevision(accountId:Long,currencyCode:String)=dao.ledgerRevision(accountId,currencyCode)
+    override suspend fun page(accountId:Long,currencyCode:String,cursor:LedgerCursor?,size:Int)=
+        dao.ledgerPage(accountId,currencyCode,cursor?.time,cursor?.id,size.coerceIn(1,100)).map{it.to_model()}
     override fun observe_cash(account_id:Long)=dao.cash(account_id).map { rows->rows.map {
         CashBalance(it.savings_account_id,Currency.of(it.currency_code),it.balance_minor,it.revision)
     } }

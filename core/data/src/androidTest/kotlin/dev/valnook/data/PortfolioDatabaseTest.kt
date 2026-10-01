@@ -46,7 +46,7 @@ class PortfolioDatabaseTest {
         assertEquals(listOf(second,first),ids(InvestmentSection.HOLDING))
         val sell=trade(first,Direction.SELL,"10","120",300)
         assertEquals(listOf(second),ids(InvestmentSection.HOLDING));assertEquals(listOf(first),ids(InvestmentSection.CLOSED))
-        assertEquals("200.00",repo.observe_profit(first).first()!!.realized!!.toPlainString())
+        assertEquals("200.00",repo.observe_profit(first).first()!!.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
         val again=trade(first,Direction.BUY,"1","200",400)
         assertEquals(listOf(first,second),ids(InvestmentSection.HOLDING));assertTrue(ids(InvestmentSection.CLOSED).isEmpty())
         commands.execute(DeleteInvestmentTrade(id(),again,1))
@@ -77,9 +77,9 @@ class PortfolioDatabaseTest {
         val cost=SetOpeningInvestmentCost(id(),asset,2,e("90"))
         assertEquals(commands.execute(cost),commands.execute(cost))
         val summary=repo.observe_profit(asset).first()!!
-        assertEquals("60.00",summary.realized!!.toPlainString());assertEquals("720.00",summary.unrealized!!.toPlainString())
+        assertEquals("60.00",summary.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString());assertEquals("720.00",summary.unrealized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
         repo.update_price(asset,e("200"))
-        assertEquals("60.00",repo.observe_profit(asset).first()!!.realized!!.toPlainString())
+        assertEquals("60.00",repo.observe_profit(asset).first()!!.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
         assertNull(db.ledger().cash_one(account,"USD"))
         try{commands.execute(cost.copy(operation_id=id()));fail()}catch(error:DomainException){assertEquals(ErrorCode.STALE_RECORD,error.code)}
         assertEquals(e("90"),db.ledger().investment(asset)!!.opening_cost_price_e8)
@@ -89,10 +89,10 @@ class PortfolioDatabaseTest {
         repeat(60){trade(asset,Direction.BUY,"1","100",it.toLong())}
         val sell=trade(asset,Direction.SELL,"10","120",100)
         assertEquals(50,repo.trade_page(asset,null).size)
-        assertEquals("200.00",repo.observe_profit(asset).first()!!.realized!!.toPlainString())
+        assertEquals("200.00",repo.observe_profit(asset).first()!!.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
         commands.execute(DeleteInvestmentTrade(id(),sell,1))
-        assertEquals("0.00",repo.observe_profit(asset).first()!!.realized!!.toPlainString())
-        assertEquals("4800.00",repo.observe_profit(asset).first()!!.unrealized!!.toPlainString())
+        assertEquals("0.00",repo.observe_profit(asset).first()!!.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
+        assertEquals("4800.00",repo.observe_profit(asset).first()!!.unrealized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
     }}
     @Test fun archive_metadata_rolls_back_with_failed_financial_transaction() {runBlocking {
         val asset=create("QQQ");trade(asset,Direction.BUY,"1","100",100)

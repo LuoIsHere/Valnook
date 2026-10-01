@@ -16,8 +16,12 @@ import dev.valnook.domain.model.*
 import java.time.*
 
 @Composable fun CashScreen(vm:CashViewModel,on_open:(String)->Unit={},on_form:()->Unit) {
-    val rows by vm.balances.collectAsStateWithLifecycle()
-    CashContent(rows,{vm.begin(it);on_form()},{on_open(it.currency.code)})
+    val state by vm.balances.collectAsStateWithLifecycle()
+    when (val current = state) {
+        CashBalancesState.Loading -> CircularProgressIndicator()
+        CashBalancesState.Failed -> Text("余额读取失败，请返回后重试")
+        is CashBalancesState.Ready -> CashContent(current.rows,{on_form()},{on_open(it.currency.code)})
+    }
 }
 @Composable fun CashContent(rows:List<CashBalance>,on_edit:(CashBalance?)->Unit,
     on_open:(CashBalance)->Unit={on_edit(it)}) {
@@ -36,16 +40,27 @@ import java.time.*
     }
 }
 @Composable fun CashDetail(vm:CashViewModel,code:String,on_form:()->Unit,on_entry:(Long)->Unit) {
-    val balances by vm.balances.collectAsStateWithLifecycle()
-    val entries by vm.entries.collectAsStateWithLifecycle()
+    val balanceState by vm.balances.collectAsStateWithLifecycle()
+    val ledgerState by vm.entries.collectAsStateWithLifecycle()
     LaunchedEffect(code){vm.watch_currency(code)}
+    if (balanceState == CashBalancesState.Failed || ledgerState == CashLedgerState.Failed) {
+        Text("现金记录读取失败，请返回后重试")
+        return
+    }
+    val balances = (balanceState as? CashBalancesState.Ready)?.rows
+    val ledger = ledgerState as? CashLedgerState.Ready
+    if (balances == null || ledger == null) {
+        CircularProgressIndicator()
+        return
+    }
+    val entries = ledger.rows
     val currency=Currency.of(code)
     val balance=balances.firstOrNull{it.currency.code==code}
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         item{
             OutlinedCard(Modifier.fillMaxWidth()){
-                CashBalanceSummary(currency,balance?.balance_minor ?: 0,
-                    on_edit=if(balance==null)null else {{vm.begin(balance);on_form()}})
+                if (balance == null) Text("该币种现金账户尚未建立", Modifier.padding(Space.md))
+                else CashBalanceSummary(currency,balance.balance_minor,on_edit={{on_form()}})
             }
         }
         item{Text(stringResource(R.string.cash_changes),style=MaterialTheme.typography.titleLarge)}
@@ -59,33 +74,7 @@ import java.time.*
                 CashEntryItem(entry){on_entry(entry.id)}
             }
         }
-        if(entries.size>=50)item{TextButton(onClick=vm::load_more_entries){Text(stringResource(R.string.load_more))}}
-    }
-}
-@Composable fun CashForm(vm:CashViewModel,on_back:()->Unit) {
-    val state by vm.draft.collectAsStateWithLifecycle()
-    val balances by vm.balances.collectAsStateWithLifecycle()
-    val enabled=!state.busy&&!state.locked
-    val f=state.fields
-    LaunchedEffect(state.completed){if(state.completed&&vm.consume_completion())on_back()}
-    FormPanel(stringResource(if(vm.editing_entry)R.string.edit_cash_change else if(vm.existing)R.string.cash_set else R.string.add_currency_account),
-        state,on_back,vm::submit) {
-        CurrencyChoice(f["currency"].orEmpty(),{vm.field("currency",it)},enabled&&!vm.existing,
-            options=Currency.supported.map{it.code to it.name},excluded=if(vm.existing)emptySet() else balances.map{it.currency.code}.toSet())
-        if(vm.editing_entry)ChoiceField(stringResource(R.string.change_direction),f["direction"].orEmpty(),
-            listOf("INCREASE" to stringResource(R.string.increase),"DECREASE" to stringResource(R.string.decrease)),
-            {vm.field("direction",it)},enabled)
-        Field(stringResource(if(vm.editing_entry)R.string.change_amount else R.string.balance),
-            f["amount"].orEmpty(),{vm.field("amount",it)},true,enabled)
-        if(vm.editing_entry) {
-            DateField(stringResource(R.string.record_date),f["day"].orEmpty(),{vm.field("day",it)},enabled)
-            TimeField(stringResource(R.string.record_time),f["time"].orEmpty(),{vm.field("time",it)},enabled)
-            Field(stringResource(R.string.note),f["note"].orEmpty(),{vm.field("note",it)},enabled=enabled)
-            Text(stringResource(R.string.cash_edit_hint),style=MaterialTheme.typography.bodyMedium,
-                color=MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        vm.change_preview()?.let{Text(stringResource(R.string.net_cash_change,it,f["currency"].orEmpty()),
-            style=MaterialTheme.typography.titleMedium)}
+        if(ledger.hasMore)item{TextButton(onClick=vm::load_more_entries){Text(stringResource(R.string.load_more))}}
     }
 }
 @Preview(showBackground=true,widthDp=360,fontScale=2f)

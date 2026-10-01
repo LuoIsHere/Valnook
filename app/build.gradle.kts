@@ -16,8 +16,8 @@ android {
         applicationId = "dev.valnook.app"
         minSdk = 36
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "0.0.2"
 
         testInstrumentationRunner = "dev.valnook.app.HiltTestRunner"
     }
@@ -47,6 +47,8 @@ dependencies {
     implementation(project(":feature:cash"))
     implementation(project(":feature:deposits"))
     implementation(project(":feature:investments"))
+    implementation(project(":feature:settings"))
+    implementation(libs.androidx.viewmodel.navigation3)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.navigation3.runtime)

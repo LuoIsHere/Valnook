@@ -25,6 +25,6 @@ class TradeDetailViewModel(account_id:Long,trade_id:Long,repository:InvestmentRe
                 if(asset==null||asset.account_id!=account_id)TradeDetailState.Missing else TradeDetailState.Ready(asset,trade)
             }
         }.onStart{emit(TradeDetailState.Loading)}.catch{emit(TradeDetailState.Failed)}
-    }.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),TradeDetailState.Loading)
+    }.stateIn(viewModelScope,SharingStarted.WhileSubscribed(0),TradeDetailState.Loading)
     fun retry(){attempts.value++}
 }

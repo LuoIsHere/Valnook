@@ -19,13 +19,18 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import kotlinx.coroutines.delay
 
 @Composable fun DepositsScreen(vm:DepositsViewModel,on_form:()->Unit,on_open:(Long)->Unit,on_archive:()->Unit={},closed:Boolean=false) {
-    val rows by (if(closed)vm.settled else vm.deposits).collectAsStateWithLifecycle();val today by vm.today.collectAsStateWithLifecycle()
+    val state by vm.deposits.collectAsStateWithLifecycle()
+    val today by vm.today.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME){vm.refresh_today()}
     LaunchedEffect(Unit){while(true){delay(30000);vm.refresh_today()}}
-    DepositsContent(rows,today,{vm.begin(null);on_form()},vm::load_more,on_open,on_archive,closed)
+    when (val current = state) {
+        DepositsState.Loading -> CircularProgressIndicator()
+        DepositsState.Failed -> Text("存单读取失败，请返回后重试")
+        is DepositsState.Ready -> DepositsContent(current.rows,today,on_form,vm::load_more,on_open,on_archive,closed,current.hasMore)
+    }
 }
 @Composable fun DepositsContent(rows:List<TermDeposit>,today:Long,on_form:()->Unit,on_more:()->Unit,
-    on_open:(Long)->Unit={},on_archive:(()->Unit)?=null,closed:Boolean=false) {
+    on_open:(Long)->Unit={},on_archive:(()->Unit)?=null,closed:Boolean=false,hasMore:Boolean=rows.size>=50) {
     LazyColumn(contentPadding=PaddingValues(Space.md),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         if(closed)item{Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.titleLarge)}
         else if(on_archive!=null)item{ActionButton(onClick=on_archive,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.settled_deposits))}}
@@ -45,42 +50,8 @@ import kotlinx.coroutines.delay
                 }
             }
         }
-        if(rows.size>=50)item{TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}}
+        if(hasMore)item{TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}}
         if(!closed)item{Button(onClick=on_form,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.open_deposit))}}
-    }
-}
-@Composable fun DepositForm(vm:DepositsViewModel,account:String,on_back:()->Unit,on_reload:(()->Unit)?=null) {
-    val state by vm.draft.collectAsStateWithLifecycle(); val f=state.fields;val enabled=!state.busy&&!state.locked
-    if(f.isEmpty()) {
-        Column(Modifier.padding(Space.md),verticalArrangement=Arrangement.spacedBy(Space.md)) {
-            ErrorMessage(state.error)
-            if(on_reload!=null)Button(onClick=on_reload){Text(stringResource(R.string.retry_load))}
-            TextButton(onClick=on_back){Text(stringResource(R.string.back))}
-        }
-        return
-    }
-    LaunchedEffect(state.completed){if(state.completed&&vm.consume_completion())on_back()}
-    FormPanel(stringResource(if(vm.editing)R.string.edit_deposit else if(vm.closing)R.string.close_deposit else R.string.open_deposit),state,on_back,vm::submit) {
-        Text(account,style=MaterialTheme.typography.titleMedium)
-        if(!vm.closing) {
-            CurrencyChoice(f["currency"].orEmpty(),{vm.field("currency",it)},enabled&&!vm.editing,options=Currency.supported.map{it.code to it.name})
-            Field(stringResource(R.string.principal),f["principal"].orEmpty(),{vm.field("principal",it)},true,enabled)
-            Field(stringResource(R.string.rate),f["rate"].orEmpty(),{vm.field("rate",it)},true,enabled)
-            DateField(stringResource(R.string.start_date),f["start"].orEmpty(),{vm.field("start",it)},enabled)
-            DateField(stringResource(R.string.end_date),f["end"].orEmpty(),{vm.field("end",it)},enabled)
-            Text(stringResource(R.string.term_formula))
-            vm.preview()?.let{Text(stringResource(R.string.interest_value,it,f["currency"].orEmpty()))}
-        }
-        CashLinkOption(f["linked"].toBoolean(),{vm.field("linked",it.toString())},account,f["currency"].orEmpty(),
-            if(vm.closing) "+${f["return"].orEmpty()}" else "-${f["principal"].orEmpty()}",enabled,
-            label=if(vm.editing)stringResource(R.string.deposit_open_link) else null)
-        if(vm.editing&&vm.was_closed)CashLinkOption(f["close_linked"].toBoolean(),{vm.field("close_linked",it.toString())},
-            account,f["currency"].orEmpty(),"+"+vm.return_preview().orEmpty(),enabled,stringResource(R.string.deposit_close_link))
-        if(vm.editing) {
-            Text(stringResource(R.string.deposit_edit_hint),style=MaterialTheme.typography.bodyMedium)
-            vm.cash_change_preview()?.let{Text(stringResource(R.string.net_cash_change,it,f["currency"].orEmpty()),style=MaterialTheme.typography.titleMedium)}
-        }
-        Text(stringResource(R.string.form_hint),style=MaterialTheme.typography.bodySmall)
     }
 }
 @Preview(showBackground=true,widthDp=360)

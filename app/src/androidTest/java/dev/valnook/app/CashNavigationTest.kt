@@ -109,7 +109,7 @@ class CashNavigationTest {
         wait_text("流水详情")
         rule.onNode(hasScrollAction()).performScrollToNode(hasText("修改余额变化"))
         rule.onNodeWithText("修改余额变化").performClick()
-        wait_text("变化方向")
+        wait_text("增减方向")
         rule.onNode(hasSetTextAction() and hasText("变化金额")).performClick()
         rule.waitUntil(5000){ime_visible()}
         // Insets change before the platform IME finishes opening/registering back.
@@ -121,13 +121,13 @@ class CashNavigationTest {
         rule.waitUntil(5000){!ime_visible()}
         SystemClock.sleep(300)
         screenshot("keyboard-after-back").recycle()
-        rule.onNodeWithText("变化方向").assertExists()
+        rule.onNodeWithText("增减方向").assertExists()
 
         rule.onNodeWithContentDescription("记账日期:",substring=true).performScrollTo().performClick()
         onView(isAssignableFrom(DatePicker::class.java)).check(matches(isDisplayed()))
         pressBack()
         onView(isAssignableFrom(DatePicker::class.java)).check(doesNotExist())
-        rule.onNodeWithText("变化方向").assertExists()
+        rule.onNodeWithText("增减方向").assertExists()
         pressBack()
         wait_text("流水详情")
     }

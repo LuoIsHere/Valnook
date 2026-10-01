@@ -22,6 +22,6 @@ class CashEntryViewModel(account_id:Long,entry_id:Long,repository:CashRepository
             .map<CashEntry?,CashEntryState>{entry->if(entry==null)CashEntryState.Missing else CashEntryState.Ready(entry)}
             .onStart {emit(CashEntryState.Loading)}
             .catch {emit(CashEntryState.Failed)}
-    }.stateIn(viewModelScope,SharingStarted.WhileSubscribed(5000),CashEntryState.Loading)
+    }.stateIn(viewModelScope,SharingStarted.WhileSubscribed(0),CashEntryState.Loading)
     fun retry(){attempts.value++}
 }

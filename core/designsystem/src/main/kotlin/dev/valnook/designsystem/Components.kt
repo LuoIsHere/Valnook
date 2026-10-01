@@ -36,8 +36,6 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.util.Locale
 
-data class DraftState(val fields:Map<String,String> = emptyMap(),val busy:Boolean=false,
-    val error:String?=null,val completed:Boolean=false,val locked:Boolean=false)
 
 @Composable fun ErrorMessage(code:String?) {
     if(code==null) return
@@ -212,21 +210,5 @@ data class DraftState(val fields:Map<String,String> = emptyMap(),val busy:Boolea
             Text(stringResource(if(checked) R.string.link_effect else R.string.no_link_effect,account,currency,change),
                 style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-@Composable fun FormPanel(title:String,state:DraftState,on_cancel:()->Unit,on_submit:()->Unit,
-    submit_label:String?=null,content:@Composable ColumnScope.()->Unit) {
-    val focus=LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
-    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=Space.md),
-        verticalArrangement=Arrangement.spacedBy(Space.md)) {
-        Text(title,style=MaterialTheme.typography.headlineSmall); content(); ErrorMessage(state.error)
-        if(state.completed) Text(stringResource(R.string.saved))
-        Button(onClick={focus.clearFocus();keyboard?.hide();on_submit()},enabled=!state.busy&&!state.completed,shape=RoundedCornerShape(12.dp),
-            modifier=Modifier.fillMaxWidth().heightIn(min=52.dp)) {
-            if(state.busy) CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)
-            else Text(if(state.locked)stringResource(R.string.retry) else submit_label ?: stringResource(R.string.save))
-        }
-        TextButton(onClick=on_cancel,enabled=!state.busy,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.cancel))}
     }
 }

@@ -1,51 +1,70 @@
 package dev.valnook.domain.calculation
 
 import dev.valnook.domain.model.*
+import dev.valnook.domain.money.DecimalRules
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-/** Cumulative purchase average: sells never remove purchases from the cost denominator. */
+/** Independent moving-average cost chain for one account position. Never replay cash here. */
 object InvestmentProfitCalculator {
+    const val ALGORITHM_VERSION = 2
+    const val ALLOCATION_SCALE = 32
+
     fun calculate(asset: Investment, trades: List<Trade>): InvestmentProfit {
-        val scale=asset.currency.fraction_digits
-        fun units(value:Long)=BigDecimal.valueOf(value,8)
-        fun money(value:BigDecimal)=value.setScale(scale,RoundingMode.HALF_UP)
-        val complete=asset.opening_quantity_e8==0L || asset.opening_cost_price_e8!=null
-        if(!complete)return InvestmentProfit(null,null,null,false,true)
-        var purchased=units(asset.opening_quantity_e8)
-        var cost=money(purchased.multiply(units(asset.opening_cost_price_e8 ?: 0)))
-        var held=purchased
-        var realized=BigDecimal.ZERO
-        var chronological=true
-        fun average():BigDecimal?=if(purchased.signum()==0)null else cost.divide(purchased,32,RoundingMode.HALF_UP)
-        // Replaying dated records makes historical corrections deterministic; later buys cannot
-        // change an earlier sale's average. ID breaks ties for records at exactly the same time.
-        for(trade in trades.sortedWith(compareBy<Trade>{it.occurred_at_ms}.thenBy{it.id})) {
-            require(trade.investment_id==asset.id && trade.currency==asset.currency)
-            val quantity=units(trade.quantity_e8)
-            if(trade.direction==Direction.BUY) {
-                purchased=purchased.add(quantity)
-                cost=cost.add(BigDecimal.valueOf(trade.amount_minor,scale))
-                held=held.add(quantity)
+        var quantityE8 = asset.opening_quantity_e8
+        var remainingCost = openingCost(asset)
+        var realized: BigDecimal? = BigDecimal.ZERO
+        var conflictTradeId: Long? = null
+        var chronological = true
+        for (trade in trades.sortedWith(compareBy<Trade> { it.occurred_at_ms }.thenBy { it.id })) {
+            require(trade.investment_id == asset.id && trade.currency == asset.currency)
+            if (asset.opening_quantity_e8 > 0 && trade.occurred_at_ms < asset.openingAtMs) {
+                chronological = false
+                conflictTradeId = conflictTradeId ?: trade.id
+            }
+            val amount = BigDecimal.valueOf(trade.amount_minor, asset.currency.fraction_digits)
+            if (trade.direction == Direction.BUY) {
+                quantityE8 = DecimalRules.add(quantityE8, trade.quantity_e8)
+                remainingCost = remainingCost?.add(amount)
             } else {
-                held=held.subtract(quantity)
-                val price=average()
-                if(held.signum()<0 || price==null)chronological=false
-                // Divide the exact profit numerator only at the currency boundary. Multiplying
-                // a rounded repeating average could turn a half-cent gain into the wrong cent.
-                if(price!=null)realized=realized.add(
-                    BigDecimal.valueOf(trade.amount_minor,scale).multiply(purchased).subtract(quantity.multiply(cost))
-                        .divide(purchased,scale,RoundingMode.HALF_UP))
+                if (trade.quantity_e8 > quantityE8 || quantityE8 <= 0) {
+                    chronological = false
+                    conflictTradeId = conflictTradeId ?: trade.id
+                    break
+                }
+                // Full liquidation consumes the exact residual, eliminating allocation dust.
+                val allocated = if (trade.quantity_e8 == quantityE8) remainingCost else
+                    remainingCost?.multiply(BigDecimal.valueOf(trade.quantity_e8))
+                        ?.divide(BigDecimal.valueOf(quantityE8), ALLOCATION_SCALE, RoundingMode.HALF_UP)
+                realized = if (allocated == null || realized == null) null else realized.add(amount.subtract(allocated))
+                quantityE8 -= trade.quantity_e8
+                remainingCost = if (quantityE8 == 0L) BigDecimal.ZERO else
+                    if (remainingCost == null) null else remainingCost.subtract(requireNotNull(allocated))
             }
         }
-        if(held.compareTo(units(asset.holding_quantity_e8))!=0)chronological=false
-        val average=average()
-        val unrealized=when {
-            asset.holding_quantity_e8==0L->money(BigDecimal.ZERO)
-            average!=null->units(asset.holding_quantity_e8).multiply(units(asset.current_price_e8).multiply(purchased).subtract(cost))
-                .divide(purchased,scale,RoundingMode.HALF_UP)
-            else->null
-        }
-        return InvestmentProfit(average,if(chronological)money(realized) else null,unrealized,true,chronological)
+        if (quantityE8 != asset.holding_quantity_e8) chronological = false
+        return value(quantityE8, asset.current_price_e8, remainingCost, realized, chronological, conflictTradeId)
+    }
+
+    fun fromReadModel(asset: Investment): InvestmentProfit = value(
+        asset.holding_quantity_e8, asset.current_price_e8,
+        asset.remainingCost?.toBigDecimal(), asset.realizedProfit?.toBigDecimal(),
+        asset.chronologyValid && asset.algorithmVersion == ALGORITHM_VERSION, null
+    )
+
+    private fun openingCost(asset: Investment): BigDecimal? = when {
+        asset.opening_quantity_e8 == 0L -> BigDecimal.ZERO
+        asset.opening_cost_price_e8 == null -> null
+        else -> BigDecimal.valueOf(DecimalRules.amount(asset.opening_quantity_e8, asset.opening_cost_price_e8,
+            asset.currency), asset.currency.fraction_digits)
+    }
+
+    private fun value(quantityE8: Long, priceE8: Long, cost: BigDecimal?, realized: BigDecimal?,
+        valid: Boolean, conflictId: Long?): InvestmentProfit {
+        val quantity = BigDecimal.valueOf(quantityE8, 8)
+        val average = if (quantityE8 > 0 && valid) cost?.divide(quantity, ALLOCATION_SCALE, RoundingMode.HALF_UP) else null
+        val floating = if (valid) cost?.let { quantity.multiply(BigDecimal.valueOf(priceE8, 8)).subtract(it) } else null
+        return InvestmentProfit(average, if (valid) realized else null, floating, cost != null && valid,
+            valid, cost, realized != null && valid, conflictId)
     }
 }

@@ -15,7 +15,7 @@ object DecimalRules {
         val text = input.trim()
         if (text.length > 64 || !decimal_pattern.matches(text)) throw DomainException(ErrorCode.FORMAT)
         val decimal = BigDecimal(text)
-        if (decimal.scale() > scale) throw DomainException(ErrorCode.PRECISION)
+        if (decimal.stripTrailingZeros().scale() > scale) throw DomainException(ErrorCode.PRECISION)
         val value = exact_long(decimal.movePointRight(scale))
         check_nonnegative(value, positive)
         return value

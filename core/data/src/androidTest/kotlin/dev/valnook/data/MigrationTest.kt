@@ -22,6 +22,46 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 class MigrationTest {
     @get:Rule val helper=MigrationTestHelper(InstrumentationRegistry.getInstrumentation(),
         ValnookDatabase::class.java,emptyList(),FrameworkSQLiteOpenHelperFactory())
+    @Test fun v3_shared_catalog_cost_cache_and_irreversible_locks_preserve_history(): Unit = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-v3-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 3).apply {
+                execSQL("INSERT INTO currencies VALUES ('USD',2)")
+                execSQL("INSERT INTO savings_accounts VALUES (1,'账户一','备注',0,0)")
+                execSQL("INSERT INTO savings_accounts VALUES (2,'账户二','',0,0)")
+                execSQL("INSERT INTO asset_types VALUES (1,'ETF','etf',0,0)")
+                // Equal codes in the old schema are not proof of a shared identity.
+                execSQL("INSERT INTO investments VALUES (1,1,1,'QQQ','QQQ','USD',1000000000,600000000,18012345678,0,3,0,30,10000000000,'HOLDING',30)")
+                execSQL("INSERT INTO investments VALUES (2,2,1,'QQQ','QQQ','USD',0,0,18000000000,0,3,0,30,NULL,'PENDING',0)")
+                execSQL("INSERT INTO operations VALUES ('old-sell','SELL','preserve-me','INVESTMENT_TRADE',1,30)")
+                execSQL("INSERT INTO operations VALUES ('old-deleted','BUY','preserve-deleted','INVESTMENT_TRADE',2,30)")
+                execSQL("INSERT INTO investment_trades VALUES (1,1,'old-sell','SELL',400000000,13000000000,52000,'USD',0,30,30,2,0,30)")
+                execSQL("INSERT INTO investment_trades VALUES (2,2,'old-deleted','BUY',100000000,10000000000,10000,'USD',0,20,20,2,1,30)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 4, true, MIGRATION_3_4).apply {
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                query("SELECT COUNT(*) FROM instruments WHERE currency_locked=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals(2, it.getInt(0))
+                }
+                query("SELECT remaining_cost,realized_profit,algorithm_version FROM investments WHERE id=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals("600", it.getString(0))
+                    assertEquals("120", it.getString(1)); assertEquals(2, it.getInt(2))
+                }
+                query("SELECT current_price_e5 FROM instruments WHERE id=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals(18012346L, it.getLong(0))
+                }
+                query("SELECT request_fingerprint FROM operations WHERE operation_id='old-sell'").use {
+                    assertTrue(it.moveToFirst()); assertEquals("preserve-me", it.getString(0))
+                }
+                query("SELECT COUNT(*) FROM investment_trades").use {
+                    assertTrue(it.moveToFirst()); assertEquals(2, it.getInt(0))
+                }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
     @Test fun v2_archive_backfill_ignores_deleted_trades_and_keeps_unknown_cost() {
         val context=ApplicationProvider.getApplicationContext<android.content.Context>()
         val name="migration-v2-${UUID.randomUUID()}.db"
@@ -78,7 +118,7 @@ class MigrationTest {
             close()
         }
         helper.runMigrationsAndValidate(name,3,true,MIGRATION_2_3).close()
-        val db=Room.databaseBuilder(context,ValnookDatabase::class.java,name).addMigrations(MIGRATION_1_2,MIGRATION_2_3).build()
+        val db=Room.databaseBuilder(context,ValnookDatabase::class.java,name).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4).build()
         try {
             val dao=db.ledger();val repository=RoomInvestments(db,Clock.systemUTC())
             assertNull(dao.investment(1)!!.opening_cost_price_e8)
@@ -92,15 +132,15 @@ class MigrationTest {
             assertEquals(listOf(2L,1L),repository.trade_page(1,null).map{it.id})
             assertEquals(1L,repository.get_trade(1)!!.revision)
             val entries=RoomCash(dao).observe_entries(1,"CNY",50).first()
-            assertEquals(setOf("CASH_SET","TRADE","TERM_OPEN","TERM_CLOSE"),entries.map{it.source_kind}.toSet())
-            assertEquals(20L,entries.single{it.source_kind=="TRADE"}.occurred_at_ms)
+            assertEquals(setOf("CASH_SET","TRADE","TERM_OPEN","TERM_CLOSE"),entries.map{it.source.name}.toSet())
+            assertEquals(20L,entries.single{it.source==dev.valnook.domain.model.CashSource.TRADE}.occurred_at_ms)
             assertEquals(91010L,entries.sumOf{it.delta_minor})
             val commands=RoomFinancialCommands(db,Clock.systemUTC())
             commands.execute(DeleteInvestmentTrade(UUID.randomUUID().toString(),1,1))
             commands.execute(EditCashEntry(UUID.randomUUID().toString(),1,1,90000,10,"迁移后修正"))
             assertEquals(90010L,dao.cash_one(1,"CNY")!!.balance_minor)
             assertEquals(1200000000L,dao.investment(1)!!.holding_quantity_e8)
-            assertEquals(12000000000L,dao.investment(1)!!.current_price_e8)
+            assertEquals(12000000000L,(dao.instrument(dao.investment(1)!!.instrument_id)!!.current_price_e5 * 1000))
             assertEquals("CLOSED",dao.deposit(1)!!.status)
             assertEquals(90010L,RoomCash(dao).observe_entries(1,"CNY",50).first().sumOf{it.delta_minor})
             commands.execute(EditTermDeposit(UUID.randomUUID().toString(),1,1,20000,10000000,0,365,true,true))

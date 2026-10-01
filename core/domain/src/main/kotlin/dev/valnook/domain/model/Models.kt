@@ -64,9 +64,10 @@ data class Currency(val code: String, val fraction_digits: Int, val name: String
 }
 enum class ErrorCode { CURRENCY, FORMAT, PRECISION, OVERFLOW, POSITIVE, DATE, INSUFFICIENT_CASH,
     INSUFFICIENT_HOLDING, STALE_BALANCE, ALREADY_CLOSED, NOT_MATURED, OPERATION_CONFLICT,
-    NOT_FOUND, NAME, AMOUNT_TOO_SMALL, DUPLICATE_TYPE, STALE_RECORD, SOURCE_RECORD }
+    NOT_FOUND, NAME, AMOUNT_TOO_SMALL, DUPLICATE_TYPE, STALE_RECORD, SOURCE_RECORD,
+    CURRENCY_LOCKED, PRICE_CONFIRMATION, HISTORY_CONFLICT, DUPLICATE_CURRENCY }
 class DomainException(val code: ErrorCode) : IllegalArgumentException(code.name)
-data class SavingsAccount(val id: Long, val name: String, val note: String)
+data class SavingsAccount(val id: Long, val name: String, val note: String, val revision: Long = 1)
 data class CashBalance(val account_id: Long, val currency: Currency, val balance_minor: Long, val revision: Long)
 data class TermDeposit(val id: Long, val account_id: Long, val currency: Currency,
     val principal_minor: Long, val annual_rate_percent_e8: Long, val start_epoch_day: Long,
@@ -76,16 +77,21 @@ data class AssetType(val id: Long, val name: String)
 data class Investment(val id: Long, val account_id: Long, val type_id: Long, val type_name: String,
     val name: String, val symbol: String, val currency: Currency, val opening_quantity_e8: Long,
     val holding_quantity_e8: Long, val current_price_e8: Long, val price_updated_at_ms: Long,
-    val opening_cost_price_e8: Long? = null, val revision: Long = 1, val last_activity_at_ms: Long = 0)
+    val opening_cost_price_e8: Long? = null, val revision: Long = 1, val last_activity_at_ms: Long = 0,
+    val instrumentId: Long = id, val openingAtMs: Long = Long.MIN_VALUE,
+    val remainingCost: String? = null, val realizedProfit: String? = null,
+    val chronologyValid: Boolean = true, val algorithmVersion: Int = 2)
 enum class Direction { BUY, SELL }
 data class Trade(val id: Long, val investment_id: Long, val direction: Direction,
     val quantity_e8: Long, val execution_price_e8: Long, val amount_minor: Long,
     val currency: Currency, val cash_linked: Boolean, val occurred_at_ms: Long, val revision: Long = 1)
 
+enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE }
+
 data class CashEntry(val id: Long, val account_id: Long, val currency: Currency,
-    val delta_minor: Long, val occurred_at_ms: Long, val source_kind: String,
+    val delta_minor: Long, val occurred_at_ms: Long, val source: CashSource,
     val source_id: Long?, val investment_id: Long?, val note: String, val revision: Long) {
-    val editable: Boolean get() = source_kind == "CASH_SET"
+    val editable: Boolean get() = source == CashSource.CASH_SET
 }
 data class TradeCursor(val occurred_at_ms: Long, val id: Long)
 data class OperationResult(val kind: String, val id: Long)
