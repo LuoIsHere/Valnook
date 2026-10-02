@@ -1,7 +1,5 @@
 package dev.valnook.app.navigation
 
-import android.content.res.Configuration
-import android.os.LocaleList
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,8 +32,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -58,7 +54,6 @@ import dev.valnook.designsystem.LocalCurrencyPickerRates
 import dev.valnook.designsystem.LocalPageBottomSpace
 import dev.valnook.designsystem.MenuIcon
 import dev.valnook.designsystem.ValnookTheme
-import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.model.AppSettings
 import dev.valnook.domain.model.GainLossColorScheme
 import dev.valnook.feature.settings.ClearDataScreen
@@ -67,44 +62,24 @@ import dev.valnook.feature.settings.GainLossColorsScreen
 import dev.valnook.feature.settings.LanguageSettingsScreen
 import dev.valnook.feature.settings.SettingsHome
 import dev.valnook.feature.settings.SettingsViewModel
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ValnookRoot(sessions: AppSessionManager, onExit: () -> Unit = {}) {
     val active by sessions.session.collectAsState()
-    val settings by remember(active.id) { active.graph.settings.observeSettings() }
-        .collectAsStateWithLifecycle(AppSettings())
-    LaunchedEffect(active.id, settings.language) {
-        if (active.mode == DataMode.REAL) sessions.syncPlatformLanguage(settings.language)
+    val settings by remember(active.id) {
+        active.graph.settings.observeSettings().map<AppSettings, AppSettings?> { it }
+    }.collectAsStateWithLifecycle(null)
+    val loadedSettings = settings ?: return
+    LaunchedEffect(active.id, loadedSettings.language) {
+        if (active.mode == DataMode.REAL) sessions.syncPlatformLanguage(loadedSettings.language)
     }
     key(active.id) {
-        LocalizedContent(settings.language) {
-            ValnookTheme(redGain = settings.gainLossColors == GainLossColorScheme.RED_GAIN) {
-                SessionRoot(active, settings, sessions, onExit)
-            }
+        ValnookTheme(redGain = loadedSettings.gainLossColors == GainLossColorScheme.RED_GAIN) {
+            SessionRoot(active, loadedSettings, sessions, onExit)
         }
-    }
-}
-
-@Composable
-private fun LocalizedContent(language: AppLanguage, content: @Composable () -> Unit) {
-    if (language == AppLanguage.SYSTEM) {
-        content()
-        return
-    }
-    val context = LocalContext.current
-    val current = LocalConfiguration.current
-    val locale = remember(language) {
-        Locale.forLanguageTag(if (language == AppLanguage.ZH_HANS) "zh-Hans" else "en")
-    }
-    val configuration = remember(language, current.locales.toLanguageTags()) {
-        Configuration(current).apply { setLocales(LocaleList(locale)) }
-    }
-    val localizedContext = remember(configuration) { context.createConfigurationContext(configuration) }
-    CompositionLocalProvider(LocalContext provides localizedContext, LocalConfiguration provides configuration) {
-        content()
     }
 }
 

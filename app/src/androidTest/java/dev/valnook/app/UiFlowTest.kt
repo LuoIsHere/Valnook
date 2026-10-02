@@ -41,7 +41,9 @@ import dev.valnook.feature.investments.TradeDetailContent
 import java.io.File
 import java.time.LocalDate
 import java.util.UUID
+import android.app.LocaleManager
 import android.graphics.Bitmap
+import android.os.LocaleList
 import android.view.View
 import android.widget.DatePicker
 import android.widget.TimePicker
@@ -50,6 +52,7 @@ import androidx.test.espresso.ViewAction
 import androidx.test.espresso.UiController
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.platform.app.InstrumentationRegistry
 import org.hamcrest.Matcher
 
 @HiltAndroidTest
@@ -896,6 +899,38 @@ class UiFlowTest {
             assertEquals(checkbox.center.y, checkboxLabel.center.y, 1f)
             if (width in listOf(320,840) && scale == 2f) shot("checkbox-alignment-$width", "inputs", (width*density).toInt())
             rule.onNodeWithText("保存").performScrollTo().assertIsDisplayed()
+        }
+    }
+
+    @Test fun explicit_language_remains_stable_after_platform_recreation() {
+        val localeManager = InstrumentationRegistry.getInstrumentation().targetContext
+            .getSystemService(LocaleManager::class.java)
+        val settingsLabel = localized(dev.valnook.app.R.string.nav_settings)
+        val baseCurrencyLabel = localized(dev.valnook.feature.settings.R.string.settings_base_currency)
+        val languageLabel = localized(dev.valnook.feature.settings.R.string.settings_language)
+        val systemLanguageLabel = localized(dev.valnook.feature.settings.R.string.settings_language_system)
+        try {
+            wait_text("合成账户 A")
+            rule.onNode(hasText(settingsLabel) and hasClickAction()).performClick()
+            wait_text(baseCurrencyLabel)
+            rule.onNode(hasText(languageLabel) and hasClickAction()).performClick()
+            rule.onNodeWithContentDescription("$languageLabel: $systemLanguageLabel").performClick()
+            rule.onNodeWithText("English").performClick()
+
+            rule.waitUntil(15_000) { localeManager.applicationLocales.toLanguageTags() == "en" }
+            wait_text("Language")
+            repeat(10) {
+                Thread.sleep(200)
+                assertEquals("en", localeManager.applicationLocales.toLanguageTags())
+            }
+        } finally {
+            runBlocking {
+                val current = graph.settings.observeSettings().first()
+                if (current.language != AppLanguage.SYSTEM) {
+                    graph.settings.saveSettings(current.copy(language = AppLanguage.SYSTEM), current.revision)
+                }
+            }
+            localeManager.applicationLocales = LocaleList.getEmptyLocaleList()
         }
     }
 }
