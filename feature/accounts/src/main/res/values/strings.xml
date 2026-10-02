@@ -2,6 +2,13 @@
     <string name="accounts_load_failed">Could not load accounts. Go back and try again.</string>
     <string name="accounts_total_assets">Total assets</string>
     <string name="accounts_available_cash">Available cash %1$s</string>
+    <string name="accounts_cash">Cash</string>
+    <string name="accounts_deposits">Term deposits</string>
+    <string name="accounts_investments">Investments</string>
+    <string name="accounts_no_cash">No cash accounts</string>
+    <string name="accounts_deposit_count">Term deposits · %1$d</string>
+    <string name="accounts_investment_count">Investments · %1$d</string>
+    <string name="account_detail_missing">This account is no longer available.</string>
     <string name="accounts_set_base_currency">Set a base currency</string>
     <string name="accounts_summary_incomplete">Incomplete total · %1$s</string>
     <string name="accounts_partial_summary">Partial total · %1$s</string>

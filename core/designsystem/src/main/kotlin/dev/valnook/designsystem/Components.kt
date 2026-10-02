@@ -85,14 +85,28 @@ import java.util.Locale
             contentColor=if(destructive)colors.onErrorContainer else colors.primary),
         contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp),content=content)
 }
-@Composable fun Field(label:String,value:String,on_change:(String)->Unit,numeric:Boolean=false,enabled:Boolean=true) {
+@Composable fun Field(label:String,value:String,on_change:(String)->Unit,numeric:Boolean=false,enabled:Boolean=true,
+    signed:Boolean=false) {
     val minimum_height=(64f+32f*(LocalDensity.current.fontScale.coerceAtLeast(1f)-1f)).dp
     val focus=LocalFocusManager.current
     val keyboard=LocalSoftwareKeyboardController.current
+    val toggle_sign_description=if(numeric&&signed) stringResource(R.string.toggle_sign) else ""
     Box(Modifier.fillMaxWidth().testTag("input-$label")) {
     OutlinedTextField(value=value,onValueChange=on_change,label={Text(label)},singleLine=true,
         textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(12.dp),
         enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
+        trailingIcon=if(numeric&&signed) {{
+            IconButton(onClick={
+                val next=when {
+                    value.startsWith("-")->value.removePrefix("-")
+                    value.isBlank()->"-"
+                    else->"-$value"
+                }
+                on_change(next)
+            },enabled=enabled) { Text("±",modifier=Modifier.semantics {
+                contentDescription=toggle_sign_description
+            }) }
+        }} else null,
         keyboardOptions=KeyboardOptions(keyboardType=if(numeric) KeyboardType.Decimal else KeyboardType.Text,imeAction=ImeAction.Done),
         keyboardActions=KeyboardActions(onDone={focus.clearFocus();keyboard?.hide()}))
     }

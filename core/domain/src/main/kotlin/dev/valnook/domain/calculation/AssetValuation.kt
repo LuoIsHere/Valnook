@@ -46,7 +46,8 @@ object AssetValuation {
                 .map { MissingAmount(if (it.chronologyValid) MissingKind.HISTORICAL_COST else MissingKind.INVALID_HISTORY,
                     it.currency.code, it.id) }.toSet()
             AccountAssets(account, convert(cashAmounts + deposits + values, snapshot.settings),
-                convert(cashAmounts, snapshot.settings), convert(values, snapshot.settings),
+                convert(cashAmounts, snapshot.settings), convert(deposits, snapshot.settings),
+                convert(values, snapshot.settings),
                 convert(floating, snapshot.settings, floatingMissing), convert(realized, snapshot.settings, realizedMissing))
         }
         fun total(select: (AccountAssets) -> ConvertedTotal): ConvertedTotal = ConvertedTotal(
@@ -54,7 +55,7 @@ object AssetValuation {
             snapshot.settings.baseCurrency,
             accounts.flatMap { select(it).missing }.toSet() +
                 if (snapshot.settings.baseCurrency == null) setOf(MissingAmount(MissingKind.BASE_CURRENCY)) else emptySet())
-        return AssetOverview(accounts, total { it.total }, total { it.cash }, total { it.investmentValue },
+        return AssetOverview(accounts, total { it.total }, total { it.cash }, total { it.depositValue }, total { it.investmentValue },
             total { it.floating }, total { it.realized })
     }
 

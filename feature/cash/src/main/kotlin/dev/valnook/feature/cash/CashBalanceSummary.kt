@@ -12,15 +12,16 @@ import dev.valnook.domain.model.CashAccount
 import dev.valnook.domain.money.DecimalRules
 
 /** Shared balance layout for the currency list and its ledger header. */
-@Composable internal fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?) {
-    Column(Modifier.fillMaxWidth().padding(start=Space.md,top=Space.md,end=Space.md,bottom=Space.sm),
+@Composable internal fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?,modifier:Modifier=Modifier) {
+    Column(modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         Text(account.name.ifBlank { account.currency.code },style=MaterialTheme.typography.titleMedium,
             color=MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(DecimalRules.format_display(account.balance_minor,account.currency.fraction_digits)+" "+account.currency.code,
-                style=MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings="tnum"),modifier=Modifier.weight(1f))
-            if(on_edit!=null) androidx.compose.material3.TextButton(onClick=on_edit) {
+                style=MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings="tnum"),modifier=Modifier.weight(1f),
+                color=if(account.balance_minor<0)MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            if(on_edit!=null) ActionButton(onClick=on_edit) {
                 Text(stringResource(R.string.cash_edit_balance))
             }
         }

@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Valnook</string>
     <string name="currency">Currency</string>
+    <string name="toggle_sign">Toggle positive or negative</string>
     <string name="choose_currency">Choose currency</string>
     <string name="search_currency">Search code or currency name</string>
     <string name="no_currency_match">No matching currency can be added.</string>

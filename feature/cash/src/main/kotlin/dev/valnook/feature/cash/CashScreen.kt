@@ -1,6 +1,7 @@
 package dev.valnook.feature.cash
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,14 +26,13 @@ import java.time.*
     }
 }
 @Composable fun CashContent(rows:List<CashAccount>,on_open:(CashAccount)->Unit) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
-        items(rows,key={it.id}) {cash->
+        itemsIndexed(rows,key={_,cash->cash.id}) {index,cash->
             val history_label=stringResource(R.string.cash_changes)+" · "+cash.name
-            OutlinedCard(onClick={on_open(cash)},modifier=Modifier.fillMaxWidth()
-                .semantics{contentDescription=history_label}) {
-                CashBalanceSummary(cash,null)
-            }
+            CashBalanceSummary(cash,null,Modifier.fillMaxWidth().clickable{on_open(cash)}
+                .semantics{contentDescription=history_label}.padding(vertical=Space.sm))
+            if(index<rows.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -50,20 +50,20 @@ import java.time.*
     }
     val entries = ledger.rows
     val balance=ledger.account
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
         item{
-            OutlinedCard(Modifier.fillMaxWidth()){
-                CashBalanceSummary(balance,on_edit=on_form)
-            }
+            CashBalanceSummary(balance,on_edit=on_form,modifier=Modifier.fillMaxWidth().padding(bottom=Space.sm))
+            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
         }
-        item{Text(stringResource(R.string.cash_changes),style=MaterialTheme.typography.titleLarge)}
+        item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
         if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}
         itemsIndexed(entries,key={_,entry->entry.id}){index,entry->
             val time=Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault())
             val previous_date=entries.getOrNull(index-1)?.let{Instant.ofEpochMilli(it.occurred_at_ms).atZone(ZoneId.systemDefault()).toLocalDate()}
-            Column(verticalArrangement=Arrangement.spacedBy(Space.sm)) {
+            Column {
                 if(previous_date!=time.toLocalDate())Text(time.toLocalDate().toString(),
-                    style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    modifier=Modifier.padding(top=Space.sm,bottom=4.dp),style=MaterialTheme.typography.labelLarge,
+                    color=MaterialTheme.colorScheme.onSurfaceVariant)
                 CashEntryItem(entry,index<entries.lastIndex||ledger.hasMore){on_entry(entry.id)}
             }
         }

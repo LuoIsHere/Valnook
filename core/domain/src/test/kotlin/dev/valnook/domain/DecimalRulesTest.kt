@@ -49,6 +49,12 @@ class DecimalRulesTest {
         assertEquals(0, R.parse_minor("0",cny))
         assertEquals(0, R.amount(0,0,cny))
     }
+    @Test fun signed_cash_parser_accepts_negative_balances_without_relaxing_asset_inputs() {
+        assertEquals(-12345L, R.parse_signed_minor("-123.45", cny))
+        assertEquals(12345L, R.parse_signed_minor("123.45", cny))
+        error(ErrorCode.PRECISION) { R.parse_signed_minor("-1.001", cny) }
+        error(ErrorCode.FORMAT) { R.parse_minor("-1", cny) }
+    }
     @Test fun long_limits_and_intermediate_product() {
         assertEquals(Long.MAX_VALUE, R.parse_units("92233720368547758.07",2))
         error(ErrorCode.OVERFLOW) { R.parse_units("92233720368547758.08",2) }

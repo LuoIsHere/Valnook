@@ -144,19 +144,20 @@ class UiFlowTest {
     }
     @Test fun account_navigation_cash_errors_and_rotation_restoration() {
         wait_text("合成账户 A")
-        rule.onNodeWithText("合成账户 A").performClick()
+        rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
         rule.onNodeWithTag("root-capsule").assertDoesNotExist()
         listOf("现金", "定期", "投资").forEach { rule.onNodeWithText(it).assertExists() }
         rule.onNodeWithText("编辑").performClick()
         wait_text("现金余额")
         rule.onNodeWithText("＋ 添加币种").performScrollTo().performClick()
-        rule.onNodeWithText("余额").performScrollTo().performTextInput("-1")
-        save()
-        wait_text("请检查字段格式")
-        shot("cash-input-error")
-        rule.onNodeWithText("余额").performTextReplacement("20000.00")
+        rule.onNodeWithText("余额").performScrollTo().performTextInput("-1.00")
         rule.activityRule.scenario.recreate()
-        wait_text("20000.00")
+        wait_text("-1.00")
+        save()
+        wait_text("-1.00 CNY")
+        runBlocking { assertEquals(-100L, db.cash().cash_one(account_id, "CNY")!!.balance_minor) }
+        rule.onNodeWithText("编辑").performClick()
+        rule.onNodeWithText("余额").performScrollTo().performTextReplacement("20000.00")
         save()
         wait_text("20 000.00")
         shot("cash-saved")
@@ -166,7 +167,7 @@ class UiFlowTest {
     @Test fun settlement_requires_explicit_cash_checkbox_and_returns_once() {
         runBlocking{graph.commands.execute(OpenTermDeposit(UUID.randomUUID().toString(),account_id,"CNY",1000000,
             R.parse_e8("3"),LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),false))}
-        wait_text("合成账户 A");rule.onNodeWithText("合成账户 A").performClick()
+        wait_text("合成账户 A");rule.onNodeWithTag("account-total-$account_id").performClick()
         rule.onNodeWithText("定期").performClick();wait_text("已到期，待结算");shot("deposit-matured")
         rule.onNodeWithText("结束存单").assertDoesNotExist()
         rule.onNodeWithText("修改存单记录").assertDoesNotExist()
@@ -217,7 +218,7 @@ class UiFlowTest {
                 "合成投资", "TEST", type, "CNY", R.parse_e8("10"), R.parse_e8("100"), R.parse_e8("100")))
         }
         wait_text("合成账户 A")
-        rule.onNodeWithText("合成账户 A").performClick()
+        rule.onNodeWithTag("account-total-$account_id").performClick()
         wait_text("投资")
         rule.onNodeWithText("投资").performClick()
         wait_text("合成投资")
@@ -287,7 +288,7 @@ class UiFlowTest {
 
     @Test fun searchable_multi_currency_accounts_and_cash_source_correction() {
         wait_text("合成账户 A")
-        rule.onNodeWithText("合成账户 A").performClick()
+        rule.onNodeWithTag("account-total-$account_id").performClick()
         for ((code, amount) in listOf("USD" to "100.00", "JPY" to "100", "KWD" to "1.234")) {
             rule.onNodeWithText("编辑").performClick()
             rule.onNodeWithText("＋ 添加币种").performScrollTo().performClick()
@@ -363,7 +364,7 @@ class UiFlowTest {
                 instrument, R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis() - 1000))
         }
         wait_text("合成账户 A")
-        rule.onNodeWithText("合成账户 A").performClick()
+        rule.onNodeWithTag("account-total-$account_id").performClick()
         rule.onNodeWithText("投资").performClick()
         wait_text("QQQ")
         rule.onAllNodesWithText("QQQ")[0].performClick()
@@ -400,7 +401,7 @@ class UiFlowTest {
         val baseline = dev.valnook.app.navigation.EntryLifetime.active.get()
         val cleared = dev.valnook.app.navigation.EntryLifetime.cleared.get()
         repeat(6) {
-            rule.onNodeWithText("合成账户 A").performClick()
+            rule.onNodeWithTag("account-total-$account_id").performClick()
             rule.onNodeWithTag("root-capsule").assertDoesNotExist()
             rule.onNodeWithText("编辑").performClick()
             wait_text("现金余额")
@@ -577,7 +578,7 @@ class UiFlowTest {
                 fee_minor = 200)).id
         }
         wait_text("合成账户 A")
-        rule.onNodeWithText("合成账户 A").performClick()
+        rule.onNodeWithTag("account-total-$account_id").performClick()
         wait_text(investmentsLabel)
         rule.onNodeWithText(investmentsLabel).performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("holding-$positionId").fetchSemanticsNodes().isNotEmpty() }
@@ -673,26 +674,53 @@ class UiFlowTest {
         PlatformTestStorageRegistry.getInstance().openOutputFile("ui-readiness.json").use { it.write(output.toString(2).toByteArray()) }
     }
     @Test fun cash_balance_editor_is_available_only_in_editor_and_ledger() {
+        val editBalance = localized(dev.valnook.feature.cash.R.string.cash_edit_balance)
+        val balanceLabel = localized(dev.valnook.feature.cash.R.string.cash_current_balance)
+        val saveLabel = localized(dev.valnook.feature.cash.R.string.cash_save)
+        val backLabel = localized(dev.valnook.app.R.string.nav_back)
+        var cashId = 0L
         runBlocking { graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(), account_id,
-            "CNY", 10000, null)) }
+            "CNY", 10000, null)); cashId = graph.cash.observe_cash(account_id).first().single().id }
         wait_text("合成账户 A")
-        rule.onNodeWithText("合成账户 A").performClick()
-        wait_text("CNY")
-        rule.onNodeWithText("修改余额").assertDoesNotExist()
+        rule.onNodeWithTag("account-toggle-$account_id").performTouchInput {
+            click(androidx.compose.ui.geometry.Offset(24f, 24f))
+        }
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("account-cash-$cashId").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText(editBalance).assertDoesNotExist()
         rule.onNodeWithText("人民币").assertDoesNotExist()
         shot("cash-overview-read-only")
-        rule.onNodeWithContentDescription("余额变化 · CNY").performClick()
-        wait_text("修改余额")
-        click_list("修改余额")
-        wait_text("现金余额")
-        rule.onNodeWithText("余额").performScrollTo().performTextReplacement("135.00")
-        save()
+        rule.onNodeWithTag("account-cash-$cashId").performScrollTo().performClick()
+        wait_text(editBalance)
+        click_list(editBalance)
+        wait_text(balanceLabel)
+        rule.onNodeWithText(balanceLabel).performScrollTo().performTextReplacement("135.00")
+        save(saveLabel)
         wait_text("135.00")
         runBlocking { assertEquals(13500L, db.cash().cash_one(account_id, "CNY")!!.balance_minor) }
-        window_shot("cash-ledger-balance-editor", "修改余额")
-        rule.onNodeWithText("返回").performClick()
+        window_shot("cash-ledger-balance-editor", editBalance)
+        rule.onNodeWithContentDescription(backLabel).performClick()
         wait_text("CNY")
-        rule.onNodeWithText("修改余额").assertDoesNotExist()
+        rule.onNodeWithText(editBalance).assertDoesNotExist()
+    }
+
+    @Test fun account_accordion_and_detail_sections_show_negative_cash() {
+        var cashId = 0L
+        runBlocking {
+            graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(), account_id, "CNY", -12345, null,
+                name = "人民币现金", note = "可透支"))
+            cashId = graph.cash.observe_cash(account_id).first().single().id
+        }
+        rule.onNodeWithTag("account-toggle-$account_id").assertIsDisplayed().performTouchInput {
+            click(androidx.compose.ui.geometry.Offset(24f, 24f))
+        }
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("account-cash-$cashId").fetchSemanticsNodes().isNotEmpty() }
+        rule.mainClock.advanceTimeBy(200); rule.waitForIdle()
+        rule.onNodeWithTag("account-cash-$cashId").performScrollTo().assertIsDisplayed().assertTextContains("-123.45 CNY")
+        rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
+        rule.onNodeWithTag("account-section-CASH").assertIsDisplayed()
+        rule.onNodeWithTag("account-section-DEPOSITS").assertIsDisplayed()
+        rule.onNodeWithTag("account-section-INVESTMENTS").assertIsDisplayed().performClick()
+        rule.onNodeWithTag("account-section-INVESTMENTS").assertIsDisplayed()
     }
 
     @Test fun library_menu_gates_instrument_creation_on_asset_types() {

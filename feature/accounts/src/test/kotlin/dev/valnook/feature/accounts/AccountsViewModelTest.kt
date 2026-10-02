@@ -124,4 +124,18 @@ class AccountsViewModelTest {
         runCurrent()
         assertEquals(SubmissionPhase.INVALID, vm.submission.value.phase)
     }
+    @Test fun account_editor_submits_negative_cash_balance() = runTest(dispatcher) {
+        var request: SaveAccount? = null
+        val commands = object : FinancialCommands {
+            override suspend fun execute(command: FinancialCommand): OperationResult {
+                request = command as SaveAccount
+                return OperationResult("ACCOUNT", 7)
+            }
+        }
+        val vm = AccountEditViewModel(7, repository, commands, SavedStateHandle())
+        runCurrent()
+        vm.changeRow("11", balance = "-12.34")
+        vm.submit(); runCurrent()
+        assertEquals(-1234L, request!!.cashChanges.single().balanceMinor)
+    }
 }

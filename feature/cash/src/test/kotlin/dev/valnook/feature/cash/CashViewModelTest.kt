@@ -119,4 +119,19 @@ class CashViewModelTest {
         runCurrent()
         assertEquals(0, active)
     }
+    @Test fun balance_editor_accepts_negative_target_and_reports_signed_delta() = runTest(dispatcher) {
+        var request: SetCashBalance? = null
+        val commands = object : FinancialCommands {
+            override suspend fun execute(command: FinancialCommand): OperationResult {
+                request = command as SetCashBalance
+                return OperationResult("CASH_ENTRY", 2)
+            }
+        }
+        val vm = CashBalanceEditViewModel(1, 1, reads, commands, SavedStateHandle())
+        runCurrent()
+        vm.changeBalance("-2.500")
+        assertEquals("-7.500 KWD", vm.changePreview())
+        vm.submit(); runCurrent()
+        assertEquals(-2500L, request!!.balance_minor)
+    }
 }

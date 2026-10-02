@@ -23,7 +23,14 @@ class AssetValuationTest {
         val result = AssetValuation.calculate(snapshot())
         decimal("16620", result.total.amount); decimal("2220", result.cash.amount)
         decimal("16120", result.accounts.first().total.amount); decimal("1720", result.accounts.first().cash.amount)
-        decimal("7200", result.investmentValue.amount)
+        decimal("7200", result.depositValue.amount); decimal("7200", result.investmentValue.amount)
+    }
+    @Test fun negative_cash_is_preserved_in_account_and_global_totals() {
+        val input = snapshot().copy(cash = listOf(CashBalance(1, cny, -250000, 1)),
+            deposits = emptyList(), positions = emptyList())
+        val result = AssetValuation.calculate(input)
+        decimal("-2500", result.cash.amount); decimal("-2500", result.total.amount)
+        decimal("-2500", result.accounts.first().cash.amount)
     }
     @Test fun deposit_maturity_does_not_add_interest_until_selected_cash_settlement() {
         val initial = snapshot()

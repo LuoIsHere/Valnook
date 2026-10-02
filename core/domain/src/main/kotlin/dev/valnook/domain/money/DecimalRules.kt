@@ -11,6 +11,7 @@ import java.time.temporal.ChronoUnit
 /** Integers represent currency minor units or 10^-8 units, never binary floating point. */
 object DecimalRules {
     private val decimal_pattern = Regex("[0-9]+(?:\\.[0-9]+)?")
+    private val signed_decimal_pattern = Regex("-?[0-9]+(?:\\.[0-9]+)?")
     fun parse_units(input: String, scale: Int, positive: Boolean = false): Long {
         val text = input.trim()
         if (text.length > 64 || !decimal_pattern.matches(text)) throw DomainException(ErrorCode.FORMAT)
@@ -22,6 +23,15 @@ object DecimalRules {
     }
     fun parse_minor(input: String, currency: Currency, positive: Boolean = false) =
         parse_units(input, currency.fraction_digits, positive)
+    fun parse_signed_units(input: String, scale: Int): Long {
+        val text = input.trim()
+        if (text.length > 65 || !signed_decimal_pattern.matches(text)) throw DomainException(ErrorCode.FORMAT)
+        val decimal = BigDecimal(text)
+        if (decimal.stripTrailingZeros().scale() > scale) throw DomainException(ErrorCode.PRECISION)
+        return exact_long(decimal.movePointRight(scale))
+    }
+    fun parse_signed_minor(input: String, currency: Currency) =
+        parse_signed_units(input, currency.fraction_digits)
     fun parse_e8(input: String, positive: Boolean = false) = parse_units(input, 8, positive)
     fun check_nonnegative(value: Long, positive: Boolean = false) {
         if (value < 0 || (positive && value == 0L)) throw DomainException(ErrorCode.POSITIVE)

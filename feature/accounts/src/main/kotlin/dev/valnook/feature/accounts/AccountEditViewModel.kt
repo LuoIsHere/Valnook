@@ -158,7 +158,7 @@ class AccountEditViewModel(
         val input = state.value
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
         val changes = input.rows.map { row ->
-            CashBalanceChange(row.currency.code, R.parse_minor(row.balanceInput, row.currency),
+            CashBalanceChange(row.currency.code, R.parse_signed_minor(row.balanceInput, row.currency),
                 row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput)
         }
         SaveAccount(operationId, accountId, input.expectedRevision, input.name, input.note, changes)

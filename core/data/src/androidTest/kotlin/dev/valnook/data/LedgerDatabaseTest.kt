@@ -85,18 +85,19 @@ class LedgerDatabaseTest {
         assertEquals(original_close,db.ledger().source_entry("TERM_CLOSE",d)!!.id)
         reconcile(a,i)
     }}
-    @Test fun deposit_source_edits_reject_insufficient_cash_future_closed_dates_and_stale_revision() {runBlocking{
+    @Test fun deposit_source_edits_allow_negative_cash_but_reject_future_closed_dates_and_stale_revision() {runBlocking{
         val a=account();set(a,100000);val i=asset(a)
         val d=commands.execute(OpenTermDeposit(id(),a,"CNY",50000,e("3"),day("2026-01-01"),day("2026-04-01"),true)).id
         val edit=EditTermDeposit(id(),d,1,200000,e("3"),day("2026-01-01"),day("2026-04-01"),true,null)
-        val ops=count("operations")
-        expect(ErrorCode.INSUFFICIENT_CASH){commands.execute(edit)}
-        assertEquals(ops,count("operations"));assertEquals(1L,db.ledger().deposit(d)!!.revision)
+        commands.execute(edit)
+        assertEquals(-100000L,db.ledger().cash_one(a,"CNY")!!.balance_minor)
+        assertEquals(2L,db.ledger().deposit(d)!!.revision)
         commands.execute(CloseTermDeposit(id(),d,true));set(a,0)
-        expect(ErrorCode.STALE_RECORD){commands.execute(edit.copy(principal_minor=50000))}
-        expect(ErrorCode.NOT_MATURED){commands.execute(edit.copy(operation_id=id(),expected_revision=2,principal_minor=50000,close_cash_linked=true,end_epoch_day=day("2027-01-01")))}
-        expect(ErrorCode.INSUFFICIENT_CASH){commands.execute(edit.copy(operation_id=id(),expected_revision=2,principal_minor=50000,close_cash_linked=false))}
-        assertEquals(2L,db.ledger().deposit(d)!!.revision);assertEquals("CLOSED",db.ledger().deposit(d)!!.status)
+        expect(ErrorCode.STALE_RECORD){commands.execute(edit.copy(operation_id=id(),principal_minor=50000))}
+        expect(ErrorCode.NOT_MATURED){commands.execute(edit.copy(operation_id=id(),expected_revision=3,principal_minor=50000,close_cash_linked=true,end_epoch_day=day("2027-01-01")))}
+        commands.execute(edit.copy(operation_id=id(),expected_revision=3,principal_minor=50000,close_cash_linked=false))
+        assertTrue(db.ledger().cash_one(a,"CNY")!!.balance_minor < 0)
+        assertEquals(4L,db.ledger().deposit(d)!!.revision);assertEquals("CLOSED",db.ledger().deposit(d)!!.status)
         reconcile(a,i)
     }}
     @Test fun deposit_correction_faults_and_concurrent_edits_keep_both_cash_sources_atomic() {runBlocking{
@@ -165,21 +166,22 @@ class LedgerDatabaseTest {
         assertEquals(115000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         reconcile(a,i)
     }}
-    @Test fun corrections_and_deletions_recheck_funds_and_holdings_atomically() {runBlocking{
+    @Test fun corrections_and_deletions_allow_negative_cash_and_recheck_holdings_atomically() {runBlocking{
         val a=account();set(a,0);val i=asset(a,"0")
         val buy=commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("1"),1,false)).id
         commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("1"),e("1"),2,false))
-        val ops=count("operations")
         expect(ErrorCode.HISTORY_CONFLICT){commands.execute(DeleteInvestmentTrade(id(),buy,1))}
-        expect(ErrorCode.INSUFFICIENT_CASH){commands.execute(EditInvestmentTrade(id(),buy,1,Direction.BUY,e("1"),e("1"),1,true))}
-        assertEquals(ops,count("operations"));assertEquals(1L,db.ledger().trade(buy)!!.revision)
+        commands.execute(EditInvestmentTrade(id(),buy,1,Direction.BUY,e("1"),e("1"),1,true))
+        assertEquals(-100L,db.ledger().cash_one(a,"CNY")!!.balance_minor)
+        assertEquals(2L,db.ledger().trade(buy)!!.revision)
         val seller=commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("2"),e("1"),3,false)).id
         val sale=commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("1"),e("100"),4,true)).id
         set(a,0)
-        expect(ErrorCode.INSUFFICIENT_CASH){commands.execute(DeleteInvestmentTrade(id(),sale,1))}
+        commands.execute(DeleteInvestmentTrade(id(),sale,1))
+        assertEquals(-10000L,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         val source=db.ledger().source_entry("TRADE",sale)!!
-        expect(ErrorCode.SOURCE_RECORD){commands.execute(EditCashEntry(id(),source.id,source.revision,0,1,""))}
-        assertFalse(db.ledger().trade(sale)!!.is_deleted);assertFalse(db.ledger().trade(seller)!!.is_deleted)
+        expect(ErrorCode.STALE_RECORD){commands.execute(EditCashEntry(id(),source.id,source.revision,0,1,""))}
+        assertTrue(db.ledger().trade(sale)!!.is_deleted);assertFalse(db.ledger().trade(seller)!!.is_deleted)
         reconcile(a,i)
     }}
     @Test fun correction_faults_roll_back_source_receipts_balance_and_holding() {runBlocking{
@@ -376,10 +378,10 @@ class LedgerDatabaseTest {
         val a=account(); set(a,10000); val i=asset(a,"1")
         val buys=(1..2).map { async(Dispatchers.IO) { runCatching {
             commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("90"),1,true)) } } }.awaitAll()
-        assertEquals(1,buys.count{it.isSuccess}); assertEquals(1000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
+        assertEquals(2,buys.count{it.isSuccess}); assertEquals(-8000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         val sells=(1..2).map { async(Dispatchers.IO) { runCatching {
             commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("2"),e("100"),2,false)) } } }.awaitAll()
-        assertEquals(1,sells.count{it.isSuccess}); assertEquals(0,db.ledger().investment(i)!!.holding_quantity_e8)
+        assertEquals(1,sells.count{it.isSuccess}); assertEquals(e("1"),db.ledger().investment(i)!!.holding_quantity_e8)
     } }
     @Test fun price_updates_do_not_overwrite_concurrent_holdings_and_stale_cash_is_rejected() { runBlocking {
         val a=account(); set(a,100000); val i=asset(a); val revision=db.ledger().cash_one(a,"CNY")!!.revision

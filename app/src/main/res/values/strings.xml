@@ -16,7 +16,4 @@
     <string name="title_gain_loss_colors">Gain/loss colors</string>
     <string name="title_clear_data">Clear data</string>
     <string name="title_edit_balance">Edit balance</string>
-    <string name="account_tab_cash">Cash</string>
-    <string name="account_tab_deposits">Deposits</string>
-    <string name="account_tab_investments">Investments</string>
 </resources>

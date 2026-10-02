@@ -71,7 +71,7 @@ class CashBalanceEditViewModel(
 
     fun changePreview(): String? = runCatching {
         val current = requireNotNull(state.value.account)
-        val target = R.parse_minor(state.value.balanceInput, current.currency)
+        val target = R.parse_signed_minor(state.value.balanceInput, current.currency)
         val delta = R.replace_contribution(target, current.balance_minor, 0)
         (if (delta > 0) "+" else "") + R.format_units(delta, current.currency.fraction_digits) +
             " " + current.currency.code
@@ -80,7 +80,7 @@ class CashBalanceEditViewModel(
     fun submit() = session.submit {
         val current = state.value.account ?: throw DomainException(ErrorCode.NOT_FOUND)
         SetCashBalance(operationId, parentAccountId, current.currency.code,
-            R.parse_minor(state.value.balanceInput, current.currency), current.revision,
+            R.parse_signed_minor(state.value.balanceInput, current.currency), current.revision,
             current.id, current.name, current.note)
     }
 

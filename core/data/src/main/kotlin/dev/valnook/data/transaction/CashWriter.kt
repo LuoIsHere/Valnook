@@ -57,7 +57,6 @@ internal class CashWriter(
     ): CashEntity {
         requireAccount(accountId)
         val code = currency(currencyCode).code
-        R.check_nonnegative(balanceMinor)
         val entity = CashEntity(accountId, code, balanceMinor, 1, now, name = name, note = note,
             currency_locked = true, created_at_ms = now)
         val id = dao.insert_cash(entity)
@@ -77,7 +76,6 @@ internal class CashWriter(
     ): Long {
         val old = dao.cashAccount(cashAccountId) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
         val after = R.add(old.balance_minor, deltaMinor)
-        if (after < 0) throw DomainException(ErrorCode.INSUFFICIENT_CASH)
         if (dao.updateCashBalance(old.id, after, R.add(old.revision, 1), old.revision, now) != 1) {
             throw DomainException(ErrorCode.STALE_BALANCE)
         }
@@ -114,7 +112,6 @@ internal class CashWriter(
         val rows = adjustments.map { (id, delta) ->
             val account = dao.cashAccount(id) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
             val after = R.add(account.balance_minor, delta)
-            if (after < 0) throw DomainException(ErrorCode.INSUFFICIENT_CASH)
             Triple(account, delta, after)
         }
         rows.filter { it.second != 0L }.forEach { (account, delta, _) ->

@@ -29,7 +29,7 @@ fun CashBalanceEditScreen(vm: CashBalanceEditViewModel, onBack: () -> Unit) {
         if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.cash_review_retry) else stringResource(R.string.cash_save)) {
         Text(account.name + " · " + account.currency.code)
         Field(stringResource(R.string.cash_current_balance), state.balanceInput, vm::changeBalance, numeric = true,
-            enabled = submission.editable)
+            enabled = submission.editable, signed = true)
         vm.changePreview()?.let { Text(stringResource(R.string.cash_balance_change, it)) }
         ErrorMessage(submission.error?.name)
     }

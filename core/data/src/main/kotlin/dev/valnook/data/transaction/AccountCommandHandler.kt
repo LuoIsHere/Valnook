@@ -35,7 +35,6 @@ internal class AccountCommandHandler(
             val currency = cash.currency(row.currencyCode)
             val name = valid_name(row.name)
             if (row.note.length > 2000) throw DomainException(ErrorCode.FORMAT)
-            R.check_nonnegative(row.balanceMinor)
             val old = row.cashAccountId?.let {
                 cash.requireCashAccount(it, accountId, currency.code)
             }
@@ -83,7 +82,6 @@ internal class AccountCommandHandler(
     suspend fun setBalance(command: SetCashBalance, now: Long): OperationResult {
         cash.requireAccount(command.account_id)
         val code = cash.currency(command.currency_code).code
-        R.check_nonnegative(command.balance_minor)
         val old = command.cashAccountId?.let { cash.requireCashAccount(it, command.account_id, code) }
             ?: db.cash().cashCandidates(command.account_id, code).singleOrNull()
         if (old == null) {

@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">Valnook</string>
     <string name="currency">币种</string>
+    <string name="toggle_sign">切换正负号</string>
     <string name="choose_currency">选择币种</string>
     <string name="search_currency">搜索代码或币种名称</string>
     <string name="no_currency_match">没有匹配的可添加币种。</string>

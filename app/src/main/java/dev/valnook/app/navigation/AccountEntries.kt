@@ -1,13 +1,7 @@
 package dev.valnook.app.navigation
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.*
 import androidx.lifecycle.createSavedStateHandle
 import androidx.navigation3.runtime.*
-import androidx.compose.ui.res.stringResource
-import dev.valnook.app.R
 import dev.valnook.app.di.AppGraph
 import dev.valnook.feature.accounts.*
 import dev.valnook.feature.cash.*
@@ -17,41 +11,31 @@ import dev.valnook.feature.investments.*
 internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit) {
     entry<AccountsKey> {
         val vm = pageViewModel { AccountsViewModel(graph.overview) }
-        AccountsScreen(vm) { open(AccountKey(it)) }
+        AccountsScreen(vm, { open(AccountKey(it)) },
+            { accountId, cashId -> open(CashKey(accountId, cashId)) },
+            { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },
+            { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) })
     }
     entry<AccountEditKey> { route ->
         val vm = pageViewModel { AccountEditViewModel(route.id, graph.overview, graph.commands, createSavedStateHandle()) }
         AccountEditScreen(vm, back)
     }
     entry<AccountKey> { route ->
-        var tab by rememberSaveable { mutableIntStateOf(0) }
-        val holder = rememberSaveableStateHolder()
-        Column {
-            PrimaryTabRow(selectedTabIndex = tab) {
-                listOf(stringResource(R.string.account_tab_cash), stringResource(R.string.account_tab_deposits),
-                    stringResource(R.string.account_tab_investments)).forEachIndexed { index, title ->
-                    Tab(tab == index, { tab = index }, text = { Text(title) })
-                }
-            }
-            holder.SaveableStateProvider(tab) {
-                when (tab) {
-                    0 -> {
-                        val vm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle()) }
-                        CashScreen(vm) { open(CashKey(route.id, it)) }
-                    }
-                    1 -> {
-                        val vm = pageViewModel { DepositsViewModel(route.id, false, graph.depositPages, graph.clock) }
-                        DepositsScreen(vm, { open(DepositFormKey(route.id, DepositFormMode.CREATE)) },
-                            { open(DepositDetailKey(route.id, it)) }, { open(SettledDepositsKey(route.id)) })
-                    }
-                    2 -> {
-                        val vm = pageViewModel { PortfolioViewModel(graph.overview) }
-                        AccountInvestments(vm, route.id, false, { open(AssetKey(route.id, it)) },
-                            { open(TradeFormKey(route.id, TradeFormMode.CREATE)) }, { open(AccountInvestmentsKey(route.id, true)) })
-                    }
-                }
-            }
-        }
+        val summaryVm = pageViewModel { AccountsViewModel(graph.overview) }
+        val cashVm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle()) }
+        val depositVm = pageViewModel { DepositsViewModel(route.id, false, graph.depositPages, graph.clock) }
+        val portfolioVm = pageViewModel { PortfolioViewModel(graph.overview) }
+        val initial = runCatching { AccountDetailSection.valueOf(route.section) }.getOrDefault(AccountDetailSection.CASH)
+        AccountDetailScreen(summaryVm, route.id, initial,
+            cashContent = { CashScreen(cashVm) { open(CashKey(route.id, it)) } },
+            depositContent = {
+                DepositsScreen(depositVm, { open(DepositFormKey(route.id, DepositFormMode.CREATE)) },
+                    { open(DepositDetailKey(route.id, it)) }, { open(SettledDepositsKey(route.id)) })
+            },
+            investmentContent = {
+                AccountInvestments(portfolioVm, route.id, false, { open(AssetKey(route.id, it)) },
+                    { open(TradeFormKey(route.id, TradeFormMode.CREATE)) }, { open(AccountInvestmentsKey(route.id, true)) })
+            })
     }
     entry<AccountInvestmentsKey> { route ->
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
