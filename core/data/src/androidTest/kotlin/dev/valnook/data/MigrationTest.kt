@@ -1,10 +1,13 @@
 package dev.valnook.data
 
 import androidx.room.testing.MigrationTestHelper
+import androidx.room.Room
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.valnook.data.database.*
+import dev.valnook.data.transaction.RoomFinancialCommands
+import dev.valnook.domain.repository.*
 import kotlinx.coroutines.runBlocking
 import java.util.UUID
 import org.junit.*
@@ -141,9 +144,52 @@ class MigrationTest {
                 query("SELECT algorithm_version FROM investments WHERE id=1").use {
                     assertTrue(it.moveToFirst());assertEquals(3,it.getInt(0))
                 }
+                query("SELECT remaining_cost,realized_profit,holding_quantity_e8 FROM investments WHERE id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals("100",it.getString(0))
+                    assertEquals("0",it.getString(1));assertEquals(100000000L,it.getLong(2))
+                }
+                query("SELECT operation_id,amount_minor,quantity_e8,execution_price_e8 FROM investment_trades WHERE id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals("buy",it.getString(0))
+                    assertEquals(10000L,it.getLong(1));assertEquals(100000000L,it.getLong(2))
+                    assertEquals(10000000000L,it.getLong(3))
+                }
+                query("SELECT request_fingerprint,result_kind,result_id FROM operations WHERE operation_id='buy'").use {
+                    assertTrue(it.moveToFirst());assertEquals("fingerprint",it.getString(0))
+                    assertEquals("INVESTMENT_TRADE",it.getString(1));assertEquals(1L,it.getLong(2))
+                }
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
         } finally {context.deleteDatabase(name)}
+    }
+
+    @Test fun opening_an_existing_schema6_database_keeps_business_rows_and_operation_receipts()=runBlocking {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name="existing-v6-${UUID.randomUUID()}.db"
+        val migrations=arrayOf(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6)
+        var database=Room.databaseBuilder(context,ValnookDatabase::class.java,name)
+            .addCallback(ValnookDatabase.seed).addMigrations(*migrations).build()
+        try{
+            val commands=RoomFinancialCommands(database,java.time.Clock.systemUTC())
+            val account=commands.testAccount("schema6 account")
+            val type=commands.testType("ETF")
+            val instrument=commands.testInstrument("QQQ","QQQ",type,"USD",18000000000L)
+            val operationId=UUID.randomUUID().toString()
+            val result=commands.execute(SaveOpeningPosition(operationId,account,instrument,100000000L,
+                10000000000L,1234L))
+            val positionBefore=requireNotNull(database.positions().investment(result.id))
+            val receiptBefore=requireNotNull(database.operations().operation(operationId))
+            database.close()
+            database=Room.databaseBuilder(context,ValnookDatabase::class.java,name)
+                .addMigrations(*migrations).build()
+            assertEquals(positionBefore,database.positions().investment(result.id))
+            assertEquals(receiptBefore,database.operations().operation(operationId))
+            database.openHelper.writableDatabase.query("PRAGMA foreign_key_check").use {
+                assertFalse(it.moveToFirst())
+            }
+        }finally{
+            database.close()
+            context.deleteDatabase(name)
+        }
     }
 }

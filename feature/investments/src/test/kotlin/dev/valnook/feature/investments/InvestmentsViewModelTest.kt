@@ -23,9 +23,6 @@ class InvestmentsViewModelTest {
         override fun observe_types()=flowOf(listOf(AssetType(1,"类型")))
         override fun observe_trade_revision(investment_id:Long)=flowOf(0L)
         override suspend fun trade_page(investment_id:Long,cursor:TradeCursor?,limit:Int)=emptyList<Trade>()
-        override suspend fun save_type(id:Long?,name:String)=1L
-        override suspend fun edit_investment(id:Long,name:String,symbol:String,type_id:Long){}
-        override suspend fun update_price(id:Long,price_e8:Long){}
     }
     @Before fun prepare(){Dispatchers.setMain(dispatcher)}
     @After fun close(){Dispatchers.resetMain()}
@@ -33,7 +30,6 @@ class InvestmentsViewModelTest {
     private val instruments=object:InstrumentRepository {
         override fun observeInstruments()=flowOf(listOf(instrument))
         override fun observeInstrument(id:Long)=flowOf<Instrument?>(instrument)
-        override suspend fun saveInstrument(command:SaveInstrument)=error("not used")
     }
     private val cash=object:CashRepository {
         override fun observe_cash(account_id:Long)=flowOf(listOf(

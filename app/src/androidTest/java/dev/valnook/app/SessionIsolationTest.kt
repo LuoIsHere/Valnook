@@ -6,7 +6,6 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dev.valnook.app.di.AppSessionManager
 import dev.valnook.app.di.DataMode
 import dev.valnook.domain.model.AppLanguage
-import dev.valnook.domain.model.AppSettings
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.model.DomainException
 import dev.valnook.domain.model.ErrorCode
@@ -14,6 +13,9 @@ import dev.valnook.domain.model.FxRate
 import dev.valnook.domain.model.GainLossColorScheme
 import dev.valnook.domain.repository.CashBalanceChange
 import dev.valnook.domain.repository.SaveAccount
+import dev.valnook.domain.repository.SaveFinancialSettings
+import dev.valnook.domain.repository.SaveGainLossColors
+import dev.valnook.domain.repository.SaveLanguage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -75,6 +77,8 @@ class SessionIsolationTest {
         assertEquals(13, demo.graph.overview.snapshot().accounts.size)
 
         val staleDemoCommands = demo.graph.commands
+        val staleDemoSettings = demo.graph.settingsWriter
+        val staleDemoRevision = demo.graph.settings.observeSettings().first().revision
         sessions.exitDemo()
         assertEquals(DataMode.REAL, sessions.session.value.mode)
         assertTrue(demoDatabaseFiles().isEmpty())
@@ -82,6 +86,9 @@ class SessionIsolationTest {
         expect(ErrorCode.SESSION_EXPIRED) {
             staleDemoCommands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
                 "Stale demo write", "", emptyList()))
+        }
+        expect(ErrorCode.SESSION_EXPIRED) {
+            staleDemoSettings.applyChange(SaveLanguage(staleDemoRevision,AppLanguage.ZH_HANS))
         }
 
         sessions.enterDemo()
@@ -97,12 +104,10 @@ class SessionIsolationTest {
         active.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
             "Disposable account", "", listOf(CashBalanceChange("USD", 10_000, null, name = "USD"))))
         val before = active.graph.settings.observeSettings().first()
-        active.graph.settings.saveSettings(AppSettings(
-            baseCurrency = Currency.of("CNY"),
-            rates = listOf(FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.2"))),
-            language = AppLanguage.ENGLISH,
-            gainLossColors = GainLossColorScheme.RED_GAIN
-        ), before.revision)
+        var stored=active.graph.settingsWriter.applyChange(SaveFinancialSettings(before.revision,
+            Currency.of("CNY"),listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),BigDecimal("7.2")))))
+        stored=active.graph.settingsWriter.applyChange(SaveLanguage(stored.revision,AppLanguage.ENGLISH))
+        active.graph.settingsWriter.applyChange(SaveGainLossColors(stored.revision,GainLossColorScheme.RED_GAIN))
 
         val challenge = sessions.issueClearChallenge()
         assertTrue(challenge.matches(Regex("[A-HJ-NP-Z2-9]{6}")))
@@ -110,6 +115,7 @@ class SessionIsolationTest {
         assertFalse(active.graph.overview.snapshot().accounts.isEmpty())
 
         val staleCommands = active.graph.commands
+        val staleSettings = active.graph.settingsWriter
         sessions.clearRealData(challenge, challenge)
         val cleared = sessions.session.value
         assertTrue(cleared.id != active.id)
@@ -122,6 +128,9 @@ class SessionIsolationTest {
         expect(ErrorCode.SESSION_EXPIRED) {
             staleCommands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
                 "Stale real write", "", emptyList()))
+        }
+        expect(ErrorCode.SESSION_EXPIRED) {
+            staleSettings.applyChange(SaveLanguage(before.revision,AppLanguage.SYSTEM))
         }
 
         sessions.enterDemo()

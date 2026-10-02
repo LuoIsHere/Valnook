@@ -25,7 +25,7 @@ import org.junit.*
 import org.junit.Assert.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
-import dev.valnook.app.di.AppGraph
+import dev.valnook.app.di.AppSessionManager
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
@@ -59,13 +59,25 @@ import org.hamcrest.Matcher
 class UiFlowTest {
     @get:Rule(order=0) val hilt=HiltAndroidRule(this)
     @get:Rule(order=1) val rule=createAndroidComposeRule<MainActivity>()
-    @Inject lateinit var graph:AppGraph
+    @Inject lateinit var sessions:AppSessionManager
+    private val graph get()=sessions.session.value.graph
     @Inject lateinit var db:ValnookDatabase
     private var account_id=0L
     @Before fun seed(){hilt.inject();runBlocking{
-        account_id=graph.accounts.save_account(null,"合成账户 A","仅测试数据")
-        graph.accounts.save_account(null,"合成账户 B","账户隔离")
+        account_id=createAccount("合成账户 A","仅测试数据")
+        createAccount("合成账户 B","账户隔离")
     };rule.runOnUiThread {assertFalse(rule.activity.window.isNavigationBarContrastEnforced)}}
+    private suspend fun createAccount(name:String,note:String="")=graph.commands.execute(
+        SaveAccount(UUID.randomUUID().toString(),null,null,name,note,emptyList())).id
+    private suspend fun createType(name:String)=graph.commands.execute(
+        SaveAssetType(UUID.randomUUID().toString(),null,name)).id
+    private suspend fun createInvestment(accountId:Long,name:String,symbol:String,typeId:Long,
+        currencyCode:String,quantityE8:Long,currentPriceE8:Long,costPriceE8:Long)=run {
+        val instrumentId=graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(),null,null,
+            name,symbol,typeId,currencyCode,currentPriceE8/1_000L)).id
+        graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(),accountId,instrumentId,
+            quantityE8,costPriceE8,Long.MIN_VALUE)).id
+    }
     private fun wait_text(text:String) {
         try {
             rule.waitUntil(15000){rule.onAllNodesWithText(text,substring=true).fetchSemanticsNodes().isNotEmpty()}
@@ -216,9 +228,9 @@ class UiFlowTest {
     }
     @Test fun investment_trade_price_and_history_are_independent() {
         runBlocking {
-            val type = graph.investments.save_type(null, "合成基金")
-            graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(), account_id,
-                "合成投资", "TEST", type, "CNY", R.parse_e8("10"), R.parse_e8("100"), R.parse_e8("100")))
+            val type = createType("合成基金")
+            createInvestment(account_id,"合成投资","TEST",type,"CNY",R.parse_e8("10"),
+                R.parse_e8("100"),R.parse_e8("100"))
         }
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performClick()
@@ -326,7 +338,7 @@ class UiFlowTest {
         shot("cash-corrected")
         rule.onNodeWithText("返回").performClick()
         val tradeId = runBlocking {
-            val type = graph.investments.save_type(null, "合成基金")
+            val type = createType("合成基金")
             val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
                 null, "来源投资", "", type, "USD", 12000000)).id
             graph.commands.execute(RecordAccountTrade(UUID.randomUUID().toString(), account_id, instrument,
@@ -360,7 +372,7 @@ class UiFlowTest {
 
     @Test fun opening_cost_profit_and_global_zero_position_reentry() {
         runBlocking {
-            val type = graph.investments.save_type(null, "合成基金")
+            val type = createType("合成基金")
             val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
                 null, "QQQ", "QQQ", type, "CNY", 12000000)).id
             graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id,
@@ -569,10 +581,9 @@ class UiFlowTest {
         var tradeId = 0L
         var sellTradeId = 0L
         runBlocking {
-            val type = graph.investments.save_type(null, "A股股票")
-            positionId = graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(), account_id,
-                "贵州茅台", "600519.SH", type, "CNY", R.parse_e8("10"), R.parse_e8("1468.2"),
-                R.parse_e8("1200"))).id
+            val type = createType("A股股票")
+            positionId = createInvestment(account_id,"贵州茅台","600519.SH",type,"CNY",
+                R.parse_e8("10"),R.parse_e8("1468.2"),R.parse_e8("1200"))
             tradeId = graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), positionId,
                 Direction.BUY, R.parse_e8("1"), R.parse_e8("1300"), graph.clock.millis(), false,
                 fee_minor = 150)).id
@@ -611,22 +622,25 @@ class UiFlowTest {
         }
     }
     @Test fun all_account_totals_settings_and_root_scroll_survive_switches() {
+        val rateLabel = localized(dev.valnook.feature.settings.R.string.settings_rate)
+        val baseCurrencyLabel = localized(dev.valnook.feature.settings.R.string.settings_base_currency)
         runBlocking {
             graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), account_id, 1,
                 "合成账户 A", "仅测试数据", listOf(CashBalanceChange("CNY", 100000, null), CashBalanceChange("USD", 10000, null))))
             graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), 2, 1,
                 "合成账户 B", "账户隔离", listOf(CashBalanceChange("CNY", 50000, null))))
-            val type = graph.investments.save_type(null, "ETF")
+            val type = createType("ETF")
             val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null, null,
                 "QQQ", "QQQ", type, "USD", 10000000)).id
             graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id, instrument,
                 R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis()))
             graph.commands.execute(OpenTermDeposit(UUID.randomUUID().toString(), account_id, "USD", 100000,
                 0, LocalDate.parse("2026-01-01").toEpochDay(), LocalDate.parse("2027-01-01").toEpochDay(), false))
-            repeat(40) { graph.accounts.save_account(null, "合成长列表 ${it + 1}", "仅用于滚动验证") }
+            repeat(40) { createAccount("合成长列表 ${it + 1}","仅用于滚动验证") }
         }
         wait_text("合成账户 A")
         rule.onNode(hasText("设置") and hasClickAction()).performClick()
+        rule.onNode(hasText("主币种") and hasClickAction()).performClick()
         wait_text("未设置主币种")
         rule.onNodeWithContentDescription("币种:", substring = true).performScrollTo().performClick()
         rule.onNodeWithText("搜索代码或币种名称").performTextInput("CNY")
@@ -635,13 +649,16 @@ class UiFlowTest {
         rule.onAllNodesWithContentDescription("币种:", substring = true)[1].performScrollTo().performClick()
         rule.onNodeWithText("搜索代码或币种名称").performTextInput("USD")
         rule.onNode(hasText("USD") and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
-        rule.onNodeWithText("汇率（最多12位小数）").performScrollTo().performTextReplacement("7.2")
-        rule.onNodeWithText("汇率（最多12位小数）").performImeAction()
+        rule.onNodeWithText(rateLabel).performScrollTo().performTextReplacement("7.2")
+        rule.onNodeWithText(rateLabel).performImeAction()
         rule.onNodeWithText("保存设置").performScrollTo().performClick()
         wait_text("设置已保存")
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
         rule.onNode(hasText("账户") and hasClickAction()).performClick()
         wait_text("16620.00 CNY")
-        wait_text("可用现金 2220.00 CNY")
+        wait_text("2220.00 CNY")
+        rule.onNodeWithTag("accounts-list").performScrollToNode(hasText("合成账户 A"))
+        wait_text("可用现金 1720.00 CNY")
         shot("all-account-total-16620")
         rule.onNodeWithTag("accounts-list").performScrollToNode(hasText("合成长列表 40"))
         rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
@@ -654,7 +671,7 @@ class UiFlowTest {
         rule.onNodeWithText("合成账户 A ▾").performScrollTo().performClick()
         wait_text("QQQ")
         rule.onNode(hasText("设置") and hasClickAction()).performClick()
-        wait_text("主币种与手动汇率")
+        wait_text(baseCurrencyLabel)
         rule.onNode(hasText("投资") and hasClickAction()).performClick()
         rule.onNodeWithText("合成账户 A ▴").assertExists()
         rule.onNode(hasText("账户") and hasClickAction()).performClick()
@@ -727,8 +744,8 @@ class UiFlowTest {
     }
 
     @Test fun library_menu_gates_instrument_creation_on_asset_types() {
-        runBlocking { graph.settings.saveSettings(AppSettings(Currency.of("CNY"),
-            listOf(FxRate(Currency.of("USD"), Currency.of("CNY"), java.math.BigDecimal("7")))), 0) }
+        runBlocking { graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
+            listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),java.math.BigDecimal("7"))))) }
         wait_text("合成账户 A")
         rule.onNode(hasText("投资") and hasClickAction()).performClick()
         wait_text("总投资市值")
@@ -814,9 +831,9 @@ class UiFlowTest {
 
     @Test fun floating_capsule_overlays_full_viewport_and_account_total_opens_holdings() {
         runBlocking {
-            graph.settings.saveSettings(AppSettings(Currency.of("CNY"),
-                listOf(FxRate(Currency.of("USD"), Currency.of("CNY"), java.math.BigDecimal("7")))), 0)
-            val type = graph.investments.save_type(null, "ETF")
+            graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
+                listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),java.math.BigDecimal("7")))))
+            val type = createType("ETF")
             for ((name, price, cost) in listOf(Triple("盈利标的", "120", "100"), Triple("亏损标的", "180", "200"))) {
                 val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null, null,
                     name, if (name == "盈利标的") "GAIN" else "LOSS", type,
@@ -909,6 +926,8 @@ class UiFlowTest {
         val baseCurrencyLabel = localized(dev.valnook.feature.settings.R.string.settings_base_currency)
         val languageLabel = localized(dev.valnook.feature.settings.R.string.settings_language)
         val systemLanguageLabel = localized(dev.valnook.feature.settings.R.string.settings_language_system)
+        val applyLabel = localized(dev.valnook.feature.settings.R.string.settings_apply)
+        val initialLocaleTags = localeManager.applicationLocales.toLanguageTags()
         try {
             wait_text("合成账户 A")
             rule.onNode(hasText(settingsLabel) and hasClickAction()).performClick()
@@ -916,6 +935,8 @@ class UiFlowTest {
             rule.onNode(hasText(languageLabel) and hasClickAction()).performClick()
             rule.onNodeWithContentDescription("$languageLabel: $systemLanguageLabel").performClick()
             rule.onNodeWithText("English").performClick()
+            assertEquals(initialLocaleTags,localeManager.applicationLocales.toLanguageTags())
+            rule.onNodeWithText(applyLabel).performClick()
 
             rule.waitUntil(15_000) { localeManager.applicationLocales.toLanguageTags() == "en" }
             wait_text("Language")
@@ -927,7 +948,7 @@ class UiFlowTest {
             runBlocking {
                 val current = graph.settings.observeSettings().first()
                 if (current.language != AppLanguage.SYSTEM) {
-                    graph.settings.saveSettings(current.copy(language = AppLanguage.SYSTEM), current.revision)
+                    graph.settingsWriter.applyChange(SaveLanguage(current.revision,AppLanguage.SYSTEM))
                 }
             }
             localeManager.applicationLocales = LocaleList.getEmptyLocaleList()

@@ -24,21 +24,28 @@ class RoomOverview(private val db: ValnookDatabase) : OverviewRepository {
     }
 }
 
-class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : SettingsRepository {
+class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : SettingsRepository, SettingsWriter {
     override fun observeSettings(): Flow<AppSettings> = db.invalidationTracker.createFlow("app_settings", "fx_rates")
         .map { val (settings, rates) = db.overview().settingsSnapshot()
             settingsModel(settings, rates) }
         .flowOn(Dispatchers.IO)
 
-    override suspend fun saveSettings(settings: AppSettings, expectedRevision: Long) {
+    override suspend fun applyChange(change: SettingsChange): AppSettings {
         // Settings and pairs share one revision and transaction, avoiding mixed-base snapshots.
-        db.withTransaction {
+        return db.withTransaction {
             val dao = db.overview()
             val previous = dao.settings()
-            if ((previous?.revision ?: 0) != expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
+            if ((previous?.revision ?: 0) != change.expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
+            val current = settingsModel(previous, dao.rates())
+            val settings = when (change) {
+                is SaveFinancialSettings -> current.copy(baseCurrency = change.baseCurrency, rates = change.rates)
+                is SaveLanguage -> current.copy(language = change.language)
+                is SaveGainLossColors -> current.copy(gainLossColors = change.colors)
+            }
             settings.baseCurrency?.let { Currency.of(it.code) }
-            if (settings.rates.distinctBy { it.sourceCurrency.code to it.targetCurrency.code }.size != settings.rates.size)
+            if (settings.rates.distinctBy { it.sourceCurrency.code to it.targetCurrency.code }.size != settings.rates.size) {
                 throw DomainException(ErrorCode.DUPLICATE_CURRENCY)
+            }
             settings.rates.forEach {
                 Currency.of(it.sourceCurrency.code)
                 Currency.of(it.targetCurrency.code)
@@ -47,13 +54,16 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
                 if (it.rate.precision() > 40) throw DomainException(ErrorCode.OVERFLOW)
             }
             val value = SettingsEntity(base_currency = settings.baseCurrency?.code,
-                revision = dev.valnook.domain.money.DecimalRules.add(expectedRevision, 1),
+                revision = dev.valnook.domain.money.DecimalRules.add(change.expectedRevision, 1),
                 language = settings.language.name, gain_loss_scheme = settings.gainLossColors.name)
             if (previous == null) dao.insertSettings(value) else if (dao.updateSettings(value) != 1)
                 throw DomainException(ErrorCode.STALE_RECORD)
-            dao.clearRates()
-            dao.insertRates(settings.rates.map { FxRateEntity(it.sourceCurrency.code, it.targetCurrency.code,
-                it.rate.stripTrailingZeros().toPlainString(), clock.millis()) })
+            if (change is SaveFinancialSettings) {
+                dao.clearRates()
+                dao.insertRates(settings.rates.map { FxRateEntity(it.sourceCurrency.code, it.targetCurrency.code,
+                    it.rate.stripTrailingZeros().toPlainString(), clock.millis()) })
+            }
+            settings.copy(revision = value.revision)
         }
     }
 }

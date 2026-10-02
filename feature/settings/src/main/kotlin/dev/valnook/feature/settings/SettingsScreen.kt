@@ -44,6 +44,7 @@ import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.pageContentPadding
 import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.model.Currency
+import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.model.GainLossColorScheme
 import kotlinx.coroutines.launch
 
@@ -68,18 +69,18 @@ fun SettingsHome(
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item {
             SettingEntry(stringResource(R.string.settings_base_currency),
-                state.settings.baseCurrency?.code ?: stringResource(R.string.settings_not_set), onRates)
+                state.savedSettings.baseCurrency?.code ?: stringResource(R.string.settings_not_set), onRates)
         }
         item {
             SettingEntry(stringResource(R.string.settings_exchange_rates),
                 stringResource(R.string.settings_fx_default), onRates)
         }
         item {
-            SettingEntry(stringResource(R.string.settings_language), languageLabel(state.settings.language), onLanguage)
+            SettingEntry(stringResource(R.string.settings_language), languageLabel(state.savedSettings.language), onLanguage)
         }
         item {
             SettingEntry(stringResource(R.string.settings_gain_loss_colors),
-                colorLabel(state.settings.gainLossColors), onColors)
+                colorLabel(state.savedSettings.gainLossColors), onColors)
         }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = Space.md, vertical = Space.sm),
@@ -174,7 +175,10 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
         } }
         item { Text(stringResource(R.string.settings_fx_default)) }
         item {
-            state.error?.let { Text(it.name, color = MaterialTheme.colorScheme.error) }
+            state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
+            if (state.error == ErrorCode.STALE_RECORD) TextButton(vm::discardAndReload) {
+                Text(stringResource(R.string.settings_reload_draft))
+            }
             if (state.saved) Text(stringResource(R.string.settings_saved))
             Button(vm::saveRates, enabled = !state.busy && base != null, modifier = Modifier.fillMaxWidth()) {
                 Text(if (state.busy) stringResource(R.string.settings_saving) else stringResource(R.string.settings_save))
@@ -192,7 +196,16 @@ fun LanguageSettingsScreen(vm: SettingsViewModel) {
         item {
             ChoiceField(stringResource(R.string.settings_language), state.settings.language.name,
                 AppLanguage.entries.map { it.name to languageLabel(it) },
-                { vm.saveLanguage(AppLanguage.valueOf(it)) }, !state.busy)
+                { vm.selectLanguage(AppLanguage.valueOf(it)) }, !state.busy)
+        }
+        item {
+            state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
+            if (state.saved) Text(stringResource(R.string.settings_saved))
+            Button(vm::saveLanguage, enabled = !state.busy && state.dirty,
+                modifier = Modifier.fillMaxWidth()) {
+                Text(if (state.busy) stringResource(R.string.settings_saving)
+                    else stringResource(R.string.settings_apply))
+            }
         }
     }
 }
@@ -206,14 +219,25 @@ fun GainLossColorsScreen(vm: SettingsViewModel) {
         item {
             ChoiceField(stringResource(R.string.settings_gain_loss_colors), state.settings.gainLossColors.name,
                 GainLossColorScheme.entries.map { it.name to colorLabel(it) },
-                { vm.saveGainLossColors(GainLossColorScheme.valueOf(it)) }, !state.busy)
+                { vm.selectGainLossColors(GainLossColorScheme.valueOf(it)) }, !state.busy)
         }
         item {
-            val colors = LocalGainLossPalette.current
+            val savedColors = LocalGainLossPalette.current
+            val colors = if (state.settings.gainLossColors == state.savedSettings.gainLossColors) savedColors else
+                dev.valnook.designsystem.GainLossPalette(savedColors.loss, savedColors.gain, savedColors.neutral)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.md)) {
                 Text(stringResource(R.string.settings_color_gain), color = colors.gain)
                 Text(stringResource(R.string.settings_color_loss), color = colors.loss)
                 Text(stringResource(R.string.settings_color_zero), color = colors.neutral)
+            }
+        }
+        item {
+            state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
+            if (state.saved) Text(stringResource(R.string.settings_saved))
+            Button(vm::saveGainLossColors, enabled = !state.busy && state.dirty,
+                modifier = Modifier.fillMaxWidth()) {
+                Text(if (state.busy) stringResource(R.string.settings_saving)
+                    else stringResource(R.string.settings_apply))
             }
         }
     }
@@ -274,4 +298,17 @@ private fun languageLabel(value: AppLanguage): String = stringResource(when (val
 private fun colorLabel(value: GainLossColorScheme): String = stringResource(when (value) {
     GainLossColorScheme.GREEN_GAIN -> R.string.settings_green_gain
     GainLossColorScheme.RED_GAIN -> R.string.settings_red_gain
+})
+
+@Composable
+private fun settingsErrorMessage(error: ErrorCode): String = stringResource(when (error) {
+    ErrorCode.CURRENCY -> R.string.settings_error_currency
+    ErrorCode.FORMAT -> R.string.settings_error_format
+    ErrorCode.PRECISION -> R.string.settings_error_precision
+    ErrorCode.OVERFLOW -> R.string.settings_error_overflow
+    ErrorCode.POSITIVE -> R.string.settings_error_positive
+    ErrorCode.DUPLICATE_CURRENCY -> R.string.settings_error_duplicate_currency
+    ErrorCode.STALE_RECORD -> R.string.settings_error_conflict
+    ErrorCode.SESSION_EXPIRED -> R.string.settings_error_session_expired
+    else -> R.string.settings_error_generic
 })

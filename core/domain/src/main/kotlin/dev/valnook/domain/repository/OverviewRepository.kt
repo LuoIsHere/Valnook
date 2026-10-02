@@ -10,18 +10,27 @@ interface OverviewRepository {
 
 interface SettingsRepository {
     fun observeSettings(): Flow<AppSettings>
-    suspend fun saveSettings(settings: AppSettings, expectedRevision: Long)
+}
+
+interface SettingsWriter {
+    suspend fun applyChange(change: SettingsChange): AppSettings
 }
 
 interface InstrumentRepository {
     fun observeInstruments(): Flow<List<Instrument>>
     fun observeInstrument(id: Long): Flow<Instrument?>
-    suspend fun saveInstrument(command: SaveInstrument): OperationResult
 }
 
 interface DataMaintenance {
     suspend fun clearBusinessData()
 }
+
+sealed interface SettingsChange { val expectedRevision: Long }
+data class SaveFinancialSettings(override val expectedRevision: Long, val baseCurrency: Currency,
+    val rates: List<FxRate>) : SettingsChange
+data class SaveLanguage(override val expectedRevision: Long, val language: AppLanguage) : SettingsChange
+data class SaveGainLossColors(override val expectedRevision: Long,
+    val colors: GainLossColorScheme) : SettingsChange
 
 data class CashBalanceChange(val currencyCode: String, val balanceMinor: Long, val expectedRevision: Long?,
     val cashAccountId: Long? = null, val name: String = currencyCode, val note: String = "")

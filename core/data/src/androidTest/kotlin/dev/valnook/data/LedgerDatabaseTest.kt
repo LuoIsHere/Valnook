@@ -34,15 +34,15 @@ class LedgerDatabaseTest {
     @Before fun prepare() {
         db=Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(),ValnookDatabase::class.java)
             .addCallback(ValnookDatabase.seed).build()
-        accounts=RoomAccounts(db,clock); investments=RoomInvestments(db,clock); commands=RoomFinancialCommands(db,clock)
+        accounts=RoomAccounts(db); investments=RoomInvestments(db); commands=RoomFinancialCommands(db,clock)
     }
     @After fun close() { db.close() }
-    private suspend fun account(name:String="A")=accounts.save_account(null,name,"synthetic")
+    private suspend fun account(name:String="A")=commands.testAccount(name,"synthetic")
     private suspend fun set(a:Long,amount:Long,code:String="CNY") =
         commands.execute(SetCashBalance(id(),a,code,amount,db.ledger().cash_one(a,code)?.revision))
     private suspend fun asset(a:Long,quantity:String="10"):Long {
-        val t=investments.save_type(null,"自定义类型")
-        return commands.execute(CreateInvestment(id(),a,"合成资产","TEST",t,"CNY",e(quantity),e("100"),e("100"))).id
+        val t=commands.testType("自定义类型")
+        return commands.testInvestment(a,"合成资产","TEST",t,"CNY",e(quantity),e("100"),e("100"))
     }
     private suspend fun expect(code:ErrorCode,block:suspend ()->Unit) {
         try { block(); fail("expected $code") } catch(ex:DomainException) { assertEquals(code,ex.code) }
@@ -120,7 +120,7 @@ class LedgerDatabaseTest {
         val original=RecordInvestmentTrade(id(),i,Direction.BUY,e("2"),e("90"),100,true)
         val trade=commands.execute(original).id
         commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("1"),e("110"),200,true))
-        investments.update_price(i,e("120"))
+        commands.testUpdatePrice(db,i,e("120"))
         val correction=EditInvestmentTrade(id(),trade,1,Direction.BUY,e("3"),e("80"),300,true)
         assertEquals(commands.execute(correction),commands.execute(correction))
         assertEquals(87000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
@@ -218,7 +218,7 @@ class LedgerDatabaseTest {
         assertEquals(800,db.ledger().cash_one(a,"USD")!!.balance_minor)
         assertEquals(900,db.ledger().cash_one(b,"CNY")!!.balance_minor)
         assertEquals(3,count("cash_accounts"))
-        accounts.save_account(a,"改名","备注")
+        commands.execute(SaveAccount(id(),a,1,"改名","备注",emptyList()))
         assertEquals("B",db.ledger().account(b)!!.name)
     } }
     @Test fun same_currency_cash_accounts_are_independent_and_trade_target_moves_atomically() { runBlocking {
@@ -229,7 +229,7 @@ class LedgerDatabaseTest {
         )))
         val cash = db.cash().cashCandidates(account, "USD")
         assertEquals(listOf("Broker cash", "Savings cash"), cash.map { it.name })
-        val type = investments.save_type(null, "ETF")
+        val type = commands.testType("ETF")
         val instrument = commands.execute(SaveInstrument(id(), null, null, "QQQ", "QQQ", type,
             "USD", 20000000)).id
         val trade = commands.execute(RecordAccountTrade(id(), account, instrument, Direction.BUY,
@@ -273,11 +273,11 @@ class LedgerDatabaseTest {
         assertEquals(2007397,db.ledger().cash_one(a,"CNY")!!.balance_minor)
     } }
     @Test fun maturity_is_display_only_and_early_close_fails() { runBlocking {
-        val a=account(); val d=commands.execute(OpenTermDeposit(id(),a,"JPY",10000,e("3"),
+        val a=account();val before=count("operations"); val d=commands.execute(OpenTermDeposit(id(),a,"JPY",10000,e("3"),
             day("2026-09-01"),day("2026-10-01"),false)).id
         expect(ErrorCode.NOT_MATURED) { commands.execute(CloseTermDeposit(id(),d,true)) }
         assertNull(db.ledger().cash_one(a,"JPY")); assertEquals("OPEN",db.ledger().deposit(d)!!.status)
-        assertEquals(1,count("operations"))
+        assertEquals(before+1,count("operations"))
     } }
     @Test fun opening_and_asset_creation_retries_and_concurrent_settlement_apply_once() { runBlocking {
         val a=account();set(a,2000000)
@@ -285,8 +285,9 @@ class LedgerDatabaseTest {
         val result=commands.execute(opening)
         assertEquals(result,commands.execute(opening.copy(currency_code=" cny ")))
         assertEquals(1,count("term_deposits"));assertEquals(1000000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
-        val type=investments.save_type(null,"合成类型")
-        val creation=CreateInvestment(id(),a,"合成资产","",type,"CNY",e("10"),e("100"),e("100"))
+        val type=commands.testType("合成类型")
+        val instrument=commands.testInstrument("合成资产","",type,"CNY",e("100"))
+        val creation=SaveOpeningPosition(id(),a,instrument,e("10"),e("100"),Long.MIN_VALUE)
         assertEquals(commands.execute(creation),commands.execute(creation));assertEquals(1,count("investments"))
         val attempts=(1..2).map{async(Dispatchers.IO){runCatching{commands.execute(CloseTermDeposit(id(),result.id,true))}}}.awaitAll()
         assertEquals(1,attempts.count{it.isSuccess});assertEquals(2007397,db.ledger().cash_one(a,"CNY")!!.balance_minor)
@@ -311,7 +312,7 @@ class LedgerDatabaseTest {
         assertEquals(e("9"),db.ledger().investment(i)!!.holding_quantity_e8)
         assertEquals(e("100"),(db.ledger().instrument(db.ledger().investment(i)!!.instrument_id)!!.current_price_e5 * 1000))
         assertEquals(2015000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
-        investments.update_price(i,e("120"))
+        commands.testUpdatePrice(db,i,e("120"))
         assertEquals(108000,R.amount(e("9"),(db.ledger().instrument(db.ledger().investment(i)!!.instrument_id)!!.current_price_e5 * 1000),Currency.of("CNY")))
         val rows=investments.trade_page(i,null)
         assertEquals(listOf(e("110"),e("90")),rows.map{it.execution_price_e8})
@@ -386,7 +387,7 @@ class LedgerDatabaseTest {
     @Test fun price_updates_do_not_overwrite_concurrent_holdings_and_stale_cash_is_rejected() { runBlocking {
         val a=account(); set(a,100000); val i=asset(a); val revision=db.ledger().cash_one(a,"CNY")!!.revision
         coroutineScope {
-            launch(Dispatchers.IO) { investments.update_price(i,e("120")) }
+            launch(Dispatchers.IO) { commands.testUpdatePrice(db,i,e("120")) }
             launch(Dispatchers.IO) { commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("2"),e("90"),1,true)) }
         }
         assertEquals(e("12"),db.ledger().investment(i)!!.holding_quantity_e8)
@@ -411,20 +412,20 @@ class LedgerDatabaseTest {
         db.ledger().insert_cash(CashEntity(a,"CNY",0,1,0,name="Second CNY"))
         assertEquals(2,db.cash().cashCandidates(a,"CNY").size)
         try { db.ledger().insert_cash(CashEntity(9999,"USD",0,1,0)); fail() } catch(_:android.database.sqlite.SQLiteConstraintException) {}
-        val t=investments.save_type(null,"  Fund  ")
-        expect(ErrorCode.DUPLICATE_TYPE) { investments.save_type(null,"fund") }
-        investments.save_type(t,"基金")
+        val t=commands.execute(SaveAssetType(id(),null,"  Fund  ")).id
+        expect(ErrorCode.DUPLICATE_TYPE) { commands.execute(SaveAssetType(id(),null,"fund")) }
+        commands.execute(SaveAssetType(id(),t,"基金"))
         assertEquals("基金",investments.observe_types().first().single().name)
     } }
     @Test fun disk_reopen_preserves_all_relationships() { runBlocking {
         val context=ApplicationProvider.getApplicationContext<Context>(); val name="test-${id()}.db"
         var disk=Room.databaseBuilder(context,ValnookDatabase::class.java,name).addCallback(ValnookDatabase.seed).build()
         try {
-            val a=RoomAccounts(disk,clock).save_account(null,"合成账户","")
-            val t=RoomInvestments(disk,clock).save_type(null,"类型")
             val f=RoomFinancialCommands(disk,clock)
+            val a=f.testAccount("合成账户")
+            val t=f.testType("类型")
             f.execute(SetCashBalance(id(),a,"CNY",10000,null))
-            val i=f.execute(CreateInvestment(id(),a,"资产","",t,"CNY",e("10"),e("100"),e("100"))).id
+            val i=f.testInvestment(a,"资产","",t,"CNY",e("10"),e("100"),e("100"))
             f.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("1"),e("1"),1,true))
             val d=f.execute(OpenTermDeposit(id(),a,"CNY",1000000,e("3"),day("2026-01-01"),day("2026-04-01"),false)).id
             f.execute(CloseTermDeposit(id(),d,false))

@@ -21,7 +21,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
-import dev.valnook.app.di.AppGraph
+import dev.valnook.app.di.AppSessionManager
+import dev.valnook.domain.repository.SaveAccount
 import dev.valnook.domain.repository.SetCashBalance
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -36,7 +37,8 @@ import javax.inject.Inject
 class CashNavigationTest {
     @get:Rule(order=0) val hilt=HiltAndroidRule(this)
     @get:Rule(order=1) val rule=createAndroidComposeRule<MainActivity>()
-    @Inject lateinit var graph:AppGraph
+    @Inject lateinit var sessions:AppSessionManager
+    private val graph get()=sessions.session.value.graph
     private val automation get()=InstrumentationRegistry.getInstrumentation().uiAutomation
     private var keyboard_setting:String?=null
     private var accessibility_flags:Int?=null
@@ -48,7 +50,8 @@ class CashNavigationTest {
         shell("settings put secure show_ime_with_hard_keyboard 1")
         hilt.inject()
         runBlocking {
-            val account=graph.accounts.save_account(null,"返回手势测试","")
+            val account=graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
+                "返回手势测试","",emptyList())).id
             graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(),account,"USD",10000,null))
         }
     }

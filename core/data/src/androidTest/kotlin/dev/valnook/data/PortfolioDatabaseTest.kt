@@ -29,11 +29,11 @@ class PortfolioDatabaseTest {
     private fun e(value:String)=R.parse_e8(value)
     @Before fun prepare() {runBlocking {
         db=Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(),ValnookDatabase::class.java).addCallback(ValnookDatabase.seed).build()
-        repo=RoomInvestments(db,clock);commands=RoomFinancialCommands(db,clock)
-        account=RoomAccounts(db,clock).save_account(null,"合成账户","");type=repo.save_type(null,"基金")
+        repo=RoomInvestments(db);commands=RoomFinancialCommands(db,clock)
+        account=commands.testAccount("合成账户");type=commands.testType("基金")
     }}
     @After fun close(){db.close()}
-    private suspend fun create(name:String)=commands.execute(CreateInvestment(id(),account,name,name,type,"USD",0,e("180"))).id
+    private suspend fun create(name:String)=commands.testInvestment(account,name,name,type,"USD",0,e("180"),null)
     private suspend fun trade(asset:Long,direction:Direction,quantity:String,price:String,time:Long)=
         commands.execute(RecordInvestmentTrade(id(),asset,direction,e(quantity),e(price),time,false)).id
     private suspend fun ids(section:InvestmentSection)=repo.observe_investments(account,50,section).first().map{it.id}
@@ -69,16 +69,17 @@ class PortfolioDatabaseTest {
         assertEquals(listOf(second),deposits.observe_deposits(account,50,true).first().map{it.id})
     }}
     @Test fun opening_cost_is_required_and_revision_safe_without_cash_or_price_side_effects() {runBlocking {
-        val missing=CreateInvestment(id(),account,"QQQ","",type,"USD",e("10"),e("180"))
+        val instrument=commands.testInstrument("QQQ","",type,"USD",e("180"))
+        val missing=SaveOpeningPosition(id(),account,instrument,e("10"),null,Long.MIN_VALUE)
         try{commands.execute(missing);fail()}catch(error:DomainException){assertEquals(ErrorCode.FORMAT,error.code)}
         assertNull(db.ledger().operation(missing.operation_id))
-        val asset=commands.execute(missing.copy(operation_id=id(),opening_cost_price_e8=e("100"))).id
+        val asset=commands.execute(missing.copy(operation_id=id(),costPriceE8=e("100"))).id
         trade(asset,Direction.SELL,"2","120",100)
         val cost=SetOpeningInvestmentCost(id(),asset,2,e("90"))
         assertEquals(commands.execute(cost),commands.execute(cost))
         val summary=repo.observe_profit(asset).first()!!
         assertEquals("60.00",summary.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString());assertEquals("720.00",summary.unrealized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
-        repo.update_price(asset,e("200"))
+        commands.testUpdatePrice(db,asset,e("200"))
         assertEquals("60.00",repo.observe_profit(asset).first()!!.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
         assertNull(db.ledger().cash_one(account,"USD"))
         try{commands.execute(cost.copy(operation_id=id()));fail()}catch(error:DomainException){assertEquals(ErrorCode.STALE_RECORD,error.code)}
@@ -100,5 +101,12 @@ class PortfolioDatabaseTest {
         try{failing.execute(RecordInvestmentTrade(id(),asset,Direction.SELL,e("1"),e("120"),200,false));fail()}catch(_:java.io.IOException){}
         assertEquals(listOf(asset),ids(InvestmentSection.HOLDING));assertTrue(ids(InvestmentSection.CLOSED).isEmpty())
         assertEquals(100L,db.ledger().investment(asset)!!.last_activity_at_ms)
+    }}
+    @Test fun section_filter_is_applied_before_limit() {runBlocking {
+        val holding=create("QQQ");trade(holding,Direction.BUY,"1","100",100)
+        val closed=create("SPY");trade(closed,Direction.BUY,"1","100",200)
+        trade(closed,Direction.SELL,"1","120",300)
+        assertEquals(listOf(holding),repo.observe_investments(account,1,InvestmentSection.HOLDING).first().map{it.id})
+        assertEquals(listOf(closed),repo.observe_investments(account,1,InvestmentSection.CLOSED).first().map{it.id})
     }}
 }

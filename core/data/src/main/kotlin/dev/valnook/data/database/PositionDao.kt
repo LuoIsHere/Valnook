@@ -17,8 +17,12 @@ interface PositionDao {
     fun investment_detail(id: Long): Flow<InvestmentWithType?>
     @Query(POSITION_PROJECTION + " WHERE p.id=:id")
     suspend fun positionSnapshot(id: Long): InvestmentWithType?
-    @Query(POSITION_PROJECTION + " WHERE p.savings_account_id=:accountId ORDER BY p.last_activity_at_ms DESC,p.id DESC")
-    fun accountPositions(accountId: Long): Flow<List<InvestmentWithType>>
+    @Query(POSITION_PROJECTION + """ WHERE p.savings_account_id=:accountId AND (
+        :section='ALL' OR (:section='HOLDING' AND p.holding_quantity_e8>0) OR
+        (:section='CLOSED' AND p.position_state='CLOSED') OR
+        (:section='PENDING' AND p.position_state='PENDING'))
+        ORDER BY p.last_activity_at_ms DESC,p.id DESC LIMIT :limit""")
+    fun accountPositions(accountId: Long, section: String, limit: Int): Flow<List<InvestmentWithType>>
     @Insert suspend fun insert_investment(value: InvestmentEntity): Long
     @Query("""UPDATE investments SET holding_quantity_e8=:holding,revision=revision+1,updated_at_ms=:now,
         remaining_cost=:cost,realized_profit=:realized,chronology_valid=:valid,algorithm_version=:algorithm,

@@ -36,11 +36,11 @@ class SharedAssetDatabaseTest {
         db = Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(), ValnookDatabase::class.java)
             .addCallback(ValnookDatabase.seed).setQueryCallback({ sql, _ -> queries.add(sql) }, Executor { it.run() }).build()
         commands = RoomFinancialCommands(db, clock)
-        instruments = RoomInstruments(db, commands)
-        investments = RoomInvestments(db, clock)
-        a = RoomAccounts(db, clock).save_account(null, "Schwab", "")
-        b = RoomAccounts(db, clock).save_account(null, "IBKR", "")
-        type = investments.save_type(null, "ETF")
+        instruments = RoomInstruments(db)
+        investments = RoomInvestments(db)
+        a = commands.testAccount("Schwab")
+        b = commands.testAccount("IBKR")
+        type = commands.testType("ETF")
     }
     @After fun close() { db.close() }
     private suspend fun instrument() = commands.execute(SaveInstrument(id(), null, null, "QQQ", "QQQ", type, "USD", 18000000)).id
@@ -143,12 +143,14 @@ class SharedAssetDatabaseTest {
         trade(a, shared, Direction.BUY, "10", "100", 1)
         trade(a, shared, Direction.SELL, "5", "120", 2)
         val settings = RoomSettings(db, clock)
-        settings.saveSettings(AppSettings(Currency.of("CNY"), listOf(FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.2")))), 0)
+        settings.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
+            listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),BigDecimal("7.2")))))
         decimal("720", AssetValuation.calculate(RoomOverview(db).snapshot()).realized.amount)
         queries.clear()
         val old = db.instruments().instrument(shared)!!
         commands.execute(SaveInstrument(id(), shared, old.revision, "QQQ", "QQQ", type, "USD", 19000000))
-        settings.saveSettings(AppSettings(Currency.of("CNY"), listOf(FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.0")))), 1)
+        settings.applyChange(SaveFinancialSettings(1,Currency.of("CNY"),
+            listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),BigDecimal("7.0")))))
         val result = RoomOverview(db).snapshot()
         decimal("700", AssetValuation.calculate(result).realized.amount)
         assertFalse(queries.any { it.trimStart().startsWith("SELECT", true) && it.contains("investment_trades", true) })
@@ -173,14 +175,14 @@ class SharedAssetDatabaseTest {
         val name = "shared-reopen-${id()}.db"
         var disk = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addCallback(ValnookDatabase.seed).build()
         try {
-            val account = RoomAccounts(disk, clock).save_account(null, "持久化合成账户", "")
-            val type = RoomInvestments(disk, clock).save_type(null, "基金")
             val commands = RoomFinancialCommands(disk, clock)
+            val account = commands.testAccount("持久化合成账户")
+            val type = commands.testType("基金")
             val instrument = commands.execute(SaveInstrument(id(), null, null, "QQQ", "QQQ", type, "USD", 10000000)).id
             commands.execute(SaveOpeningPosition(id(), account, instrument, e("1"), e("100"), 1))
             commands.execute(SaveAccount(id(), account, 1, "持久化合成账户", "", listOf(CashBalanceChange("USD", 0, null))))
-            RoomSettings(disk, clock).saveSettings(AppSettings(Currency.of("CNY"),
-                listOf(FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.123456789012")))), 0)
+            RoomSettings(disk,clock).applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
+                listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),BigDecimal("7.123456789012")))))
             disk.close()
             disk = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             assertTrue(disk.instruments().instrument(instrument)!!.currency_locked)

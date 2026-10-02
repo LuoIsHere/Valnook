@@ -2,7 +2,18 @@ package dev.valnook.data.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import dev.valnook.domain.model.Currency
+
+private val MIGRATION_1_2_CURRENCIES = listOf(
+    "CNY" to 2, "USD" to 2, "HKD" to 2, "EUR" to 2, "GBP" to 2, "JPY" to 0,
+    "SGD" to 2, "AUD" to 2, "CAD" to 2, "CHF" to 2, "NZD" to 2, "KRW" to 0,
+    "TWD" to 2, "MOP" to 2, "THB" to 2, "MYR" to 2, "IDR" to 2, "PHP" to 2,
+    "VND" to 0, "INR" to 2, "PKR" to 2, "LKR" to 2, "BDT" to 2, "NPR" to 2,
+    "KWD" to 3, "BHD" to 3, "OMR" to 3, "AED" to 2, "SAR" to 2, "QAR" to 2,
+    "ILS" to 2, "TRY" to 2, "EGP" to 2, "ZAR" to 2, "NGN" to 2, "KES" to 2,
+    "MAD" to 2, "BRL" to 2, "MXN" to 2, "ARS" to 2, "CLP" to 0, "COP" to 2,
+    "PEN" to 2, "RUB" to 2, "PLN" to 2, "CZK" to 2, "HUF" to 2, "SEK" to 2,
+    "NOK" to 2, "DKK" to 2, "RON" to 2, "ISK" to 0, "UAH" to 2, "TND" to 3
+)
 
 /** Preserves v1 balances, receipts and source records; never rebuilds user data by clearing it. */
 val MIGRATION_1_2 = object : Migration(1,2) {
@@ -45,8 +56,9 @@ val MIGRATION_1_2 = object : Migration(1,2) {
             LEFT JOIN investment_trades t ON t.operation_id=m.operation_id
             LEFT JOIN term_deposits opened ON opened.open_operation_id=m.operation_id
             LEFT JOIN term_deposits closed ON closed.close_operation_id=m.operation_id""")
-        Currency.supported.forEach {
-            db.execSQL("INSERT OR IGNORE INTO currencies(code,fraction_digits) VALUES (?,?)",arrayOf<Any>(it.code,it.fraction_digits))
+        MIGRATION_1_2_CURRENCIES.forEach { (code, fractionDigits) ->
+            db.execSQL("INSERT OR IGNORE INTO currencies(code,fraction_digits) VALUES (?,?)",
+                arrayOf<Any>(code, fractionDigits))
         }
     }
 }

@@ -8,7 +8,7 @@ import dev.valnook.domain.money.DecimalRules as R
 import dev.valnook.domain.repository.*
 
 internal class PositionCommandHandler(private val db: ValnookDatabase, private val cash: CashWriter,
-    private val instruments: InstrumentCommandHandler, private val fault: (TransactionPoint) -> Unit) {
+    private val fault: (TransactionPoint) -> Unit) {
     private val positions = db.positions()
     private val trades = db.trades()
 
@@ -35,16 +35,6 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         fault(TransactionPoint.AFTER_BUSINESS)
         fault(TransactionPoint.AFTER_COST)
         return OperationResult("INVESTMENT", id)
-    }
-
-    // Existing command fixtures retain their identity; normal UI creates instruments globally.
-    suspend fun legacyCreate(command: CreateInvestment, now: Long): OperationResult {
-        if (command.opening_quantity_e8 > 0 && command.opening_cost_price_e8 == null) throw DomainException(ErrorCode.FORMAT)
-        if (command.current_price_e8 % 1000 != 0L) throw DomainException(ErrorCode.PRECISION)
-        val instrument = instruments.save(SaveInstrument(command.operation_id, null, null, command.name,
-            command.symbol, command.type_id, command.currency_code, command.current_price_e8 / 1000), now)
-        return opening(SaveOpeningPosition(command.operation_id, command.account_id, instrument.id,
-            command.opening_quantity_e8, command.opening_cost_price_e8, Long.MIN_VALUE), now)
     }
 
     suspend fun record(command: RecordAccountTrade, now: Long): OperationResult {

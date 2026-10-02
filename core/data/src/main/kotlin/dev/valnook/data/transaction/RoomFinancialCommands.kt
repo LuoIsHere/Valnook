@@ -16,7 +16,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     private val accounts = AccountCommandHandler(db, cash, fault)
     private val deposits = DepositCommandHandler(db, cash, clock, fault)
     private val instruments = InstrumentCommandHandler(db, cash, fault)
-    private val positions = PositionCommandHandler(db, cash, instruments, fault)
+    private val positions = PositionCommandHandler(db, cash, fault)
     private val types = AssetTypeWriter(db.instruments())
 
     override suspend fun operationResult(operationId: String): OperationResult? = db.operations().operation(operationId)?.let {
@@ -46,7 +46,6 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is OpenTermDeposit -> deposits.open(command, now)
                 is CloseTermDeposit -> deposits.close(command, now)
                 is EditTermDeposit -> deposits.edit(command, now)
-                is CreateInvestment -> positions.legacyCreate(command, now)
                 is SetOpeningInvestmentCost -> positions.cost(command, now)
                 is RecordInvestmentTrade -> positions.record(command, now)
                 is EditInvestmentTrade -> positions.edit(command, now)

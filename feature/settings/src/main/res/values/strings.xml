@@ -21,6 +21,17 @@
     <string name="settings_saved">Settings saved</string>
     <string name="settings_saving">Saving</string>
     <string name="settings_save">Save settings</string>
+    <string name="settings_apply">Apply</string>
+    <string name="settings_reload_draft">Reload saved values</string>
+    <string name="settings_error_currency">Choose a valid base currency.</string>
+    <string name="settings_error_format">Check the entered value.</string>
+    <string name="settings_error_precision">The value has too many decimal places.</string>
+    <string name="settings_error_overflow">The value is too large.</string>
+    <string name="settings_error_positive">The rate must be greater than zero.</string>
+    <string name="settings_error_duplicate_currency">Each source currency can appear only once.</string>
+    <string name="settings_error_conflict">Settings changed elsewhere. Your draft was kept.</string>
+    <string name="settings_error_session_expired">This data session has ended. Reopen settings and try again.</string>
+    <string name="settings_error_generic">Could not save settings. Your draft was kept.</string>
     <string name="settings_language_system">System default</string>
     <string name="settings_language_zh">简体中文</string>
     <string name="settings_language_en">English</string>

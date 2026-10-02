@@ -12,6 +12,7 @@ import dev.valnook.data.database.*
 import dev.valnook.data.repository.*
 import dev.valnook.data.transaction.RoomFinancialCommands
 import dev.valnook.domain.calculation.AssetValuation
+import dev.valnook.domain.calculation.InvestmentProfitCalculator
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
 import kotlinx.coroutines.flow.first
@@ -92,7 +93,7 @@ class QueryPerformanceTest {
                 opening_quantity_e8,holding_quantity_e8,revision,created_at_ms,updated_at_ms,
                 opening_cost_price_e8,opening_at_ms,remaining_cost,realized_profit,chronology_valid,
                 algorithm_version,position_state,last_activity_at_ms)
-                VALUES (?,?,?,0,0,1,0,0,NULL,0,'0','0',1,2,'PENDING',0)""",
+                VALUES (?,?,?,0,0,1,0,0,NULL,0,'0','0',1,${InvestmentProfitCalculator.ALGORITHM_VERSION},'PENDING',0)""",
                 arrayOf<Any>(id, accountId, instrumentId))
         }
         operations(sql, fixture.trades, "trade", "INVESTMENT_TRADE")
@@ -261,8 +262,8 @@ class QueryPerformanceTest {
                     }
                     val overview = RoomOverview(db)
                     val commands = RoomFinancialCommands(db, clock)
-                    val investments = RoomInvestments(db, clock)
-                    val instruments = RoomInstruments(db, commands)
+                    val investments = RoomInvestments(db)
+                    val instruments = RoomInstruments(db)
                     val cash = RoomCash(db.cash())
                     val deposits = RoomDeposits(db.deposits())
                     val settings = RoomSettings(db, clock)
@@ -310,7 +311,9 @@ class QueryPerformanceTest {
                     results.put(measure(db, "fx-and-overview", positions) {
                         val before = settings.observeSettings().first()
                         val rate = if (before.rates.first().rate.compareTo(BigDecimal("7.2")) == 0) "7.0" else "7.2"
-                        settings.saveSettings(before.copy(rates = listOf(FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal(rate)))), before.revision)
+                        settings.applyChange(SaveFinancialSettings(before.revision,
+                            requireNotNull(before.baseCurrency),listOf(FxRate(Currency.of("USD"),
+                                Currency.of("CNY"),BigDecimal(rate)))))
                         overview.snapshot().positions.size
                     })
                     if (fixture.hotspot) {

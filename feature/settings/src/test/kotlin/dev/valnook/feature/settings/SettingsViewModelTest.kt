@@ -2,9 +2,9 @@ package dev.valnook.feature.settings
 
 import androidx.lifecycle.SavedStateHandle
 import dev.valnook.domain.model.*
-import dev.valnook.domain.repository.SettingsRepository
+import dev.valnook.domain.repository.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.*
 import org.junit.*
 import org.junit.Assert.*
@@ -18,22 +18,29 @@ class SettingsViewModelTest {
     private val hkd = Currency.of("HKD")
     @Before fun prepare() { Dispatchers.setMain(dispatcher) }
     @After fun close() { Dispatchers.resetMain() }
-    private class Repository(var value: AppSettings = AppSettings()) : SettingsRepository {
+    private class Repository(initial: AppSettings = AppSettings()) : SettingsRepository,SettingsWriter {
+        var value=initial
+        private val values=MutableStateFlow(initial)
         var writes = 0
-        var loseReceipt = false
-        override fun observeSettings() = flowOf(value)
-        override suspend fun saveSettings(settings: AppSettings, expectedRevision: Long) {
-            if (value.revision != expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
+        override fun observeSettings() = values
+        override suspend fun applyChange(change:SettingsChange):AppSettings {
+            if(value.revision!=change.expectedRevision)throw DomainException(ErrorCode.STALE_RECORD)
             writes++
-            value = settings.copy(revision = expectedRevision + 1,
-                rates = settings.rates.map { it.copy(rate = it.rate.stripTrailingZeros()) })
-            if (loseReceipt) throw IllegalStateException("synthetic lost receipt")
+            value=when(change){
+                is SaveFinancialSettings->value.copy(baseCurrency=change.baseCurrency,
+                    rates=change.rates.map{it.copy(rate=it.rate.stripTrailingZeros())})
+                is SaveLanguage->value.copy(language=change.language)
+                is SaveGainLossColors->value.copy(gainLossColors=change.colors)
+            }.copy(revision=value.revision+1)
+            values.value=value
+            return value
         }
+        fun publish(settings:AppSettings){value=settings;values.value=settings}
     }
     @Test fun changing_base_uses_only_matching_pairs_and_preserves_old_pair_meaning() = runTest(dispatcher) {
         val repository = Repository(AppSettings(cny, listOf(FxRate(usd, cny, BigDecimal("7.2")),
             FxRate(usd, hkd, BigDecimal("7.8"))), 2))
-        val vm = SettingsViewModel(repository, SavedStateHandle())
+        val vm = SettingsViewModel(repository,repository,SavedStateHandle())
         runCurrent()
         vm.selectBase(hkd)
         assertEquals("7.8", vm.state.value.rows.single().rateInput)
@@ -47,13 +54,13 @@ class SettingsViewModelTest {
     @Test fun draft_restoration_keeps_base_rate_text_and_original_revision() = runTest(dispatcher) {
         val saved = SavedStateHandle()
         val repository = Repository()
-        val first = SettingsViewModel(repository, saved)
+        val first = SettingsViewModel(repository,repository,saved)
         runCurrent()
         assertNull(first.state.value.settings.baseCurrency)
         first.selectBase(cny)
         first.addRate()
         first.updateRow(0, usd, "7.1234567890120")
-        val restored = SettingsViewModel(repository, saved)
+        val restored = SettingsViewModel(repository,repository,saved)
         runCurrent()
         assertEquals("7.1234567890120", restored.state.value.rows.single().rateInput)
         restored.saveRates()
@@ -63,7 +70,7 @@ class SettingsViewModelTest {
     }
     @Test fun invalid_fx_precision_positive_and_duplicates_never_reach_storage() = runTest(dispatcher) {
         val repository = Repository()
-        val vm = SettingsViewModel(repository, SavedStateHandle())
+        val vm = SettingsViewModel(repository,repository,SavedStateHandle())
         runCurrent()
         vm.selectBase(cny)
         vm.addRate()
@@ -80,22 +87,27 @@ class SettingsViewModelTest {
         assertEquals(ErrorCode.DUPLICATE_CURRENCY, vm.state.value.error)
         assertEquals(0, repository.writes)
     }
-    @Test fun lost_metadata_receipt_reconciles_numeric_rate_without_a_second_write() = runTest(dispatcher) {
-        val repository = Repository().apply { loseReceipt = true }
-        val vm = SettingsViewModel(repository, SavedStateHandle())
+    @Test fun live_summary_updates_without_overwriting_a_dirty_draft_and_conflict_keeps_input() = runTest(dispatcher) {
+        val repository = Repository()
+        val vm = SettingsViewModel(repository,repository,SavedStateHandle())
         runCurrent()
         vm.selectBase(cny)
         vm.addRate()
         vm.updateRow(0, usd, "7.2000")
+        repository.publish(AppSettings(hkd,revision=1,language=AppLanguage.ENGLISH))
+        runCurrent()
+        assertEquals(hkd,vm.state.value.savedSettings.baseCurrency)
+        assertEquals(cny,vm.state.value.settings.baseCurrency)
+        assertEquals("7.2000",vm.state.value.rows.single().rateInput)
         vm.saveRates()
         runCurrent()
-        assertTrue(vm.state.value.saved)
-        assertEquals(1L, vm.state.value.settings.revision)
-        assertEquals(1, repository.writes)
+        assertEquals(ErrorCode.STALE_RECORD,vm.state.value.error)
+        assertEquals("7.2000",vm.state.value.rows.single().rateInput)
+        assertEquals(0,repository.writes)
     }
     @Test fun new_pairs_start_at_one_and_do_not_reuse_a_rate_to_another_base() = runTest(dispatcher) {
         val repository = Repository(AppSettings(cny, listOf(FxRate(usd, hkd, BigDecimal("7.8")))))
-        val vm = SettingsViewModel(repository, SavedStateHandle())
+        val vm = SettingsViewModel(repository,repository,SavedStateHandle())
         runCurrent()
         vm.addRate()
         assertEquals("1", vm.state.value.rows.single().rateInput)

@@ -29,9 +29,6 @@ internal object CommandFingerprint {
             is EditTermDeposit -> listOf("TERM_EDIT",command.deposit_id,command.expected_revision,command.principal_minor,
                 command.annual_rate_percent_e8,command.start_epoch_day,command.end_epoch_day,command.open_cash_linked,
                 command.close_cash_linked,command.openCashAccountId,command.closeCashAccountId)
-            is CreateInvestment -> listOf("INVESTMENT_CREATE",command.account_id,command.name.trim(),command.symbol.trim(),
-                command.type_id,Currency.of(command.currency_code).code,command.opening_quantity_e8,command.current_price_e8)+
-                (command.opening_cost_price_e8?.let{listOf("OPENING_COST",it)} ?: emptyList())
             is SetOpeningInvestmentCost -> listOf("OPENING_COST",command.investment_id,command.expected_revision,command.price_e8)
             is RecordInvestmentTrade -> listOf(command.direction.name,command.investment_id,command.quantity_e8,
                 command.execution_price_e8,command.occurred_at_ms,command.cash_linked,command.cashAccountId,

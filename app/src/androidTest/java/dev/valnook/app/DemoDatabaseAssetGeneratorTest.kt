@@ -7,16 +7,8 @@ import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import dev.valnook.app.di.AppGraph
 import dev.valnook.app.di.DemoDataSeeder
+import dev.valnook.app.di.createDatabaseGraph
 import dev.valnook.data.database.ValnookDatabase
-import dev.valnook.data.repository.RoomAccounts
-import dev.valnook.data.repository.RoomCash
-import dev.valnook.data.repository.RoomDataMaintenance
-import dev.valnook.data.repository.RoomDeposits
-import dev.valnook.data.repository.RoomInstruments
-import dev.valnook.data.repository.RoomInvestments
-import dev.valnook.data.repository.RoomOverview
-import dev.valnook.data.repository.RoomSettings
-import dev.valnook.data.transaction.RoomFinancialCommands
 import dev.valnook.domain.model.AppSettings
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -39,13 +31,10 @@ class DemoDatabaseAssetGeneratorTest {
             .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)
             .build()
         try {
-            val commands = RoomFinancialCommands(database, clock)
-            val cash = RoomCash(database.cash())
-            val deposits = RoomDeposits(database.deposits())
-            val graph = AppGraph(RoomAccounts(database, clock), cash, deposits,
-                RoomInvestments(database, clock), commands, clock, RoomOverview(database),
-                RoomSettings(database, clock), RoomInstruments(database, commands), cash, deposits,
-                RoomDataMaintenance(database))
+            val raw = createDatabaseGraph(database,clock)
+            val graph = AppGraph("demo-asset-generator",raw.accounts,raw.cash,raw.deposits,
+                raw.investments,raw.commands,raw.clock,raw.overview,raw.settings,raw.settingsWriter,
+                raw.instruments,raw.cashPages,raw.depositPages)
             DemoDataSeeder(graph, clock).seed(AppSettings())
             val snapshot = graph.overview.snapshot()
             assertEquals(12, snapshot.accounts.size)

@@ -2,10 +2,68 @@ package dev.valnook.data.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import dev.valnook.domain.calculation.InvestmentProfitCalculator
-import dev.valnook.domain.model.*
 import java.math.BigDecimal
 import java.math.RoundingMode
+
+private const val MIGRATION_3_4_COST_RULE_VERSION = 2
+private const val MIGRATION_3_4_ALLOCATION_SCALE = 32
+
+private data class Migration3To4Trade(
+    val id: Long,
+    val direction: String,
+    val quantityE8: Long,
+    val amountMinor: Long,
+    val occurredAtMs: Long
+)
+
+private data class Migration3To4Profit(
+    val remainingCost: BigDecimal?,
+    val realized: BigDecimal?,
+    val chronologyValid: Boolean
+)
+
+/** Frozen fee-free moving-average rule introduced by schema 4. */
+private fun migration3To4Profit(
+    openingQuantityE8: Long,
+    expectedHoldingE8: Long,
+    openingPriceE8: Long?,
+    openingAtMs: Long,
+    fractionDigits: Int,
+    trades: List<Migration3To4Trade>
+): Migration3To4Profit {
+    var quantityE8 = openingQuantityE8
+    var remainingCost = when {
+        openingQuantityE8 == 0L -> BigDecimal.ZERO
+        openingPriceE8 == null -> null
+        else -> BigDecimal.valueOf(openingQuantityE8, 8)
+            .multiply(BigDecimal.valueOf(openingPriceE8, 8))
+            .setScale(fractionDigits, RoundingMode.HALF_UP)
+    }
+    var realized: BigDecimal? = BigDecimal.ZERO
+    var valid = true
+    for (trade in trades.sortedWith(compareBy<Migration3To4Trade> { it.occurredAtMs }.thenBy { it.id })) {
+        if (openingQuantityE8 > 0 && trade.occurredAtMs < openingAtMs) valid = false
+        val amount = BigDecimal.valueOf(trade.amountMinor, fractionDigits)
+        if (trade.direction == "BUY") {
+            quantityE8 = Math.addExact(quantityE8, trade.quantityE8)
+            remainingCost = remainingCost?.add(amount)
+        } else {
+            if (trade.quantityE8 > quantityE8 || quantityE8 <= 0) {
+                valid = false
+                break
+            }
+            val allocated = if (trade.quantityE8 == quantityE8) remainingCost else
+                remainingCost?.multiply(BigDecimal.valueOf(trade.quantityE8))
+                    ?.divide(BigDecimal.valueOf(quantityE8), MIGRATION_3_4_ALLOCATION_SCALE, RoundingMode.HALF_UP)
+            realized = if (allocated == null || realized == null) null else realized.add(amount.subtract(allocated))
+            quantityE8 -= trade.quantityE8
+            remainingCost = if (quantityE8 == 0L) BigDecimal.ZERO else
+                if (remainingCost == null) null else remainingCost.subtract(requireNotNull(allocated))
+        }
+    }
+    if (quantityE8 != expectedHoldingE8) valid = false
+    return Migration3To4Profit(remainingCost, realized, valid)
+}
 
 val MIGRATION_3_4 = object : Migration(3, 4) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -38,35 +96,38 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
             fun text(name: String): String = cursor.getString(cursor.getColumnIndexOrThrow(name))
             while (cursor.moveToNext()) {
                 val id = number("id")
-                val currency = Currency.of(text("currency_code"))
-                val trades = mutableListOf<Trade>()
+                val currencyCode = text("currency_code")
+                val fractionDigits = db.query("SELECT fraction_digits FROM currencies WHERE code=?",
+                    arrayOf<Any>(currencyCode)).use { currency ->
+                    check(currency.moveToFirst())
+                    currency.getInt(0)
+                }
+                val trades = mutableListOf<Migration3To4Trade>()
                 db.query("SELECT * FROM investment_trades WHERE investment_id=? AND is_deleted=0 ORDER BY occurred_at_ms,id",
                     arrayOf<Any>(id)).use { history ->
                     while (history.moveToNext()) {
                         fun n(name: String) = history.getLong(history.getColumnIndexOrThrow(name))
-                        trades.add(Trade(n("id"), id, Direction.valueOf(history.getString(history.getColumnIndexOrThrow("direction"))),
-                            n("quantity_e8"), n("execution_price_e8"), n("amount_minor"), currency,
-                            n("cash_linked") != 0L, n("occurred_at_ms"), n("revision")))
+                        trades.add(Migration3To4Trade(n("id"),
+                            history.getString(history.getColumnIndexOrThrow("direction")),
+                            n("quantity_e8"), n("amount_minor"), n("occurred_at_ms")))
                     }
                 }
                 val openingIndex = cursor.getColumnIndexOrThrow("opening_cost_price_e8")
                 val openingPrice = if (cursor.isNull(openingIndex)) null else cursor.getLong(openingIndex)
-                val openingAt = minOf(number("created_at_ms"), trades.minOfOrNull { it.occurred_at_ms } ?: Long.MAX_VALUE)
-                val asset = Investment(id, number("savings_account_id"), number("asset_type_id"), "", text("name"),
-                    text("symbol"), currency, number("opening_quantity_e8"), number("holding_quantity_e8"),
-                    number("current_price_e8"), number("price_updated_at_ms"), openingPrice,
-                    number("revision"), number("last_activity_at_ms"), id, openingAt)
-                val result = InvestmentProfitCalculator.calculate(asset, trades)
+                val openingAt = minOf(number("created_at_ms"), trades.minOfOrNull { it.occurredAtMs } ?: Long.MAX_VALUE)
+                val openingQuantity = number("opening_quantity_e8")
+                val result = migration3To4Profit(openingQuantity, number("holding_quantity_e8"), openingPrice,
+                    openingAt, fractionDigits, trades)
                 db.execSQL("""INSERT INTO investments_new(id,savings_account_id,instrument_id,
                     opening_quantity_e8,holding_quantity_e8,revision,created_at_ms,updated_at_ms,
                     opening_cost_price_e8,opening_at_ms,remaining_cost,realized_profit,chronology_valid,
                     algorithm_version,position_state,last_activity_at_ms)
                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", arrayOf<Any?>(
-                    id, asset.account_id, id, asset.opening_quantity_e8, asset.holding_quantity_e8, asset.revision,
+                    id, number("savings_account_id"), id, openingQuantity, number("holding_quantity_e8"), number("revision"),
                     number("created_at_ms"), number("updated_at_ms"), openingPrice, openingAt,
                     result.remainingCost?.stripTrailingZeros()?.toPlainString(),
-                    result.realized?.stripTrailingZeros()?.toPlainString(), if (result.chronology_valid) 1 else 0,
-                    InvestmentProfitCalculator.ALGORITHM_VERSION, text("position_state"), number("last_activity_at_ms")))
+                    result.realized?.stripTrailingZeros()?.toPlainString(), if (result.chronologyValid) 1 else 0,
+                    MIGRATION_3_4_COST_RULE_VERSION, text("position_state"), number("last_activity_at_ms")))
             }
         }
         db.execSQL("CREATE TEMP TABLE migration_trades AS SELECT * FROM investment_trades")

@@ -74,7 +74,7 @@ fun ValnookRoot(sessions: AppSessionManager, onExit: () -> Unit = {}) {
     }.collectAsStateWithLifecycle(null)
     val loadedSettings = settings ?: return
     LaunchedEffect(active.id, loadedSettings.language) {
-        if (active.mode == DataMode.REAL) sessions.syncPlatformLanguage(loadedSettings.language)
+        if (active.mode == DataMode.REAL) sessions.syncPlatformLanguage(active.id, loadedSettings.language)
     }
     key(active.id) {
         ValnookTheme(redGain = loadedSettings.gainLossColors == GainLossColorScheme.RED_GAIN) {
@@ -186,7 +186,9 @@ private fun SessionRoot(
                             investmentEntries(graph, open, back, accountName)
                             ledgerEntries(graph, open, back, accountName)
                             entry<SettingsKey> {
-                                val vm = pageViewModel { SettingsViewModel(graph.settings, createSavedStateHandle()) }
+                                val vm = pageViewModel {
+                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
+                                }
                                 SettingsHome(vm, active.mode == DataMode.DEMO, switching, switchFailed,
                                     { open(FxSettingsKey) }, { open(LanguageSettingsKey) },
                                     { open(GainLossColorsKey) }, { enable ->
@@ -202,18 +204,34 @@ private fun SessionRoot(
                                     }, { open(ClearDataKey) })
                             }
                             entry<FxSettingsKey> {
-                                FxSettingsScreen(pageViewModel { SettingsViewModel(graph.settings, createSavedStateHandle()) })
+                                FxSettingsScreen(pageViewModel {
+                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
+                                })
                             }
                             entry<LanguageSettingsKey> {
-                                LanguageSettingsScreen(pageViewModel { SettingsViewModel(graph.settings, createSavedStateHandle()) })
+                                LanguageSettingsScreen(pageViewModel {
+                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
+                                })
                             }
                             entry<GainLossColorsKey> {
-                                GainLossColorsScreen(pageViewModel { SettingsViewModel(graph.settings, createSavedStateHandle()) })
+                                GainLossColorsScreen(pageViewModel {
+                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
+                                })
                             }
                             entry<ClearDataKey> {
-                                val challenge = remember { sessions.issueClearChallenge() }
-                                ClearDataScreen(challenge, { input -> sessions.clearRealData(challenge, input) },
-                                    { sessions.cancelClearChallenge(challenge) }, back)
+                                var challenge by remember(active.id) { mutableStateOf<String?>(null) }
+                                var unavailable by remember(active.id) { mutableStateOf(false) }
+                                LaunchedEffect(active.id) {
+                                    runCatching { sessions.issueClearChallenge() }
+                                        .onSuccess { challenge = it }
+                                        .onFailure { unavailable = true }
+                                }
+                                challenge?.let { value ->
+                                    ClearDataScreen(value, { input -> sessions.clearRealData(value, input) },
+                                        { scope.launch { sessions.cancelClearChallenge(value) } }, back)
+                                }
+                                if(unavailable) Text(stringResource(dev.valnook.feature.settings.R.string.settings_clear_failed),
+                                    color=MaterialTheme.colorScheme.error)
                             }
                         })
                 }

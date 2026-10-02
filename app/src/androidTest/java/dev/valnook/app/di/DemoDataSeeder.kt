@@ -13,6 +13,9 @@ import dev.valnook.domain.repository.SaveAccount
 import dev.valnook.domain.repository.SaveAssetType
 import dev.valnook.domain.repository.SaveInstrument
 import dev.valnook.domain.repository.SaveOpeningPosition
+import dev.valnook.domain.repository.SaveFinancialSettings
+import dev.valnook.domain.repository.SaveGainLossColors
+import dev.valnook.domain.repository.SaveLanguage
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
@@ -23,10 +26,14 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         val currency: String, val price: BigDecimal)
 
     suspend fun seed(displayPreferences: AppSettings) {
-        graph.settings.saveSettings(AppSettings(Currency.of("CNY"), listOf(
+        var stored = graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),listOf(
             FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.2")),
             FxRate(Currency.of("HKD"), Currency.of("CNY"), BigDecimal("0.92"))
-        ), language = displayPreferences.language, gainLossColors = displayPreferences.gainLossColors), 0)
+        )))
+        if(stored.language!=displayPreferences.language) stored=graph.settingsWriter.applyChange(
+            SaveLanguage(stored.revision,displayPreferences.language))
+        if(stored.gainLossColors!=displayPreferences.gainLossColors) graph.settingsWriter.applyChange(
+            SaveGainLossColors(stored.revision,displayPreferences.gainLossColors))
 
         val accountNames = listOf("招商证券", "华泰证券", "中信证券", "国泰君安证券", "广发证券", "中金财富",
             "富途证券", "中银国际", "汇丰证券", "盈透证券", "嘉信理财", "老虎证券")
@@ -182,4 +189,3 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
 
     private fun id(): String = UUID.randomUUID().toString()
 }
-

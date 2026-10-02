@@ -32,10 +32,9 @@ class RecordDetailReadTest {
     @After fun close(){db.close()}
 
     @Test fun trade_detail_is_account_scoped_live_and_independent_of_history_page()=runBlocking {
-        val accounts=RoomAccounts(db,clock)
-        val account=accounts.save_account(null,"A","");val other=accounts.save_account(null,"B","")
-        val repo=RoomInvestments(db,clock);val type=repo.save_type(null,"基金")
-        val asset=commands.execute(CreateInvestment(id(),account,"QQQ","",type,"USD",0,R.parse_e8("10"))).id
+        val account=commands.testAccount("A");val other=commands.testAccount("B")
+        val repo=RoomInvestments(db);val type=commands.testType("基金")
+        val asset=commands.testInvestment(account,"QQQ","",type,"USD",0,R.parse_e8("10"),null)
         val trade=commands.execute(RecordInvestmentTrade(id(),asset,Direction.BUY,R.parse_e8("1"),R.parse_e8("10"),clock.millis(),false)).id
         repeat(60){commands.execute(RecordInvestmentTrade(id(),asset,Direction.BUY,R.parse_e8("1"),R.parse_e8("10"),clock.millis(),false))}
         assertFalse(repo.trade_page(asset,null,50).any{it.id==trade})
@@ -52,8 +51,7 @@ class RecordDetailReadTest {
     }
 
     @Test fun deposit_detail_survives_edit_settlement_and_archive_change()=runBlocking {
-        val accounts=RoomAccounts(db,clock)
-        val account=accounts.save_account(null,"A","");val other=accounts.save_account(null,"B","")
+        val account=commands.testAccount("A");val other=commands.testAccount("B")
         val repo=RoomDeposits(db.ledger())
         val deposit=commands.execute(OpenTermDeposit(id(),account,"USD",1000000,R.parse_e8("3"),day("2026-01-01"),day("2026-04-01"),false)).id
         repeat(60){commands.execute(OpenTermDeposit(id(),account,"USD",1000000,R.parse_e8("3"),day("2026-04-01"),day("2026-07-01"),false))}

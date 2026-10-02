@@ -32,8 +32,7 @@ class CashEntryReadTest {
     @After fun close(){db.close()}
 
     @Test fun detail_is_account_scoped_live_and_independent_of_list_page()=runBlocking {
-        val accounts=RoomAccounts(db,clock)
-        val account=accounts.save_account(null,"A","");val other=accounts.save_account(null,"B","")
+        val account=commands.testAccount("A");val other=commands.testAccount("B")
         commands.execute(SetCashBalance(id(),account,"USD",10000,null))
         val entry=cash.observe_entries(account,"USD",50).first().single()
         repeat(60){index->commands.execute(SetCashBalance(id(),account,"USD",10001L+index,1L+index))}
@@ -50,10 +49,10 @@ class CashEntryReadTest {
     }
 
     @Test fun linked_detail_follows_source_and_disappears_after_unlink_or_delete()=runBlocking {
-        val account=RoomAccounts(db,clock).save_account(null,"A","")
+        val account=commands.testAccount("A")
         commands.execute(SetCashBalance(id(),account,"USD",10000,null))
-        val investments=RoomInvestments(db,clock);val type=investments.save_type(null,"基金")
-        val asset=commands.execute(CreateInvestment(id(),account,"QQQ","",type,"USD",0,R.parse_e8("10"))).id
+        val type=commands.testType("基金")
+        val asset=commands.testInvestment(account,"QQQ","",type,"USD",0,R.parse_e8("10"),null)
         val trade=commands.execute(RecordInvestmentTrade(id(),asset,Direction.BUY,R.parse_e8("1"),R.parse_e8("10"),clock.millis(),true)).id
         val entry=db.ledger().source_entry("TRADE",trade)!!.id
         assertEquals(asset,cash.observe_entry(account,entry).first()!!.investment_id)

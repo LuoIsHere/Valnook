@@ -5,7 +5,6 @@ import kotlinx.coroutines.flow.Flow
 
 interface AccountRepository {
     fun observe_accounts(): Flow<List<SavingsAccount>>
-    suspend fun save_account(id: Long?, name: String, note: String): Long
 }
 interface CashRepository {
     fun observe_cash(account_id: Long): Flow<List<CashAccount>>
@@ -29,9 +28,6 @@ interface InvestmentRepository {
     fun observe_types(): Flow<List<AssetType>>
     fun observe_trade_revision(investment_id: Long): Flow<Long>
     suspend fun trade_page(investment_id: Long, cursor: TradeCursor?, limit: Int = 50): List<Trade>
-    suspend fun save_type(id: Long?, name: String): Long
-    suspend fun edit_investment(id: Long, name: String, symbol: String, type_id: Long)
-    suspend fun update_price(id: Long, price_e8: Long)
 }
 /** Each command is committed as ONE transaction by the implementation. */
 interface FinancialCommands {
@@ -54,10 +50,6 @@ data class EditTermDeposit(override val operation_id: String, val deposit_id: Lo
     val principal_minor: Long, val annual_rate_percent_e8: Long, val start_epoch_day: Long,
     val end_epoch_day: Long, val open_cash_linked: Boolean, val close_cash_linked: Boolean?,
     val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null) : FinancialCommand
-data class CreateInvestment(override val operation_id: String, val account_id: Long,
-    val name: String, val symbol: String, val type_id: Long, val currency_code: String,
-    val opening_quantity_e8: Long, val current_price_e8: Long, val opening_cost_price_e8: Long? = null) : FinancialCommand
-
 data class SetOpeningInvestmentCost(override val operation_id: String, val investment_id: Long,
     val expected_revision: Long, val price_e8: Long) : FinancialCommand
 data class RecordInvestmentTrade(override val operation_id: String, val investment_id: Long,
