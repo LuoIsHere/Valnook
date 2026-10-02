@@ -33,10 +33,14 @@ import dev.valnook.domain.model.*
             ActionButton({ onCreateTrade(Direction.BUY, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_buy)) }
             ActionButton({ onCreateTrade(Direction.SELL, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_sell)) }
         } }
-        item { ActionButton({ onPrice(asset) }, Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.instrument_price_edit_title))
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ActionButton({ onPrice(asset) }, Modifier.weight(1f)) {
+                Text(stringResource(R.string.instrument_price_edit_title))
+            }
+            if (asset.opening_quantity_e8 > 0) ActionButton({ onCost(asset) }, Modifier.weight(1f)) {
+                Text(stringResource(R.string.investment_edit_opening_cost))
+            }
         } }
-        if (asset.opening_quantity_e8 > 0) item { ActionButton({ onCost(asset) }) { Text(stringResource(R.string.investment_edit_opening_cost)) } }
         item { Text(stringResource(R.string.investment_trade_history), style = MaterialTheme.typography.titleLarge) }
         if (state.trades.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_trades)) }
         itemsIndexed(state.trades, key = { _, trade -> trade.id }) { index, trade ->

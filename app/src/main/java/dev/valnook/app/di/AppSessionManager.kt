@@ -44,6 +44,7 @@ class AppSessionManager @Inject constructor(
 ) {
     private val mutex = Mutex()
     private var demoDatabase: ValnookDatabase? = null
+    private var demoDatabaseName: String? = null
     private var pendingClear: PendingClear? = null
     private val initialId = UUID.randomUUID().toString()
     private val mutable = MutableStateFlow(ActiveSession(initialId, DataMode.REAL,
@@ -53,15 +54,24 @@ class AppSessionManager @Inject constructor(
     suspend fun enterDemo() = mutex.withLock {
         if (mutable.value.mode == DataMode.DEMO) return@withLock
         pendingClear = null
-        val database = ValnookDatabase.inMemory(context)
+        val displayPreferences = realGraph.settings.observeSettings().first()
+        clearAbandonedDemoDatabases()
+        val databaseName = "$DEMO_DATABASE_PREFIX${UUID.randomUUID()}.db"
+        val database = ValnookDatabase.fromAsset(context, databaseName, DEMO_DATABASE_ASSET)
         try {
             val raw = graphFor(database, RoomFinancialCommands(database, clock))
-            DemoDataSeeder(raw, clock).seed(realGraph.settings.observeSettings().first())
+            val fixtureSettings = raw.settings.observeSettings().first()
+            raw.settings.saveSettings(fixtureSettings.copy(
+                language = displayPreferences.language,
+                gainLossColors = displayPreferences.gainLossColors
+            ), fixtureSettings.revision)
             val id = UUID.randomUUID().toString()
             demoDatabase = database
+            demoDatabaseName = databaseName
             mutable.value = ActiveSession(id, DataMode.DEMO, bind(raw, database, id))
         } catch (error: Exception) {
             database.close()
+            context.deleteDatabase(databaseName)
             throw error
         }
     }
@@ -72,7 +82,9 @@ class AppSessionManager @Inject constructor(
         val id = UUID.randomUUID().toString()
         mutable.value = ActiveSession(id, DataMode.REAL, bind(realGraph, realDatabase, id))
         demoDatabase?.close()
+        demoDatabaseName?.let(context::deleteDatabase)
         demoDatabase = null
+        demoDatabaseName = null
     }
 
     fun issueClearChallenge(): String {
@@ -132,6 +144,12 @@ class AppSessionManager @Inject constructor(
             cash, deposits, RoomDataMaintenance(database))
     }
 
+    private fun clearAbandonedDemoDatabases() {
+        context.databaseList()
+            .filter { it.startsWith(DEMO_DATABASE_PREFIX) }
+            .forEach(context::deleteDatabase)
+    }
+
     private inner class SessionCommands(
         private val sessionId: String,
         private val delegate: FinancialCommands
@@ -148,4 +166,9 @@ class AppSessionManager @Inject constructor(
     }
 
     private data class PendingClear(val sessionId: String, val challenge: String)
+
+    private companion object {
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v6.db"
+        const val DEMO_DATABASE_PREFIX = "valnook-demo-"
+    }
 }

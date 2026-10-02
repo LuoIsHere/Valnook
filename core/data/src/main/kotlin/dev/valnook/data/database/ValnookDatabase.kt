@@ -32,6 +32,11 @@ abstract class ValnookDatabase : RoomDatabase() {
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")
                 .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
+        fun fromAsset(context: Context, name: String, assetPath: String): ValnookDatabase =
+            Room.databaseBuilder(context,ValnookDatabase::class.java,name)
+                .createFromAsset(assetPath)
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6)
+                .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun inMemory(context: Context): ValnookDatabase =
             Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(seed).build()
     }

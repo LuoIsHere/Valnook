@@ -32,13 +32,14 @@ import java.time.format.DateTimeFormatter
 
 @Composable fun TradeDetailContent(asset:Investment,trade:Trade,account_name:String,on_edit:()->Unit,on_delete:()->Unit) {
     val time=Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault())
+    val settledAmount=tradeAmountWithFee(trade.direction,trade.amount_minor,trade.fee_minor)
     val rows=listOf(
         stringResource(R.string.entry_account) to account_name,
         stringResource(R.string.record_investment) to listOf(asset.name,asset.symbol).filter{it.isNotBlank()}.joinToString(" · "),
         stringResource(R.string.trade_direction) to stringResource(if(trade.direction==Direction.BUY)R.string.buy else R.string.sell),
         stringResource(R.string.quantity) to Decimal.format_e8(trade.quantity_e8),
         stringResource(R.string.execution_price) to (Decimal.format_e8(trade.execution_price_e8)+" "+trade.currency.code),
-        stringResource(R.string.trade_amount) to (Decimal.format_display(trade.amount_minor,trade.currency.fraction_digits)+" "+trade.currency.code),
+        stringResource(R.string.trade_amount) to (Decimal.format_display(settledAmount,trade.currency.fraction_digits)+" "+trade.currency.code),
         stringResource(R.string.trade_fee) to (Decimal.format_display(trade.fee_minor,trade.currency.fraction_digits)+" "+trade.currency.code),
         stringResource(R.string.currency) to trade.currency.code,
         stringResource(R.string.trade_date) to time.toLocalDate().toString(),

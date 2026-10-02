@@ -18,6 +18,10 @@ data class TradeFormUiState(val mode: TradeFormMode, val instrumentId: Long?, va
     val loaded: Boolean = false, val failed: Boolean = false,
     val originalCashImpactMinor: Long = 0)
 
+internal fun tradeAmountWithFee(direction: Direction, amountMinor: Long, feeMinor: Long): Long =
+    if (direction == Direction.BUY) R.add(amountMinor, feeMinor)
+    else R.replace_contribution(amountMinor, feeMinor, 0)
+
 class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instrumentId: Long?,
     positionId: Long?, tradeId: Long?, direction: Direction, private val repository: InvestmentRepository,
     private val instruments: InstrumentRepository, cashRepository: CashRepository, commands: FinancialCommands,
@@ -68,8 +72,8 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
                 cashLinked = trade?.cash_linked ?: false, cashAccountId = trade?.cashAccountId,
                 name = instrument?.name.orEmpty(), loaded = true,
                 originalCashImpactMinor = if (trade?.cash_linked == true)
-                    if (trade.direction == Direction.BUY) -R.add(trade.amount_minor, trade.fee_minor)
-                    else R.replace_contribution(trade.amount_minor, trade.fee_minor, 0) else 0))
+                    if (trade.direction == Direction.BUY) -tradeAmountWithFee(trade.direction, trade.amount_minor, trade.fee_minor)
+                    else tradeAmountWithFee(trade.direction, trade.amount_minor, trade.fee_minor) else 0))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { mutable.value = state.value.copy(failed = true) }
     }
@@ -103,8 +107,10 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
     fun amountPreview(): String? = runCatching {
         val input = state.value
         val currency = requireNotNull(input.currency)
-        R.format_units(R.amount(R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), currency, true),
-            currency.fraction_digits) + " " + currency.code
+        val amount = R.amount(R.parse_e8(input.quantityInput, true),
+            R.parse_e8(input.executionPriceInput, true), currency, true)
+        val fee = R.parse_units(input.feeInput, currency.fraction_digits)
+        R.format_units(tradeAmountWithFee(input.direction, amount, fee), currency.fraction_digits) + " " + currency.code
     }.getOrNull()
     fun cashImpactPreview(): String? = runCatching {
         val input = state.value
@@ -112,8 +118,8 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         val nextImpact = if (input.mode == TradeFormMode.DELETE || !input.cashLinked) 0L else {
             val amount = R.amount(R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), currency, true)
             val fee = R.parse_units(input.feeInput, currency.fraction_digits)
-            if (input.direction == Direction.BUY) -R.add(amount, fee)
-            else R.replace_contribution(amount, fee, 0)
+            val settled = tradeAmountWithFee(input.direction, amount, fee)
+            if (input.direction == Direction.BUY) -settled else settled
         }
         val delta = R.replace_contribution(0, input.originalCashImpactMinor, nextImpact)
         (if (delta > 0) "+" else "") + R.format_units(delta, currency.fraction_digits) + " " + currency.code

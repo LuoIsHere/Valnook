@@ -551,12 +551,19 @@ class UiFlowTest {
         val investmentsLabel = localized(dev.valnook.core.designsystem.R.string.investments)
         val historyLabel = localized(dev.valnook.feature.investments.R.string.investment_trade_history)
         val feeLabel = localized(dev.valnook.core.designsystem.R.string.trade_fee) + " 1.50 CNY"
+        val sellFeeLabel = localized(dev.valnook.core.designsystem.R.string.trade_fee) + " 2.00 CNY"
+        val buyTotalLabel = localized(dev.valnook.core.designsystem.R.string.buy) + " · 1 301.50 CNY"
+        val sellTotalLabel = localized(dev.valnook.core.designsystem.R.string.sell) + " · 698.00 CNY"
+        val buyUnitPriceLabel = localized(dev.valnook.core.designsystem.R.string.execution_price) + " 1300 CNY"
+        val sellUnitPriceLabel = localized(dev.valnook.core.designsystem.R.string.execution_price) + " 1400 CNY"
         val updatePriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
+        val openingCostLabel = localized(dev.valnook.feature.investments.R.string.investment_edit_opening_cost)
         val sharedPriceHint = localized(dev.valnook.feature.investments.R.string.instrument_price_shared_hint)
         val currentPriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_current_price)
         val saveLabel = localized(dev.valnook.core.designsystem.R.string.save)
         var positionId = 0L
         var tradeId = 0L
+        var sellTradeId = 0L
         runBlocking {
             val type = graph.investments.save_type(null, "A股股票")
             positionId = graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(), account_id,
@@ -565,17 +572,31 @@ class UiFlowTest {
             tradeId = graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), positionId,
                 Direction.BUY, R.parse_e8("1"), R.parse_e8("1300"), graph.clock.millis(), false,
                 fee_minor = 150)).id
+            sellTradeId = graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), positionId,
+                Direction.SELL, R.parse_e8("0.5"), R.parse_e8("1400"), graph.clock.millis(), false,
+                fee_minor = 200)).id
         }
         wait_text("合成账户 A")
         rule.onNodeWithText("合成账户 A").performClick()
         wait_text(investmentsLabel)
         rule.onNodeWithText(investmentsLabel).performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("holding-$positionId").fetchSemanticsNodes().isNotEmpty() }
+        wait_text("1209.22727")
         rule.onNodeWithTag("holding-$positionId").performClick()
         wait_text(historyLabel)
         wait_text(feeLabel)
+        wait_text(sellFeeLabel)
+        wait_text(buyTotalLabel)
+        wait_text(sellTotalLabel)
+        wait_text(buyUnitPriceLabel)
+        wait_text(sellUnitPriceLabel)
         rule.onNodeWithTag("trade-record-$tradeId").assertExists()
-        rule.onNodeWithText(updatePriceLabel).performScrollTo().assertIsDisplayed().performClick()
+        rule.onNodeWithTag("trade-record-$sellTradeId").assertExists()
+        val updatePrice = rule.onNodeWithText(updatePriceLabel).performScrollTo().assertIsDisplayed()
+        val openingCost = rule.onNodeWithText(openingCostLabel).assertIsDisplayed()
+        assertEquals(updatePrice.fetchSemanticsNode().boundsInRoot.top,
+            openingCost.fetchSemanticsNode().boundsInRoot.top, 1f)
+        updatePrice.performClick()
         wait_text(sharedPriceHint)
         rule.onNodeWithText(currentPriceLabel).performTextReplacement("1500")
         save(saveLabel)

@@ -21,13 +21,15 @@ import java.time.format.DateTimeFormatter
     val time = Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault())
         .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"))
     val directionColor = profitColor(if (trade.direction == Direction.BUY) 1 else -1)
+    val settledAmount = tradeAmountWithFee(trade.direction, trade.amount_minor, trade.fee_minor)
     RecordListItem(Modifier.testTag("trade-record-${trade.id}"), on_open, showDivider) {
         Text(time, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(stringResource(if(trade.direction==Direction.BUY)R.string.buy else R.string.sell),
-                    style = MaterialTheme.typography.bodyMedium, color = directionColor)
+                Text(stringResource(if(trade.direction==Direction.BUY)R.string.buy else R.string.sell) + " · " +
+                    Decimal.format_display(settledAmount, trade.currency.fraction_digits) + " " + trade.currency.code,
+                    style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = directionColor)
                 Text(stringResource(R.string.execution_price) + " " + Decimal.format_e8(trade.execution_price_e8) +
                     " " + trade.currency.code, style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

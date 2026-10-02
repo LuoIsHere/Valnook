@@ -32,12 +32,15 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
             "富途证券", "中银国际", "汇丰证券", "盈透证券", "嘉信理财", "老虎证券")
         val accounts = accountNames.mapIndexed { index, name ->
             graph.commands.execute(SaveAccount(id(), null, null, name, "股票投资账户 ${index + 1}", listOf(
-                CashBalanceChange("CNY", 1_000_000L + index * 10_000L, null, name = "人民币日常资金"),
-                CashBalanceChange("USD", 200_000L + index * 1_000L, null, name = "美元交易资金"),
-                CashBalanceChange("USD", 50_000L + index * 500L, null, name = "美元备用资金"),
-                CashBalanceChange("HKD", 300_000L + index * 2_000L, null, name = "港币现金")
+                CashBalanceChange("CNY", 150_000_000L + index * 3_754_300L, null, name = "人民币日常资金"),
+                CashBalanceChange("USD", 60_000_000L + index * 743_100L, null, name = "美元交易资金"),
+                CashBalanceChange("USD", 15_000_000L + index * 287_500L, null, name = "美元备用资金"),
+                CashBalanceChange("HKD", 200_000_000L + index * 4_381_700L, null, name = "港币现金")
             ))).id
         }
+        val tradeCashByAccountCurrency = graph.overview.snapshot().cash
+            .filterNot { it.name == "美元备用资金" }
+            .associateBy { it.account_id to it.currency.code }
 
         val typeNames = listOf("A股股票", "港股股票", "美股股票")
         val types = typeNames.map { graph.commands.execute(SaveAssetType(id(), null, it)).id }
@@ -119,23 +122,30 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         }.take(80)
         pairs.forEachIndexed { positionIndex, (accountId, instrumentId) ->
             val stock = requireNotNull(stockById[instrumentId])
-            val openingPrice = R.parse_e8(stock.price.multiply(BigDecimal("0.82"))
+            val openingFactor = BigDecimal("0.74").add(BigDecimal.valueOf(((positionIndex * 7) % 19).toLong(), 2))
+            val openingPrice = R.parse_e8(stock.price.multiply(openingFactor)
                 .setScale(2, java.math.RoundingMode.HALF_UP).toPlainString())
-            graph.commands.execute(SaveOpeningPosition(id(), accountId, instrumentId, R.parse_e8("10"),
+            val openingQuantity = demoQuantity(stock.currency, positionIndex, opening = true)
+            graph.commands.execute(SaveOpeningPosition(id(), accountId, instrumentId, openingQuantity,
                 openingPrice, start + positionIndex * 60_000L))
             repeat(9) { tradeIndex ->
                 val closedFixture = positionIndex % 10 == 0
                 val direction = if (closedFixture && tradeIndex == 0) Direction.SELL
                     else if (closedFixture) if (tradeIndex % 2 == 1) Direction.BUY else Direction.SELL
                     else if (tradeIndex % 2 == 0) Direction.BUY else Direction.SELL
-                val quantity = if (closedFixture && tradeIndex == 0) R.parse_e8("10") else R.parse_e8("1")
+                val pairIndex = if (closedFixture) (tradeIndex - 1).coerceAtLeast(0) / 2 else tradeIndex / 2
+                val quantity = if (closedFixture && tradeIndex == 0) openingQuantity
+                    else demoQuantity(stock.currency, positionIndex * 3 + pairIndex, opening = false)
                 val factor = BigDecimal("0.86").add(BigDecimal.valueOf(((positionIndex + tradeIndex) % 15).toLong(), 2))
                 val price = R.parse_e8(stock.price.multiply(factor)
                     .setScale(2, java.math.RoundingMode.HALF_UP).toPlainString())
-                val fee = when (stock.currency) { "CNY" -> 500L; "HKD" -> 1_000L; else -> 100L }
+                val fee = demoFee(stock.currency, positionIndex, tradeIndex)
+                val cashLinked = (positionIndex * 2 + tradeIndex) % 3 != 0
+                val cashAccountId = if (cashLinked)
+                    requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id else null
                 graph.commands.execute(RecordAccountTrade(id(), accountId, instrumentId, direction,
-                    quantity, price, start + (positionIndex * 30L + tradeIndex + 1) * 60_000L, false,
-                    feeMinor = fee))
+                    quantity, price, start + (positionIndex * 30L + tradeIndex + 1) * 60_000L, cashLinked,
+                    cashAccountId, fee))
             }
         }
 
@@ -151,5 +161,25 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         }
     }
 
+    private fun demoQuantity(currency: String, index: Int, opening: Boolean): Long {
+        val values = when (currency) {
+            "CNY" -> if (opening) listOf("30", "60", "100", "180", "260") else listOf("10", "20", "40", "60", "100")
+            "HKD" -> if (opening) listOf("50", "120", "250", "400", "800") else listOf("20", "50", "100", "160", "300")
+            else -> if (opening) listOf("2.5", "4", "7.25", "12", "18.5") else listOf("0.25", "0.5", "1", "2", "3.5")
+        }
+        return R.parse_e8(values[index.mod(values.size)])
+    }
+
+    private fun demoFee(currency: String, positionIndex: Int, tradeIndex: Int): Long {
+        if ((positionIndex + tradeIndex) % 13 == 0) return 0
+        val variation = positionIndex * 37L + tradeIndex * 53L
+        return when (currency) {
+            "CNY" -> 500L + variation % 1_600L
+            "HKD" -> 1_000L + variation % 2_500L
+            else -> 35L + variation % 450L
+        }
+    }
+
     private fun id(): String = UUID.randomUUID().toString()
 }
+

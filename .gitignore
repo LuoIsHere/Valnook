@@ -29,6 +29,7 @@ key.properties
 *.log
 *.hprof
 *.db
+!app/src/main/assets/database/valnook-demo-v6.db
 *.db-wal
 *.db-shm
 *.sqlite

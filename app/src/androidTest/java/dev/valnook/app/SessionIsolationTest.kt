@@ -1,5 +1,6 @@
 package dev.valnook.app
 
+import androidx.test.platform.app.InstrumentationRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.valnook.app.di.AppSessionManager
@@ -33,6 +34,8 @@ class SessionIsolationTest {
     @Before fun inject() = hilt.inject()
 
     @Test fun demo_uses_fresh_rich_data_and_rejects_commands_after_exit() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        fun demoDatabaseFiles() = context.databaseList().filter { it.startsWith("valnook-demo-") }
         val real = sessions.session.value
         real.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
             "Real account", "must remain isolated", listOf(
@@ -44,14 +47,20 @@ class SessionIsolationTest {
         val demo = sessions.session.value
         assertEquals(DataMode.DEMO, demo.mode)
         assertTrue(demo.id != real.id)
+        assertEquals(1, demoDatabaseFiles().count { it.endsWith(".db") })
         val snapshot = demo.graph.overview.snapshot()
         assertEquals(12, snapshot.accounts.size)
         assertEquals(48, snapshot.cash.size)
         assertEquals(60, snapshot.instruments.size)
         assertEquals(80, snapshot.positions.size)
-        assertEquals(720, snapshot.positions.sumOf {
-            demo.graph.investments.trade_page(it.id, null, 100).size
-        })
+        val demoTrades = snapshot.positions.flatMap { demo.graph.investments.trade_page(it.id, null, 100) }
+        assertEquals(720, demoTrades.size)
+        assertTrue(snapshot.positions.map { it.holding_quantity_e8 }.distinct().size > 10)
+        assertTrue(demoTrades.map { it.quantity_e8 }.distinct().size > 10)
+        assertTrue(demoTrades.map { it.fee_minor }.distinct().size > 20)
+        assertTrue(demoTrades.any { it.fee_minor == 0L })
+        assertTrue(demoTrades.any { it.cash_linked && it.cashAccountId != null })
+        assertTrue(demoTrades.any { !it.cash_linked && it.cashAccountId == null })
         assertTrue(snapshot.instruments.any { it.symbol == "600519.SH" && it.name == "贵州茅台" })
         assertTrue(snapshot.instruments.any { it.symbol == "0700.HK" && it.name == "腾讯控股" })
         assertTrue(snapshot.instruments.any { it.symbol == "AAPL" && it.name == "Apple" })
@@ -61,10 +70,14 @@ class SessionIsolationTest {
                 demo.graph.deposits.observe_deposits(account.id, 100, true).first().size
         })
         assertEquals(realBefore, real.graph.overview.snapshot())
+        demo.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
+            "Temporary demo account", "must disappear after re-entry", emptyList()))
+        assertEquals(13, demo.graph.overview.snapshot().accounts.size)
 
         val staleDemoCommands = demo.graph.commands
         sessions.exitDemo()
         assertEquals(DataMode.REAL, sessions.session.value.mode)
+        assertTrue(demoDatabaseFiles().isEmpty())
         assertEquals(realBefore, sessions.session.value.graph.overview.snapshot())
         expect(ErrorCode.SESSION_EXPIRED) {
             staleDemoCommands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
@@ -72,8 +85,11 @@ class SessionIsolationTest {
         }
 
         sessions.enterDemo()
-        assertEquals(12, sessions.session.value.graph.overview.snapshot().accounts.size)
+        val restoredDemo = sessions.session.value.graph
+        assertEquals(12, restoredDemo.overview.snapshot().accounts.size)
+        assertTrue(restoredDemo.overview.snapshot().accounts.none { it.name == "Temporary demo account" })
         sessions.exitDemo()
+        assertTrue(demoDatabaseFiles().isEmpty())
     }
 
     @Test fun clear_requires_current_challenge_preserves_display_preferences_and_expires_old_commands() = runBlocking {
@@ -109,6 +125,9 @@ class SessionIsolationTest {
         }
 
         sessions.enterDemo()
+        val demoPreferences = sessions.session.value.graph.settings.observeSettings().first()
+        assertEquals(AppLanguage.ENGLISH, demoPreferences.language)
+        assertEquals(GainLossColorScheme.RED_GAIN, demoPreferences.gainLossColors)
         expect(ErrorCode.SESSION_EXPIRED) { sessions.issueClearChallenge() }
         sessions.exitDemo()
     }

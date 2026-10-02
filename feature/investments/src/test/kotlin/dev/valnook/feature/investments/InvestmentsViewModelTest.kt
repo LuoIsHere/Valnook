@@ -126,8 +126,11 @@ class InvestmentsViewModelTest {
         }}
         val vm=TradeFormViewModel(1,TradeFormMode.CREATE,1,null,null,Direction.BUY,repo,instruments,cash,commands,clock,SavedStateHandle())
         runCurrent()
-        vm.update {it.copy(quantityInput="2",executionPriceInput="90")}
-        assertEquals("180.00 CNY",vm.amountPreview())
+        vm.update {it.copy(quantityInput="2",executionPriceInput="90",feeInput="3.50")}
+        assertEquals("183.50 CNY",vm.amountPreview())
+        vm.update {it.copy(direction=Direction.SELL)}
+        assertEquals("176.50 CNY",vm.amountPreview())
+        vm.update {it.copy(direction=Direction.BUY)}
         vm.submit()
         runCurrent()
         vm.submit()
