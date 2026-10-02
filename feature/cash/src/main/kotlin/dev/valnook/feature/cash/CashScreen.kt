@@ -25,7 +25,7 @@ import java.time.*
     }
 }
 @Composable fun CashContent(rows:List<CashAccount>,on_open:(CashAccount)->Unit) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
         items(rows,key={it.id}) {cash->
             val history_label=stringResource(R.string.cash_changes)+" · "+cash.name
@@ -64,7 +64,7 @@ import java.time.*
             Column(verticalArrangement=Arrangement.spacedBy(Space.sm)) {
                 if(previous_date!=time.toLocalDate())Text(time.toLocalDate().toString(),
                     style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                CashEntryItem(entry){on_entry(entry.id)}
+                CashEntryItem(entry,index<entries.lastIndex||ledger.hasMore){on_entry(entry.id)}
             }
         }
         if(ledger.hasMore)item{TextButton(onClick=vm::load_more_entries){Text(stringResource(R.string.load_more))}}

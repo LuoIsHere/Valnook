@@ -44,6 +44,7 @@
     <string name="investment_quantity">Quantity</string>
     <string name="investment_opening_cost_price">Opening cost per unit</string>
     <string name="investment_execution_price">Execution price</string>
+    <string name="investment_trade_fee">Transaction fee</string>
     <string name="investment_cost_unknown">Cost unknown; complete it later</string>
     <string name="investment_record_date">Record date</string>
     <string name="investment_record_time">Record time</string>
@@ -91,6 +92,8 @@
     <string name="instrument_not_found">Instrument not found</string>
     <string name="instrument_cross_account_value">Total value across accounts %1$s</string>
     <string name="instrument_edit_action">Edit instrument and current price</string>
+    <string name="instrument_price_edit_title">Update current price</string>
+    <string name="instrument_price_shared_hint">This current price is shared by this instrument across all accounts.</string>
     <string name="instrument_cost_by_account">Costs calculated separately by account</string>
     <string name="instrument_create_account_first">Create an account first</string>
     <string name="instrument_no_account_history">No holdings or trades</string>

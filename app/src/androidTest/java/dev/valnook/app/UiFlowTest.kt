@@ -75,11 +75,12 @@ class UiFlowTest {
             throw error
         }
     }
-    private fun save(){
+    private fun localized(resourceId: Int): String = rule.activity.getString(resourceId)
+    private fun save(label:String="保存"){
         val focused=rule.onAllNodes(androidx.compose.ui.test.isFocused() and hasSetTextAction())
         if(focused.fetchSemanticsNodes().isNotEmpty())focused[0].performImeAction()
         rule.waitForIdle()
-        rule.onNodeWithText("保存").performScrollTo().assertIsDisplayed().performClick()
+        rule.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
     }
     private fun native_picker(date:Boolean) {
         onView(isAssignableFrom(if(date)DatePicker::class.java else TimePicker::class.java)).perform(object:ViewAction {
@@ -217,14 +218,21 @@ class UiFlowTest {
         }
         wait_text("合成账户 A")
         rule.onNodeWithText("合成账户 A").performClick()
+        wait_text("投资")
         rule.onNodeWithText("投资").performClick()
         wait_text("合成投资")
         rule.onNodeWithText("合成投资").performClick()
+        wait_text("交易历史")
+        click_list("更新当前价格")
+        wait_text("该当前价格由此标的在所有账户中共用。")
+        rule.onNodeWithText("当前每份价格（最多5位小数）").performTextReplacement("105")
+        save()
         wait_text("交易历史")
         click_list("买入")
         wait_text("成交单价")
         rule.onNodeWithText("份额").performScrollTo().performTextReplacement("2")
         rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("90")
+        rule.onNodeWithText("交易手续费").performScrollTo().performTextReplacement("1.50")
         rule.onNodeWithContentDescription("记账日期:", substring = true).performScrollTo().performClick()
         native_picker(true)
         rule.onNodeWithContentDescription("记账时间:", substring = true).performScrollTo().performClick()
@@ -236,12 +244,14 @@ class UiFlowTest {
         click_record("trade-record-1")
         wait_text("交易详情")
         wait_text("180.00 CNY")
+        wait_text("1.50 CNY")
         rule.activityRule.scenario.recreate()
         wait_text("交易详情")
         click_list("修改买卖记录")
         wait_text("成交单价")
         rule.onNodeWithText("份额").performScrollTo().performTextReplacement("3")
         rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("80")
+        rule.onNodeWithText("交易手续费").performScrollTo().performTextReplacement("2.00")
         save()
         wait_text("240.00 CNY")
         window_shot("trade-detail-window", "修改买卖记录")
@@ -535,6 +545,45 @@ class UiFlowTest {
         }
         show_scene("accounts-empty"){ValnookTheme{AccountsContent(dev.valnook.domain.calculation.AssetValuation.calculate(AssetSnapshot(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), AppSettings())), {})}};shot("accounts-empty")
         show_scene("deposits-gallery"){ValnookTheme{DepositsContent(deposits,LocalDate.parse("2026-04-01").toEpochDay(),{},{})}};shot("deposits-gallery")
+    }
+
+    @Test fun compact_holding_opens_two_column_history_and_updates_shared_price() {
+        val investmentsLabel = localized(dev.valnook.core.designsystem.R.string.investments)
+        val historyLabel = localized(dev.valnook.feature.investments.R.string.investment_trade_history)
+        val feeLabel = localized(dev.valnook.core.designsystem.R.string.trade_fee) + " 1.50 CNY"
+        val updatePriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
+        val sharedPriceHint = localized(dev.valnook.feature.investments.R.string.instrument_price_shared_hint)
+        val currentPriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_current_price)
+        val saveLabel = localized(dev.valnook.core.designsystem.R.string.save)
+        var positionId = 0L
+        var tradeId = 0L
+        runBlocking {
+            val type = graph.investments.save_type(null, "A股股票")
+            positionId = graph.commands.execute(CreateInvestment(UUID.randomUUID().toString(), account_id,
+                "贵州茅台", "600519.SH", type, "CNY", R.parse_e8("10"), R.parse_e8("1468.2"),
+                R.parse_e8("1200"))).id
+            tradeId = graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), positionId,
+                Direction.BUY, R.parse_e8("1"), R.parse_e8("1300"), graph.clock.millis(), false,
+                fee_minor = 150)).id
+        }
+        wait_text("合成账户 A")
+        rule.onNodeWithText("合成账户 A").performClick()
+        wait_text(investmentsLabel)
+        rule.onNodeWithText(investmentsLabel).performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("holding-$positionId").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("holding-$positionId").performClick()
+        wait_text(historyLabel)
+        wait_text(feeLabel)
+        rule.onNodeWithTag("trade-record-$tradeId").assertExists()
+        rule.onNodeWithText(updatePriceLabel).performScrollTo().assertIsDisplayed().performClick()
+        wait_text(sharedPriceHint)
+        rule.onNodeWithText(currentPriceLabel).performTextReplacement("1500")
+        save(saveLabel)
+        wait_text(historyLabel)
+        runBlocking {
+            val instrumentId = db.positions().investment(positionId)!!.instrument_id
+            assertEquals(150000000L, db.instruments().instrument(instrumentId)!!.current_price_e5)
+        }
     }
     @Test fun all_account_totals_settings_and_root_scroll_survive_switches() {
         runBlocking {

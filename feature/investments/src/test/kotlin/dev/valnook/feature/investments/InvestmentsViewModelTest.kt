@@ -57,7 +57,8 @@ class InvestmentsViewModelTest {
         val saved=SavedStateHandle()
         val vm=TradeFormViewModel(1,TradeFormMode.EDIT,null,null,999,Direction.BUY,repository,instruments,cash,commands,clock,saved)
         runCurrent()
-        vm.update {it.copy(quantityInput="3",executionPriceInput="80",occurredAt=LocalDateTime.parse("2026-09-01T20:00"))}
+        vm.update {it.copy(quantityInput="3",executionPriceInput="80",feeInput="3.50",
+            occurredAt=LocalDateTime.parse("2026-09-01T20:00"))}
         val restored=TradeFormViewModel(1,TradeFormMode.EDIT,null,null,999,Direction.BUY,repository,instruments,cash,commands,clock,
             SavedStateHandle(saved.keys().associateWith{saved.get<Any?>(it)}))
         runCurrent()
@@ -67,6 +68,7 @@ class InvestmentsViewModelTest {
         val request=requests.single() as EditInvestmentTrade
         assertEquals(4L,request.expected_revision)
         assertEquals(R.parse_e8("3"),request.quantity_e8)
+        assertEquals(350L,request.fee_minor)
         assertEquals(LocalDateTime.parse("2026-09-01T20:00").atZone(clock.zone).toInstant().toEpochMilli(),request.occurred_at_ms)
     }
     @Test fun delete_is_explicit_and_unknown_result_retries_original_request()=runTest(dispatcher) {

@@ -153,6 +153,7 @@ private fun SessionRoot(
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
         is AccountInvestmentsKey -> stringResource(R.string.title_all_instruments)
         is InstrumentKey -> stringResource(R.string.title_instrument_detail)
+        is InstrumentPriceEditKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
         is AccountInstrumentKey -> accountName(current.accountId)
         is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
         else -> "Valnook"

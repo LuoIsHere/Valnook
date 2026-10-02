@@ -15,7 +15,7 @@ internal fun InvestmentWithType.toModel(): Investment {
 }
 internal fun TradeEntity.toModel(): Trade = Trade(id, investment_id, Direction.valueOf(direction),
     quantity_e8, execution_price_e8, amount_minor, Currency.of(currency_code), cash_linked, occurred_at_ms, revision,
-    cash_account_id)
+    cash_account_id, fee_minor)
 
 internal fun InstrumentWithType.toModel(): Instrument {
     val value = instrument

@@ -84,12 +84,12 @@ data class Investment(val id: Long, val account_id: Long, val type_id: Long, val
     val opening_cost_price_e8: Long? = null, val revision: Long = 1, val last_activity_at_ms: Long = 0,
     val instrumentId: Long = id, val openingAtMs: Long = Long.MIN_VALUE,
     val remainingCost: String? = null, val realizedProfit: String? = null,
-    val chronologyValid: Boolean = true, val algorithmVersion: Int = 2)
+    val chronologyValid: Boolean = true, val algorithmVersion: Int = 3)
 enum class Direction { BUY, SELL }
 data class Trade(val id: Long, val investment_id: Long, val direction: Direction,
     val quantity_e8: Long, val execution_price_e8: Long, val amount_minor: Long,
     val currency: Currency, val cash_linked: Boolean, val occurred_at_ms: Long, val revision: Long = 1,
-    val cashAccountId: Long? = null)
+    val cashAccountId: Long? = null, val fee_minor: Long = 0)
 
 sealed interface CashLinkSelection {
     data object None : CashLinkSelection

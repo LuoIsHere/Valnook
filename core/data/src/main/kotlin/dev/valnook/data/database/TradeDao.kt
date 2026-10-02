@@ -16,8 +16,8 @@ interface TradeDao {
     suspend fun trade(id: Long): TradeEntity?
     @Query("SELECT t.* FROM investment_trades t INNER JOIN investments i ON i.id=t.investment_id WHERE i.savings_account_id=:account_id AND t.id=:id AND t.is_deleted=0")
     fun observe_trade(account_id: Long, id: Long): Flow<TradeEntity?>
-    @Query("UPDATE investment_trades SET direction=:direction,quantity_e8=:quantity,execution_price_e8=:price,amount_minor=:amount,cash_linked=:cashAccountId IS NOT NULL,cash_account_id=:cashAccountId,occurred_at_ms=:occurred,revision=revision+1,updated_at_ms=:now WHERE id=:id AND revision=:old_revision AND is_deleted=0")
-    suspend fun edit_trade(id: Long, old_revision: Long, direction: String, quantity: Long, price: Long, amount: Long,
+    @Query("UPDATE investment_trades SET direction=:direction,quantity_e8=:quantity,execution_price_e8=:price,amount_minor=:amount,fee_minor=:fee,cash_linked=:cashAccountId IS NOT NULL,cash_account_id=:cashAccountId,occurred_at_ms=:occurred,revision=revision+1,updated_at_ms=:now WHERE id=:id AND revision=:old_revision AND is_deleted=0")
+    suspend fun edit_trade(id: Long, old_revision: Long, direction: String, quantity: Long, price: Long, amount: Long, fee: Long,
         cashAccountId: Long?, occurred: Long, now: Long): Int
     @Query("UPDATE investment_trades SET is_deleted=1,revision=revision+1,updated_at_ms=:now WHERE id=:id AND revision=:old_revision AND is_deleted=0")
     suspend fun delete_trade(id: Long, old_revision: Long, now: Long): Int

@@ -1,7 +1,9 @@
 package dev.valnook.feature.investments
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -37,10 +39,10 @@ private fun signed(value: BigDecimal?, digits: Int): String =
 @Composable
 private fun Metric(primary: String, secondary: String, modifier: Modifier = Modifier,
     color: Color = MaterialTheme.colorScheme.onSurface) {
-    Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(primary, style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
+    Column(modifier, horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        Text(primary, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
             textAlign = TextAlign.End, color = color)
-        Text(secondary, style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+        Text(secondary, style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
             textAlign = TextAlign.End, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -50,63 +52,55 @@ fun HoldingRow(asset: Investment, onOpen: (() -> Unit)? = null) {
     val profit = InvestmentProfitCalculator.fromReadModel(asset)
     val market = number(AssetValuation.marketValue(asset), asset.currency.fraction_digits)
     val price = DecimalRules.format_e8(asset.current_price_e8)
-    val cost = profit.average_cost?.setScale(8, RoundingMode.HALF_UP)?.stripTrailingZeros()?.toPlainString() ?: "—"
+    val cost = profit.average_cost?.setScale(5, RoundingMode.HALF_UP)?.stripTrailingZeros()?.toPlainString() ?: "—"
     val quantity = stringResource(R.string.investment_units, DecimalRules.format_e8(asset.holding_quantity_e8))
     val floating = signed(profit.unrealized, asset.currency.fraction_digits)
     val percentage = profit.unrealizedPercent?.let { signed(it, 2) + "%" } ?: "—"
     val color = profitColor(profit.unrealized?.signum() ?: 0)
     val click = if (onOpen == null) Modifier else Modifier.clickable(role = Role.Button, onClick = onOpen)
-    BoxWithConstraints(Modifier.fillMaxWidth().then(click).padding(vertical = 8.dp).testTag("holding-${asset.id}")) {
-        val fontScale = LocalDensity.current.fontScale
-        val stacked = fontScale > 1.3f || maxWidth < 330.dp || maxOf(market.length, price.length, floating.length) > 12
-        val name: @Composable () -> Unit = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(asset.name, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                InstrumentCodeLine(asset.symbol, asset.currency.code,
-                    symbolModifier = Modifier.testTag("holding-symbol-${asset.id}"),
-                    currencyModifier = Modifier.testTag("holding-currency-${asset.id}"))
-            }
+    Row(Modifier.fillMaxWidth().then(click).padding(vertical = 6.dp).testTag("holding-${asset.id}"),
+        horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1.55f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(asset.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+            InstrumentCodeLine(asset.symbol, asset.currency.code,
+                symbolModifier = Modifier.testTag("holding-symbol-${asset.id}"),
+                currencyModifier = Modifier.testTag("holding-currency-${asset.id}"))
         }
-        if (!stacked) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1.3f)) { name() }
-            Metric(market, quantity, Modifier.weight(1f))
-            Metric(price, cost, Modifier.weight(1f))
-            Metric(floating, percentage, Modifier.weight(1f), color)
-        } else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            name()
-            if (fontScale <= 1.3f) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) { Text(stringResource(R.string.investment_value_quantity), style = MaterialTheme.typography.labelSmall)
-                    Metric(market, quantity, Modifier.fillMaxWidth()) }
-                Column(Modifier.weight(1f)) { Text(stringResource(R.string.investment_price_cost), style = MaterialTheme.typography.labelSmall)
-                    Metric(price, cost, Modifier.fillMaxWidth()) }
-                Column(Modifier.weight(1f)) { Text(stringResource(R.string.investment_unrealized), style = MaterialTheme.typography.labelSmall)
-                    Metric(floating, percentage, Modifier.fillMaxWidth(), color) }
-            } else {
-                listOf(Triple(stringResource(R.string.investment_value_quantity), market, quantity),
-                    Triple(stringResource(R.string.investment_price_cost), price, cost),
-                    Triple(stringResource(R.string.investment_unrealized), floating, percentage)).forEachIndexed { index, (label, main, sub) ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        Metric(main, sub, Modifier.weight(1.6f), if (index == 2) color else MaterialTheme.colorScheme.onSurface)
-                    }
-                }
-            }
-        }
+        Metric(market, quantity, Modifier.weight(1f))
+        Metric(price, cost, Modifier.weight(1f))
+        Metric(floating, percentage, Modifier.weight(1f), color)
     }
 }
 
 @Composable
 internal fun HoldingColumns() {
-    if (LocalDensity.current.fontScale <= 1.3f) BoxWithConstraints(Modifier.fillMaxWidth()) {
-        if (maxWidth >= 330.dp) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(stringResource(R.string.investment_name_symbol) to 1.3f,
-                stringResource(R.string.investment_value_quantity) to 1f,
-                stringResource(R.string.investment_price_cost) to 1f,
-                stringResource(R.string.investment_unrealized) to 1f).forEach { (title, weight) ->
-                Text(title, Modifier.weight(weight), style = MaterialTheme.typography.labelSmall,
-                    textAlign = if (weight > 1f) TextAlign.Start else TextAlign.End,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Row(Modifier.fillMaxWidth().padding(bottom = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf(stringResource(R.string.investment_name_symbol) to 1.55f,
+            stringResource(R.string.investment_value_quantity) to 1f,
+            stringResource(R.string.investment_price_cost) to 1f,
+            stringResource(R.string.investment_unrealized) to 1f).forEach { (title, weight) ->
+            Text(title, Modifier.weight(weight), style = MaterialTheme.typography.labelSmall,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textAlign = if (weight > 1f) TextAlign.Start else TextAlign.End,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+internal fun HoldingTable(assets: List<Investment>, onOpen: ((Investment) -> Unit)? = null) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val needsScroll = LocalDensity.current.fontScale > 1.3f || maxWidth < 320.dp
+        val tableWidth = if (needsScroll) 520.dp else maxWidth
+        Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            Column(Modifier.width(tableWidth)) {
+                HoldingColumns()
+                assets.forEachIndexed { index, asset ->
+                    HoldingRow(asset, onOpen?.let { callback -> { callback(asset) } })
+                    if (index < assets.lastIndex)
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+                }
             }
         }
     }

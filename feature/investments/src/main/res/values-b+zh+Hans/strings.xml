@@ -44,6 +44,7 @@
     <string name="investment_quantity">份额</string>
     <string name="investment_opening_cost_price">期初成本单价</string>
     <string name="investment_execution_price">成交单价</string>
+    <string name="investment_trade_fee">交易手续费</string>
     <string name="investment_cost_unknown">成本未知，稍后补全</string>
     <string name="investment_record_date">记账日期</string>
     <string name="investment_record_time">记账时间</string>
@@ -91,6 +92,8 @@
     <string name="instrument_not_found">标的不存在</string>
     <string name="instrument_cross_account_value">跨账户总市值 %1$s</string>
     <string name="instrument_edit_action">编辑标的与当前价格</string>
+    <string name="instrument_price_edit_title">更新当前价格</string>
+    <string name="instrument_price_shared_hint">该当前价格由此标的在所有账户中共用。</string>
     <string name="instrument_cost_by_account">按账户分别计算成本</string>
     <string name="instrument_create_account_first">请先创建账户</string>
     <string name="instrument_no_account_history">尚无持仓与交易记录</string>

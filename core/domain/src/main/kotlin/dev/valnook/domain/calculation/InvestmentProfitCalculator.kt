@@ -7,7 +7,7 @@ import java.math.RoundingMode
 
 /** Independent moving-average cost chain for one account position. Never replay cash here. */
 object InvestmentProfitCalculator {
-    const val ALGORITHM_VERSION = 2
+    const val ALGORITHM_VERSION = 3
     const val ALLOCATION_SCALE = 32
 
     fun calculate(asset: Investment, trades: List<Trade>): InvestmentProfit {
@@ -23,9 +23,10 @@ object InvestmentProfitCalculator {
                 conflictTradeId = conflictTradeId ?: trade.id
             }
             val amount = BigDecimal.valueOf(trade.amount_minor, asset.currency.fraction_digits)
+            val fee = BigDecimal.valueOf(trade.fee_minor, asset.currency.fraction_digits)
             if (trade.direction == Direction.BUY) {
                 quantityE8 = DecimalRules.add(quantityE8, trade.quantity_e8)
-                remainingCost = remainingCost?.add(amount)
+                remainingCost = remainingCost?.add(amount)?.add(fee)
             } else {
                 if (trade.quantity_e8 > quantityE8 || quantityE8 <= 0) {
                     chronological = false
@@ -36,7 +37,8 @@ object InvestmentProfitCalculator {
                 val allocated = if (trade.quantity_e8 == quantityE8) remainingCost else
                     remainingCost?.multiply(BigDecimal.valueOf(trade.quantity_e8))
                         ?.divide(BigDecimal.valueOf(quantityE8), ALLOCATION_SCALE, RoundingMode.HALF_UP)
-                realized = if (allocated == null || realized == null) null else realized.add(amount.subtract(allocated))
+                realized = if (allocated == null || realized == null) null else
+                    realized.add(amount.subtract(fee).subtract(allocated))
                 quantityE8 -= trade.quantity_e8
                 remainingCost = if (quantityE8 == 0L) BigDecimal.ZERO else
                     if (remainingCost == null) null else remainingCost.subtract(requireNotNull(allocated))

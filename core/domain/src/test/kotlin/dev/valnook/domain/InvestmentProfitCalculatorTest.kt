@@ -13,8 +13,9 @@ class InvestmentProfitCalculatorTest {
     private val currency = Currency.of("USD")
     private fun asset(held: String, opening: String = "0", cost: String? = null, price: String = "180") =
         Investment(1, 1, 1, "基金", "QQQ", "QQQ", currency, e(opening), e(held), e(price), 0, cost?.let(::e))
-    private fun trade(id: Long, direction: Direction, quantity: String, price: String, time: Long = id) =
-        Trade(id, 1, direction, e(quantity), e(price), R.amount(e(quantity), e(price), currency), currency, false, time)
+    private fun trade(id: Long, direction: Direction, quantity: String, price: String, time: Long = id,
+        feeMinor: Long = 0) = Trade(id, 1, direction, e(quantity), e(price),
+        R.amount(e(quantity), e(price), currency), currency, false, time, fee_minor = feeMinor)
     private fun decimal(expected: String, actual: BigDecimal?) = assertEquals(0, BigDecimal(expected).compareTo(requireNotNull(actual)))
     private fun displayed(expected: String, actual: BigDecimal?) = decimal(expected, actual?.setScale(2, RoundingMode.HALF_UP))
 
@@ -94,5 +95,14 @@ class InvestmentProfitCalculatorTest {
         val history = (1L..4L).map { id -> trade(id, if (id % 2 == 1L) Direction.BUY else Direction.SELL, "1000000000", "90000000") }
         val result = Calculator.calculate(asset("0"), history)
         assertNull(result.average_cost); decimal("0", result.realized); decimal("0", result.remainingCost)
+    }
+    @Test fun fees_raise_buy_cost_and_reduce_realized_sale_proceeds() {
+        val result = Calculator.calculate(asset("5", price = "120"), listOf(
+            trade(1, Direction.BUY, "10", "100", feeMinor = 200),
+            trade(2, Direction.SELL, "5", "120", feeMinor = 300)))
+        decimal("501", result.remainingCost)
+        decimal("100.2", result.average_cost)
+        decimal("96", result.realized)
+        decimal("99", result.unrealized)
     }
 }

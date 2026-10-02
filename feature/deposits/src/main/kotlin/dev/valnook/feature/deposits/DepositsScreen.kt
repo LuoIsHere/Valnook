@@ -32,23 +32,24 @@ import kotlinx.coroutines.delay
 }
 @Composable fun DepositsContent(rows:List<TermDeposit>,today:Long,on_form:()->Unit,on_more:()->Unit,
     on_open:(Long)->Unit={},on_archive:(()->Unit)?=null,closed:Boolean=false,hasMore:Boolean=rows.size>=50) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(Space.md,Space.md),verticalArrangement=Arrangement.spacedBy(Space.md)) {
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(Space.md,Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         if(closed)item{Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.titleLarge)}
         else if(on_archive!=null)item{ActionButton(onClick=on_archive,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.settled_deposits))}}
         item{Text(stringResource(R.string.term_formula),style=MaterialTheme.typography.bodyMedium)}
         if(rows.isEmpty())item{EmptyState(stringResource(if(closed)R.string.empty_settled_deposits else R.string.empty_deposits))}
-        items(rows,key={it.id}) { d ->
-            Card(onClick={on_open(d.id)},modifier=Modifier.fillMaxWidth().testTag("deposit-record-${d.id}")) {
-                Column(Modifier.padding(Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
-                    AmountText(Decimal.format_display(d.principal_minor,d.currency.fraction_digits),d.currency.code)
-                    Text(stringResource(R.string.deposit_detail,Decimal.format_e8(d.annual_rate_percent_e8),
-                        LocalDate.ofEpochDay(d.start_epoch_day),LocalDate.ofEpochDay(d.end_epoch_day)))
-                    Text(stringResource(R.string.interest_value,Decimal.format_units(d.expected_interest_minor,d.currency.fraction_digits),d.currency.code))
-                    val progress=Decimal.progress(d.start_epoch_day,d.end_epoch_day,today)
-                    LinearProgressIndicator(progress={progress.toFloat()},modifier=Modifier.fillMaxWidth())
-                    Text(stringResource(R.string.progress_value,progress.multiply(java.math.BigDecimal("100")).toInt()))
-                    Text(deposit_status(d,today))
-                }
+        itemsIndexed(rows,key={_,deposit->deposit.id}) { index,d ->
+            RecordListItem(Modifier.testTag("deposit-record-${d.id}"), {on_open(d.id)}, index<rows.lastIndex||hasMore) {
+                AmountText(Decimal.format_display(d.principal_minor,d.currency.fraction_digits),d.currency.code)
+                Text(stringResource(R.string.deposit_detail,Decimal.format_e8(d.annual_rate_percent_e8),
+                    LocalDate.ofEpochDay(d.start_epoch_day),LocalDate.ofEpochDay(d.end_epoch_day)),
+                    style=MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.interest_value,Decimal.format_units(d.expected_interest_minor,d.currency.fraction_digits),d.currency.code),
+                    style=MaterialTheme.typography.bodySmall)
+                val progress=Decimal.progress(d.start_epoch_day,d.end_epoch_day,today)
+                LinearProgressIndicator(progress={progress.toFloat()},modifier=Modifier.fillMaxWidth())
+                Text(stringResource(R.string.progress_value,progress.multiply(java.math.BigDecimal("100")).toInt()),
+                    style=MaterialTheme.typography.labelSmall)
+                Text(deposit_status(d,today),style=MaterialTheme.typography.labelSmall)
             }
         }
         if(hasMore)item{TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}}

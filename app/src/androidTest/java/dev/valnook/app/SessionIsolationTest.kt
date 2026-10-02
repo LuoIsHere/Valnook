@@ -49,9 +49,13 @@ class SessionIsolationTest {
         assertEquals(48, snapshot.cash.size)
         assertEquals(60, snapshot.instruments.size)
         assertEquals(80, snapshot.positions.size)
-        assertEquals(2_000, snapshot.positions.sumOf {
+        assertEquals(720, snapshot.positions.sumOf {
             demo.graph.investments.trade_page(it.id, null, 100).size
         })
+        assertTrue(snapshot.instruments.any { it.symbol == "600519.SH" && it.name == "贵州茅台" })
+        assertTrue(snapshot.instruments.any { it.symbol == "0700.HK" && it.name == "腾讯控股" })
+        assertTrue(snapshot.instruments.any { it.symbol == "AAPL" && it.name == "Apple" })
+        assertTrue(snapshot.instruments.none { it.symbol.contains("DEMO", ignoreCase = true) })
         assertEquals(24, snapshot.accounts.sumOf { account ->
             demo.graph.deposits.observe_deposits(account.id, 100, false).first().size +
                 demo.graph.deposits.observe_deposits(account.id, 100, true).first().size

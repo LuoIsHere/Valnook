@@ -9,7 +9,9 @@ import dev.valnook.feature.investments.*
 internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit, accountName: (Long) -> String) {
     entry<InvestmentsKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
-        InvestmentHome(vm) { open(AccountInvestmentsKey(it)) }
+        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }) { accountId, positionId ->
+            open(AssetKey(accountId, positionId))
+        }
     }
     entry<InstrumentLibraryKey> {
         val vm = pageViewModel { InstrumentLibraryViewModel(graph.overview, graph.investments) }
@@ -30,6 +32,10 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     entry<InstrumentEditKey> { route ->
         val vm = pageViewModel { InstrumentEditViewModel(route.id, graph.instruments, graph.investments, graph.commands, createSavedStateHandle()) }
         InstrumentEditScreen(vm, back)
+    }
+    entry<InstrumentPriceEditKey> { route ->
+        val vm = pageViewModel { InstrumentEditViewModel(route.id, graph.instruments, graph.investments, graph.commands, createSavedStateHandle()) }
+        InstrumentPriceEditScreen(vm, back)
     }
     entry<TypesKey> {
         val vm = pageViewModel { AssetTypesViewModel(graph.investments) }
@@ -60,5 +66,6 @@ private fun AccountPositionDetail(graph: AppGraph, accountId: Long, positionId: 
     val vm = pageViewModel { InvestmentDetailViewModel(accountId, positionId, graph.investments) }
     InvestmentDetail(vm, { open(TradeDetailKey(accountId, it)) },
         { direction, asset -> open(TradeFormKey(accountId, TradeFormMode.CREATE, asset.instrumentId, asset.id, direction = direction)) },
-        { open(TradeFormKey(accountId, TradeFormMode.OPENING_COST, it.instrumentId, it.id)) })
+        { open(TradeFormKey(accountId, TradeFormMode.OPENING_COST, it.instrumentId, it.id)) },
+        { open(InstrumentPriceEditKey(it.instrumentId)) })
 }

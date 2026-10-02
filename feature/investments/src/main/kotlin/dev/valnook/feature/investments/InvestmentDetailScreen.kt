@@ -13,7 +13,8 @@ import dev.valnook.domain.calculation.InvestmentProfitCalculator
 import dev.valnook.domain.model.*
 
 @Composable fun InvestmentDetail(vm: InvestmentDetailViewModel, onTrade: (Long) -> Unit,
-    onCreateTrade: (Direction, Investment) -> Unit, onCost: (Investment) -> Unit) {
+    onCreateTrade: (Direction, Investment) -> Unit, onCost: (Investment) -> Unit,
+    onPrice: (Investment) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val asset = state.asset
     if (asset == null) {
@@ -22,9 +23,8 @@ import dev.valnook.domain.model.*
         return
     }
     val profit = InvestmentProfitCalculator.fromReadModel(asset)
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item { HoldingColumns() }
-        item { HoldingRow(asset) }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        item { HoldingTable(listOf(asset)) }
         item {
             Text(stringResource(R.string.investment_remaining_cost, money(profit.remainingCost, asset.currency)))
             Text(stringResource(R.string.investment_realized_total, money(profit.realized, asset.currency)))
@@ -33,10 +33,15 @@ import dev.valnook.domain.model.*
             ActionButton({ onCreateTrade(Direction.BUY, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_buy)) }
             ActionButton({ onCreateTrade(Direction.SELL, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_sell)) }
         } }
+        item { ActionButton({ onPrice(asset) }, Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.instrument_price_edit_title))
+        } }
         if (asset.opening_quantity_e8 > 0) item { ActionButton({ onCost(asset) }) { Text(stringResource(R.string.investment_edit_opening_cost)) } }
         item { Text(stringResource(R.string.investment_trade_history), style = MaterialTheme.typography.titleLarge) }
         if (state.trades.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_trades)) }
-        items(state.trades, key = { it.id }) { TradeHistoryItem(it) { onTrade(it.id) } }
+        itemsIndexed(state.trades, key = { _, trade -> trade.id }) { index, trade ->
+            TradeHistoryItem(trade, index < state.trades.lastIndex || state.hasMore) { onTrade(trade.id) }
+        }
         if (state.hasMore) item { TextButton(vm::loadMore) { Text(stringResource(R.string.investment_load_more)) } }
     }
 }

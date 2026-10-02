@@ -37,6 +37,7 @@ data class SaveOpeningPosition(override val operation_id: String, val accountId:
 
 data class RecordAccountTrade(override val operation_id: String, val accountId: Long, val instrumentId: Long,
     val direction: Direction, val quantityE8: Long, val executionPriceE8: Long,
-    val occurredAtMs: Long, val cashLinked: Boolean, val cashAccountId: Long? = null) : FinancialCommand
+    val occurredAtMs: Long, val cashLinked: Boolean, val cashAccountId: Long? = null,
+    val feeMinor: Long = 0) : FinancialCommand
 
 data class SaveAssetType(override val operation_id: String, val typeId: Long?, val name: String) : FinancialCommand

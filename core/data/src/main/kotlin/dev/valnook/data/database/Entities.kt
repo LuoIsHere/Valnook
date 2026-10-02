@@ -79,7 +79,8 @@ data class TradeEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val in
     val occurred_at_ms: Long, val created_at_ms: Long,
     @ColumnInfo(defaultValue = "1") val revision: Long = 1,
     @ColumnInfo(defaultValue = "0") val is_deleted: Boolean = false,
-    @ColumnInfo(defaultValue = "0") val updated_at_ms: Long = 0)
+    @ColumnInfo(defaultValue = "0") val updated_at_ms: Long = 0,
+    @ColumnInfo(defaultValue = "0") val fee_minor: Long = 0)
 
 @Entity(tableName = "cash_entries", foreignKeys = [
     ForeignKey(entity = CashEntity::class, parentColumns = ["id"], childColumns = ["cash_account_id"], onDelete = ForeignKey.RESTRICT),

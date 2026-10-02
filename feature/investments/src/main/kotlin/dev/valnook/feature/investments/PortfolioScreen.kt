@@ -45,7 +45,8 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
     if (!total.complete && missing.isNotEmpty()) Text(stringResource(R.string.investment_incomplete, missing),
         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }
-@Composable fun InvestmentHome(vm: PortfolioViewModel, onAccount: (Long) -> Unit) {
+@Composable fun InvestmentHome(vm: PortfolioViewModel, onAccount: (Long) -> Unit,
+    onPosition: (Long, Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         PortfolioState.Loading -> CircularProgressIndicator()
@@ -89,8 +90,9 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                             Text(stringResource(R.string.investment_partial_summary), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error)
                         if (expanded) {
-                            HoldingColumns()
-                            groups[account.account.id].orEmpty().forEach { HoldingRow(it) }
+                            HoldingTable(groups[account.account.id].orEmpty()) {
+                                onPosition(account.account.id, it.id)
+                            }
                         }
                     }
                 }
@@ -109,8 +111,7 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
         item { Text(stringResource(if (all) R.string.investment_all_instruments else R.string.investment_current_holdings), style = MaterialTheme.typography.titleLarge) }
         if (!all) item { ActionButton(onAll, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_all_instruments)) } }
         if (positions.isEmpty()) item { EmptyState(stringResource(if (all) R.string.investment_no_associations else R.string.investment_no_holdings)) }
-        item { HoldingColumns() }
-        items(positions, key = { it.id }) { HoldingRow(it) { onPosition(it.id) } }
+        item { HoldingTable(positions) { onPosition(it.id) } }
         item { Button(onClick = onBuy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_choose_to_buy)) } }
     }
 }

@@ -19,7 +19,7 @@ internal object CommandFingerprint {
                 command.quantityE8, command.costPriceE8, command.occurredAtMs)
             is RecordAccountTrade -> listOf("ACCOUNT_TRADE", command.accountId, command.instrumentId,
                 command.direction, command.quantityE8, command.executionPriceE8, command.occurredAtMs,
-                command.cashLinked, command.cashAccountId)
+                command.cashLinked, command.cashAccountId, command.feeMinor)
             is SetCashBalance -> listOf("CASH_SET",command.account_id,Currency.of(command.currency_code).code,
                 command.balance_minor,command.expected_revision,command.cashAccountId,command.name.trim(),command.note)
             is OpenTermDeposit -> listOf("TERM_OPEN",command.account_id,Currency.of(command.currency_code).code,command.principal_minor,
@@ -34,10 +34,11 @@ internal object CommandFingerprint {
                 (command.opening_cost_price_e8?.let{listOf("OPENING_COST",it)} ?: emptyList())
             is SetOpeningInvestmentCost -> listOf("OPENING_COST",command.investment_id,command.expected_revision,command.price_e8)
             is RecordInvestmentTrade -> listOf(command.direction.name,command.investment_id,command.quantity_e8,
-                command.execution_price_e8,command.occurred_at_ms,command.cash_linked,command.cashAccountId)
+                command.execution_price_e8,command.occurred_at_ms,command.cash_linked,command.cashAccountId,
+                command.fee_minor)
             is EditInvestmentTrade -> listOf("TRADE_EDIT",command.trade_id,command.expected_revision,command.direction,
                 command.quantity_e8,command.execution_price_e8,command.occurred_at_ms,command.cash_linked,
-                command.cashAccountId)
+                command.cashAccountId,command.fee_minor)
             is DeleteInvestmentTrade -> listOf("TRADE_DELETE",command.trade_id,command.expected_revision)
             is EditCashEntry -> listOf("CASH_EDIT",command.entry_id,command.expected_revision,command.delta_minor,
                 command.occurred_at_ms,command.note.trim())

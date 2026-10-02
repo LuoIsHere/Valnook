@@ -52,13 +52,15 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         val position = positions.position(command.accountId, command.instrumentId)?.id ?: opening(
             SaveOpeningPosition(command.operation_id, command.accountId, command.instrumentId, 0, null, command.occurredAtMs), now).id
         return record(RecordInvestmentTrade(command.operation_id, position, command.direction, command.quantityE8,
-            command.executionPriceE8, command.occurredAtMs, command.cashLinked, command.cashAccountId), now)
+            command.executionPriceE8, command.occurredAtMs, command.cashLinked, command.cashAccountId,
+            command.feeMinor), now)
     }
 
     suspend fun record(command: RecordInvestmentTrade, now: Long): OperationResult {
         val position = positions.investment(command.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val amount = R.amount(command.quantity_e8, command.execution_price_e8, cash.currency(instrument.currency_code), true)
+        R.check_nonnegative(command.fee_minor)
         val cashAccountId = cash.resolveLink(position.savings_account_id, instrument.currency_code,
             command.cash_linked, command.cashAccountId)
         if (command.direction == Direction.SELL && command.quantity_e8 > position.holding_quantity_e8)
@@ -67,12 +69,13 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
             direction = command.direction.name, quantity_e8 = command.quantity_e8, execution_price_e8 = command.execution_price_e8,
             amount_minor = amount, currency_code = instrument.currency_code, cash_linked = cashAccountId != null,
             cash_account_id = cashAccountId,
-            occurred_at_ms = command.occurred_at_ms, created_at_ms = now, updated_at_ms = now))
+            occurred_at_ms = command.occurred_at_ms, created_at_ms = now, updated_at_ms = now,
+            fee_minor = command.fee_minor))
         fault(TransactionPoint.AFTER_BUSINESS)
         rebuild(position, now)
         db.instruments().lockTradeIdentity(position.instrument_id)
         if (cashAccountId != null) {
-            val delta = impact(command.direction, amount)
+            val delta = impact(command.direction, amount, command.fee_minor)
             cash.change(command.operation_id, cashAccountId, delta, command.direction.name, now)
             cash.entry(command.operation_id, cashAccountId, "TRADE", id, delta, command.occurred_at_ms, now)
         }
@@ -96,13 +99,15 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         val position = positions.investment(old.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val amount = R.amount(command.quantity_e8, command.execution_price_e8, cash.currency(instrument.currency_code), true)
+        R.check_nonnegative(command.fee_minor)
         val cashAccountId = cash.resolveLink(position.savings_account_id, instrument.currency_code,
             command.cash_linked, command.cashAccountId)
         if (trades.edit_trade(old.id, old.revision, command.direction.name, command.quantity_e8, command.execution_price_e8,
-                amount, cashAccountId, command.occurred_at_ms, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
+                amount, command.fee_minor, cashAccountId, command.occurred_at_ms, now) != 1)
+            throw DomainException(ErrorCode.STALE_RECORD)
         fault(TransactionPoint.AFTER_BUSINESS)
         rebuild(position, now)
-        syncCash(command.operation_id, old, position, command.direction, amount, cashAccountId,
+        syncCash(command.operation_id, old, position, command.direction, amount, command.fee_minor, cashAccountId,
             command.occurred_at_ms, now, "TRADE_EDIT")
         return OperationResult("INVESTMENT_TRADE", old.id)
     }
@@ -113,7 +118,7 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         if (trades.delete_trade(old.id, old.revision, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
         fault(TransactionPoint.AFTER_BUSINESS)
         rebuild(position, now)
-        syncCash(command.operation_id, old, position, Direction.valueOf(old.direction), old.amount_minor,
+        syncCash(command.operation_id, old, position, Direction.valueOf(old.direction), old.amount_minor, 0,
             null, old.occurred_at_ms, now, "TRADE_DELETE")
         return OperationResult("INVESTMENT_TRADE", old.id)
     }
@@ -141,12 +146,16 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         fault(TransactionPoint.AFTER_COST)
     }
 
-    private fun impact(direction: Direction, amount: Long): Long = if (direction == Direction.BUY) -amount else amount
+    private fun impact(direction: Direction, amount: Long, fee: Long): Long = when (direction) {
+        Direction.BUY -> -R.add(amount, fee)
+        Direction.SELL -> R.replace_contribution(amount, fee, 0)
+    }
 
     private suspend fun syncCash(operationId: String, old: TradeEntity, position: InvestmentEntity,
-        direction: Direction, amount: Long, cashAccountId: Long?, occurred: Long, now: Long, reason: String) {
-        val oldImpact = if (old.cash_account_id != null) impact(Direction.valueOf(old.direction), old.amount_minor) else 0
-        val newImpact = if (cashAccountId != null) impact(direction, amount) else 0
+        direction: Direction, amount: Long, fee: Long, cashAccountId: Long?, occurred: Long, now: Long, reason: String) {
+        val oldImpact = if (old.cash_account_id != null)
+            impact(Direction.valueOf(old.direction), old.amount_minor, old.fee_minor) else 0
+        val newImpact = if (cashAccountId != null) impact(direction, amount, fee) else 0
         val entry = db.cash().source_entry("TRADE", old.id)
         if (old.cash_account_id != null) check(entry != null && !entry.is_deleted && entry.delta_minor == oldImpact)
         if (old.cash_account_id == null && cashAccountId == null) return

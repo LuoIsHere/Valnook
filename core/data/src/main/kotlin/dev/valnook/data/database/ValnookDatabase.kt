@@ -8,7 +8,7 @@ import dev.valnook.domain.model.Currency
 @Database(entities = [AccountEntity::class,CurrencyEntity::class,CashEntity::class,DepositEntity::class,
     TypeEntity::class,InstrumentEntity::class,InvestmentEntity::class,TradeEntity::class,OperationEntity::class,MovementEntity::class,CashEntryEntity::class,
     SettingsEntity::class,FxRateEntity::class],
-    version = 5, exportSchema = true)
+    version = 6, exportSchema = true)
 abstract class ValnookDatabase : RoomDatabase() {
     abstract fun ledger(): LedgerDao
     abstract fun accounts(): AccountDao
@@ -30,7 +30,7 @@ abstract class ValnookDatabase : RoomDatabase() {
         }
         fun open(context: Context): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")
-                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5)
+                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun inMemory(context: Context): ValnookDatabase =
             Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(seed).build()

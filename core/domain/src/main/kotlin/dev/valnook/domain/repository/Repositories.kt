@@ -62,12 +62,13 @@ data class SetOpeningInvestmentCost(override val operation_id: String, val inves
     val expected_revision: Long, val price_e8: Long) : FinancialCommand
 data class RecordInvestmentTrade(override val operation_id: String, val investment_id: Long,
     val direction: Direction, val quantity_e8: Long, val execution_price_e8: Long,
-    val occurred_at_ms: Long, val cash_linked: Boolean, val cashAccountId: Long? = null) : FinancialCommand
+    val occurred_at_ms: Long, val cash_linked: Boolean, val cashAccountId: Long? = null,
+    val fee_minor: Long = 0) : FinancialCommand
 
 data class EditInvestmentTrade(override val operation_id: String, val trade_id: Long,
     val expected_revision: Long, val direction: Direction, val quantity_e8: Long,
     val execution_price_e8: Long, val occurred_at_ms: Long, val cash_linked: Boolean,
-    val cashAccountId: Long? = null) : FinancialCommand
+    val cashAccountId: Long? = null, val fee_minor: Long = 0) : FinancialCommand
 
 data class DeleteInvestmentTrade(override val operation_id: String, val trade_id: Long,
     val expected_revision: Long) : FinancialCommand

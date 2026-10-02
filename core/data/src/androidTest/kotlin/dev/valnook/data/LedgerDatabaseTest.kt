@@ -318,6 +318,23 @@ class LedgerDatabaseTest {
         assertEquals(2015000,db.ledger().cash_one(a,"CNY")!!.balance_minor)
         assertEquals(3,investments.trade_page(i,null).size)
     } }
+    @Test fun trade_fees_update_cost_realized_profit_and_linked_cash() { runBlocking {
+        val a=account(); set(a,200000); val i=asset(a)
+        val buy=commands.execute(RecordInvestmentTrade(id(),i,Direction.BUY,e("2"),e("90"),1,true,
+            fee_minor=500)).id
+        commands.execute(RecordInvestmentTrade(id(),i,Direction.SELL,e("3"),e("110"),2,true,
+            fee_minor=700))
+        assertEquals(213800,db.ledger().cash_one(a,"CNY")!!.balance_minor)
+        assertEquals(listOf(700L,500L),investments.trade_page(i,null).map{it.fee_minor})
+        assertEquals("888.75",db.ledger().investment(i)!!.remaining_cost)
+        assertEquals("26.75",db.ledger().investment(i)!!.realized_profit)
+        commands.execute(EditInvestmentTrade(id(),buy,1,Direction.BUY,e("2"),e("90"),1,true,
+            fee_minor=1000))
+        assertEquals(213300,db.ledger().cash_one(a,"CNY")!!.balance_minor)
+        assertEquals(1000L,investments.get_trade(buy)!!.fee_minor)
+        assertEquals("892.5",db.ledger().investment(i)!!.remaining_cost)
+        assertEquals("25.5",db.ledger().investment(i)!!.realized_profit)
+    } }
     @Test fun insufficient_missing_currency_and_oversell_roll_back() { runBlocking {
         val a=account(); val i=asset(a)
         val baseline=count("operations")

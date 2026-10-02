@@ -120,4 +120,30 @@ class MigrationTest {
             }
         } finally {context.deleteDatabase(name)}
     }
+    @Test fun v5_to_v6_preserves_trades_with_zero_fee_and_updates_cost_algorithm() {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name="migration-v5-fee-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name,5).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision) VALUES (1,'账户','',0,0,1)")
+                execSQL("INSERT INTO asset_types VALUES (1,'A股股票','a股股票',0,0)")
+                execSQL("INSERT INTO instruments VALUES (1,1,'贵州茅台','600519.SH','CNY',146820000,1,1,1,0,0,0)")
+                execSQL("INSERT INTO investments VALUES (1,1,1,100000000,100000000,1,0,0,10000000000,0,'100','0',1,2,'HOLDING',0)")
+                execSQL("INSERT INTO operations VALUES ('buy','ACCOUNT_TRADE','fingerprint','INVESTMENT_TRADE',1,0)")
+                execSQL("INSERT INTO investment_trades VALUES (1,1,'buy','BUY',100000000,10000000000,10000,'CNY',0,NULL,1,0,1,0,0)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name,6,true,MIGRATION_5_6).apply {
+                query("SELECT fee_minor FROM investment_trades WHERE id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals(0L,it.getLong(0))
+                }
+                query("SELECT algorithm_version FROM investments WHERE id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals(3,it.getInt(0))
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally {context.deleteDatabase(name)}
+    }
 }

@@ -6,6 +6,7 @@
     <string name="deposit_unavailable">This deposit does not exist.</string>
     <string name="record_investment">Instrument</string>
     <string name="trade_amount">Trade amount</string>
+    <string name="trade_fee">Transaction fee</string>
     <string name="record_cash_link">Cash link</string>
     <string name="record_status">Status</string>
     <string name="record_progress">Term progress</string>
