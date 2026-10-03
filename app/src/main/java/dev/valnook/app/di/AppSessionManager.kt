@@ -35,7 +35,11 @@ class AppSessionManager @Inject internal constructor(
     @ApplicationContext private val context: Context,
     private val realDatabaseGraph: DatabaseGraph,
     private val realDatabase: ValnookDatabase,
-    private val clock: Clock
+    private val clock: Clock,
+    private val cloudCoordinator: dev.valnook.domain.cloud.CloudBackupService =
+        dev.valnook.domain.cloud.UnavailableCloudBackupService,
+    val googleAuthorization: dev.valnook.feature.backup.GoogleDriveAuthorization =
+        dev.valnook.feature.backup.UnavailableGoogleDriveAuthorization
 ) {
     /** Single non-reentrant boundary for writes, switches, and destructive maintenance. */
     private val writeMutex = Mutex()
@@ -49,6 +53,9 @@ class AppSessionManager @Inject internal constructor(
     private val mutable = MutableStateFlow(ActiveSession(initialId, DataMode.REAL,
         bind(realDatabaseGraph, initialId, DataMode.REAL)))
     val session = mutable.asStateFlow()
+    fun observeCloudState() = cloudCoordinator.observeState()
+    suspend fun consumeCloudBanner(eventId: String) = cloudCoordinator.consumeBanner(eventId)
+    suspend fun reconcileCloudSchedule() = cloudCoordinator.reconcileSchedule()
 
     suspend fun enterDemo() = writeMutex.withLock {
         if (mutable.value.mode == DataMode.DEMO) return@withLock
@@ -169,8 +176,39 @@ class AppSessionManager @Inject internal constructor(
         instruments = source.instruments,
         cashPages = source.cashPages,
         depositPages = source.depositPages,
-        portability = SessionPortability(sessionId, mode, source.portability)
+        portability = SessionPortability(sessionId, mode, source.portability),
+        cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator)
     )
+
+    private inner class SessionCloudBackup(
+        private val sessionId: String,
+        private val mode: DataMode,
+        private val delegate: dev.valnook.domain.cloud.CloudBackupService
+    ) : dev.valnook.domain.cloud.CloudBackupService {
+        override val cloudAllowed: Boolean = mode == DataMode.REAL
+        override fun observeState() = if (mode == DataMode.REAL) delegate.observeState()
+            else kotlinx.coroutines.flow.flowOf(dev.valnook.domain.cloud.CloudBackupRuntimeState())
+        private fun check() {
+            requireCurrent(sessionId)
+            if (mode != DataMode.REAL) throw dev.valnook.domain.cloud.CloudBackupException(
+                dev.valnook.domain.cloud.CloudBackupError.DEMO_RESTRICTED)
+        }
+        override suspend fun connect(grant: dev.valnook.domain.cloud.CloudAuthorizationGrant) { check(); delegate.connect(grant) }
+        override suspend fun disconnect() { check(); delegate.disconnect() }
+        override suspend fun manualBackup() { check(); delegate.manualBackup() }
+        override suspend fun refresh() { check(); delegate.refresh() }
+        override suspend fun setAutomatic(enabled: Boolean) { check(); delegate.setAutomatic(enabled) }
+        override suspend fun setIntervalHours(hours: Int) { check(); delegate.setIntervalHours(hours) }
+        override suspend fun resumeAfterRestore() { check(); delegate.resumeAfterRestore() }
+        override suspend fun reconcileSchedule() { check(); delegate.reconcileSchedule() }
+        override suspend fun downloadOriginal(fileId: String, output: OutputStream) { check(); delegate.downloadOriginal(fileId, output) }
+        override suspend fun stageForRestore(fileId: String): dev.valnook.domain.cloud.CloudRestoreDownload {
+            check(); return delegate.stageForRestore(fileId)
+        }
+        override fun openStagedRestore(localId: String): InputStream { check(); return delegate.openStagedRestore(localId) }
+        override fun releaseStagedRestore(localId: String) { delegate.releaseStagedRestore(localId) }
+        override suspend fun consumeBanner(eventId: String) { check(); delegate.consumeBanner(eventId) }
+    }
 
     private fun clearAbandonedDemoDatabases() {
         context.databaseList().filter { it.startsWith(DEMO_DATABASE_PREFIX) }.forEach(context::deleteDatabase)
@@ -278,6 +316,7 @@ class AppSessionManager @Inject internal constructor(
                 engine.close(pending.staged)
                 pendingRestore = null
                 publishRealSession()
+                cloudCoordinator.reconcileSchedule()
             }
             result
         }
@@ -355,7 +394,7 @@ class AppSessionManager @Inject internal constructor(
     )
 
     private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v9.db"
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v10.db"
         const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

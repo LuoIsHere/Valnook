@@ -25,4 +25,8 @@ class MainActivity:ComponentActivity() {
             }
         }
     }
+    override fun onStart() {
+        super.onStart()
+        lifecycleScope.launch { sessions.reconcileCloudSchedule() }
+    }
 }

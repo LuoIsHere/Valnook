@@ -8,6 +8,9 @@ import dev.valnook.domain.money.DecimalRules as R
 import dev.valnook.domain.repository.CashBalanceChange
 import dev.valnook.domain.repository.CloseTermDeposit
 import dev.valnook.domain.repository.CreateInvestmentPosition
+import dev.valnook.domain.repository.EditCashEntry
+import dev.valnook.domain.repository.EditInvestmentTrade
+import dev.valnook.domain.repository.EditTermDeposit
 import dev.valnook.domain.repository.OpenTermDeposit
 import dev.valnook.domain.repository.RecordInvestmentTrade
 import dev.valnook.domain.repository.SaveAccount
@@ -16,6 +19,7 @@ import dev.valnook.domain.repository.SaveInstrument
 import dev.valnook.domain.repository.SaveFinancialSettings
 import dev.valnook.domain.repository.SaveGainLossColors
 import dev.valnook.domain.repository.SaveLanguage
+import dev.valnook.domain.repository.SetCashBalance
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
@@ -122,8 +126,8 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         }
         val stockById = instruments.zip(stocks).toMap()
 
-        val start = LocalDate.of(LocalDate.now(clock).year - 1, 1, 5).atStartOfDay(clock.zone)
-            .toInstant().toEpochMilli()
+        val today = LocalDate.now(clock)
+        val historyStart = LocalDate.of(today.year - 8, 1, 5)
         val pairs = buildList {
             accounts.forEachIndexed { accountIndex, accountId ->
                 repeat(7) { offset -> add(accountId to instruments[(accountIndex * 5 + offset * 7) % instruments.size]) }
@@ -131,6 +135,7 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         }.take(80)
         pairs.forEachIndexed { positionIndex, (accountId, instrumentId) ->
             val stock = requireNotNull(stockById[instrumentId])
+            val positionStart = historyStart.plusDays(((positionIndex * 19) % 500).toLong())
             val openingFactor = BigDecimal("0.74").add(BigDecimal.valueOf(((positionIndex * 7) % 19).toLong(), 2))
             val openingPrice = R.parse_e8(stock.price.multiply(openingFactor)
                 .setScale(2, java.math.RoundingMode.HALF_UP).toPlainString())
@@ -139,7 +144,7 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
                 CreateInvestmentPosition(id(), accountId, instrumentId)
             ).id
             graph.commands.execute(RecordInvestmentTrade(id(), positionId, Direction.BUY,
-                openingQuantity, openingPrice, start + positionIndex * 60_000L, false))
+                openingQuantity, openingPrice, at(positionStart), false))
             repeat(9) { tradeIndex ->
                 val closedFixture = positionIndex % 10 == 0
                 val direction = if (closedFixture && tradeIndex == 0) Direction.SELL
@@ -156,23 +161,173 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
                 val cashAccountId = if (cashLinked)
                     requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id else null
                 graph.commands.execute(RecordInvestmentTrade(id(), positionId, direction,
-                    quantity, price, start + ((positionIndex % 20) + (tradeIndex + 1) * 58L) * 86_400_000L,
+                    quantity, price, at(positionStart.plusDays((tradeIndex + 1) * 260L)),
                     cashLinked,
                     cashAccountId, fee))
             }
         }
 
-        val today = LocalDate.now(clock)
         repeat(24) { index ->
             val closed = index % 4 == 0
-            val startDate = if (closed) today.minusDays(180) else today.minusDays((index * 3).toLong())
-            val endDate = if (closed) today.minusDays(30) else today.plusDays((30 + index * 5).toLong())
+            val startDate = if (closed) today.minusYears(8).plusMonths(index * 3L)
+                else today.minusYears(5).plusMonths(index * 2L)
+            val endDate = if (closed) startDate.plusYears(1) else startDate.plusYears(7)
             val depositId = graph.commands.execute(OpenTermDeposit(id(), accounts[index % accounts.size],
                 listOf("CNY", "USD", "HKD")[index % 3], 100_000L + index * 10_000L,
                 R.parse_e8((2 + index % 4).toString()), startDate.toEpochDay(), endDate.toEpochDay(), false)).id
             if (closed) graph.commands.execute(CloseTermDeposit(id(), depositId, false))
         }
+        seedLifecycleExamples(accounts.first(), instruments.zip(stocks).associate { (instrumentId, stock) ->
+            stock.symbol to instrumentId
+        })
     }
+
+    private suspend fun seedLifecycleExamples(accountId: Long, instrumentBySymbol: Map<String, Long>) {
+        seedCashLifecycle(accountId)
+        val cash = graph.overview.snapshot().cash.filter { it.account_id == accountId }
+        val cnyCashId = cash.single { it.currency.code == "CNY" }.id
+        val usdCashId = cash.single { it.currency.code == "USD" && it.name == "美元交易资金" }.id
+        seedDepositLifecycle(accountId, cnyCashId)
+        seedInvestmentLifecycle(accountId, usdCashId, requireNotNull(instrumentBySymbol["AAPL"]),
+            requireNotNull(instrumentBySymbol["META"]))
+    }
+
+    private suspend fun seedCashLifecycle(accountId: Long) {
+        data class TimelineEntry(val date: LocalDate, val deltaMinor: Long, val note: String)
+        val entries = listOf(
+            TimelineEntry(LocalDate.of(2016, 3, 1), 5_000_000L, "长期账本 · 初始资金修正"),
+            TimelineEntry(LocalDate.of(2018, 8, 17), -3_500_000L, "长期账本 · 大额支出"),
+            TimelineEntry(LocalDate.of(2020, 4, 9), 8_234_567L, "长期账本 · 资金转入"),
+            TimelineEntry(LocalDate.of(2022, 11, 23), -1_680_000L, "长期账本 · 账户划转"),
+            TimelineEntry(LocalDate.of(2024, 6, 14), 12_000_000L, "长期账本 · 年中入金"),
+            TimelineEntry(LocalDate.of(2026, 9, 18), -2_735_025L, "长期账本 · 近期调整")
+        )
+        entries.forEachIndexed { index, value ->
+            val current = graph.overview.snapshot().cash.single {
+                it.account_id == accountId && it.currency.code == "CNY"
+            }
+            val result = graph.commands.execute(SetCashBalance(id(), accountId, "CNY",
+                current.balance_minor + value.deltaMinor, current.revision, current.id))
+            if (index == 0) {
+                graph.commands.execute(EditCashEntry(id(), result.id, 1, 4_750_000L,
+                    at(LocalDate.of(2016, 2, 15)), "长期账本 · 第一次修正"))
+                graph.commands.execute(EditCashEntry(id(), result.id, 2, 5_150_000L,
+                    at(LocalDate.of(2016, 2, 28)), "长期账本 · 第二次修正"))
+                graph.commands.execute(EditCashEntry(id(), result.id, 3, value.deltaMinor,
+                    at(value.date), value.note))
+            } else {
+                graph.commands.execute(EditCashEntry(id(), result.id, 1, value.deltaMinor,
+                    at(value.date), value.note))
+            }
+        }
+
+        val snapshot = graph.overview.snapshot()
+        val account = snapshot.accounts.single { it.id == accountId }
+        val cny = snapshot.cash.single { it.account_id == accountId && it.currency.code == "CNY" }
+        graph.commands.execute(SaveAccount(id(), accountId, account.revision, account.name,
+            "含长期现金、投资与存单生命周期样本", listOf(CashBalanceChange(
+                "CNY", cny.balance_minor, cny.revision, cny.id,
+                name = "人民币长期资金", note = "2016 年起的多次修正记录"
+            ))))
+    }
+
+    private suspend fun seedDepositLifecycle(accountId: Long, cnyCashId: Long) {
+        val closed = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 50_000_000L,
+            R.parse_e8("3.25"), LocalDate.of(2017, 1, 15).toEpochDay(),
+            LocalDate.of(2018, 1, 15).toEpochDay(), true, cnyCashId)).id
+        graph.commands.execute(EditTermDeposit(id(), closed, 1, 52_000_000L, R.parse_e8("3.35"),
+            LocalDate.of(2017, 2, 1).toEpochDay(), LocalDate.of(2018, 2, 1).toEpochDay(),
+            true, null, cnyCashId))
+        graph.commands.execute(EditTermDeposit(id(), closed, 2, 51_500_000L, R.parse_e8("3.45"),
+            LocalDate.of(2017, 1, 20).toEpochDay(), LocalDate.of(2018, 1, 20).toEpochDay(),
+            true, null, cnyCashId))
+        graph.commands.execute(CloseTermDeposit(id(), closed, true, cnyCashId))
+        graph.commands.execute(EditTermDeposit(id(), closed, 4, 51_200_000L, R.parse_e8("3.50"),
+            LocalDate.of(2017, 1, 18).toEpochDay(), LocalDate.of(2018, 1, 18).toEpochDay(),
+            true, true, cnyCashId, cnyCashId))
+        graph.commands.execute(EditTermDeposit(id(), closed, 5, 51_050_000L, R.parse_e8("3.55"),
+            LocalDate.of(2017, 1, 16).toEpochDay(), LocalDate.of(2018, 1, 16).toEpochDay(),
+            true, true, cnyCashId, cnyCashId))
+
+        val open = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 38_000_000L,
+            R.parse_e8("2.60"), LocalDate.of(2024, 5, 6).toEpochDay(),
+            LocalDate.of(2028, 5, 6).toEpochDay(), true, cnyCashId)).id
+        graph.commands.execute(EditTermDeposit(id(), open, 1, 40_000_000L, R.parse_e8("2.75"),
+            LocalDate.of(2024, 5, 8).toEpochDay(), LocalDate.of(2028, 5, 8).toEpochDay(),
+            true, null, cnyCashId))
+        graph.commands.execute(EditTermDeposit(id(), open, 2, 39_500_000L, R.parse_e8("2.85"),
+            LocalDate.of(2024, 5, 10).toEpochDay(), LocalDate.of(2028, 5, 10).toEpochDay(),
+            true, null, cnyCashId))
+    }
+
+    private suspend fun seedInvestmentLifecycle(
+        accountId: Long,
+        usdCashId: Long,
+        appleInstrumentId: Long,
+        metaInstrumentId: Long
+    ) {
+        val apple = graph.commands.execute(CreateInvestmentPosition(id(), accountId, appleInstrumentId)).id
+        val firstBuy = graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.BUY,
+            R.parse_e8("12"), R.parse_e8("120"), at(LocalDate.of(2018, 5, 2)), true,
+            usdCashId, 495)).id
+        graph.commands.execute(EditInvestmentTrade(id(), firstBuy, 1, Direction.BUY,
+            R.parse_e8("12.5"), R.parse_e8("119"), at(LocalDate.of(2018, 5, 3)), true,
+            usdCashId, 525))
+        graph.commands.execute(EditInvestmentTrade(id(), firstBuy, 2, Direction.BUY,
+            R.parse_e8("13"), R.parse_e8("118.75"), at(LocalDate.of(2018, 5, 4)), true,
+            usdCashId, 565))
+        graph.commands.execute(EditInvestmentTrade(id(), firstBuy, 3, Direction.BUY,
+            R.parse_e8("12.75"), R.parse_e8("118.20"), at(LocalDate.of(2018, 5, 4)), true,
+            usdCashId, 535))
+
+        val secondBuy = graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.BUY,
+            R.parse_e8("7.25"), R.parse_e8("145.80"), at(LocalDate.of(2020, 9, 18)), true,
+            usdCashId, 610)).id
+        graph.commands.execute(EditInvestmentTrade(id(), secondBuy, 1, Direction.BUY,
+            R.parse_e8("7.5"), R.parse_e8("144.90"), at(LocalDate.of(2020, 9, 21)), true,
+            usdCashId, 625))
+        graph.commands.execute(EditInvestmentTrade(id(), secondBuy, 2, Direction.BUY,
+            R.parse_e8("7.8"), R.parse_e8("145.15"), at(LocalDate.of(2020, 9, 22)), true,
+            usdCashId, 640))
+
+        val firstSell = graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.SELL,
+            R.parse_e8("5"), R.parse_e8("190.25"), at(LocalDate.of(2023, 7, 11)), true,
+            usdCashId, 330)).id
+        graph.commands.execute(EditInvestmentTrade(id(), firstSell, 1, Direction.SELL,
+            R.parse_e8("4.8"), R.parse_e8("191.80"), at(LocalDate.of(2023, 7, 12)), true,
+            usdCashId, 340))
+        graph.commands.execute(EditInvestmentTrade(id(), firstSell, 2, Direction.SELL,
+            R.parse_e8("4.75"), R.parse_e8("192.20"), at(LocalDate.of(2023, 7, 13)), true,
+            usdCashId, 345))
+        graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.BUY,
+            R.parse_e8("2.5"), R.parse_e8("220.40"), at(LocalDate.of(2025, 2, 14)), true,
+            usdCashId, 420))
+        graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.SELL,
+            R.parse_e8("3.25"), R.parse_e8("255.60"), at(LocalDate.of(2026, 8, 24)), true,
+            usdCashId, 365))
+
+        val meta = graph.commands.execute(CreateInvestmentPosition(id(), accountId, metaInstrumentId)).id
+        val metaBuy = graph.commands.execute(RecordInvestmentTrade(id(), meta, Direction.BUY,
+            R.parse_e8("8"), R.parse_e8("135"), at(LocalDate.of(2019, 3, 7)), true,
+            usdCashId, 520)).id
+        graph.commands.execute(EditInvestmentTrade(id(), metaBuy, 1, Direction.BUY,
+            R.parse_e8("8.5"), R.parse_e8("134.50"), at(LocalDate.of(2019, 3, 8)), true,
+            usdCashId, 545))
+        graph.commands.execute(EditInvestmentTrade(id(), metaBuy, 2, Direction.BUY,
+            R.parse_e8("8.4"), R.parse_e8("134.80"), at(LocalDate.of(2019, 3, 11)), true,
+            usdCashId, 535))
+        val metaSell = graph.commands.execute(RecordInvestmentTrade(id(), meta, Direction.SELL,
+            R.parse_e8("8.4"), R.parse_e8("224.30"), at(LocalDate.of(2022, 6, 20)), true,
+            usdCashId, 410)).id
+        graph.commands.execute(EditInvestmentTrade(id(), metaSell, 1, Direction.SELL,
+            R.parse_e8("8.4"), R.parse_e8("226.10"), at(LocalDate.of(2022, 6, 21)), true,
+            usdCashId, 425))
+        graph.commands.execute(EditInvestmentTrade(id(), metaSell, 2, Direction.SELL,
+            R.parse_e8("8.4"), R.parse_e8("225.75"), at(LocalDate.of(2022, 6, 22)), true,
+            usdCashId, 415))
+    }
+
+    private fun at(date: LocalDate): Long = date.atTime(10, 30).atZone(clock.zone).toInstant().toEpochMilli()
 
     private fun demoQuantity(currency: String, index: Int, opening: Boolean): Long {
         val values = when (currency) {

@@ -17,6 +17,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -54,6 +56,7 @@ import dev.valnook.designsystem.CurrencyPickerRates
 import dev.valnook.designsystem.LocalCurrencyPickerRates
 import dev.valnook.designsystem.LocalPageBottomSpace
 import dev.valnook.designsystem.MenuIcon
+import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.ValnookTheme
 import dev.valnook.domain.model.AppSettings
 import dev.valnook.domain.model.GainLossColorScheme
@@ -69,11 +72,14 @@ import dev.valnook.feature.statistics.StatisticsScreen
 import dev.valnook.feature.statistics.StatisticsViewModel
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ValnookRoot(sessions: AppSessionManager, onExit: () -> Unit = {}) {
     val active by sessions.session.collectAsState()
+    val cloudState by sessions.observeCloudState().collectAsStateWithLifecycle(
+        dev.valnook.domain.cloud.CloudBackupRuntimeState())
     val settings by remember(active.id) {
         active.graph.settings.observeSettings().map<AppSettings, AppSettings?> { it }
     }.collectAsStateWithLifecycle(null)
@@ -83,9 +89,59 @@ fun ValnookRoot(sessions: AppSessionManager, onExit: () -> Unit = {}) {
     }
     key(active.id) {
         ValnookTheme(redGain = loadedSettings.gainLossColors == GainLossColorScheme.RED_GAIN) {
-            SessionRoot(active, loadedSettings, sessions, onExit)
+            Box(Modifier.fillMaxSize()) {
+                SessionRoot(active, loadedSettings, sessions, onExit)
+                CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
+            }
         }
     }
+}
+
+@Composable
+private fun CloudFailureBanner(
+    state: dev.valnook.domain.cloud.CloudBackupRuntimeState,
+    sessions: AppSessionManager,
+    modifier: Modifier = Modifier
+) {
+    val eventId = state.pendingBannerEventId ?: return
+    val accessibility = LocalAccessibilityManager.current
+    var visible by remember(eventId) { mutableStateOf(true) }
+    LaunchedEffect(eventId) {
+        val timeout = accessibility?.calculateRecommendedTimeoutMillis(
+            originalTimeoutMillis = 3_000,
+            containsIcons = false,
+            containsText = true,
+            containsControls = false
+        ) ?: 3_000L
+        delay(timeout)
+        visible = false
+        sessions.consumeCloudBanner(eventId)
+    }
+    if (visible) Surface(
+        modifier = modifier.fillMaxWidth().padding(
+            top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding(),
+            start = Space.md, end = Space.md),
+        color = MaterialTheme.colorScheme.error,
+        contentColor = MaterialTheme.colorScheme.onError,
+        tonalElevation = 6.dp,
+        shape = MaterialTheme.shapes.medium
+    ) {
+        Column(Modifier.padding(horizontal = Space.md, vertical = Space.sm)) {
+            Text(stringResource(R.string.cloud_failure_title), style = MaterialTheme.typography.titleSmall)
+            Text(cloudBannerReason(state.pendingBannerError), style = MaterialTheme.typography.bodySmall,
+                maxLines = 2)
+        }
+    }
+}
+
+@Composable
+private fun cloudBannerReason(error: dev.valnook.domain.cloud.CloudBackupError?): String = when (error) {
+    dev.valnook.domain.cloud.CloudBackupError.UPLOAD_UNKNOWN -> stringResource(R.string.cloud_failure_unknown)
+    dev.valnook.domain.cloud.CloudBackupError.AUTH_REQUIRED -> stringResource(R.string.cloud_failure_auth)
+    dev.valnook.domain.cloud.CloudBackupError.VERIFY_FAILED -> stringResource(R.string.cloud_failure_verify)
+    dev.valnook.domain.cloud.CloudBackupError.LOCAL_PREPARATION_FAILED,
+    dev.valnook.domain.cloud.CloudBackupError.LOW_STORAGE -> stringResource(R.string.cloud_failure_prepare)
+    else -> stringResource(R.string.cloud_failure_upload)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -244,7 +300,8 @@ private fun SessionRoot(
                             entry<BackupKey> {
                                 dev.valnook.feature.backup.BackupScreen(pageViewModel {
                                     dev.valnook.feature.backup.BackupViewModel(
-                                        graph.portability, graph.settings, active.mode == DataMode.DEMO)
+                                        graph.portability, graph.settings, active.mode == DataMode.DEMO,
+                                        graph.cloudBackup, sessions.googleAuthorization)
                                 }, active.mode == DataMode.DEMO)
                             }
                             entry<NavigationSettingsKey> {

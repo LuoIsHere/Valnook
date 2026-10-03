@@ -316,4 +316,31 @@ class MigrationTest {
             }
         } finally { context.deleteDatabase(name) }
     }
+
+    @Test fun v9_to_v10_adds_local_cloud_state_without_changing_business_or_portable_rows() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-v9-cloud-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 9).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts VALUES (1,'保留账户','备注',100,100,1)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 10, true, MIGRATION_9_10).apply {
+                query("SELECT name,note,revision FROM savings_accounts WHERE id=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals("保留账户", it.getString(0))
+                    assertEquals("备注", it.getString(1)); assertEquals(1L, it.getLong(2))
+                }
+                query("SELECT automatic_enabled,interval_hours,pause_reason,connection_generation,schedule_generation FROM cloud_backup_state WHERE id=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0)); assertEquals(24, it.getInt(1))
+                    assertEquals("NONE", it.getString(2)); assertEquals(1L, it.getLong(3)); assertEquals(1L, it.getLong(4))
+                }
+                query("SELECT COUNT(*) FROM cloud_backup_attempts").use {
+                    assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0))
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
 }

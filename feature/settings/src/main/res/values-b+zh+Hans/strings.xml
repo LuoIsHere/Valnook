@@ -50,7 +50,7 @@
     <string name="settings_navigation">导航栏</string>
     <string name="settings_navigation_summary">设置页面顺序和显示状态</string>
     <string name="settings_backup_export">备份与导出</string>
-    <string name="settings_backup_export_summary">本地备份、覆盖恢复与 Excel 导出</string>
+    <string name="settings_backup_export_summary">本地与 Google Drive 备份、恢复和 Excel 导出</string>
     <string name="settings_backup_export_demo_summary">导出合成演示数据工作簿</string>
     <string name="settings_hidden_pages">隐藏的页面</string>
     <string name="settings_hidden_page_summary">打开页面但不显示底部导航</string>

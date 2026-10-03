@@ -18,4 +18,10 @@
     <string name="title_clear_data">Clear data</string>
     <string name="title_edit_balance">Edit balance</string>
     <string name="title_navigation_settings">Navigation bar</string>
+    <string name="cloud_failure_title">Google Drive backup failed</string>
+    <string name="cloud_failure_upload">The upload stopped after it started.</string>
+    <string name="cloud_failure_unknown">Drive may have received the file. Valnook will check the result without uploading it again.</string>
+    <string name="cloud_failure_auth">Google authorization is required again.</string>
+    <string name="cloud_failure_verify">The uploaded file could not be verified. Existing recovery points were kept.</string>
+    <string name="cloud_failure_prepare">The local backup package could not be prepared.</string>
 </resources>

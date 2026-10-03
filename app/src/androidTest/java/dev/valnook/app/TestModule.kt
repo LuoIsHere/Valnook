@@ -16,6 +16,12 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import javax.inject.Singleton
+import dev.valnook.domain.cloud.CloudAccessProvider
+import dev.valnook.domain.cloud.CloudAccessResult
+import dev.valnook.domain.cloud.CloudBackupService
+import dev.valnook.domain.cloud.BackupScheduler
+import dev.valnook.feature.backup.GoogleDriveAuthorization
+import dev.valnook.feature.backup.UnavailableGoogleDriveAuthorization
 
 @Module
 @TestInstallIn(components = [SingletonComponent::class], replaces = [AppModule::class])
@@ -38,4 +44,18 @@ object TestModule {
     @Singleton
     internal fun databaseGraph(@ApplicationContext context: Context, database: ValnookDatabase, clock: Clock): DatabaseGraph =
         createDatabaseGraph(context, database, clock, currentBuildInfo())
+
+    @Provides @Singleton fun cloudAccessProvider(): CloudAccessProvider = CloudAccessProvider { CloudAccessResult.Unavailable }
+    @Provides @Singleton fun backupScheduler(): BackupScheduler = object : BackupScheduler {
+        override suspend fun replace(nextDueAtUtcMs: Long, referenceUtcMs: Long, cycleId: String, dataGeneration: Long,
+            connectionGeneration: Long, scheduleGeneration: Long) = Unit
+        override suspend fun cancel() = Unit
+    }
+    @Provides @Singleton internal fun cloudBackupCoordinator(@ApplicationContext context: Context,
+        database: ValnookDatabase, graph: DatabaseGraph, access: CloudAccessProvider,
+        scheduler: BackupScheduler): dev.valnook.data.cloud.CloudBackupCoordinator =
+        dev.valnook.data.cloud.createCloudBackupCoordinator(context, database, graph.portability, access, scheduler)
+    @Provides @Singleton fun cloudBackupService(
+        coordinator: dev.valnook.data.cloud.CloudBackupCoordinator): CloudBackupService = coordinator
+    @Provides @Singleton fun googleDriveAuthorization(): GoogleDriveAuthorization = UnavailableGoogleDriveAuthorization
 }

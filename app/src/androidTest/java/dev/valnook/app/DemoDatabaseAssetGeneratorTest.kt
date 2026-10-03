@@ -26,7 +26,7 @@ import dev.valnook.data.database.InstrumentPriceEntity
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
     @Test
-    fun exportRoomV9DemoDatabase() = runBlocking {
+    fun exportRoomV10DemoDatabase() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(EXPORT_DATABASE_NAME)
         val clock = Clock.fixed(Instant.parse("2026-10-02T04:00:00Z"), ZoneId.of("Asia/Hong_Kong"))
@@ -46,7 +46,8 @@ class DemoDatabaseAssetGeneratorTest {
             assertEquals(12, snapshot.accounts.size)
             assertEquals(48, snapshot.cash.size)
             assertEquals(60, snapshot.instruments.size)
-            assertEquals(80, snapshot.positions.size)
+            assertEquals(82, snapshot.positions.size)
+            assertLifecycleFixtures(database)
         } finally {
             database.close()
         }
@@ -61,15 +62,22 @@ class DemoDatabaseAssetGeneratorTest {
     private suspend fun enrichHistoricalSources(database: ValnookDatabase, clock: Clock) {
         val zone = clock.zone
         val today = LocalDate.now(clock)
-        val baseline = LocalDate.of(today.year - 1, 1, 1)
+        val baseline = LocalDate.of(today.year - 10, 1, 1)
         val baselineMs = baseline.atStartOfDay(zone).toInstant().toEpochMilli()
         val sql = database.openHelper.writableDatabase
         sql.execSQL("UPDATE cash_accounts SET created_at_ms=?,updated_at_ms=MAX(updated_at_ms,?)",
             arrayOf(baselineMs, baselineMs))
         sql.execSQL("""UPDATE cash_entries SET occurred_at_ms=? + (id % 55) * 86400000
-            WHERE source_kind='CASH_SET'""", arrayOf(baselineMs))
+            WHERE source_kind='CASH_SET' AND note NOT LIKE '长期账本%'""", arrayOf(baselineMs))
         sql.execSQL("""UPDATE term_deposits SET created_at_ms=start_epoch_day*86400000,
             closed_at_ms=CASE WHEN status='CLOSED' THEN end_epoch_day*86400000+43200000 ELSE NULL END""")
+        sql.execSQL("""UPDATE cash_entries SET occurred_at_ms=(SELECT d.closed_at_ms FROM term_deposits d
+            WHERE d.id=cash_entries.source_id) WHERE source_kind='TERM_CLOSE'""")
+        sql.execSQL("""UPDATE cash_accounts SET created_at_ms=COALESCE((SELECT MIN(e.occurred_at_ms)
+            FROM cash_entries e WHERE e.cash_account_id=cash_accounts.id AND e.is_deleted=0),created_at_ms)""")
+        sql.execSQL("""UPDATE savings_accounts SET created_at_ms=MIN(created_at_ms,COALESCE(
+            (SELECT MIN(c.created_at_ms) FROM cash_accounts c WHERE c.savings_account_id=savings_accounts.id),
+            created_at_ms))""")
         database.statistics().clearCache()
         database.statistics().clearBaselineItems()
         sql.execSQL("UPDATE statistics_state SET source_revision=source_revision+1,baseline_at_ms=?,earliest_invalidated_epoch_day=? WHERE id=1",
@@ -107,7 +115,7 @@ class DemoDatabaseAssetGeneratorTest {
         val sql = database.openHelper.writableDatabase
         fun label(kind: String, id: Long, field: String, zh: String, en: String) {
             sql.execSQL("INSERT OR REPLACE INTO demo_labels(entity_kind,entity_id,field_name,zh_hans,english) VALUES (?,?,?,?,?)",
-                arrayOf(kind, id, field, zh, en))
+                arrayOf<Any>(kind, id, field, zh, en))
         }
         val accountEnglish = listOf("China Merchants Securities", "Huatai Securities", "CITIC Securities",
             "Guotai Junan Securities", "GF Securities", "CICC Wealth", "Futu Securities",
@@ -119,6 +127,7 @@ class DemoDatabaseAssetGeneratorTest {
         database.overview().allCash().forEach { cash ->
             val english = when (cash.name) {
                 "人民币日常资金" -> "CNY daily funds"
+                "人民币长期资金" -> "CNY long-term funds"
                 "美元交易资金" -> "USD trading funds"
                 "美元备用资金" -> "USD reserve funds"
                 "港币现金" -> "HKD cash"
@@ -143,8 +152,47 @@ class DemoDatabaseAssetGeneratorTest {
         }
     }
 
+    private fun assertLifecycleFixtures(database: ValnookDatabase) {
+        val sql = database.openHelper.readableDatabase
+        sql.query("SELECT COUNT(*),MAX(revision) FROM cash_entries WHERE note LIKE '长期账本%'").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(6, it.getInt(0))
+            assertTrue(it.getLong(1) >= 4)
+        }
+        sql.query("SELECT COUNT(*),MAX(revision) FROM term_deposits").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(26, it.getInt(0))
+            assertTrue(it.getLong(1) >= 6)
+        }
+        sql.query("""SELECT p.position_state,p.holding_quantity_e8,MAX(t.revision)
+            FROM investments p JOIN instruments i ON i.id=p.instrument_id
+            JOIN savings_accounts a ON a.id=p.savings_account_id
+            JOIN investment_trades t ON t.investment_id=p.id
+            WHERE i.symbol='AAPL' AND a.name='招商证券' GROUP BY p.id""").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("HOLDING", it.getString(0))
+            assertTrue(it.getLong(1) > 0)
+            assertTrue(it.getLong(2) >= 4)
+        }
+        sql.query("""SELECT p.position_state,p.holding_quantity_e8,MAX(t.revision)
+            FROM investments p JOIN instruments i ON i.id=p.instrument_id
+            JOIN savings_accounts a ON a.id=p.savings_account_id
+            JOIN investment_trades t ON t.investment_id=p.id
+            WHERE i.symbol='META' AND a.name='招商证券' GROUP BY p.id""").use {
+            assertTrue(it.moveToFirst())
+            assertEquals("CLOSED", it.getString(0))
+            assertEquals(0L, it.getLong(1))
+            assertTrue(it.getLong(2) >= 3)
+        }
+        sql.query("SELECT MIN(occurred_at_ms),MAX(occurred_at_ms) FROM cash_entries WHERE is_deleted=0").use {
+            assertTrue(it.moveToFirst())
+            val span = it.getLong(1) - it.getLong(0)
+            assertTrue(span >= 9L * 365L * 86_400_000L)
+        }
+    }
+
     private companion object {
         const val EXPORT_DATABASE_NAME = "valnook-demo-asset-export.db"
-        const val ASSET_FILE_NAME = "valnook-demo-v9.db"
+        const val ASSET_FILE_NAME = "valnook-demo-v10.db"
     }
 }

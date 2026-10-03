@@ -2,6 +2,9 @@ package dev.valnook.feature.backup
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Intent
+import android.content.IntentSender
+import dev.valnook.domain.cloud.*
 import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.portability.*
 import dev.valnook.domain.repository.SettingsRepository
@@ -21,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 data class OutputRequest(val id: String, val fileName: String)
+data class CloudDownloadRequest(val fileId: String, val fileName: String)
 
 data class BackupUiState(
     val busy: Boolean = false,
@@ -31,19 +35,104 @@ data class BackupUiState(
     val challenge: RestoreChallenge? = null,
     val confirmation: String = "",
     val restoreResult: RestoreResult? = null,
-    val error: PortabilityErrorCode? = null
+    val error: PortabilityErrorCode? = null,
+    val cloud: CloudBackupRuntimeState = CloudBackupRuntimeState(),
+    val cloudBusy: Boolean = false,
+    val cloudError: CloudBackupError? = null,
+    val intervalDraft: String = DEFAULT_BACKUP_INTERVAL_HOURS.toString(),
+    val selectedCloudBackup: CloudBackupDescriptor? = null
 )
 
 class BackupViewModel(
     private val portability: DataPortability,
     private val settings: SettingsRepository,
-    private val demo: Boolean
+    private val demo: Boolean,
+    private val cloudBackup: CloudBackupService = UnavailableCloudBackupService,
+    private val authorization: GoogleDriveAuthorization = UnavailableGoogleDriveAuthorization
 ) : ViewModel() {
     private val mutable = MutableStateFlow(BackupUiState())
     val state = mutable.asStateFlow()
 
+    init {
+        viewModelScope.launch {
+            cloudBackup.observeState().collect { cloud ->
+                mutable.value = state.value.copy(cloud = cloud,
+                    intervalDraft = if (state.value.cloud.intervalHours != cloud.intervalHours)
+                        cloud.intervalHours.toString() else state.value.intervalDraft)
+            }
+        }
+    }
+
     fun backupRequest(): OutputRequest = request("Valnook", ".val_backup")
     fun workbookRequest(): OutputRequest = request(if (demo) "Valnook_Demo" else "Valnook", ".xlsx")
+    fun cloudDownloadRequest(value: CloudBackupDescriptor) = CloudDownloadRequest(value.fileId, value.fileName)
+
+    fun beginGoogleConnection(onResolution: (IntentSender) -> Unit) = runCloudJob {
+        handleAuthorization(authorization.begin(), onResolution)
+    }
+
+    fun completeGoogleConnection(data: Intent?, onResolution: (IntentSender) -> Unit = {}) = runCloudJob {
+        handleAuthorization(authorization.complete(data), onResolution)
+    }
+
+    private suspend fun handleAuthorization(
+        outcome: GoogleAuthorizationOutcome,
+        onResolution: (IntentSender) -> Unit
+    ) {
+        when (outcome) {
+            is GoogleAuthorizationOutcome.Granted -> cloudBackup.connect(outcome.grant)
+            is GoogleAuthorizationOutcome.RequiresUserAction -> onResolution(outcome.intentSender)
+            GoogleAuthorizationOutcome.Cancelled -> Unit
+            is GoogleAuthorizationOutcome.Failed -> throw CloudBackupException(outcome.error)
+        }
+    }
+
+    fun backupToGoogleDrive() = runCloudJob { cloudBackup.manualBackup() }
+    fun refreshCloudBackups() = runCloudJob { cloudBackup.refresh() }
+    fun setAutomatic(enabled: Boolean) = runCloudJob { cloudBackup.setAutomatic(enabled) }
+    fun updateIntervalDraft(value: String) {
+        mutable.value = state.value.copy(intervalDraft = value.filter(Char::isDigit).take(3), cloudError = null)
+    }
+    fun saveInterval() = runCloudJob {
+        val hours = state.value.intervalDraft.toIntOrNull()
+            ?: throw CloudBackupException(CloudBackupError.INVALID_INTERVAL)
+        cloudBackup.setIntervalHours(hours)
+    }
+    fun resumeAutomatic() = runCloudJob { cloudBackup.resumeAfterRestore() }
+    fun disconnect(revoke: Boolean) = runCloudJob {
+        val account = state.value.cloud.accountReference
+        cloudBackup.disconnect()
+        if (revoke && account != null && !authorization.revoke(account)) {
+            throw CloudBackupException(CloudBackupError.AUTH_FAILED)
+        }
+    }
+    fun selectCloudBackup(value: CloudBackupDescriptor?) {
+        mutable.value = state.value.copy(selectedCloudBackup = value, cloudError = null)
+    }
+    fun downloadCloudBackup(request: CloudDownloadRequest, openOutput: () -> OutputStream?) = runCloudJob {
+        withContext(Dispatchers.IO) {
+            openOutput()?.use { cloudBackup.downloadOriginal(request.fileId, it) }
+                ?: throw CloudBackupException(CloudBackupError.DOWNLOAD_FAILED)
+        }
+    }
+    fun prepareCloudRestore(value: CloudBackupDescriptor) = runCloudJob {
+        val download = cloudBackup.stageForRestore(value.fileId)
+        try {
+            try {
+                val preview = withContext(Dispatchers.IO) {
+                    cloudBackup.openStagedRestore(download.localId).use {
+                        portability.prepareRestore(it, download.fileName, ::progress)
+                    }
+                }
+                mutable.value = state.value.copy(busy = false, stage = null, preview = preview,
+                    selectedCloudBackup = null, error = null)
+            } catch (error: PortabilityException) {
+                mutable.value = state.value.copy(busy = false, stage = null, error = error.errorCode)
+            }
+        } finally {
+            cloudBackup.releaseStagedRestore(download.localId)
+        }
+    }
 
     fun createBackup(
         request: OutputRequest,
@@ -58,7 +147,8 @@ class BackupViewModel(
         result = result.copy(outputVerified = withContext(Dispatchers.IO) {
             verifyProviderCopy(result, openInput)
         })
-        mutable.value = BackupUiState(completedFile = result)
+        mutable.value = state.value.copy(busy = false, stage = null, completedFile = result,
+            preview = null, challenge = null, restoreResult = null, error = null)
     }
 
     fun exportWorkbook(
@@ -74,7 +164,8 @@ class BackupViewModel(
         result = result.copy(outputVerified = withContext(Dispatchers.IO) {
             verifyProviderCopy(result, openInput)
         })
-        mutable.value = BackupUiState(completedFile = result)
+        mutable.value = state.value.copy(busy = false, stage = null, completedFile = result,
+            preview = null, challenge = null, restoreResult = null, error = null)
     }
 
     fun prepareRestore(sourceName: String, openInput: () -> InputStream?) = runJob {
@@ -84,7 +175,8 @@ class BackupViewModel(
             openInput()?.use { portability.prepareRestore(it, sourceName, ::progress) }
                 ?: throw PortabilityException(PortabilityErrorCode.INPUT_UNAVAILABLE)
         }
-        mutable.value = BackupUiState(preview = preview)
+        mutable.value = state.value.copy(busy = false, stage = null, completedFile = null,
+            preview = preview, challenge = null, restoreResult = null, error = null)
     }
 
     fun requestChallenge() {
@@ -114,13 +206,15 @@ class BackupViewModel(
         runJob {
             val result = portability.commitRestore(preview.candidateId, challenge.value,
                 state.value.confirmation, ::progress)
-            mutable.value = BackupUiState(restoreResult = result)
+            mutable.value = state.value.copy(busy = false, stage = null, preview = null,
+                challenge = null, confirmation = "", restoreResult = result, error = null)
         }
     }
 
     fun cancelRestore() {
         val candidateId = state.value.preview?.candidateId
-        mutable.value = BackupUiState()
+        mutable.value = state.value.copy(busy = false, stage = null, completedFile = null,
+            preview = null, challenge = null, confirmation = "", restoreResult = null, error = null)
         if (candidateId != null) viewModelScope.launch { portability.cancelRestore(candidateId) }
     }
 
@@ -136,6 +230,23 @@ class BackupViewModel(
                 mutable.value = state.value.copy(busy = false, stage = null, error = error.errorCode)
             } catch (_: Exception) {
                 mutable.value = state.value.copy(busy = false, stage = null, error = PortabilityErrorCode.INTERNAL)
+            }
+        }
+    }
+
+    private fun runCloudJob(block: suspend () -> Unit) {
+        if (demo || state.value.cloudBusy) return
+        viewModelScope.launch {
+            mutable.value = state.value.copy(cloudBusy = true, cloudError = null)
+            try {
+                block()
+                mutable.value = state.value.copy(cloudBusy = false)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: CloudBackupException) {
+                mutable.value = state.value.copy(cloudBusy = false, cloudError = error.error)
+            } catch (_: Exception) {
+                mutable.value = state.value.copy(cloudBusy = false, cloudError = CloudBackupError.INTERNAL)
             }
         }
     }

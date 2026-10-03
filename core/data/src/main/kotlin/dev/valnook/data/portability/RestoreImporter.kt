@@ -56,6 +56,16 @@ internal class RestoreImporter(
                 val committedAt = clock.millis()
                 fault(RestorePoint.BEFORE_COMMIT_RECEIPT)
                 check(target.audit().recordRestoreCommit(attemptId, staged.packageSha256, committedAt) == 1)
+                val cloud = target.cloudBackup().state()
+                target.cloudBackup().saveState(cloud.copy(
+                    pause_reason = "AFTER_RESTORE",
+                    schedule_generation = cloud.schedule_generation + 1,
+                    next_due_at_utc_ms = null,
+                    scheduled_cycle_id = null,
+                    attempt_state = "CANCELLED",
+                    observed_restore_attempt_id = attemptId,
+                    updated_at_ms = committedAt
+                ))
             }
         } catch (error: Exception) {
             runCatching { target.audit().setMaintenance(false, clock.millis()) }

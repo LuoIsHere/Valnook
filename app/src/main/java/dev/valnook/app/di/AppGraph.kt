@@ -12,6 +12,9 @@ import dev.valnook.data.portability.RoomPortabilityEngine
 import dev.valnook.data.repository.*
 import dev.valnook.data.transaction.RoomFinancialCommands
 import dev.valnook.domain.repository.*
+import dev.valnook.domain.cloud.BackupScheduler
+import dev.valnook.domain.cloud.CloudAccessProvider
+import dev.valnook.domain.cloud.CloudBackupService
 import java.time.Clock
 import javax.inject.Singleton
 
@@ -32,7 +35,8 @@ class AppGraph(
     val cashPages: PagedCashRepository,
     val depositPages: PagedDepositRepository,
     val portability: dev.valnook.domain.portability.DataPortability =
-        dev.valnook.domain.portability.UnavailableDataPortability
+        dev.valnook.domain.portability.UnavailableDataPortability,
+    val cloudBackup: CloudBackupService = dev.valnook.domain.cloud.UnavailableCloudBackupService
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -88,7 +92,7 @@ internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
     appVersionCode = dev.valnook.app.BuildConfig.VERSION_CODE.toLong(),
     internalBuildRevision = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
     internalBuildLabel = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
-    databaseSchemaVersion = 9
+    databaseSchemaVersion = 10
 )
 
 @Module
@@ -109,4 +113,33 @@ object AppModule {
         database: ValnookDatabase,
         clock: Clock
     ): DatabaseGraph = createDatabaseGraph(context, database, clock, currentBuildInfo())
+
+    @Provides
+    @Singleton
+    fun cloudAccessProvider(gateway: dev.valnook.app.cloud.GoogleAuthorizationGateway): CloudAccessProvider = gateway
+
+    @Provides
+    @Singleton
+    fun googleDriveAuthorization(gateway: dev.valnook.app.cloud.GoogleAuthorizationGateway):
+        dev.valnook.feature.backup.GoogleDriveAuthorization = gateway
+
+    @Provides
+    @Singleton
+    fun cloudBackupService(coordinator: dev.valnook.data.cloud.CloudBackupCoordinator): CloudBackupService = coordinator
+
+    @Provides
+    @Singleton
+    fun backupScheduler(@ApplicationContext context: Context): BackupScheduler =
+        dev.valnook.app.cloud.WorkManagerBackupScheduler(context)
+
+    @Provides
+    @Singleton
+    internal fun cloudBackupCoordinator(
+        @ApplicationContext context: Context,
+        database: ValnookDatabase,
+        graph: DatabaseGraph,
+        accessProvider: CloudAccessProvider,
+        scheduler: BackupScheduler
+    ): dev.valnook.data.cloud.CloudBackupCoordinator = dev.valnook.data.cloud.createCloudBackupCoordinator(
+        context, database, graph.portability, accessProvider, scheduler)
 }

@@ -10,8 +10,8 @@ import dev.valnook.domain.model.Currency
     SettingsEntity::class,FxRateEntity::class,InstrumentPriceEntity::class,StatisticsStateEntity::class,
     StatisticsBaselineItemEntity::class,StatisticsCacheEntity::class,DemoLabelEntity::class,
     AuditEventEntity::class,AuditEventAccountEntity::class,AuditMetadataEntity::class,
-    LocalMaintenanceStateEntity::class],
-    version = 9, exportSchema = true)
+    LocalMaintenanceStateEntity::class,CloudBackupStateEntity::class,CloudBackupAttemptEntity::class],
+    version = 10, exportSchema = true)
 abstract class ValnookDatabase : RoomDatabase() {
     abstract fun ledger(): LedgerDao
     abstract fun accounts(): AccountDao
@@ -25,6 +25,7 @@ abstract class ValnookDatabase : RoomDatabase() {
     abstract fun maintenance(): MaintenanceDao
     abstract fun statistics(): StatisticsDao
     abstract fun audit(): AuditDao
+    abstract fun cloudBackup(): CloudBackupDao
     companion object {
         val seed = object : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -38,16 +39,17 @@ abstract class ValnookDatabase : RoomDatabase() {
                     arrayOf(now, day))
                 db.execSQL("INSERT INTO audit_metadata(id,protocol_version,tracking_start_ms,tracking_start_database_version,complete_since_start,legacy_history_before_start) VALUES (1,1,?,9,1,0)", arrayOf(now))
                 db.execSQL("INSERT INTO local_maintenance_state(id,dataset_generation,maintenance_in_progress,last_restore_attempt_id,last_restore_backup_sha256,last_restore_committed_at_ms,upload_pause_reason,updated_at_ms) VALUES (1,1,0,NULL,NULL,NULL,NULL,?)", arrayOf(now))
+                db.execSQL("INSERT INTO cloud_backup_state(id,account_reference,account_display,folder_id,connection_generation,automatic_enabled,interval_hours,pause_reason,schedule_generation,next_due_at_utc_ms,scheduled_cycle_id,attempt_state,latest_error,last_attempt_at_utc_ms,last_success_at_utc_ms,cleanup_incomplete,pending_banner_event_id,pending_banner_error,observed_restore_attempt_id,updated_at_ms) VALUES (1,NULL,NULL,NULL,1,0,24,'NONE',1,NULL,NULL,'IDLE',NULL,NULL,NULL,0,NULL,NULL,NULL,?)", arrayOf(now))
             }
         }
         fun open(context: Context): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")
-                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9)
+                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun fromAsset(context: Context, name: String, assetPath: String): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,name)
                 .createFromAsset(assetPath)
-                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun inMemory(context: Context): ValnookDatabase =
             Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(seed).build()

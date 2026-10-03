@@ -11,6 +11,7 @@ import dev.valnook.domain.model.DomainException
 import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.model.FxRate
 import dev.valnook.domain.model.GainLossColorScheme
+import dev.valnook.domain.model.InvestmentSection
 import dev.valnook.domain.model.NavigationConfiguration
 import dev.valnook.domain.model.NavigationItemId
 import dev.valnook.domain.model.StatisticsGranularity
@@ -62,15 +63,16 @@ class SessionIsolationTest {
         assertEquals(12, snapshot.accounts.size)
         assertEquals(48, snapshot.cash.size)
         assertEquals(60, snapshot.instruments.size)
-        assertEquals(80, snapshot.positions.size)
+        assertEquals(82, snapshot.positions.size)
         val demoTrades = snapshot.positions.flatMap { demo.graph.investments.trade_page(it.id, null, 100) }
-        assertEquals(800, demoTrades.size)
+        assertEquals(807, demoTrades.size)
         assertTrue(snapshot.positions.map { it.holding_quantity_e8 }.distinct().size > 10)
         assertTrue(demoTrades.map { it.quantity_e8 }.distinct().size > 10)
         assertTrue(demoTrades.map { it.fee_minor }.distinct().size > 20)
         assertTrue(demoTrades.any { it.fee_minor == 0L })
         assertTrue(demoTrades.any { it.cash_linked && it.cashAccountId != null })
         assertTrue(demoTrades.any { !it.cash_linked && it.cashAccountId == null })
+        assertTrue(demoTrades.maxOf { it.revision } >= 4)
         assertTrue(snapshot.instruments.any { it.symbol == "600519.SH" && it.name.isNotBlank() })
         assertTrue(snapshot.instruments.any { it.symbol == "0700.HK" && it.name.isNotBlank() })
         assertTrue(snapshot.instruments.any { it.symbol == "AAPL" && it.name == "Apple" })
@@ -84,10 +86,24 @@ class SessionIsolationTest {
         assertEquals("total overview=${overview.total.amount} statistics=${currentStatistics.totalAssets}",
             0, overview.total.amount.compareTo(requireNotNull(currentStatistics.totalAssets)))
         assertEquals(overview.total.currency, currentStatistics.currency)
-        assertEquals(24, snapshot.accounts.sumOf { account ->
-            demo.graph.deposits.observe_deposits(account.id, 100, false).first().size +
-                demo.graph.deposits.observe_deposits(account.id, 100, true).first().size
-        })
+        val demoDeposits = snapshot.accounts.flatMap { account ->
+            demo.graph.deposits.observe_deposits(account.id, 100, false).first() +
+                demo.graph.deposits.observe_deposits(account.id, 100, true).first()
+        }
+        assertEquals(26, demoDeposits.size)
+        assertTrue(demoDeposits.maxOf { it.revision } >= 6)
+        val firstAccount = snapshot.accounts.first()
+        val timelineCash = snapshot.cash.single {
+            it.account_id == firstAccount.id && it.currency.code == "CNY"
+        }
+        val timelineEntries = demo.graph.cashPages.cashAccountPage(timelineCash.id, null, 1_000)
+        assertEquals(6, timelineEntries.count { it.note.startsWith("长期账本") })
+        assertTrue(timelineEntries.maxOf { it.occurred_at_ms } - timelineEntries.minOf { it.occurred_at_ms } >=
+            9L * 365L * 86_400_000L)
+        val apple = snapshot.positions.single { it.account_id == firstAccount.id && it.symbol == "AAPL" }
+        assertTrue(demo.graph.investments.trade_page(apple.id, null, 100).maxOf { it.revision } >= 4)
+        assertTrue(demo.graph.investments.observe_investments(firstAccount.id, 100,
+            InvestmentSection.CLOSED).first().any { it.symbol == "META" })
         assertEquals(realBefore, real.graph.overview.snapshot())
         demo.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
             "Temporary demo account", "must disappear after re-entry", emptyList()))

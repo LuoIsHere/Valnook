@@ -58,6 +58,8 @@ class StatisticsNavigationUiTest {
         rule.onNodeWithTag("backup-create").assertExists()
         rule.onNodeWithTag("backup-restore").assertExists()
         rule.onNodeWithTag("backup-export-excel").assertExists()
+        rule.onNodeWithTag("cloud-connect").assertExists()
+        rule.onNodeWithTag("cloud-connect-icon", useUnmergedTree = true).assertExists()
         rule.activity.onBackPressedDispatcher.onBackPressed()
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("settings-demo-switch").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("settings-demo-switch").performScrollTo().performClick()
@@ -71,5 +73,6 @@ class StatisticsNavigationUiTest {
         rule.onNodeWithTag("backup-export-excel").assertExists()
         rule.onNodeWithTag("backup-create").assertDoesNotExist()
         rule.onNodeWithTag("backup-restore").assertDoesNotExist()
+        rule.onNodeWithTag("cloud-connect").assertDoesNotExist()
     }
 }

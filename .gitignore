@@ -32,7 +32,7 @@ key.properties
 *.log
 *.hprof
 *.db
-!app/src/main/assets/database/valnook-demo-v9.db
+!app/src/main/assets/database/valnook-demo-v10.db
 *.db-wal
 *.db-shm
 *.sqlite
