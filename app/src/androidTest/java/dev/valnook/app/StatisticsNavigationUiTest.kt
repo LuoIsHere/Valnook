@@ -49,4 +49,27 @@ class StatisticsNavigationUiTest {
         rule.onNodeWithTag("navigation-row-statistics").assertExists()
         rule.onNodeWithTag("navigation-visible-settings").assertIsNotEnabled()
     }
+
+    @Test fun backup_page_exposes_real_actions_and_demo_only_excel() {
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("nav-settings").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("nav-settings").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("settings-backup-export").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("settings-backup-export").performScrollTo().performClick()
+        rule.onNodeWithTag("backup-create").assertExists()
+        rule.onNodeWithTag("backup-restore").assertExists()
+        rule.onNodeWithTag("backup-export-excel").assertExists()
+        rule.activity.onBackPressedDispatcher.onBackPressed()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("settings-demo-switch").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("settings-demo-switch").performScrollTo().performClick()
+        rule.waitUntil(10_000) {
+            rule.onAllNodesWithText(rule.activity.getString(dev.valnook.feature.settings.R.string.settings_demo_banner))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        rule.onNodeWithTag("nav-settings").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("settings-backup-export").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("settings-backup-export").performScrollTo().performClick()
+        rule.onNodeWithTag("backup-export-excel").assertExists()
+        rule.onNodeWithTag("backup-create").assertDoesNotExist()
+        rule.onNodeWithTag("backup-restore").assertDoesNotExist()
+    }
 }

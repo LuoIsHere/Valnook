@@ -1,6 +1,7 @@
 package dev.valnook.data.repository
 
 import androidx.room.withTransaction
+import dev.valnook.data.audit.AuditRecorder
 import dev.valnook.data.database.*
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
@@ -25,6 +26,7 @@ class RoomOverview(private val db: ValnookDatabase) : OverviewRepository {
 }
 
 class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : SettingsRepository, SettingsWriter {
+    private val audit = AuditRecorder(db, clock)
     override fun observeSettings(): Flow<AppSettings> = db.invalidationTracker.createFlow("app_settings", "fx_rates")
         .map { val (settings, rates) = db.overview().settingsSnapshot()
             settingsModel(settings, rates) }
@@ -34,6 +36,7 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
         // Settings and pairs share one revision and transaction, avoiding mixed-base snapshots.
         return db.withTransaction {
             val dao = db.overview()
+            val auditBefore = audit.settingsJson()
             val previous = dao.settings()
             if ((previous?.revision ?: 0) != change.expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
             val current = settingsModel(previous, dao.rates())
@@ -81,6 +84,7 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
                     db.statistics().invalidate(day)
                 }
             }
+            audit.recordSetting(change, auditBefore, audit.settingsJson(), clock.millis())
             settings.copy(revision = value.revision)
         }
     }

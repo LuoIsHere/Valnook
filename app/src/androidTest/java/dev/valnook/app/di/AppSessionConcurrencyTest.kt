@@ -26,6 +26,10 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.io.ByteArrayOutputStream
+import java.io.ByteArrayInputStream
+import dev.valnook.domain.portability.PortabilityErrorCode
+import dev.valnook.domain.portability.PortabilityException
 
 @RunWith(AndroidJUnit4::class)
 class AppSessionConcurrencyTest {
@@ -42,7 +46,7 @@ class AppSessionConcurrencyTest {
 
     @Test fun write_already_inside_the_session_boundary_finishes_before_demo_switch()=runBlocking {
         val commands=BlockingCommands()
-        val manager=AppSessionManager(context,createDatabaseGraph(database,clock).copy(commands=commands),database,clock)
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()).copy(commands=commands),database,clock)
         val original=manager.session.value
         val write=async { original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
             "ordered write","",emptyList())) }
@@ -63,7 +67,7 @@ class AppSessionConcurrencyTest {
     @Test fun request_waiting_behind_clear_is_rejected_after_the_new_generation_is_published()=runBlocking {
         val commands=CountingCommands()
         val maintenance=BlockingMaintenance()
-        val manager=AppSessionManager(context,createDatabaseGraph(database,clock).copy(
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()).copy(
             commands=commands,maintenance=maintenance),database,clock)
         val original=manager.session.value
         val challenge=manager.issueClearChallenge()
@@ -80,6 +84,66 @@ class AppSessionConcurrencyTest {
         assertEquals(ErrorCode.SESSION_EXPIRED,(failure as DomainException).code)
         assertEquals(0,commands.calls)
         assertTrue(manager.session.value.id!=original.id)
+    }
+
+    @Test fun demo_rejects_backup_capability_and_invalidates_real_file_callbacks()=runBlocking {
+        val manager=AppSessionManager(context,
+            createDatabaseGraph(context,database,clock,currentBuildInfo()),database,clock)
+        val realPortability=manager.session.value.graph.portability
+        manager.enterDemo()
+        val demoPortability=manager.session.value.graph.portability
+        assertFalse(demoPortability.backupAndRestoreAllowed)
+        try {
+            demoPortability.createBackup(UUID.randomUUID().toString(),ByteArrayOutputStream())
+            throw AssertionError("Demo backup should be rejected")
+        } catch (error:PortabilityException) {
+            assertEquals(PortabilityErrorCode.DEMO_RESTRICTED,error.errorCode)
+        }
+        try {
+            realPortability.exportWorkbook(UUID.randomUUID().toString(),
+                dev.valnook.domain.model.AppLanguage.ENGLISH,false,ByteArrayOutputStream())
+            throw AssertionError("Stale real callback should be rejected")
+        } catch (error:DomainException) {
+            assertEquals(ErrorCode.SESSION_EXPIRED,error.code)
+        }
+        manager.exitDemo()
+    }
+
+    @Test fun restore_requires_a_fresh_challenge_and_rotates_the_session_after_one_commit()=runBlocking {
+        val graph=createDatabaseGraph(context,database,clock,currentBuildInfo())
+        val manager=AppSessionManager(context,graph,database,clock)
+        val original=manager.session.value
+        original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
+            "portable source","",emptyList()))
+        val output=ByteArrayOutputStream()
+        original.graph.portability.createBackup(UUID.randomUUID().toString(),output)
+        original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
+            "must be replaced","",emptyList()))
+        val preview=original.graph.portability.prepareRestore(
+            ByteArrayInputStream(output.toByteArray()),"candidate.val_backup")
+        var challenge=original.graph.portability.issueRestoreChallenge(preview.candidateId)
+        try {
+            original.graph.portability.commitRestore(preview.candidateId,challenge.value,"WRONG!")
+            throw AssertionError("Wrong confirmation should fail")
+        } catch (error:PortabilityException) {
+            assertEquals(PortabilityErrorCode.CONFIRMATION_MISMATCH,error.errorCode)
+        }
+        challenge=original.graph.portability.issueRestoreChallenge(preview.candidateId)
+        original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
+            "changed after challenge","",emptyList()))
+        try {
+            original.graph.portability.commitRestore(preview.candidateId,challenge.value,challenge.value)
+            throw AssertionError("A changed dataset should invalidate the confirmation")
+        } catch (error:PortabilityException) {
+            assertEquals(PortabilityErrorCode.STALE_PREVIEW,error.errorCode)
+        }
+        challenge=original.graph.portability.issueRestoreChallenge(preview.candidateId)
+        original.graph.portability.commitRestore(preview.candidateId,challenge.value,challenge.value)
+        assertTrue(manager.session.value.id!=original.id)
+        assertEquals(listOf("portable source"),
+            dev.valnook.data.repository.RoomOverview(database).snapshot().accounts.map { it.name })
+        expectExpired { original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
+            "stale page","",emptyList())) }
     }
 
     private suspend fun expectExpired(block:suspend ()->Unit){

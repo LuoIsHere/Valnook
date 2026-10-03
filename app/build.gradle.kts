@@ -16,9 +16,9 @@ android {
         applicationId = "dev.valnook.app"
         minSdk = 36
         targetSdk = 37
-        versionCode = 4
-        versionName = "0.0.4"
-        buildConfigField("String", "INTERNAL_BUILD_ID", "\"20261003.1\"")
+        versionCode = 5
+        versionName = "0.0.5"
+        buildConfigField("String", "INTERNAL_BUILD_ID", "\"20261003.2\"")
 
         testInstrumentationRunner = "dev.valnook.app.HiltTestRunner"
     }
@@ -51,6 +51,7 @@ dependencies {
     implementation(project(":feature:investments"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:statistics"))
+    implementation(project(":feature:backup"))
     implementation(libs.androidx.viewmodel.navigation3)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

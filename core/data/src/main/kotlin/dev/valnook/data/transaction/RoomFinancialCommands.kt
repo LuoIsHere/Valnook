@@ -1,6 +1,7 @@
 package dev.valnook.data.transaction
 
 import androidx.room.withTransaction
+import dev.valnook.data.audit.AuditRecorder
 import dev.valnook.data.database.*
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
@@ -18,6 +19,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     private val instruments = InstrumentCommandHandler(db, cash, fault)
     private val positions = PositionCommandHandler(db, cash, fault)
     private val types = AssetTypeWriter(db.instruments())
+    private val audit = AuditRecorder(db, clock)
 
     override suspend fun operationResult(operationId: String): OperationResult? = db.operations().operation(operationId)?.let {
         if (it.result_kind == null || it.result_id == null) null else OperationResult(it.result_kind, it.result_id)
@@ -35,6 +37,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             }
             val now = clock.millis()
             val invalidatedDay = earliestAffectedDay(command, now)
+            val auditBefore = audit.captureBefore(command)
             dao.insert_operation(OperationEntity(command.operation_id, kind, digest, null, null, now))
             val result = when (command) {
                 is SaveAssetType -> OperationResult("ASSET_TYPE", types.save(command.typeId, command.name, now))
@@ -54,6 +57,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             fault(TransactionPoint.BEFORE_RECEIPT)
             invalidatedDay?.let { db.statistics().invalidate(it) }
             dao.complete_operation(command.operation_id, result.kind, result.id)
+            audit.recordCommand(command, result, auditBefore, now)
             result
         }
     }

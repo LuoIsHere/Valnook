@@ -14,6 +14,9 @@
 .cxx
 local.properties
 /internal/
+*.val_backup
+*.xlsx
+*.zip
 .kotlin/
 **/build/
 .idea/
@@ -29,7 +32,7 @@ key.properties
 *.log
 *.hprof
 *.db
-!app/src/main/assets/database/valnook-demo-v8.db
+!app/src/main/assets/database/valnook-demo-v9.db
 *.db-wal
 *.db-shm
 *.sqlite

@@ -120,6 +120,7 @@ private fun SessionRoot(
             .associate { it.sourceCurrency.code to it.rate.stripTrailingZeros().toPlainString() })
     }
     val accountName: (Long) -> String = { id -> accounts.firstOrNull { it.id == id }?.name.orEmpty() }
+    val scope = rememberCoroutineScope()
     val open: (NavKey) -> Unit = { route -> if (stack.last() != route) stack.add(route) }
     val selectRoot: (NavKey) -> Unit = { route ->
         if (current.isRoot() && current != route) {
@@ -128,6 +129,7 @@ private fun SessionRoot(
         }
     }
     val back: () -> Unit = {
+        if (stack.last() == BackupKey) scope.launch { sessions.cancelPendingRestore(active.id) }
         if (!stack.last().isRoot()) stack.removeAt(stack.lastIndex)
         else if (stack.last() != firstRoot) {
             stack.remove(firstRoot)
@@ -147,6 +149,7 @@ private fun SessionRoot(
         LanguageSettingsKey -> stringResource(R.string.title_language)
         GainLossColorsKey -> stringResource(R.string.title_gain_loss_colors)
         ClearDataKey -> stringResource(R.string.title_clear_data)
+        BackupKey -> stringResource(dev.valnook.feature.backup.R.string.backup_title)
         is AccountKey -> accountName(current.id)
         is AccountEditKey -> stringResource(R.string.title_edit_account)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
@@ -166,7 +169,6 @@ private fun SessionRoot(
     var overlayHeightPx by remember { mutableIntStateOf(0) }
     val systemBottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
     val bottomSpace = if (showCapsule) with(density) { overlayHeightPx.toDp() } else systemBottom
-    val scope = rememberCoroutineScope()
     var switching by remember { mutableStateOf(false) }
     var switchFailed by remember { mutableStateOf(false) }
     val addAccountDescription = stringResource(R.string.nav_add_account)
@@ -236,8 +238,14 @@ private fun SessionRoot(
                                                     switchFailed = true
                                                 }
                                         }
-                                    }, { open(ClearDataKey) }, { open(NavigationSettingsKey) },
+                                    }, { open(ClearDataKey) }, { open(NavigationSettingsKey) }, { open(BackupKey) },
                                     { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID)
+                            }
+                            entry<BackupKey> {
+                                dev.valnook.feature.backup.BackupScreen(pageViewModel {
+                                    dev.valnook.feature.backup.BackupViewModel(
+                                        graph.portability, graph.settings, active.mode == DataMode.DEMO)
+                                }, active.mode == DataMode.DEMO)
                             }
                             entry<NavigationSettingsKey> {
                                 NavigationSettingsScreen(pageViewModel {

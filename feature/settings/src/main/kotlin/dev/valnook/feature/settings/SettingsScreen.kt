@@ -74,6 +74,7 @@ fun SettingsHome(
     onDemoChange: (Boolean) -> Unit,
     onClear: () -> Unit,
     onNavigation: () -> Unit,
+    onBackupExport: () -> Unit,
     onHiddenPage: (NavigationItemId) -> Unit,
     versionName: String,
     internalBuildId: String
@@ -104,12 +105,17 @@ fun SettingsHome(
             SettingEntry(stringResource(R.string.settings_navigation),
                 stringResource(R.string.settings_navigation_summary), onNavigation)
         }
+        item {
+            SettingEntry(stringResource(R.string.settings_backup_export),
+                if (demoMode) stringResource(R.string.settings_backup_export_demo_summary)
+                else stringResource(R.string.settings_backup_export_summary), onBackupExport,
+                Modifier.testTag("settings-backup-export"))
+        }
         if (state.savedSettings.navigation.hiddenInOrder.isNotEmpty()) {
             item { Text(stringResource(R.string.settings_hidden_pages), style = MaterialTheme.typography.titleMedium) }
             items(state.savedSettings.navigation.hiddenInOrder, key = { it.name }) { item ->
-                SettingEntry(navigationLabel(item), stringResource(R.string.settings_hidden_page_summary)) {
-                    onHiddenPage(item)
-                }
+                SettingEntry(navigationLabel(item), stringResource(R.string.settings_hidden_page_summary),
+                    { onHiddenPage(item) })
             }
         }
         item {
@@ -126,7 +132,8 @@ fun SettingsHome(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error)
                 }
-                Switch(demoMode, { onDemoChange(it) }, enabled = !switching)
+                Switch(demoMode, { onDemoChange(it) }, enabled = !switching,
+                    modifier = Modifier.testTag("settings-demo-switch"))
             }
         }
         if (!demoMode) {
@@ -235,8 +242,8 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
 }
 
 @Composable
-private fun SettingEntry(title: String, summary: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(Space.md),
+private fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().clickable(onClick = onClick).padding(Space.md),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(title, style = MaterialTheme.typography.titleMedium)

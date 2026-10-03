@@ -10,6 +10,7 @@ import dagger.hilt.testing.TestInstallIn
 import dev.valnook.app.di.AppModule
 import dev.valnook.app.di.DatabaseGraph
 import dev.valnook.app.di.createDatabaseGraph
+import dev.valnook.app.di.currentBuildInfo
 import dev.valnook.data.database.ValnookDatabase
 import java.time.Clock
 import java.time.Instant
@@ -35,6 +36,6 @@ object TestModule {
 
     @Provides
     @Singleton
-    internal fun databaseGraph(database: ValnookDatabase, clock: Clock): DatabaseGraph =
-        createDatabaseGraph(database, clock)
+    internal fun databaseGraph(@ApplicationContext context: Context, database: ValnookDatabase, clock: Clock): DatabaseGraph =
+        createDatabaseGraph(context, database, clock, currentBuildInfo())
 }

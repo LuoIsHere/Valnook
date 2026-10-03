@@ -285,4 +285,35 @@ class MigrationTest {
             }
         } finally { context.deleteDatabase(name) }
     }
+
+    @Test fun v8_to_v9_adds_audit_coverage_and_local_generation_without_changing_business_rows() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-v8-audit-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 8).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts VALUES (1,'保留账户','备注',100,100,1)")
+                execSQL("INSERT INTO operations VALUES ('legacy-operation','ACCOUNT_SAVE','fingerprint','ACCOUNT',1,100)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 9, true, MIGRATION_8_9).apply {
+                query("SELECT name,note,revision FROM savings_accounts WHERE id=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals("保留账户", it.getString(0))
+                    assertEquals("备注", it.getString(1)); assertEquals(1L, it.getLong(2))
+                }
+                query("SELECT protocol_version,tracking_start_database_version,complete_since_start,legacy_history_before_start FROM audit_metadata WHERE id=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals(1, it.getInt(0)); assertEquals(9, it.getInt(1))
+                    assertEquals(1, it.getInt(2)); assertEquals(1, it.getInt(3))
+                }
+                query("SELECT dataset_generation,maintenance_in_progress FROM local_maintenance_state WHERE id=1").use {
+                    assertTrue(it.moveToFirst()); assertEquals(1L, it.getLong(0)); assertEquals(0, it.getInt(1))
+                }
+                query("SELECT COUNT(*) FROM audit_events").use {
+                    assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0))
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
 }

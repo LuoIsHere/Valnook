@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.LocaleList
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.valnook.data.database.ValnookDatabase
+import dev.valnook.data.portability.StagedRestore
 import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.model.DomainException
 import dev.valnook.domain.model.ErrorCode
@@ -15,6 +16,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.SecureRandom
 import java.time.Clock
 import java.util.UUID
@@ -37,21 +42,26 @@ class AppSessionManager @Inject internal constructor(
     private var demoDatabase: ValnookDatabase? = null
     private var demoDatabaseName: String? = null
     private var pendingClear: PendingClear? = null
+    private var pendingRestore: PendingRestore? = null
+    private var activeFileJob: ActiveFileJob? = null
     private val initialId = UUID.randomUUID().toString()
     @Volatile private var currentSessionId = initialId
     private val mutable = MutableStateFlow(ActiveSession(initialId, DataMode.REAL,
-        bind(realDatabaseGraph, initialId)))
+        bind(realDatabaseGraph, initialId, DataMode.REAL)))
     val session = mutable.asStateFlow()
 
     suspend fun enterDemo() = writeMutex.withLock {
         if (mutable.value.mode == DataMode.DEMO) return@withLock
+        if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
+            dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
+        cancelPendingRestoreLocked()
         pendingClear = null
         val displayPreferences = realDatabaseGraph.settings.observeSettings().first()
         clearAbandonedDemoDatabases()
         val databaseName = "$DEMO_DATABASE_PREFIX${UUID.randomUUID()}.db"
         val database = ValnookDatabase.fromAsset(context, databaseName, DEMO_DATABASE_ASSET)
         try {
-            val raw = createDatabaseGraph(database, clock)
+            val raw = createDatabaseGraph(context, database, clock, realDatabaseGraph.portability.buildInfo())
             var fixtureSettings = raw.settings.observeSettings().first()
             fixtureSettings = raw.settingsWriter.applyChange(
                 SaveLanguage(fixtureSettings.revision, displayPreferences.language))
@@ -63,7 +73,7 @@ class AppSessionManager @Inject internal constructor(
             currentSessionId = id
             demoDatabase = database
             demoDatabaseName = databaseName
-            mutable.value = ActiveSession(id, DataMode.DEMO, bind(raw, id))
+            mutable.value = ActiveSession(id, DataMode.DEMO, bind(raw, id, DataMode.DEMO))
         } catch (error: Exception) {
             database.close()
             context.deleteDatabase(databaseName)
@@ -73,6 +83,9 @@ class AppSessionManager @Inject internal constructor(
 
     suspend fun exitDemo() = writeMutex.withLock {
         if (mutable.value.mode != DataMode.DEMO) return@withLock
+        if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
+            dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
+        cancelPendingRestoreLocked()
         pendingClear = null
         publishRealSession()
         demoDatabase?.close()
@@ -84,6 +97,7 @@ class AppSessionManager @Inject internal constructor(
     suspend fun issueClearChallenge(): String = writeMutex.withLock {
         val active = mutable.value
         if (active.mode != DataMode.REAL) throw DomainException(ErrorCode.SESSION_EXPIRED)
+        rejectWhenFileJobIsActive()
         val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
         val random = SecureRandom()
         val challenge = buildString { repeat(6) { append(alphabet[random.nextInt(alphabet.length)]) } }
@@ -93,6 +107,12 @@ class AppSessionManager @Inject internal constructor(
 
     suspend fun cancelClearChallenge(challenge: String) = writeMutex.withLock {
         if (pendingClear?.challenge == challenge) pendingClear = null
+    }
+
+    suspend fun cancelPendingRestore(sessionId: String) = writeMutex.withLock {
+        if (mutable.value.id == sessionId && pendingRestore?.sessionId == sessionId) {
+            cancelPendingRestoreLocked()
+        }
     }
 
     suspend fun syncPlatformLanguage(sessionId: String, language: AppLanguage) = writeMutex.withLock {
@@ -110,12 +130,14 @@ class AppSessionManager @Inject internal constructor(
 
     suspend fun clearRealData(challenge: String, input: String) = writeMutex.withLock {
         val active = mutable.value
+        rejectWhenFileJobIsActive()
         val pending = pendingClear
         if (active.mode != DataMode.REAL || pending == null || pending.sessionId != active.id ||
             pending.challenge != challenge || input != challenge) {
             throw DomainException(ErrorCode.SESSION_EXPIRED)
         }
         pendingClear = null
+        cancelPendingRestoreLocked()
         // Always revoke the old generation before the mutex is released, including cancellation paths.
         try {
             realDatabaseGraph.maintenance.clearBusinessData()
@@ -127,10 +149,10 @@ class AppSessionManager @Inject internal constructor(
     private fun publishRealSession() {
         val id = UUID.randomUUID().toString()
         currentSessionId = id
-        mutable.value = ActiveSession(id, DataMode.REAL, bind(realDatabaseGraph, id))
+        mutable.value = ActiveSession(id, DataMode.REAL, bind(realDatabaseGraph, id, DataMode.REAL))
     }
 
-    private fun bind(source: DatabaseGraph, sessionId: String): AppGraph = AppGraph(
+    private fun bind(source: DatabaseGraph, sessionId: String, mode: DataMode): AppGraph = AppGraph(
         sessionId = sessionId,
         accounts = source.accounts,
         cash = source.cash,
@@ -146,7 +168,8 @@ class AppSessionManager @Inject internal constructor(
         settingsWriter = SessionSettingsWriter(sessionId, source.settingsWriter),
         instruments = source.instruments,
         cashPages = source.cashPages,
-        depositPages = source.depositPages
+        depositPages = source.depositPages,
+        portability = SessionPortability(sessionId, mode, source.portability)
     )
 
     private fun clearAbandonedDemoDatabases() {
@@ -179,14 +202,160 @@ class AppSessionManager @Inject internal constructor(
             }
     }
 
+    private inner class SessionPortability(
+        private val sessionId: String,
+        private val mode: DataMode,
+        private val engine: dev.valnook.data.portability.RoomPortabilityEngine
+    ) : dev.valnook.domain.portability.DataPortability {
+        override val backupAndRestoreAllowed: Boolean = mode == DataMode.REAL
+
+        override suspend fun createBackup(
+            backupId: String,
+            output: OutputStream,
+            progress: (dev.valnook.domain.portability.PortabilityProgress) -> Unit
+        ): dev.valnook.domain.portability.PortableFileResult = fileJob(sessionId) {
+            requireReal()
+            engine.createBackup(backupId, output, progress)
+        }
+
+        override suspend fun prepareRestore(
+            input: InputStream,
+            sourceName: String,
+            progress: (dev.valnook.domain.portability.PortabilityProgress) -> Unit
+        ): dev.valnook.domain.portability.RestorePreview = fileJob(sessionId) {
+            requireReal()
+            val staged = engine.prepareRestore(input, sourceName, progress)
+            try {
+                writeMutex.withLock {
+                    requireCurrent(sessionId)
+                    cancelPendingRestoreLocked()
+                    pendingRestore = PendingRestore(sessionId, staged)
+                }
+            } catch (error: Throwable) {
+                engine.close(staged)
+                throw error
+            }
+            engine.preview(staged)
+        }
+
+        override suspend fun issueRestoreChallenge(candidateId: String): dev.valnook.domain.portability.RestoreChallenge =
+            writeMutex.withLock {
+                requireReal()
+                requireCurrent(sessionId)
+                val pending = pendingRestore?.takeIf {
+                    it.sessionId == sessionId && it.staged.candidateId == candidateId
+                } ?: expired()
+                val generation = engine.generation()
+                pending.staged = pending.staged.copy(generationAtPreview = generation)
+                val challenge = randomChallenge()
+                pending.challenge = challenge
+                pending.challengeGeneration = generation
+                dev.valnook.domain.portability.RestoreChallenge(candidateId, challenge)
+            }
+
+        override suspend fun commitRestore(
+            candidateId: String,
+            challenge: String,
+            confirmation: String,
+            progress: (dev.valnook.domain.portability.PortabilityProgress) -> Unit
+        ): dev.valnook.domain.portability.RestoreResult = writeMutex.withLock {
+            requireReal()
+            requireCurrent(sessionId)
+            val pending = pendingRestore?.takeIf {
+                it.sessionId == sessionId && it.staged.candidateId == candidateId
+            } ?: expired()
+            val expected = pending.challenge
+            pending.challenge = null
+            if (expected == null || expected != challenge) expired()
+            if (confirmation != expected) throw dev.valnook.domain.portability.PortabilityException(
+                dev.valnook.domain.portability.PortabilityErrorCode.CONFIRMATION_MISMATCH)
+            if (engine.generation() != pending.challengeGeneration) {
+                throw dev.valnook.domain.portability.PortabilityException(
+                    dev.valnook.domain.portability.PortabilityErrorCode.STALE_PREVIEW)
+            }
+            val result = engine.commitRestore(pending.staged, progress)
+            withContext(NonCancellable) {
+                engine.close(pending.staged)
+                pendingRestore = null
+                publishRealSession()
+            }
+            result
+        }
+
+        override suspend fun cancelRestore(candidateId: String) = writeMutex.withLock {
+            val pending = pendingRestore
+            if (pending != null && pending.sessionId == sessionId && pending.staged.candidateId == candidateId) {
+                cancelPendingRestoreLocked()
+            }
+        }
+
+        override suspend fun exportWorkbook(
+            reportId: String,
+            language: AppLanguage,
+            demo: Boolean,
+            output: OutputStream,
+            progress: (dev.valnook.domain.portability.PortabilityProgress) -> Unit
+        ): dev.valnook.domain.portability.PortableFileResult = fileJob(sessionId) {
+            if (demo != (mode == DataMode.DEMO)) expired()
+            engine.exportWorkbook(reportId, language, demo, output, progress)
+        }
+
+        private fun requireReal() {
+            if (mode != DataMode.REAL) throw dev.valnook.domain.portability.PortabilityException(
+                dev.valnook.domain.portability.PortabilityErrorCode.DEMO_RESTRICTED)
+        }
+    }
+
+    private suspend fun <T> fileJob(sessionId: String, block: suspend () -> T): T {
+        val jobId = writeMutex.withLock {
+            requireCurrent(sessionId)
+            if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
+                dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
+            UUID.randomUUID().toString().also { activeFileJob = ActiveFileJob(it, sessionId) }
+        }
+        try {
+            return block().also { writeMutex.withLock { requireCurrent(sessionId) } }
+        } finally {
+            writeMutex.withLock { if (activeFileJob?.id == jobId) activeFileJob = null }
+        }
+    }
+
+    private fun cancelPendingRestoreLocked() {
+        pendingRestore?.let { it.engineClose() }
+        pendingRestore = null
+    }
+
+    private fun PendingRestore.engineClose() = realDatabaseGraph.portability.close(staged)
+
+    private fun randomChallenge(): String {
+        val alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        val random = SecureRandom()
+        return buildString { repeat(6) { append(alphabet[random.nextInt(alphabet.length)]) } }
+    }
+
+    private fun expired(): Nothing = throw dev.valnook.domain.portability.PortabilityException(
+        dev.valnook.domain.portability.PortabilityErrorCode.SESSION_EXPIRED)
+
     private fun requireCurrent(sessionId: String) {
         if (mutable.value.id != sessionId) throw DomainException(ErrorCode.SESSION_EXPIRED)
     }
 
+    private fun rejectWhenFileJobIsActive() {
+        if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
+            dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
+    }
+
     private data class PendingClear(val sessionId: String, val challenge: String)
+    private data class ActiveFileJob(val id: String, val sessionId: String)
+    private data class PendingRestore(
+        val sessionId: String,
+        var staged: StagedRestore,
+        var challenge: String? = null,
+        var challengeGeneration: Long = -1
+    )
 
     private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v8.db"
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v9.db"
         const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

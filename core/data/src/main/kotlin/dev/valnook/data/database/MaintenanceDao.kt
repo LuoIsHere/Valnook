@@ -5,6 +5,8 @@ import androidx.room.Query
 
 @Dao
 interface MaintenanceDao {
+    @Query("DELETE FROM audit_event_accounts") suspend fun clearAuditAccounts()
+    @Query("DELETE FROM audit_events") suspend fun clearAuditEvents()
     @Query("DELETE FROM statistics_cache") suspend fun clearStatisticsCache()
     @Query("DELETE FROM statistics_baseline_items") suspend fun clearStatisticsBaseline()
     @Query("DELETE FROM statistics_state") suspend fun clearStatisticsState()
@@ -20,4 +22,7 @@ interface MaintenanceDao {
     @Query("DELETE FROM cash_accounts") suspend fun clearCashAccounts()
     @Query("DELETE FROM savings_accounts") suspend fun clearAccounts()
     @Query("DELETE FROM operations") suspend fun clearOperations()
+    @Query("""UPDATE audit_metadata SET protocol_version=1,tracking_start_ms=:now,
+        tracking_start_database_version=9,complete_since_start=1,legacy_history_before_start=0 WHERE id=1""")
+    suspend fun resetAuditCoverage(now: Long): Int
 }

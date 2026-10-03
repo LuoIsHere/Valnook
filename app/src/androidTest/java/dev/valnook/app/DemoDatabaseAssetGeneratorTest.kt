@@ -8,6 +8,7 @@ import androidx.test.platform.io.PlatformTestStorageRegistry
 import dev.valnook.app.di.AppGraph
 import dev.valnook.app.di.DemoDataSeeder
 import dev.valnook.app.di.createDatabaseGraph
+import dev.valnook.app.di.currentBuildInfo
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.model.AppSettings
 import kotlinx.coroutines.runBlocking
@@ -25,7 +26,7 @@ import dev.valnook.data.database.InstrumentPriceEntity
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
     @Test
-    fun exportRoomV8DemoDatabase() = runBlocking {
+    fun exportRoomV9DemoDatabase() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(EXPORT_DATABASE_NAME)
         val clock = Clock.fixed(Instant.parse("2026-10-02T04:00:00Z"), ZoneId.of("Asia/Hong_Kong"))
@@ -34,7 +35,7 @@ class DemoDatabaseAssetGeneratorTest {
             .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)
             .build()
         try {
-            val raw = createDatabaseGraph(database,clock)
+            val raw = createDatabaseGraph(context,database,clock,currentBuildInfo())
             val graph = AppGraph("demo-asset-generator",raw.accounts,raw.cash,raw.deposits,
                 raw.investments,raw.commands,raw.clock,raw.overview,
                 dev.valnook.data.repository.RoomStatistics(database, clock),raw.settings,raw.settingsWriter,
@@ -144,6 +145,6 @@ class DemoDatabaseAssetGeneratorTest {
 
     private companion object {
         const val EXPORT_DATABASE_NAME = "valnook-demo-asset-export.db"
-        const val ASSET_FILE_NAME = "valnook-demo-v8.db"
+        const val ASSET_FILE_NAME = "valnook-demo-v9.db"
     }
 }

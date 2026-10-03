@@ -18,6 +18,7 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data object LanguageSettingsKey : NavKey
 @Serializable data object GainLossColorsKey : NavKey
 @Serializable data object ClearDataKey : NavKey
+@Serializable data object BackupKey : NavKey
 @Serializable data class AccountKey(val id: Long, val section: String = "CASH") : NavKey
 @Serializable data class AccountEditKey(val id: Long? = null) : NavKey
 @Serializable data class AccountInvestmentsKey(val accountId: Long, val all: Boolean = false) : NavKey

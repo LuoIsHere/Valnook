@@ -7,6 +7,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.valnook.data.database.ValnookDatabase
+import dev.valnook.data.portability.AppBuildInfo
+import dev.valnook.data.portability.RoomPortabilityEngine
 import dev.valnook.data.repository.*
 import dev.valnook.data.transaction.RoomFinancialCommands
 import dev.valnook.domain.repository.*
@@ -28,7 +30,9 @@ class AppGraph(
     val settingsWriter: SettingsWriter,
     val instruments: InstrumentRepository,
     val cashPages: PagedCashRepository,
-    val depositPages: PagedDepositRepository
+    val depositPages: PagedDepositRepository,
+    val portability: dev.valnook.domain.portability.DataPortability =
+        dev.valnook.domain.portability.UnavailableDataPortability
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -46,10 +50,16 @@ internal data class DatabaseGraph(
     val instruments: InstrumentRepository,
     val cashPages: PagedCashRepository,
     val depositPages: PagedDepositRepository,
-    val maintenance: DataMaintenance
+    val maintenance: DataMaintenance,
+    val portability: RoomPortabilityEngine
 )
 
-internal fun createDatabaseGraph(database: ValnookDatabase, clock: Clock): DatabaseGraph {
+internal fun createDatabaseGraph(
+    context: Context,
+    database: ValnookDatabase,
+    clock: Clock,
+    buildInfo: AppBuildInfo
+): DatabaseGraph {
     val cash = RoomCash(database.cash())
     val deposits = RoomDeposits(database.deposits())
     val settings = RoomSettings(database, clock)
@@ -67,9 +77,19 @@ internal fun createDatabaseGraph(database: ValnookDatabase, clock: Clock): Datab
         instruments = RoomInstruments(database),
         cashPages = cash,
         depositPages = deposits,
-        maintenance = RoomDataMaintenance(database)
+        maintenance = RoomDataMaintenance(database),
+        portability = RoomPortabilityEngine(context, database, clock, buildInfo)
     )
 }
+
+internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
+    applicationFamily = "valnook",
+    appVersion = dev.valnook.app.BuildConfig.VERSION_NAME,
+    appVersionCode = dev.valnook.app.BuildConfig.VERSION_CODE.toLong(),
+    internalBuildRevision = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
+    internalBuildLabel = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
+    databaseSchemaVersion = 9
+)
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -84,6 +104,9 @@ object AppModule {
 
     @Provides
     @Singleton
-    internal fun databaseGraph(database: ValnookDatabase, clock: Clock): DatabaseGraph =
-        createDatabaseGraph(database, clock)
+    internal fun databaseGraph(
+        @ApplicationContext context: Context,
+        database: ValnookDatabase,
+        clock: Clock
+    ): DatabaseGraph = createDatabaseGraph(context, database, clock, currentBuildInfo())
 }
