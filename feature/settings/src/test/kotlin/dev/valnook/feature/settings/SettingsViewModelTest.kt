@@ -31,6 +31,7 @@ class SettingsViewModelTest {
                     rates=change.rates.map{it.copy(rate=it.rate.stripTrailingZeros())})
                 is SaveLanguage->value.copy(language=change.language)
                 is SaveGainLossColors->value.copy(gainLossColors=change.colors)
+                is SaveNavigationConfiguration->value.copy(navigation=change.configuration)
             }.copy(revision=value.revision+1)
             values.value=value
             return value

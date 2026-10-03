@@ -47,4 +47,22 @@
     <string name="settings_clearing">Clearing</string>
     <string name="settings_confirm_clear">Clear all listed data</string>
     <string name="settings_demo_banner">Demo mode · sample data</string>
+    <string name="settings_navigation">Navigation bar</string>
+    <string name="settings_navigation_summary">Choose order and visible pages</string>
+    <string name="settings_hidden_pages">Hidden pages</string>
+    <string name="settings_hidden_page_summary">Open without showing the navigation bar</string>
+    <string name="settings_nav_accounts">Accounts</string>
+    <string name="settings_nav_investments">Investments</string>
+    <string name="settings_nav_statistics">Statistics</string>
+    <string name="settings_nav_settings">Settings</string>
+    <string name="settings_edit">Edit</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_move_up">Move up</string>
+    <string name="settings_move_down">Move down</string>
+    <string name="settings_reorder">Drag to reorder</string>
+    <string name="settings_visible">Visible</string>
+    <string name="settings_hidden">Hidden</string>
+    <string name="settings_footer_copyright" translatable="false">Copyright © 2026 luoishere.</string>
+    <string name="settings_footer_version" translatable="false">Version %1$s</string>
+    <string name="settings_footer_internal" translatable="false">Internal build: %1$s</string>
 </resources>

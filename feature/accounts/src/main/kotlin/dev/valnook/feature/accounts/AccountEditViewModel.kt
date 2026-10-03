@@ -134,10 +134,16 @@ class AccountEditViewModel(
     ) {
         if (!submission.value.editable) return
         persist(state.value.copy(rows = state.value.rows.map { row ->
-            if (row.key != key) row else row.copy(nameInput = name ?: row.nameInput,
-                noteInput = note ?: row.noteInput,
-                currency = if (row.currencyLocked) row.currency else currency ?: row.currency,
-                balanceInput = balance ?: row.balanceInput)
+            if (row.key != key) row else {
+                val nextCurrency = if (row.currencyLocked) row.currency else currency ?: row.currency
+                val nextName = when {
+                    name != null -> name
+                    currency != null && !row.currencyLocked && row.nameInput == row.currency.code -> nextCurrency.code
+                    else -> row.nameInput
+                }
+                row.copy(nameInput = nextName, noteInput = note ?: row.noteInput,
+                    currency = nextCurrency, balanceInput = balance ?: row.balanceInput)
+            }
         }))
     }
 

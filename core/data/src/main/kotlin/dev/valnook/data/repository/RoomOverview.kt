@@ -41,6 +41,7 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
                 is SaveFinancialSettings -> current.copy(baseCurrency = change.baseCurrency, rates = change.rates)
                 is SaveLanguage -> current.copy(language = change.language)
                 is SaveGainLossColors -> current.copy(gainLossColors = change.colors)
+                is SaveNavigationConfiguration -> current.copy(navigation = change.configuration)
             }
             settings.baseCurrency?.let { Currency.of(it.code) }
             if (settings.rates.distinctBy { it.sourceCurrency.code to it.targetCurrency.code }.size != settings.rates.size) {
@@ -55,13 +56,30 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
             }
             val value = SettingsEntity(base_currency = settings.baseCurrency?.code,
                 revision = dev.valnook.domain.money.DecimalRules.add(change.expectedRevision, 1),
-                language = settings.language.name, gain_loss_scheme = settings.gainLossColors.name)
+                language = settings.language.name, gain_loss_scheme = settings.gainLossColors.name,
+                navigation_order = settings.navigation.order.joinToString(",") { it.name },
+                navigation_visible = settings.navigation.visibleInOrder.joinToString(",") { it.name })
             if (previous == null) dao.insertSettings(value) else if (dao.updateSettings(value) != 1)
                 throw DomainException(ErrorCode.STALE_RECORD)
+            if (change is SaveLanguage) {
+                val english = change.language == AppLanguage.ENGLISH ||
+                    (change.language == AppLanguage.SYSTEM && java.util.Locale.getDefault().language != "zh")
+                dao.localizeAccountNames(english)
+                dao.localizeAccountNotes(english)
+                dao.localizeCashNames(english)
+                dao.localizeTypes(english)
+                dao.localizeInstruments(english)
+            }
             if (change is SaveFinancialSettings) {
                 dao.clearRates()
                 dao.insertRates(settings.rates.map { FxRateEntity(it.sourceCurrency.code, it.targetCurrency.code,
                     it.rate.stripTrailingZeros().toPlainString(), clock.millis()) })
+                val state = db.statistics().state()
+                if (state != null) {
+                    val day = java.time.Instant.ofEpochMilli(state.baseline_at_ms)
+                        .atZone(clock.zone).toLocalDate().toEpochDay()
+                    db.statistics().invalidate(day)
+                }
             }
             settings.copy(revision = value.revision)
         }

@@ -71,7 +71,8 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(account.account.name + if (expanded) " ▴" else " ▾",
-                                Modifier.weight(1f).clickable { expanded = !expanded },
+                                Modifier.weight(1f).testTag("investment-account-toggle-${account.account.id}")
+                                    .clickable { expanded = !expanded },
                                 style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(converted(account.investmentValue), Modifier.weight(1.3f)
                                 .clickable(role = androidx.compose.ui.semantics.Role.Button) { onAccount(account.account.id) }

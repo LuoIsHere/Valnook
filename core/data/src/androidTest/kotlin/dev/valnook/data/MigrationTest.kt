@@ -192,4 +192,41 @@ class MigrationTest {
             context.deleteDatabase(name)
         }
     }
+
+    @Test fun v6_to_v7_preserves_rows_and_creates_reliable_statistics_baseline() {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name="migration-v6-statistics-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name,6).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision) VALUES (1,'账户','备注',1,1,1)")
+                execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',12345,1,1,1,'现金','',1,1)")
+                execSQL("INSERT INTO asset_types VALUES (1,'股票','股票',1,1)")
+                execSQL("INSERT INTO instruments VALUES (1,1,'示例','EX','CNY',12000000,0,1,0,1,1,1)")
+                execSQL("INSERT INTO app_settings(id,base_currency,revision,language,gain_loss_scheme) VALUES (1,'CNY',1,'ZH_HANS','GREEN_GAIN')")
+                close()
+            }
+            helper.runMigrationsAndValidate(name,7,true,MIGRATION_6_7).apply {
+                query("SELECT name,note FROM savings_accounts WHERE id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals("账户",it.getString(0));assertEquals("备注",it.getString(1))
+                }
+                query("SELECT navigation_order,navigation_visible FROM app_settings WHERE id=1").use {
+                    assertTrue(it.moveToFirst())
+                    assertEquals("ACCOUNTS,INVESTMENTS,STATISTICS,SETTINGS",it.getString(0))
+                    assertEquals("ACCOUNTS,INVESTMENTS,STATISTICS,SETTINGS",it.getString(1))
+                }
+                query("SELECT COUNT(*) FROM instrument_price_history WHERE instrument_id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals(1,it.getInt(0))
+                }
+                query("SELECT amount_long FROM statistics_baseline_items WHERE item_kind='CASH' AND reference_id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals(12345L,it.getLong(0))
+                }
+                query("SELECT rule_version,source_revision FROM statistics_state WHERE id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals(STATISTICS_RULE_VERSION,it.getInt(0));assertEquals(1L,it.getLong(1))
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
 }

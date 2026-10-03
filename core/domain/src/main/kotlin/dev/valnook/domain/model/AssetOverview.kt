@@ -10,9 +10,25 @@ data class Instrument(val id: Long, val name: String, val symbol: String, val ty
 data class FxRate(val sourceCurrency: Currency, val targetCurrency: Currency, val rate: BigDecimal)
 enum class AppLanguage { SYSTEM, ZH_HANS, ENGLISH }
 enum class GainLossColorScheme { GREEN_GAIN, RED_GAIN }
+enum class NavigationItemId { ACCOUNTS, INVESTMENTS, STATISTICS, SETTINGS }
+
+data class NavigationConfiguration(
+    val order: List<NavigationItemId> = NavigationItemId.entries,
+    val visible: Set<NavigationItemId> = NavigationItemId.entries.toSet()
+) {
+    init {
+        require(order.size == NavigationItemId.entries.size && order.toSet() == NavigationItemId.entries.toSet())
+        require(NavigationItemId.SETTINGS in visible)
+    }
+
+    val visibleInOrder: List<NavigationItemId> get() = order.filter(visible::contains)
+    val hiddenInOrder: List<NavigationItemId> get() = order.filterNot(visible::contains)
+}
+
 data class AppSettings(val baseCurrency: Currency? = null, val rates: List<FxRate> = emptyList(), val revision: Long = 0,
     val language: AppLanguage = AppLanguage.SYSTEM,
-    val gainLossColors: GainLossColorScheme = GainLossColorScheme.GREEN_GAIN)
+    val gainLossColors: GainLossColorScheme = GainLossColorScheme.GREEN_GAIN,
+    val navigation: NavigationConfiguration = NavigationConfiguration())
 
 /** One transactional snapshot. Totals include all accounts, independently of visible pages. */
 data class AssetSnapshot(val accounts: List<SavingsAccount>, val cash: List<CashAccount>,

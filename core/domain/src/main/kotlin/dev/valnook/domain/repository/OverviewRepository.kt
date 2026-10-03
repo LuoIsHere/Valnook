@@ -16,6 +16,12 @@ interface SettingsWriter {
     suspend fun applyChange(change: SettingsChange): AppSettings
 }
 
+interface StatisticsRepository {
+    fun observeRevision(): Flow<Long>
+    suspend fun loadSeries(request: StatisticsRequest): StatisticsSeries
+    suspend fun loadCurrent(): CurrentStatistics
+}
+
 interface InstrumentRepository {
     fun observeInstruments(): Flow<List<Instrument>>
     fun observeInstrument(id: Long): Flow<Instrument?>
@@ -31,6 +37,8 @@ data class SaveFinancialSettings(override val expectedRevision: Long, val baseCu
 data class SaveLanguage(override val expectedRevision: Long, val language: AppLanguage) : SettingsChange
 data class SaveGainLossColors(override val expectedRevision: Long,
     val colors: GainLossColorScheme) : SettingsChange
+data class SaveNavigationConfiguration(override val expectedRevision: Long,
+    val configuration: NavigationConfiguration) : SettingsChange
 
 data class CashBalanceChange(val currencyCode: String, val balanceMinor: Long, val expectedRevision: Long?,
     val cashAccountId: Long? = null, val name: String = currencyCode, val note: String = "")
@@ -40,6 +48,9 @@ data class SaveAccount(override val operation_id: String, val accountId: Long?, 
 data class SaveInstrument(override val operation_id: String, val instrumentId: Long?, val expectedRevision: Long?,
     val name: String, val symbol: String, val typeId: Long, val currencyCode: String,
     val currentPriceE5: Long, val currencyPriceConfirmed: Boolean = false) : FinancialCommand
+
+data class EditInstrumentPrice(override val operation_id: String, val priceRecordId: Long,
+    val expectedRevision: Long, val priceE5: Long, val effectiveAtMs: Long) : FinancialCommand
 
 data class SaveOpeningPosition(override val operation_id: String, val accountId: Long, val instrumentId: Long,
     val quantityE8: Long, val costPriceE8: Long?, val occurredAtMs: Long) : FinancialCommand

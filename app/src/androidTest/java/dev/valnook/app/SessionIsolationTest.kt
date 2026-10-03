@@ -11,11 +11,19 @@ import dev.valnook.domain.model.DomainException
 import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.model.FxRate
 import dev.valnook.domain.model.GainLossColorScheme
+import dev.valnook.domain.model.NavigationConfiguration
+import dev.valnook.domain.model.NavigationItemId
+import dev.valnook.domain.model.StatisticsGranularity
+import dev.valnook.domain.model.StatisticsMetric
+import dev.valnook.domain.model.StatisticsPeriod
+import dev.valnook.domain.model.StatisticsRequest
+import dev.valnook.domain.calculation.AssetValuation
 import dev.valnook.domain.repository.CashBalanceChange
 import dev.valnook.domain.repository.SaveAccount
 import dev.valnook.domain.repository.SaveFinancialSettings
 import dev.valnook.domain.repository.SaveGainLossColors
 import dev.valnook.domain.repository.SaveLanguage
+import dev.valnook.domain.repository.SaveNavigationConfiguration
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -63,10 +71,19 @@ class SessionIsolationTest {
         assertTrue(demoTrades.any { it.fee_minor == 0L })
         assertTrue(demoTrades.any { it.cash_linked && it.cashAccountId != null })
         assertTrue(demoTrades.any { !it.cash_linked && it.cashAccountId == null })
-        assertTrue(snapshot.instruments.any { it.symbol == "600519.SH" && it.name == "贵州茅台" })
-        assertTrue(snapshot.instruments.any { it.symbol == "0700.HK" && it.name == "腾讯控股" })
+        assertTrue(snapshot.instruments.any { it.symbol == "600519.SH" && it.name.isNotBlank() })
+        assertTrue(snapshot.instruments.any { it.symbol == "0700.HK" && it.name.isNotBlank() })
         assertTrue(snapshot.instruments.any { it.symbol == "AAPL" && it.name == "Apple" })
         assertTrue(snapshot.instruments.none { it.symbol.contains("DEMO", ignoreCase = true) })
+        val overview = AssetValuation.calculate(snapshot)
+        val currentStatistics = demo.graph.statistics.loadCurrent()
+        assertEquals("cash overview=${overview.cash.amount} statistics=${currentStatistics.availableCash}",
+            0, overview.cash.amount.compareTo(requireNotNull(currentStatistics.availableCash)))
+        assertEquals("investment overview=${overview.investmentValue.amount} statistics=${currentStatistics.investmentValue}",
+            0, overview.investmentValue.amount.compareTo(requireNotNull(currentStatistics.investmentValue)))
+        assertEquals("total overview=${overview.total.amount} statistics=${currentStatistics.totalAssets}",
+            0, overview.total.amount.compareTo(requireNotNull(currentStatistics.totalAssets)))
+        assertEquals(overview.total.currency, currentStatistics.currency)
         assertEquals(24, snapshot.accounts.sumOf { account ->
             demo.graph.deposits.observe_deposits(account.id, 100, false).first().size +
                 demo.graph.deposits.observe_deposits(account.id, 100, true).first().size
@@ -99,6 +116,21 @@ class SessionIsolationTest {
         assertTrue(demoDatabaseFiles().isEmpty())
     }
 
+    @Test fun demoBuiltInLabelsFollowLanguageAndKeepUserOverride() = runBlocking {
+        sessions.enterDemo()
+        val graph = sessions.session.value.graph
+        var settings = graph.settings.observeSettings().first()
+        settings = graph.settingsWriter.applyChange(SaveLanguage(settings.revision, AppLanguage.ENGLISH))
+        assertEquals("China Merchants Securities", graph.overview.snapshot().accounts.first().name)
+        val first = graph.overview.snapshot().accounts.first()
+        graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), first.id, first.revision,
+            "My custom broker", first.note, emptyList()))
+        settings = graph.settingsWriter.applyChange(SaveLanguage(settings.revision, AppLanguage.ZH_HANS))
+        assertEquals("My custom broker", graph.overview.snapshot().accounts.first().name)
+        assertTrue(graph.overview.snapshot().accounts.drop(1).any { it.name == "华泰证券" })
+        sessions.exitDemo()
+    }
+
     @Test fun clear_requires_current_challenge_preserves_display_preferences_and_expires_old_commands() = runBlocking {
         val active = sessions.session.value
         active.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
@@ -107,7 +139,12 @@ class SessionIsolationTest {
         var stored=active.graph.settingsWriter.applyChange(SaveFinancialSettings(before.revision,
             Currency.of("CNY"),listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),BigDecimal("7.2")))))
         stored=active.graph.settingsWriter.applyChange(SaveLanguage(stored.revision,AppLanguage.ENGLISH))
-        active.graph.settingsWriter.applyChange(SaveGainLossColors(stored.revision,GainLossColorScheme.RED_GAIN))
+        stored=active.graph.settingsWriter.applyChange(SaveGainLossColors(stored.revision,GainLossColorScheme.RED_GAIN))
+        val navigation = NavigationConfiguration(
+            listOf(NavigationItemId.STATISTICS, NavigationItemId.SETTINGS, NavigationItemId.ACCOUNTS,
+                NavigationItemId.INVESTMENTS),
+            setOf(NavigationItemId.STATISTICS, NavigationItemId.SETTINGS))
+        active.graph.settingsWriter.applyChange(SaveNavigationConfiguration(stored.revision, navigation))
 
         val challenge = sessions.issueClearChallenge()
         assertTrue(challenge.matches(Regex("[A-HJ-NP-Z2-9]{6}")))
@@ -116,6 +153,7 @@ class SessionIsolationTest {
 
         val staleCommands = active.graph.commands
         val staleSettings = active.graph.settingsWriter
+        val staleStatistics = active.graph.statistics
         sessions.clearRealData(challenge, challenge)
         val cleared = sessions.session.value
         assertTrue(cleared.id != active.id)
@@ -125,12 +163,17 @@ class SessionIsolationTest {
         assertTrue(preferences.rates.isEmpty())
         assertEquals(AppLanguage.ENGLISH, preferences.language)
         assertEquals(GainLossColorScheme.RED_GAIN, preferences.gainLossColors)
+        assertEquals(navigation, preferences.navigation)
         expect(ErrorCode.SESSION_EXPIRED) {
             staleCommands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
                 "Stale real write", "", emptyList()))
         }
         expect(ErrorCode.SESSION_EXPIRED) {
             staleSettings.applyChange(SaveLanguage(before.revision,AppLanguage.SYSTEM))
+        }
+        expect(ErrorCode.SESSION_EXPIRED) {
+            staleStatistics.loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+                StatisticsPeriod(StatisticsGranularity.MONTHLY, 2026)))
         }
 
         sessions.enterDemo()
@@ -139,6 +182,14 @@ class SessionIsolationTest {
         assertEquals(GainLossColorScheme.RED_GAIN, demoPreferences.gainLossColors)
         expect(ErrorCode.SESSION_EXPIRED) { sessions.issueClearChallenge() }
         sessions.exitDemo()
+        val cleanupGraph = sessions.session.value.graph
+        var cleanup = cleanupGraph.settings.observeSettings().first()
+        cleanup = cleanupGraph.settingsWriter.applyChange(SaveLanguage(cleanup.revision, AppLanguage.SYSTEM))
+        cleanup = cleanupGraph.settingsWriter.applyChange(
+            SaveGainLossColors(cleanup.revision, GainLossColorScheme.GREEN_GAIN))
+        cleanupGraph.settingsWriter.applyChange(
+            SaveNavigationConfiguration(cleanup.revision, NavigationConfiguration()))
+        Unit
     }
 
     private suspend fun expect(code: ErrorCode, action: suspend () -> Unit) {

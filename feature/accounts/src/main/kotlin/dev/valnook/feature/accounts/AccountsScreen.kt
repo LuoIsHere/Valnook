@@ -105,11 +105,13 @@ import dev.valnook.domain.money.DecimalRules
                             Box(Modifier.weight(1.3f)) { amount() }
                         }
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(row.account.note, Modifier.weight(1f).alignByBaseline(), style = MaterialTheme.typography.bodySmall,
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(row.account.note, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(stringResource(R.string.accounts_available_cash, totalText(row.cash)), Modifier.weight(1.3f).alignByBaseline(),
-                            style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End)
+                        Text(stringResource(R.string.accounts_available_cash, totalText(row.cash)), Modifier.weight(1.3f),
+                            style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 if (!row.total.complete) Text(stringResource(R.string.accounts_partial_summary, missingText(row.total)), color = MaterialTheme.colorScheme.error)

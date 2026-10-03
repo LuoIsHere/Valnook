@@ -47,4 +47,19 @@
     <string name="settings_clearing">正在清空</string>
     <string name="settings_confirm_clear">清空上述全部数据</string>
     <string name="settings_demo_banner">演示模式 · 示例数据</string>
+    <string name="settings_navigation">导航栏</string>
+    <string name="settings_navigation_summary">设置页面顺序和显示状态</string>
+    <string name="settings_hidden_pages">隐藏的页面</string>
+    <string name="settings_hidden_page_summary">打开页面但不显示底部导航</string>
+    <string name="settings_nav_accounts">账户</string>
+    <string name="settings_nav_investments">投资</string>
+    <string name="settings_nav_statistics">统计</string>
+    <string name="settings_nav_settings">设置</string>
+    <string name="settings_edit">编辑</string>
+    <string name="settings_cancel">取消</string>
+    <string name="settings_move_up">上移</string>
+    <string name="settings_move_down">下移</string>
+    <string name="settings_reorder">拖动排序</string>
+    <string name="settings_visible">显示</string>
+    <string name="settings_hidden">隐藏</string>
 </resources>

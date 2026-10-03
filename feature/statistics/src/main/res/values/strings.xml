@@ -1,0 +1,22 @@
+<resources>
+    <string name="statistics_title">Statistics</string>
+    <string name="statistics_change_month">Change this month</string>
+    <string name="statistics_total">Total assets</string>
+    <string name="statistics_cash">Available cash</string>
+    <string name="statistics_investment">Investment value</string>
+    <string name="statistics_daily">Daily</string>
+    <string name="statistics_monthly">Monthly</string>
+    <string name="statistics_previous">Previous period</string>
+    <string name="statistics_next">Next period</string>
+    <string name="statistics_previous_month">Previous month</string>
+    <string name="statistics_next_month">Next month</string>
+    <string name="statistics_previous_year">Previous year</string>
+    <string name="statistics_next_year">Next year</string>
+    <string name="statistics_current">Current</string>
+    <string name="statistics_unknown">Unavailable until a reliable opening baseline exists</string>
+    <string name="statistics_no_data">No reliable data for this period</string>
+    <string name="statistics_load_failed">Statistics could not be loaded</string>
+    <string name="statistics_chart_description">%1$s chart for %2$s</string>
+    <string name="statistics_previous_point">Previous data point</string>
+    <string name="statistics_next_point">Next data point</string>
+</resources>

@@ -8,6 +8,11 @@ class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
     override suspend fun clearBusinessData() {
         db.withTransaction {
             val maintenance = db.maintenance()
+            maintenance.clearStatisticsCache()
+            maintenance.clearStatisticsBaseline()
+            maintenance.clearStatisticsState()
+            maintenance.clearPriceHistory()
+            maintenance.clearDemoLabels()
             maintenance.clearCashEntries()
             maintenance.clearCashMovements()
             maintenance.clearTrades()

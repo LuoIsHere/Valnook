@@ -1,6 +1,7 @@
 package dev.valnook.feature.settings
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -29,7 +31,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -46,6 +54,7 @@ import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.model.GainLossColorScheme
+import dev.valnook.domain.model.NavigationItemId
 import kotlinx.coroutines.launch
 
 @Composable
@@ -58,7 +67,11 @@ fun SettingsHome(
     onLanguage: () -> Unit,
     onColors: () -> Unit,
     onDemoChange: (Boolean) -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onNavigation: () -> Unit,
+    onHiddenPage: (NavigationItemId) -> Unit,
+    versionName: String,
+    internalBuildId: String
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     if (!state.loaded) {
@@ -81,6 +94,18 @@ fun SettingsHome(
         item {
             SettingEntry(stringResource(R.string.settings_gain_loss_colors),
                 colorLabel(state.savedSettings.gainLossColors), onColors)
+        }
+        item {
+            SettingEntry(stringResource(R.string.settings_navigation),
+                stringResource(R.string.settings_navigation_summary), onNavigation)
+        }
+        if (state.savedSettings.navigation.hiddenInOrder.isNotEmpty()) {
+            item { Text(stringResource(R.string.settings_hidden_pages), style = MaterialTheme.typography.titleMedium) }
+            items(state.savedSettings.navigation.hiddenInOrder, key = { it.name }) { item ->
+                SettingEntry(navigationLabel(item), stringResource(R.string.settings_hidden_page_summary)) {
+                    onHiddenPage(item)
+                }
+            }
         }
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = Space.md, vertical = Space.sm),
@@ -106,6 +131,99 @@ fun SettingsHome(
             item { TextButton(onClick = onClear) { Text(stringResource(R.string.settings_clear_data),
                 color = MaterialTheme.colorScheme.error) } }
         }
+        item {
+            Column(Modifier.fillMaxWidth().padding(top = Space.xl, bottom = Space.md),
+                verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                Text(stringResource(R.string.settings_footer_copyright), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_footer_version, versionName), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_footer_internal, internalBuildId), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    val moveUp = stringResource(R.string.settings_move_up)
+    val moveDown = stringResource(R.string.settings_move_down)
+    val reorder = stringResource(R.string.settings_reorder)
+    val visibleLabel = stringResource(R.string.settings_visible)
+    val hiddenLabel = stringResource(R.string.settings_hidden)
+    if (!state.loaded) {
+        CircularProgressIndicator()
+        return
+    }
+    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
+        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                if (state.editing) {
+                    TextButton(vm::cancel, enabled = !state.busy) { Text(stringResource(R.string.settings_cancel)) }
+                    Button(vm::save, enabled = !state.busy) { Text(stringResource(R.string.settings_save)) }
+                } else Button(vm::edit) { Text(stringResource(R.string.settings_edit)) }
+            }
+        }
+        itemsIndexed(state.draft.order, key = { _, item -> item.name }) { index, item ->
+            Row(Modifier.fillMaxWidth().testTag("navigation-row-${item.name.lowercase()}")
+                .padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
+                Text(navigationLabel(item), Modifier.weight(1f).padding(horizontal = Space.md),
+                    style = MaterialTheme.typography.titleMedium)
+                TextButton({ vm.toggle(item) }, enabled = state.editing && item != NavigationItemId.SETTINGS,
+                    modifier = Modifier.testTag("navigation-visible-${item.name.lowercase()}")) {
+                    Text(if (item in state.draft.visible) "◉" else "○", modifier = Modifier.semantics {
+                        contentDescription = if (item in state.draft.visible) visibleLabel else hiddenLabel
+                    })
+                }
+                Text("≡", style = MaterialTheme.typography.titleLarge,
+                    color = if (state.editing) MaterialTheme.colorScheme.onSurfaceVariant
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                    modifier = Modifier.semantics {
+                        contentDescription = reorder
+                        customActions = listOf(
+                            CustomAccessibilityAction(moveUp) {
+                                if (state.editing && index > 0) vm.move(item, -1)
+                                state.editing && index > 0
+                            },
+                            CustomAccessibilityAction(moveDown) {
+                                if (state.editing && index < state.draft.order.lastIndex) vm.move(item, 1)
+                                state.editing && index < state.draft.order.lastIndex
+                            })
+                    }.pointerInput(state.editing, item, index) {
+                        if (!state.editing) return@pointerInput
+                        var accumulated = 0f
+                        val threshold = 40.dp.toPx()
+                        detectVerticalDragGestures(
+                            onDragEnd = { accumulated = 0f },
+                            onDragCancel = { accumulated = 0f },
+                            onVerticalDrag = { change, distance ->
+                                change.consume()
+                                accumulated += distance
+                                if (accumulated >= threshold) {
+                                    vm.move(item, 1)
+                                    accumulated = 0f
+                                } else if (accumulated <= -threshold) {
+                                    vm.move(item, -1)
+                                    accumulated = 0f
+                                }
+                            }
+                        )
+                    })
+            }
+            HorizontalDivider()
+        }
+        state.error?.let { error -> item {
+            Column {
+                Text(stringResource(R.string.settings_error_conflict), color = MaterialTheme.colorScheme.error)
+                if (error == ErrorCode.STALE_RECORD) TextButton(vm::discardAndReload) {
+                    Text(stringResource(R.string.settings_reload_draft))
+                }
+            }
+        } }
+        if (state.savedNotice) item { Text(stringResource(R.string.settings_saved)) }
     }
 }
 
@@ -298,6 +416,14 @@ private fun languageLabel(value: AppLanguage): String = stringResource(when (val
 private fun colorLabel(value: GainLossColorScheme): String = stringResource(when (value) {
     GainLossColorScheme.GREEN_GAIN -> R.string.settings_green_gain
     GainLossColorScheme.RED_GAIN -> R.string.settings_red_gain
+})
+
+@Composable
+private fun navigationLabel(value: NavigationItemId): String = stringResource(when (value) {
+    NavigationItemId.ACCOUNTS -> R.string.settings_nav_accounts
+    NavigationItemId.INVESTMENTS -> R.string.settings_nav_investments
+    NavigationItemId.STATISTICS -> R.string.settings_nav_statistics
+    NavigationItemId.SETTINGS -> R.string.settings_nav_settings
 })
 
 @Composable

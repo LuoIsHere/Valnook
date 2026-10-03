@@ -8,7 +8,12 @@ import dev.valnook.feature.deposits.DepositFormMode
 
 @Serializable data object AccountsKey : NavKey
 @Serializable data object InvestmentsKey : NavKey
+@Serializable data object StatisticsKey : NavKey
 @Serializable data object SettingsKey : NavKey
+@Serializable data object NavigationSettingsKey : NavKey
+@Serializable data object HiddenAccountsKey : NavKey
+@Serializable data object HiddenInvestmentsKey : NavKey
+@Serializable data object HiddenStatisticsKey : NavKey
 @Serializable data object FxSettingsKey : NavKey
 @Serializable data object LanguageSettingsKey : NavKey
 @Serializable data object GainLossColorsKey : NavKey
@@ -36,4 +41,19 @@ import dev.valnook.feature.deposits.DepositFormMode
     val direction: Direction = Direction.BUY) : NavKey
 @Serializable data class DepositFormKey(val accountId: Long, val mode: DepositFormMode, val id: Long? = null) : NavKey
 
-internal fun NavKey.isRoot(): Boolean = this == AccountsKey || this == InvestmentsKey || this == SettingsKey
+internal fun NavKey.isRoot(): Boolean = this == AccountsKey || this == InvestmentsKey ||
+    this == StatisticsKey || this == SettingsKey
+
+internal fun dev.valnook.domain.model.NavigationItemId.rootKey(): NavKey = when (this) {
+    dev.valnook.domain.model.NavigationItemId.ACCOUNTS -> AccountsKey
+    dev.valnook.domain.model.NavigationItemId.INVESTMENTS -> InvestmentsKey
+    dev.valnook.domain.model.NavigationItemId.STATISTICS -> StatisticsKey
+    dev.valnook.domain.model.NavigationItemId.SETTINGS -> SettingsKey
+}
+
+internal fun dev.valnook.domain.model.NavigationItemId.hiddenKey(): NavKey = when (this) {
+    dev.valnook.domain.model.NavigationItemId.ACCOUNTS -> HiddenAccountsKey
+    dev.valnook.domain.model.NavigationItemId.INVESTMENTS -> HiddenInvestmentsKey
+    dev.valnook.domain.model.NavigationItemId.STATISTICS -> HiddenStatisticsKey
+    dev.valnook.domain.model.NavigationItemId.SETTINGS -> SettingsKey
+}

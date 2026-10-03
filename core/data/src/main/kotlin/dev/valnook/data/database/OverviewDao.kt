@@ -27,6 +27,33 @@ abstract class OverviewDao {
     @Query("UPDATE app_settings SET base_currency=NULL,revision=revision+1 WHERE id=1")
     abstract suspend fun clearFinancialSettings(): Int
     @Insert abstract suspend fun insertRates(values: List<FxRateEntity>)
+    @Query("""UPDATE savings_accounts SET name=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='ACCOUNT' AND d.entity_id=savings_accounts.id AND d.field_name='NAME')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='ACCOUNT' AND d.entity_id=savings_accounts.id
+        AND d.field_name='NAME' AND savings_accounts.name IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeAccountNames(english: Boolean)
+    @Query("""UPDATE savings_accounts SET note=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='ACCOUNT' AND d.entity_id=savings_accounts.id AND d.field_name='NOTE')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='ACCOUNT' AND d.entity_id=savings_accounts.id
+        AND d.field_name='NOTE' AND savings_accounts.note IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeAccountNotes(english: Boolean)
+    @Query("""UPDATE cash_accounts SET name=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='CASH' AND d.entity_id=cash_accounts.id AND d.field_name='NAME')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='CASH' AND d.entity_id=cash_accounts.id
+        AND d.field_name='NAME' AND cash_accounts.name IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeCashNames(english: Boolean)
+    @Query("""UPDATE asset_types SET name=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='TYPE' AND d.entity_id=asset_types.id AND d.field_name='NAME'),
+        normalized_name=lower((SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='TYPE' AND d.entity_id=asset_types.id AND d.field_name='NAME'))
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='TYPE' AND d.entity_id=asset_types.id
+        AND d.field_name='NAME' AND asset_types.name IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeTypes(english: Boolean)
+    @Query("""UPDATE instruments SET name=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='INSTRUMENT' AND d.entity_id=instruments.id AND d.field_name='NAME')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='INSTRUMENT' AND d.entity_id=instruments.id
+        AND d.field_name='NAME' AND instruments.name IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeInstruments(english: Boolean)
     @Transaction
     open suspend fun snapshot(): OverviewRows = OverviewRows(allAccounts(), allCash(), openDeposits(),
         allPositions(), allInstruments(), settings(), rates())

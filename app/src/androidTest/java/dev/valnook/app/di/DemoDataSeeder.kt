@@ -19,6 +19,7 @@ import dev.valnook.domain.repository.SaveLanguage
 import java.math.BigDecimal
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZoneId
 import java.util.UUID
 
 internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Clock) {
@@ -121,7 +122,8 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         }
         val stockById = instruments.zip(stocks).toMap()
 
-        val start = clock.millis() - 180L * 86_400_000L
+        val start = LocalDate.of(LocalDate.now(clock).year - 1, 1, 5).atStartOfDay(clock.zone)
+            .toInstant().toEpochMilli()
         val pairs = buildList {
             accounts.forEachIndexed { accountIndex, accountId ->
                 repeat(7) { offset -> add(accountId to instruments[(accountIndex * 5 + offset * 7) % instruments.size]) }
@@ -151,7 +153,8 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
                 val cashAccountId = if (cashLinked)
                     requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id else null
                 graph.commands.execute(RecordAccountTrade(id(), accountId, instrumentId, direction,
-                    quantity, price, start + (positionIndex * 30L + tradeIndex + 1) * 60_000L, cashLinked,
+                    quantity, price, start + ((positionIndex % 20) + (tradeIndex + 1) * 58L) * 86_400_000L,
+                    cashLinked,
                     cashAccountId, fee))
             }
         }

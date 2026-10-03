@@ -15,6 +15,8 @@ internal object CommandFingerprint {
             is SaveInstrument -> listOf("INSTRUMENT_SAVE", command.instrumentId, command.expectedRevision,
                 command.name.trim(), command.symbol.trim(), command.typeId, Currency.of(command.currencyCode).code,
                 command.currentPriceE5, command.currencyPriceConfirmed)
+            is EditInstrumentPrice -> listOf("INSTRUMENT_PRICE_EDIT", command.priceRecordId,
+                command.expectedRevision, command.priceE5, command.effectiveAtMs)
             is SaveOpeningPosition -> listOf("POSITION_OPEN", command.accountId, command.instrumentId,
                 command.quantityE8, command.costPriceE8, command.occurredAtMs)
             is RecordAccountTrade -> listOf("ACCOUNT_TRADE", command.accountId, command.instrumentId,

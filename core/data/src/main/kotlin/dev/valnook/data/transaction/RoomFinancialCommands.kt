@@ -34,11 +34,13 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 return@withTransaction OperationResult(requireNotNull(old.result_kind), requireNotNull(old.result_id))
             }
             val now = clock.millis()
+            val invalidatedDay = earliestAffectedDay(command, now)
             dao.insert_operation(OperationEntity(command.operation_id, kind, digest, null, null, now))
             val result = when (command) {
                 is SaveAssetType -> OperationResult("ASSET_TYPE", types.save(command.typeId, command.name, now))
                 is SaveAccount -> accounts.save(command, now)
                 is SaveInstrument -> instruments.save(command, now)
+                is EditInstrumentPrice -> instruments.editPrice(command, now)
                 is SaveOpeningPosition -> positions.opening(command, now)
                 is RecordAccountTrade -> positions.record(command, now)
                 is SetCashBalance -> accounts.setBalance(command, now)
@@ -52,8 +54,53 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is DeleteInvestmentTrade -> positions.delete(command, now)
             }
             fault(TransactionPoint.BEFORE_RECEIPT)
+            invalidatedDay?.let { db.statistics().invalidate(it) }
             dao.complete_operation(command.operation_id, result.kind, result.id)
             result
         }
+    }
+
+    private suspend fun earliestAffectedDay(command: FinancialCommand, now: Long): Long? {
+        fun day(milliseconds: Long): Long = java.time.Instant.ofEpochMilli(milliseconds)
+            .atZone(clock.zone).toLocalDate().toEpochDay()
+        val baseline = db.statistics().state()?.baseline_at_ms?.let(::day) ?: day(now)
+        return when (command) {
+            is SaveAssetType, is SetOpeningInvestmentCost -> null
+            is SaveInstrument -> {
+                val old = command.instrumentId?.let { db.instruments().instrument(it) }
+                if (old == null || old.current_price_e5 != command.currentPriceE5 ||
+                    old.currency_code != command.currencyCode) day(now) else null
+            }
+            is EditInstrumentPrice -> {
+                val old = db.statistics().price(command.priceRecordId)
+                    ?: throw DomainException(ErrorCode.NOT_FOUND)
+                minOf(day(old.effective_at_ms), day(command.effectiveAtMs)).coerceAtLeast(baseline)
+            }
+            is SaveAccount -> if (cashBalanceChanges(command)) day(now) else null
+            is SaveOpeningPosition -> day(command.occurredAtMs).coerceAtLeast(baseline)
+            is RecordAccountTrade -> day(command.occurredAtMs).coerceAtLeast(baseline)
+            is RecordInvestmentTrade -> day(command.occurred_at_ms).coerceAtLeast(baseline)
+            is EditInvestmentTrade -> {
+                val old = db.trades().trade(command.trade_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)
+                minOf(old, day(command.occurred_at_ms)).coerceAtLeast(baseline)
+            }
+            is DeleteInvestmentTrade -> (db.trades().trade(command.trade_id)?.occurred_at_ms?.let(::day)
+                ?: baseline).coerceAtLeast(baseline)
+            is EditCashEntry -> {
+                val old = db.cash().cash_entry(command.entry_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)
+                minOf(old, day(command.occurred_at_ms)).coerceAtLeast(baseline)
+            }
+            is SetCashBalance, is OpenTermDeposit, is CloseTermDeposit -> day(now)
+            is EditTermDeposit -> baseline
+        }
+    }
+
+    private suspend fun cashBalanceChanges(command: SaveAccount): Boolean {
+        if (command.accountId == null) return command.cashChanges.isNotEmpty()
+        for (row in command.cashChanges) {
+            val old = row.cashAccountId?.let { db.cash().cashAccount(it) }
+            if (old == null || old.balance_minor != row.balanceMinor) return true
+        }
+        return false
     }
 }

@@ -23,6 +23,7 @@ class AppGraph(
     val commands: FinancialCommands,
     val clock: Clock,
     val overview: OverviewRepository,
+    val statistics: StatisticsRepository,
     val settings: SettingsRepository,
     val settingsWriter: SettingsWriter,
     val instruments: InstrumentRepository,
@@ -32,6 +33,7 @@ class AppGraph(
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
 internal data class DatabaseGraph(
+    val database: ValnookDatabase,
     val accounts: AccountRepository,
     val cash: CashRepository,
     val deposits: DepositRepository,
@@ -52,6 +54,7 @@ internal fun createDatabaseGraph(database: ValnookDatabase, clock: Clock): Datab
     val deposits = RoomDeposits(database.deposits())
     val settings = RoomSettings(database, clock)
     return DatabaseGraph(
+        database = database,
         accounts = RoomAccounts(database),
         cash = cash,
         deposits = deposits,

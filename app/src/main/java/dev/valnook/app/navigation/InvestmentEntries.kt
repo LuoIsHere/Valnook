@@ -13,6 +13,12 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
             open(AssetKey(accountId, positionId))
         }
     }
+    entry<HiddenInvestmentsKey> {
+        val vm = pageViewModel { PortfolioViewModel(graph.overview) }
+        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }) { accountId, positionId ->
+            open(AssetKey(accountId, positionId))
+        }
+    }
     entry<InstrumentLibraryKey> {
         val vm = pageViewModel { InstrumentLibraryViewModel(graph.overview, graph.investments) }
         InstrumentLibrary(vm, { open(InstrumentKey(it)) }, { open(TypesKey) }, { open(InstrumentEditKey()) })

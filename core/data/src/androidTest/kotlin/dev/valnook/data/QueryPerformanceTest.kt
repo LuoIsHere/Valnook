@@ -23,6 +23,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.Clock
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executor
@@ -38,9 +39,16 @@ class QueryPerformanceTest {
     private val captured = CopyOnWriteArrayList<Query>()
     private val roomMetadataReads = AtomicInteger()
     @Volatile private var recording = false
-    private val clock = Clock.systemUTC()
+    private val clock = Clock.fixed(Instant.parse("2026-10-03T04:00:00Z"), java.time.ZoneId.of("Asia/Hong_Kong"))
+    private val historyStartMs = Instant.parse("2024-10-01T04:00:00Z").toEpochMilli()
+    private val historyEndMs = Instant.parse("2026-10-02T04:00:00Z").toEpochMilli()
     private fun positionCount(fixture: Fixture) = if (fixture.hotspot) 1 else
         (fixture.instruments - maxOf(1, fixture.instruments / 100)) * 2
+
+    private fun historyTime(index: Int, count: Int): Long {
+        if (count <= 1) return historyStartMs
+        return historyStartMs + (historyEndMs - historyStartMs) * (index - 1) / (count - 1)
+    }
 
     private fun open(context: Context, name: String): ValnookDatabase =
         Room.databaseBuilder(context, ValnookDatabase::class.java, name)
@@ -73,12 +81,28 @@ class QueryPerformanceTest {
                 arrayOf<Any>(id, id))
         }
         sql.execSQL("INSERT INTO asset_types VALUES (1,'ETF','etf',0,0)")
-        sql.execSQL("INSERT INTO app_settings VALUES (1,'CNY',1,'SYSTEM','GREEN_GAIN')")
+        sql.execSQL(
+            """INSERT INTO app_settings(
+                id,base_currency,revision,language,gain_loss_scheme,navigation_order,navigation_visible
+            ) VALUES (
+                1,'CNY',1,'SYSTEM','GREEN_GAIN',
+                'ACCOUNTS,INVESTMENTS,STATISTICS,SETTINGS',
+                'ACCOUNTS,INVESTMENTS,STATISTICS,SETTINGS'
+            )""".trimIndent(),
+        )
         sql.execSQL("INSERT INTO fx_rates VALUES ('USD','CNY','7.2',0)")
         for (id in 1..fixture.instruments) {
             val associated = if (fixture.hotspot) 1 else positionCount(fixture) / 2
             sql.execSQL("INSERT INTO instruments VALUES (?,1,?,?,'USD',18000000,?,1,0,0,0,0)",
                 arrayOf<Any>(id, "fixture-${id.toString().padStart(5, '0')}", "F$id", if (id <= associated) 1 else 0))
+            repeat(9) { observation ->
+                val price = if (observation == 8) 18_000_000L else 17_000_000L + observation * 125_000L
+                val effective = historyTime(observation + 1, 9)
+                sql.execSQL("""INSERT INTO instrument_price_history(instrument_id,price_e5,currency_code,
+                    effective_at_ms,created_at_ms,updated_at_ms,revision,is_deleted)
+                    VALUES (?,?,'USD',?,?,?,1,0)""",
+                    arrayOf<Any>(id, price, effective, effective, effective))
+            }
         }
         val positions = positionCount(fixture)
         val quantities = IntArray(positions)
@@ -119,7 +143,7 @@ class QueryPerformanceTest {
                 statement.bindString(4, if (sell) "SELL" else "BUY")
                 statement.bindLong(5, priceMinor * 1000000L)
                 statement.bindLong(6, priceMinor)
-                statement.bindLong(7, if (fixture.hotspot) ((id + 1) / 2).toLong() else id.toLong())
+                statement.bindLong(7, historyTime(id, fixture.trades))
                 statement.bindLong(8, if (deleted) 1 else 0)
                 statement.executeInsert()
             }
@@ -158,7 +182,7 @@ class QueryPerformanceTest {
                 statement.bindLong(3, accountId)
                 statement.bindLong(4, accountId)
                 statement.bindLong(5, 1000000)
-                statement.bindLong(6, id.toLong())
+                statement.bindLong(6, historyTime(id, entries))
                 statement.executeInsert()
             }
         }
@@ -188,6 +212,7 @@ class QueryPerformanceTest {
                 arrayOf<Any>(id, (id - 1) % fixture.accounts + 1, if (id % 2 == 0) "USD" else "CNY", "deposit-$id"))
         }
         sql.query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+        sql.execSQL("UPDATE statistics_state SET baseline_at_ms=0,source_revision=2,earliest_invalidated_epoch_day=0 WHERE id=1")
         sql.query("""SELECT COUNT(*) FROM cash_accounts b WHERE b.balance_minor !=
             (SELECT COALESCE(SUM(e.delta_minor),0) FROM cash_entries e WHERE e.cash_account_id=b.id AND e.is_deleted=0)
             OR b.balance_minor != (SELECT COALESCE(SUM(m.delta_minor),0) FROM cash_movements m WHERE m.cash_account_id=b.id)""").use {
@@ -196,7 +221,7 @@ class QueryPerformanceTest {
         }
     }
 
-    private suspend fun measure(db: ValnookDatabase, name: String, expectedRows: Int,
+    private suspend fun measure(db: ValnookDatabase, name: String, expectedRows: Int, repetitions: Int = 30,
         action: suspend () -> Int): JSONObject {
         val samples = ArrayList<Double>()
         val counts = ArrayList<Int>()
@@ -205,7 +230,7 @@ class QueryPerformanceTest {
         recording = true
         var first = 0.0
         try {
-            repeat(31) { repeat ->
+            repeat(repetitions + 1) { repeat ->
                 val before = captured.size
                 val metadataBefore = roomMetadataReads.get()
                 val started = System.nanoTime()
@@ -226,19 +251,33 @@ class QueryPerformanceTest {
             plans.put(JSONObject().put("sql", query.sql).put("bindings", JSONArray(query.args)).put("plan", plan))
         }
         val history = captured.filter { it.sql.contains("FROM investment_trades", true) }
+        val statisticsHistory = history.filter { query ->
+            query.sql.contains("ORDER BY investment_id,occurred_at_ms,id", true)
+        }
         if (name.contains("overview") || name == "catalog" || name == "position-detail" ||
-            name == "instrument-summary" || name == "account-associations" || name == "investment-grouping")
+            name == "instrument-summary" || name == "account-associations" || name == "investment-grouping" ||
+            name == "statistics-cache")
             assertTrue("Unexpected history replay: $name", history.isEmpty())
+        if (name == "statistics-two-year-first-and-warm")
+            assertEquals("Statistics should load trade history once per cold annual build", 2, statisticsHistory.size)
+        if (name == "statistics-mutation-historical-trade" || name == "statistics-mutation-fx")
+            assertEquals("A two-year invalidation should replay once per affected annual build",
+                (repetitions + 1) * 2, statisticsHistory.size)
+        if (name == "statistics-mutation-today-trade" || name == "statistics-mutation-price")
+            assertEquals("A current-year invalidation should preserve the prior-year cache",
+                repetitions + 1, statisticsHistory.size)
         if (name == "dao-overview" || name == "repository-overview")
             assertTrue("N+1 snapshot: $counts", counts.all { it == 7 })
         if (name == "historical-price-correction" || name == "append-trade") {
             val replay = history.filter { it.sql.contains("ORDER BY occurred_at_ms,id") }
-            assertEquals(31, replay.size)
+            assertEquals(repetitions + 1, replay.size)
             assertTrue(replay.all { it.args.first() == 1L })
         }
         return JSONObject().put("path", name).put("returned_rows", expectedRows)
-            .put("repetitions", 30).put("first_read_ms", first).put("p50_ms", samples[14])
-            .put("p95_ms", samples[28]).put("business_select_counts", JSONArray(counts))
+            .put("repetitions", repetitions).put("first_read_ms", first)
+            .put("p50_ms", samples[(samples.size - 1) / 2])
+            .put("p95_ms", samples[((samples.size * 95 + 99) / 100 - 1).coerceIn(samples.indices)])
+            .put("business_select_counts", JSONArray(counts))
             .put("room_metadata_select_counts", JSONArray(metadataCounts)).put("plans", plans)
     }
 
@@ -267,6 +306,7 @@ class QueryPerformanceTest {
                     val cash = RoomCash(db.cash())
                     val deposits = RoomDeposits(db.deposits())
                     val settings = RoomSettings(db, clock)
+                    val statistics = RoomStatistics(db, clock)
                     val positions = positionCount(fixture)
                     val results = JSONArray()
                     results.put(measure(db, "dao-overview", positions) { db.overview().snapshot().positions.size })
@@ -301,6 +341,48 @@ class QueryPerformanceTest {
                     results.put(measure(db, "trades-next", investments.trade_page(1, cursor).size) { investments.trade_page(1, cursor).size })
                     results.put(measure(db, "cash-page", 50) { cash.page(1, "CNY", null, 50).size })
                     results.put(measure(db, "deposit-page", 2) { deposits.page(1, false, null, 50).size })
+                    val statisticsRequests = listOf(2025, 2026).map { year ->
+                        StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+                            StatisticsPeriod(StatisticsGranularity.MONTHLY, year))
+                    }
+                    suspend fun statisticsRows(): Int {
+                        var rows = 0
+                        statisticsRequests.forEach { rows += statistics.loadSeries(it).points.size }
+                        return rows
+                    }
+                    results.put(measure(db, "statistics-two-year-first-and-warm", 24) { statisticsRows() })
+                    captured.clear()
+                    results.put(measure(db, "statistics-cache", 24) { statisticsRows() })
+                    if (fixture.label == "small") {
+                        results.put(measure(db, "statistics-mutation-historical-trade", 24, 5) {
+                            val old = investments.get_trade(1)!!
+                            commands.execute(EditInvestmentTrade(UUID.randomUUID().toString(), old.id, old.revision,
+                                old.direction, old.quantity_e8,
+                                if (old.execution_price_e8 == 10000000000L) 10100000000 else 10000000000,
+                                old.occurred_at_ms, false))
+                            statisticsRows()
+                        })
+                        results.put(measure(db, "statistics-mutation-today-trade", 24, 5) {
+                            commands.execute(RecordAccountTrade(UUID.randomUUID().toString(), 1, 1, Direction.BUY,
+                                100000000, 10000000000, clock.millis(), false))
+                            statisticsRows()
+                        })
+                        results.put(measure(db, "statistics-mutation-price", 24, 5) {
+                            val item = db.instruments().instrument(1)!!
+                            commands.execute(SaveInstrument(UUID.randomUUID().toString(), item.id, item.revision,
+                                item.name, item.symbol, item.asset_type_id, item.currency_code,
+                                if (item.current_price_e5 == 18000000L) 18100000 else 18000000))
+                            statisticsRows()
+                        })
+                        results.put(measure(db, "statistics-mutation-fx", 24, 5) {
+                            val before = settings.observeSettings().first()
+                            val rate = if (before.rates.first().rate.compareTo(BigDecimal("7.2")) == 0) "7.0" else "7.2"
+                            settings.applyChange(SaveFinancialSettings(before.revision,
+                                requireNotNull(before.baseCurrency), listOf(FxRate(Currency.of("USD"),
+                                    Currency.of("CNY"), BigDecimal(rate)))))
+                            statisticsRows()
+                        })
+                    }
                     results.put(measure(db, "price-and-overview", positions) {
                         val item = db.instruments().instrument(1)!!
                         commands.execute(SaveInstrument(UUID.randomUUID().toString(), item.id, item.revision,

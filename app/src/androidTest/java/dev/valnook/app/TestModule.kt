@@ -29,8 +29,8 @@ object TestModule {
     @Provides
     @Singleton
     fun clock(): Clock = Clock.fixed(
-        Instant.parse("2026-09-30T12:00:00Z"),
-        ZoneId.systemDefault(),
+        Instant.parse("2026-10-03T04:00:00Z"),
+        ZoneId.of("Asia/Hong_Kong"),
     )
 
     @Provides

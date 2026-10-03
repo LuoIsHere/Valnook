@@ -29,5 +29,15 @@ internal fun settingsModel(settings: SettingsEntity?, rates: List<FxRateEntity>)
         FxRate(Currency.of(it.source_currency), Currency.of(it.target_currency), it.rate.toBigDecimal())
     }, settings?.revision ?: 0,
     settings?.language?.let(AppLanguage::valueOf) ?: AppLanguage.SYSTEM,
-    settings?.gain_loss_scheme?.let(GainLossColorScheme::valueOf) ?: GainLossColorScheme.GREEN_GAIN
+    settings?.gain_loss_scheme?.let(GainLossColorScheme::valueOf) ?: GainLossColorScheme.GREEN_GAIN,
+    parseNavigation(settings)
 )
+
+private fun parseNavigation(settings: SettingsEntity?): NavigationConfiguration {
+    fun ids(raw: String?): List<NavigationItemId> = raw.orEmpty().split(',').mapNotNull {
+        runCatching { NavigationItemId.valueOf(it) }.getOrNull()
+    }
+    val order = ids(settings?.navigation_order)
+    val visible = ids(settings?.navigation_visible).toSet()
+    return runCatching { NavigationConfiguration(order, visible) }.getOrElse { NavigationConfiguration() }
+}

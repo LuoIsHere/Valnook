@@ -38,6 +38,7 @@ class AppSessionManager @Inject internal constructor(
     private var demoDatabaseName: String? = null
     private var pendingClear: PendingClear? = null
     private val initialId = UUID.randomUUID().toString()
+    @Volatile private var currentSessionId = initialId
     private val mutable = MutableStateFlow(ActiveSession(initialId, DataMode.REAL,
         bind(realDatabaseGraph, initialId)))
     val session = mutable.asStateFlow()
@@ -52,15 +53,14 @@ class AppSessionManager @Inject internal constructor(
         try {
             val raw = createDatabaseGraph(database, clock)
             var fixtureSettings = raw.settings.observeSettings().first()
-            if (fixtureSettings.language != displayPreferences.language) {
-                fixtureSettings = raw.settingsWriter.applyChange(
-                    SaveLanguage(fixtureSettings.revision, displayPreferences.language))
-            }
+            fixtureSettings = raw.settingsWriter.applyChange(
+                SaveLanguage(fixtureSettings.revision, displayPreferences.language))
             if (fixtureSettings.gainLossColors != displayPreferences.gainLossColors) {
                 raw.settingsWriter.applyChange(
                     SaveGainLossColors(fixtureSettings.revision, displayPreferences.gainLossColors))
             }
             val id = UUID.randomUUID().toString()
+            currentSessionId = id
             demoDatabase = database
             demoDatabaseName = databaseName
             mutable.value = ActiveSession(id, DataMode.DEMO, bind(raw, id))
@@ -126,6 +126,7 @@ class AppSessionManager @Inject internal constructor(
 
     private fun publishRealSession() {
         val id = UUID.randomUUID().toString()
+        currentSessionId = id
         mutable.value = ActiveSession(id, DataMode.REAL, bind(realDatabaseGraph, id))
     }
 
@@ -138,6 +139,9 @@ class AppSessionManager @Inject internal constructor(
         commands = SessionCommands(sessionId, source.commands),
         clock = source.clock,
         overview = source.overview,
+        statistics = dev.valnook.data.repository.RoomStatistics(source.database, source.clock) {
+            currentSessionId == sessionId
+        },
         settings = source.settings,
         settingsWriter = SessionSettingsWriter(sessionId, source.settingsWriter),
         instruments = source.instruments,
@@ -182,7 +186,7 @@ class AppSessionManager @Inject internal constructor(
     private data class PendingClear(val sessionId: String, val challenge: String)
 
     private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v6.db"
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v7.db"
         const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

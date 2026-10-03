@@ -44,6 +44,7 @@ import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDe
 import androidx.navigation3.runtime.*
 import androidx.navigation3.ui.NavDisplay
 import dev.valnook.app.R
+import dev.valnook.app.BuildConfig
 import dev.valnook.app.di.ActiveSession
 import dev.valnook.app.di.AppGraph
 import dev.valnook.app.di.AppSessionManager
@@ -62,6 +63,10 @@ import dev.valnook.feature.settings.GainLossColorsScreen
 import dev.valnook.feature.settings.LanguageSettingsScreen
 import dev.valnook.feature.settings.SettingsHome
 import dev.valnook.feature.settings.SettingsViewModel
+import dev.valnook.feature.settings.NavigationSettingsScreen
+import dev.valnook.feature.settings.NavigationSettingsViewModel
+import dev.valnook.feature.statistics.StatisticsScreen
+import dev.valnook.feature.statistics.StatisticsViewModel
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -92,8 +97,22 @@ private fun SessionRoot(
     onExit: () -> Unit
 ) {
     val graph = active.graph
-    val stack = rememberNavBackStack(InvestmentsKey, SettingsKey, AccountsKey)
+    val visibleRoots = settings.navigation.visibleInOrder.map { it.rootKey() }
+    val firstRoot = visibleRoots.firstOrNull() ?: SettingsKey
+    val initialRoots = remember {
+        visibleRoots.filter { it != firstRoot } + firstRoot
+    }
+    val stack = rememberNavBackStack(*initialRoots.toTypedArray())
     val current = stack.last()
+    LaunchedEffect(settings.navigation) {
+        val invalidCurrentRoot = stack.last().isRoot() && stack.last() !in visibleRoots
+        stack.toList().filter { it.isRoot() && it !in visibleRoots }.forEach { stack.remove(it) }
+        visibleRoots.filter { it !in stack }.forEach { stack.add(0, it) }
+        if (invalidCurrentRoot) {
+            stack.remove(firstRoot)
+            stack.add(firstRoot)
+        }
+    }
     val accounts by remember(graph) { graph.accounts.observe_accounts() }.collectAsStateWithLifecycle(emptyList())
     val pickerRates = remember(settings) {
         val base = settings.baseCurrency?.code
@@ -110,15 +129,20 @@ private fun SessionRoot(
     }
     val back: () -> Unit = {
         if (!stack.last().isRoot()) stack.removeAt(stack.lastIndex)
-        else if (stack.last() != AccountsKey) {
-            stack.remove(AccountsKey)
-            stack.add(AccountsKey)
+        else if (stack.last() != firstRoot) {
+            stack.remove(firstRoot)
+            stack.add(firstRoot)
         } else onExit()
     }
     val title = when (current) {
         AccountsKey -> stringResource(R.string.nav_accounts)
         InvestmentsKey -> stringResource(R.string.nav_investments)
+        StatisticsKey -> stringResource(R.string.nav_statistics)
         SettingsKey -> stringResource(R.string.nav_settings)
+        HiddenAccountsKey -> stringResource(R.string.nav_accounts)
+        HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
+        HiddenStatisticsKey -> stringResource(R.string.nav_statistics)
+        NavigationSettingsKey -> stringResource(R.string.title_navigation_settings)
         FxSettingsKey -> stringResource(R.string.title_exchange_rates)
         LanguageSettingsKey -> stringResource(R.string.title_language)
         GainLossColorsKey -> stringResource(R.string.title_gain_loss_colors)
@@ -185,6 +209,16 @@ private fun SessionRoot(
                             accountEntries(graph, open, back)
                             investmentEntries(graph, open, back, accountName)
                             ledgerEntries(graph, open, back, accountName)
+                            entry<StatisticsKey> {
+                                StatisticsScreen(pageViewModel {
+                                    StatisticsViewModel(graph.statistics, graph.clock, createSavedStateHandle())
+                                })
+                            }
+                            entry<HiddenStatisticsKey> {
+                                StatisticsScreen(pageViewModel {
+                                    StatisticsViewModel(graph.statistics, graph.clock, createSavedStateHandle())
+                                })
+                            }
                             entry<SettingsKey> {
                                 val vm = pageViewModel {
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
@@ -201,7 +235,14 @@ private fun SessionRoot(
                                                     switchFailed = true
                                                 }
                                         }
-                                    }, { open(ClearDataKey) })
+                                    }, { open(ClearDataKey) }, { open(NavigationSettingsKey) },
+                                    { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID)
+                            }
+                            entry<NavigationSettingsKey> {
+                                NavigationSettingsScreen(pageViewModel {
+                                    NavigationSettingsViewModel(graph.settings, graph.settingsWriter,
+                                        createSavedStateHandle())
+                                })
                             }
                             entry<FxSettingsKey> {
                                 FxSettingsScreen(pageViewModel {
@@ -237,7 +278,7 @@ private fun SessionRoot(
                 }
             }
         }
-        if (showCapsule) FloatingNavigationBar(current, selectRoot,
+        if (showCapsule) FloatingNavigationBar(current, settings.navigation.visibleInOrder, selectRoot,
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
                 .testTag("floating-navigation-overlay"))
     }
