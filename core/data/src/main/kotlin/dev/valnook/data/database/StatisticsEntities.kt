@@ -5,7 +5,7 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-const val STATISTICS_RULE_VERSION = 1
+const val STATISTICS_RULE_VERSION = 2
 
 @Entity(
     tableName = "instrument_price_history",
@@ -70,9 +70,7 @@ data class StatisticsPositionRow(
     val id: Long,
     val savings_account_id: Long,
     val instrument_id: Long,
-    val currency_code: String,
-    val opening_quantity_e8: Long,
-    val opening_at_ms: Long
+    val currency_code: String
 )
 
 @Entity(tableName = "demo_labels", primaryKeys = ["entity_kind", "entity_id", "field_name"])

@@ -186,7 +186,7 @@ class AppSessionManager @Inject internal constructor(
     private data class PendingClear(val sessionId: String, val challenge: String)
 
     private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v7.db"
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v8.db"
         const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

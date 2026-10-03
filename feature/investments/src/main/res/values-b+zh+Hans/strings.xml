@@ -22,7 +22,8 @@
     <string name="investment_current_holdings">当前持仓</string>
     <string name="investment_no_associations">尚未关联标的</string>
     <string name="investment_no_holdings">暂无持仓</string>
-    <string name="investment_choose_to_buy">选择全局标的买入</string>
+    <string name="investment_add_to_account">添加投资品到账户</string>
+    <string name="investment_no_available_instruments">标的库中的投资品均已添加到此账户</string>
     <string name="investment_name_symbol">名称 / 代码</string>
     <string name="investment_value_quantity">市值 / 数量</string>
     <string name="investment_price_cost">现价 / 成本</string>
@@ -33,8 +34,6 @@
     <string name="investment_sell">卖出</string>
     <string name="investment_edit_trade">修改交易</string>
     <string name="investment_delete_trade">删除交易</string>
-    <string name="investment_opening_position">期初持仓</string>
-    <string name="investment_opening_cost">期初成本</string>
     <string name="investment_review_retry">核对并重试</string>
     <string name="investment_confirm_delete">确认删除</string>
     <string name="investment_save">保存</string>
@@ -42,10 +41,8 @@
     <string name="investment_delete_hint">删除后将重算后续成本，并修正此交易原有的现金影响。</string>
     <string name="investment_trade_direction">交易方向</string>
     <string name="investment_quantity">份额</string>
-    <string name="investment_opening_cost_price">期初成本单价</string>
     <string name="investment_execution_price">成交单价</string>
     <string name="investment_trade_fee">交易手续费</string>
-    <string name="investment_cost_unknown">成本未知，稍后补全</string>
     <string name="investment_record_date">记账日期</string>
     <string name="investment_record_time">记账时间</string>
     <string name="investment_trade_amount">成交金额 %1$s</string>
@@ -53,7 +50,7 @@
     <string name="investment_cash_missing">请先创建同币种现金账户</string>
     <string name="investment_cash_account">现金账户</string>
     <string name="investment_cash_change">本次该账户现金变化 %1$s</string>
-    <string name="investment_history_conflict">修改会使历史持仓为负，或使交易早于期初持仓。请核对日期和份额。</string>
+    <string name="investment_history_conflict">修改会使历史持仓为负，请核对日期和份额。</string>
     <string name="investment_unknown_result">结果待核对，重试沿用原操作 ID</string>
     <string name="instrument_load_failed">标的读取失败</string>
     <string name="instrument_loading">正在读取标的</string>
@@ -84,11 +81,9 @@
     <string name="investment_realized_total">累计已实现盈亏 %1$s</string>
     <string name="investment_trade_history">交易历史</string>
     <string name="investment_no_trades">暂无交易记录</string>
-    <string name="investment_edit_opening_cost">修改期初成本</string>
     <string name="investment_load_more">加载更多</string>
     <string name="investment_account_failed">账户投资记录读取失败，请返回重试</string>
     <string name="investment_account_missing">账户或标的不存在</string>
-    <string name="investment_record_opening">录入期初持仓</string>
     <string name="instrument_not_found">标的不存在</string>
     <string name="instrument_cross_account_value">跨账户总市值 %1$s</string>
     <string name="instrument_edit_action">编辑标的与当前价格</string>

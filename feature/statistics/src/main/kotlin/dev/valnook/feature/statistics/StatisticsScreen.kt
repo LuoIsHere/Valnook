@@ -11,6 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -20,6 +22,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -159,6 +162,7 @@ private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (
     val lineColor = MaterialTheme.colorScheme.primary
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val pointColor = MaterialTheme.colorScheme.secondary
+    val axisTextColor = MaterialTheme.colorScheme.onSurfaceVariant.toArgb()
     val latest = series.points.indexOfLast { it.value != null }.coerceAtLeast(0)
     val description = stringResource(R.string.statistics_chart_description, title, periodLabel(series.period))
     val selection = selectedIndex ?: latest
@@ -186,7 +190,7 @@ private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (
                 }
             }
         }
-        Canvas(Modifier.weight(1f).height(168.dp)
+        Canvas(Modifier.weight(1f).height(192.dp)
             .testTag("statistics-chart-${series.metric.name.lowercase()}").semantics {
         contentDescription = description
         stateDescription = stateText
@@ -230,7 +234,8 @@ private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (
     }) {
         if (scale == null) return@Canvas
         val top = 10f
-        val bottom = size.height - 12f
+        val labelSpace = 24.dp.toPx()
+        val bottom = size.height - labelSpace - 12f
         val height = bottom - top
         val range = scale.maximum - scale.minimum
         fun x(index: Int): Float = if (series.points.size <= 1) size.width / 2f
@@ -240,6 +245,20 @@ private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (
             return bottom - fraction * height
         }
         scale.ticks.forEach { tick -> drawLine(gridColor, Offset(0f, y(tick)), Offset(size.width, y(tick)), 1f) }
+        val labelPaint = android.graphics.Paint().apply {
+            color = axisTextColor
+            textSize = 11.sp.toPx()
+            isAntiAlias = true
+        }
+        sparseXAxisLabels(series).forEach { (index, label) ->
+            val labelWidth = labelPaint.measureText(label)
+            val left = when (index) {
+                0 -> 0f
+                series.points.lastIndex -> size.width - labelWidth
+                else -> x(index) - labelWidth / 2f
+            }.coerceIn(0f, (size.width - labelWidth).coerceAtLeast(0f))
+            drawContext.canvas.nativeCanvas.drawText(label, left, size.height - 2.dp.toPx(), labelPaint)
+        }
         val groups = mutableListOf<MutableList<Pair<Int, BigDecimal>>>()
         series.points.forEachIndexed { index, point ->
             val value = point.value ?: return@forEachIndexed
@@ -259,6 +278,18 @@ private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (
         }
         series.points.getOrNull(selection)?.value?.let { drawCircle(pointColor, 6f, Offset(x(selection), y(it))) }
         }
+    }
+}
+
+internal fun sparseXAxisLabels(series: StatisticsSeries): List<Pair<Int, String>> {
+    if (series.points.isEmpty()) return emptyList()
+    val last = series.points.lastIndex
+    val indexes = if (series.period.granularity == StatisticsGranularity.DAILY)
+        listOf(0, 7, 14, 21, last) else listOf(0, 3, 6, 9, last)
+    return indexes.distinct().filter { it in series.points.indices }.map { index ->
+        val date = series.points[index].date
+        index to if (series.period.granularity == StatisticsGranularity.DAILY)
+            date.dayOfMonth.toString() else date.monthValue.toString()
     }
 }
 

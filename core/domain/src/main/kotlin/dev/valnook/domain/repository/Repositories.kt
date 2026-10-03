@@ -50,8 +50,6 @@ data class EditTermDeposit(override val operation_id: String, val deposit_id: Lo
     val principal_minor: Long, val annual_rate_percent_e8: Long, val start_epoch_day: Long,
     val end_epoch_day: Long, val open_cash_linked: Boolean, val close_cash_linked: Boolean?,
     val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null) : FinancialCommand
-data class SetOpeningInvestmentCost(override val operation_id: String, val investment_id: Long,
-    val expected_revision: Long, val price_e8: Long) : FinancialCommand
 data class RecordInvestmentTrade(override val operation_id: String, val investment_id: Long,
     val direction: Direction, val quantity_e8: Long, val execution_price_e8: Long,
     val occurred_at_ms: Long, val cash_linked: Boolean, val cashAccountId: Long? = null,

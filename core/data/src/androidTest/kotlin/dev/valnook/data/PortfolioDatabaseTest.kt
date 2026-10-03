@@ -68,14 +68,16 @@ class PortfolioDatabaseTest {
         assertEquals(listOf(first),deposits.observe_deposits(account,50).first().map{it.id})
         assertEquals(listOf(second),deposits.observe_deposits(account,50,true).first().map{it.id})
     }}
-    @Test fun opening_cost_is_required_and_revision_safe_without_cash_or_price_side_effects() {runBlocking {
+    @Test fun empty_position_and_first_buy_are_separate_and_buy_cost_is_editable() {runBlocking {
         val instrument=commands.testInstrument("QQQ","",type,"USD",e("180"))
-        val missing=SaveOpeningPosition(id(),account,instrument,e("10"),null,Long.MIN_VALUE)
-        try{commands.execute(missing);fail()}catch(error:DomainException){assertEquals(ErrorCode.FORMAT,error.code)}
-        assertNull(db.ledger().operation(missing.operation_id))
-        val asset=commands.execute(missing.copy(operation_id=id(),costPriceE8=e("100"))).id
+        val creation=CreateInvestmentPosition(id(),account,instrument)
+        val asset=commands.execute(creation).id
+        assertEquals(commands.operationResult(creation.operation_id), commands.execute(creation))
+        assertEquals(0L, db.ledger().investment(asset)!!.holding_quantity_e8)
+        assertTrue(repo.trade_page(asset,null).isEmpty())
+        val buy=trade(asset,Direction.BUY,"10","100",Long.MIN_VALUE)
         trade(asset,Direction.SELL,"2","120",100)
-        val cost=SetOpeningInvestmentCost(id(),asset,2,e("90"))
+        val cost=EditInvestmentTrade(id(),buy,1,Direction.BUY,e("10"),e("90"),Long.MIN_VALUE,false)
         assertEquals(commands.execute(cost),commands.execute(cost))
         val summary=repo.observe_profit(asset).first()!!
         assertEquals("60.00",summary.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString());assertEquals("720.00",summary.unrealized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
@@ -83,7 +85,7 @@ class PortfolioDatabaseTest {
         assertEquals("60.00",repo.observe_profit(asset).first()!!.realized!!.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString())
         assertNull(db.ledger().cash_one(account,"USD"))
         try{commands.execute(cost.copy(operation_id=id()));fail()}catch(error:DomainException){assertEquals(ErrorCode.STALE_RECORD,error.code)}
-        assertEquals(e("90"),db.ledger().investment(asset)!!.opening_cost_price_e8)
+        assertEquals(e("90"),db.ledger().trade(buy)!!.execution_price_e8)
     }}
     @Test fun profit_reads_entire_history_and_excludes_deleted_trades() {runBlocking {
         val asset=create("QQQ")

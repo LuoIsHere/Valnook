@@ -11,10 +11,28 @@ import dev.valnook.domain.command.SubmissionPhase
 import dev.valnook.domain.model.*
 import java.time.*
 
+@Composable fun PositionCreateForm(vm: PositionCreateViewModel, onBack: () -> Unit) {
+    val submission by vm.submission.collectAsStateWithLifecycle()
+    val instruments by vm.available.collectAsStateWithLifecycle()
+    val selectedInstrumentId by vm.selectedInstrumentId.collectAsStateWithLifecycle()
+    LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
+    FormLayout(stringResource(R.string.investment_add_to_account),
+        submission.phase == SubmissionPhase.WORKING,
+        submission.phase != SubmissionPhase.SUCCEEDED && selectedInstrumentId != null,
+        vm::submit) {
+        if (instruments.isEmpty()) Text(stringResource(R.string.investment_no_available_instruments))
+        else ChoiceField(stringResource(R.string.investment_instrument),
+            selectedInstrumentId?.toString().orEmpty(),
+            instruments.map { it.id.toString() to (it.name + " · " + it.symbol) },
+            { id -> instruments.firstOrNull { it.id.toString() == id }?.let(vm::select) }, submission.editable)
+        ErrorMessage(submission.error?.name)
+        if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
+    }
+}
+
 @Composable fun TradeForm(vm: TradeFormViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
-    val instruments by vm.availableInstruments.collectAsStateWithLifecycle()
     val cashAccounts by vm.cashAccounts.collectAsStateWithLifecycle()
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
     if (!state.loaded || state.failed) {
@@ -25,40 +43,32 @@ import java.time.*
         TradeFormMode.CREATE -> if (state.direction == Direction.BUY) R.string.investment_buy else R.string.investment_sell
         TradeFormMode.EDIT -> R.string.investment_edit_trade
         TradeFormMode.DELETE -> R.string.investment_delete_trade
-        TradeFormMode.OPENING -> R.string.investment_opening_position
-        TradeFormMode.OPENING_COST -> R.string.investment_opening_cost
     })
     FormLayout(title, submission.phase == SubmissionPhase.WORKING, submission.phase != SubmissionPhase.SUCCEEDED,
         vm::submit, if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.investment_review_retry)
         else if (state.mode == TradeFormMode.DELETE) stringResource(R.string.investment_confirm_delete)
         else stringResource(R.string.investment_save)) {
-        if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.OPENING) {
-            ChoiceField(stringResource(R.string.investment_instrument), state.instrumentId?.toString().orEmpty(), instruments.map { it.id.toString() to (it.name + " · " + it.symbol) },
-                { id -> instruments.firstOrNull { it.id.toString() == id }?.let(vm::chooseInstrument) }, submission.editable)
-        } else Text(state.name)
+        Text(state.name)
         if (state.mode == TradeFormMode.DELETE) Text(stringResource(R.string.investment_delete_hint))
         else {
             if (state.mode == TradeFormMode.EDIT) ChoiceField(stringResource(R.string.investment_trade_direction), state.direction.name,
                 listOf(Direction.BUY.name to stringResource(R.string.investment_buy),
                     Direction.SELL.name to stringResource(R.string.investment_sell)),
                 { value -> vm.update { it.copy(direction = Direction.valueOf(value)) } }, submission.editable)
-            if (state.mode != TradeFormMode.OPENING_COST) Field(stringResource(R.string.investment_quantity), state.quantityInput,
+            Field(stringResource(R.string.investment_quantity), state.quantityInput,
                 { value -> vm.update { it.copy(quantityInput = value) } }, true, submission.editable)
-            Field(stringResource(if (state.mode == TradeFormMode.OPENING || state.mode == TradeFormMode.OPENING_COST)
-                R.string.investment_opening_cost_price else R.string.investment_execution_price),
+            Field(stringResource(R.string.investment_execution_price),
                 state.executionPriceInput, { value -> vm.update { it.copy(executionPriceInput = value) } }, true,
                 submission.editable)
             if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.EDIT)
                 Field(stringResource(R.string.investment_trade_fee), state.feeInput,
                     { value -> vm.update { it.copy(feeInput = value) } }, true, submission.editable)
-            if (state.mode != TradeFormMode.OPENING_COST) {
-                DateField(stringResource(R.string.investment_record_date), state.occurredAt.toLocalDate().toString(), { value -> vm.update {
-                    it.copy(occurredAt = LocalDateTime.of(LocalDate.parse(value), it.occurredAt.toLocalTime()))
-                } }, submission.editable)
-                TimeField(stringResource(R.string.investment_record_time), state.occurredAt.toLocalTime().toString(), { value -> vm.update {
-                    it.copy(occurredAt = LocalDateTime.of(it.occurredAt.toLocalDate(), LocalTime.parse(value)))
-                } }, submission.editable)
-            }
+            DateField(stringResource(R.string.investment_record_date), state.occurredAt.toLocalDate().toString(), { value -> vm.update {
+                it.copy(occurredAt = LocalDateTime.of(LocalDate.parse(value), it.occurredAt.toLocalTime()))
+            } }, submission.editable)
+            TimeField(stringResource(R.string.investment_record_time), state.occurredAt.toLocalTime().toString(), { value -> vm.update {
+                it.copy(occurredAt = LocalDateTime.of(it.occurredAt.toLocalDate(), LocalTime.parse(value)))
+            } }, submission.editable)
             if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.EDIT) {
                 vm.amountPreview()?.let { Text(stringResource(R.string.investment_trade_amount, it)) }
                 CheckboxRow(stringResource(R.string.investment_link_cash, state.currency?.code.orEmpty()), state.cashLinked,

@@ -12,38 +12,20 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
     private val positions = db.positions()
     private val trades = db.trades()
 
-    suspend fun opening(command: SaveOpeningPosition, now: Long): OperationResult {
+    suspend fun create(command: CreateInvestmentPosition, now: Long): OperationResult {
         cash.requireAccount(command.accountId)
         val instrument = db.instruments().instrument(command.instrumentId) ?: throw DomainException(ErrorCode.NOT_FOUND)
         cash.currency(instrument.currency_code)
         if (positions.position(command.accountId, command.instrumentId) != null) throw DomainException(ErrorCode.OPERATION_CONFLICT)
-        R.check_nonnegative(command.quantityE8)
-        if (command.quantityE8 > 0 && command.costPriceE8 == null) throw DomainException(ErrorCode.FORMAT)
-        command.costPriceE8?.let { R.check_nonnegative(it, true) }
-        val cost = if (command.quantityE8 == 0L) "0" else command.costPriceE8?.let {
-            java.math.BigDecimal.valueOf(R.amount(command.quantityE8, it, Currency.of(instrument.currency_code)),
-                Currency.of(instrument.currency_code).fraction_digits).stripTrailingZeros().toPlainString()
-        }
         val id = positions.insert_investment(InvestmentEntity(savings_account_id = command.accountId,
-            instrument_id = command.instrumentId, opening_quantity_e8 = command.quantityE8,
-            holding_quantity_e8 = command.quantityE8, revision = 1, created_at_ms = now, updated_at_ms = now,
-            opening_cost_price_e8 = command.costPriceE8, opening_at_ms = command.occurredAtMs,
-            remaining_cost = cost, realized_profit = "0", chronology_valid = true,
+            instrument_id = command.instrumentId, holding_quantity_e8 = 0, revision = 1,
+            created_at_ms = now, updated_at_ms = now, remaining_cost = "0", realized_profit = "0", chronology_valid = true,
             algorithm_version = InvestmentProfitCalculator.ALGORITHM_VERSION,
-            position_state = if (command.quantityE8 > 0) "HOLDING" else "PENDING", last_activity_at_ms = command.occurredAtMs))
-        if (command.quantityE8 > 0) db.instruments().lockCurrency(command.instrumentId)
+            position_state = "PENDING", last_activity_at_ms = now))
+        db.instruments().lockCurrency(command.instrumentId)
         fault(TransactionPoint.AFTER_BUSINESS)
         fault(TransactionPoint.AFTER_COST)
         return OperationResult("INVESTMENT", id)
-    }
-
-    suspend fun record(command: RecordAccountTrade, now: Long): OperationResult {
-        cash.requireAccount(command.accountId)
-        val position = positions.position(command.accountId, command.instrumentId)?.id ?: opening(
-            SaveOpeningPosition(command.operation_id, command.accountId, command.instrumentId, 0, null, command.occurredAtMs), now).id
-        return record(RecordInvestmentTrade(command.operation_id, position, command.direction, command.quantityE8,
-            command.executionPriceE8, command.occurredAtMs, command.cashLinked, command.cashAccountId,
-            command.feeMinor), now)
     }
 
     suspend fun record(command: RecordInvestmentTrade, now: Long): OperationResult {
@@ -70,18 +52,6 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
             cash.entry(command.operation_id, cashAccountId, "TRADE", id, delta, command.occurred_at_ms, now)
         }
         return OperationResult("INVESTMENT_TRADE", id)
-    }
-
-    suspend fun cost(command: SetOpeningInvestmentCost, now: Long): OperationResult {
-        val position = positions.investment(command.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
-        if (position.revision != command.expected_revision) throw DomainException(ErrorCode.STALE_RECORD)
-        if (position.opening_quantity_e8 == 0L) throw DomainException(ErrorCode.FORMAT)
-        R.check_nonnegative(command.price_e8, true)
-        if (positions.update_opening_cost(position.id, command.price_e8, position.revision) != 1)
-            throw DomainException(ErrorCode.STALE_RECORD)
-        fault(TransactionPoint.AFTER_BUSINESS)
-        rebuild(position.copy(opening_cost_price_e8 = command.price_e8), now)
-        return OperationResult("INVESTMENT", position.id)
     }
 
     suspend fun edit(command: EditInvestmentTrade, now: Long): OperationResult {
@@ -123,7 +93,7 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
     private suspend fun rebuild(position: InvestmentEntity, now: Long) {
         val projection = positions.positionSnapshot(position.id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val history = trades.replayTrades(position.id).map { it.toModel() }
-        var holding = position.opening_quantity_e8
+        var holding = 0L
         for (trade in history) {
             holding = R.add(holding, if (trade.direction == Direction.BUY) trade.quantity_e8 else -trade.quantity_e8)
             if (holding < 0) throw DomainException(ErrorCode.HISTORY_CONFLICT)

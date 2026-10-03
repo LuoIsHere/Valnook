@@ -54,7 +54,7 @@
     <string name="empty_cash">No cash balance yet. Set the current balance by currency.</string>
     <string name="empty_deposits">No deposits yet.</string>
     <string name="empty_investments">No instruments yet.</string>
-    <string name="empty_trades">No trades yet. An opening position does not create a trade.</string>
+    <string name="empty_trades">No trades yet. Record a purchase to start a position.</string>
     <string name="cash_set">Edit balance</string>
     <string name="balance">Current balance</string>
     <string name="currency_value">Currency: %1$s</string>
@@ -83,7 +83,6 @@
     <string name="type_value">Class: %1$s</string>
     <string name="new_type">Add class</string>
     <string name="edit_type">Rename class</string>
-    <string name="opening_quantity">Opening quantity</string>
     <string name="quantity">Trade quantity</string>
     <string name="current_price">Current price per unit</string>
     <string name="execution_price">Execution price</string>

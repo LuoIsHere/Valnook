@@ -79,12 +79,11 @@ data class TermDeposit(val id: Long, val account_id: Long, val currency: Currenc
     val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null)
 data class AssetType(val id: Long, val name: String)
 data class Investment(val id: Long, val account_id: Long, val type_id: Long, val type_name: String,
-    val name: String, val symbol: String, val currency: Currency, val opening_quantity_e8: Long,
-    val holding_quantity_e8: Long, val current_price_e8: Long, val price_updated_at_ms: Long,
-    val opening_cost_price_e8: Long? = null, val revision: Long = 1, val last_activity_at_ms: Long = 0,
-    val instrumentId: Long = id, val openingAtMs: Long = Long.MIN_VALUE,
+    val name: String, val symbol: String, val currency: Currency, val holding_quantity_e8: Long,
+    val current_price_e8: Long, val price_updated_at_ms: Long,
+    val revision: Long = 1, val last_activity_at_ms: Long = 0, val instrumentId: Long = id,
     val remainingCost: String? = null, val realizedProfit: String? = null,
-    val chronologyValid: Boolean = true, val algorithmVersion: Int = 3)
+    val chronologyValid: Boolean = true, val algorithmVersion: Int = 4)
 enum class Direction { BUY, SELL }
 data class Trade(val id: Long, val investment_id: Long, val direction: Direction,
     val quantity_e8: Long, val execution_price_e8: Long, val amount_minor: Long,

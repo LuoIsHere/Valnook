@@ -4,6 +4,8 @@ import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 /** Adds source history and derived-cache metadata without rewriting any v6 business row. */
+private const val MIGRATION_6_7_STATISTICS_RULE_VERSION = 1
+
 val MIGRATION_6_7 = object : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE app_settings ADD COLUMN navigation_order TEXT NOT NULL DEFAULT 'ACCOUNTS,INVESTMENTS,STATISTICS,SETTINGS'")
@@ -56,7 +58,7 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
             PRIMARY KEY(entity_kind,entity_id,field_name))""")
         val now = System.currentTimeMillis()
         val epochDay = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toEpochDay()
-        db.execSQL("INSERT OR IGNORE INTO statistics_state(id,source_revision,rule_version,baseline_at_ms,earliest_invalidated_epoch_day) VALUES (1,1,$STATISTICS_RULE_VERSION,?,?)", arrayOf(now, epochDay))
+        db.execSQL("INSERT OR IGNORE INTO statistics_state(id,source_revision,rule_version,baseline_at_ms,earliest_invalidated_epoch_day) VALUES (1,1,$MIGRATION_6_7_STATISTICS_RULE_VERSION,?,?)", arrayOf(now, epochDay))
         db.execSQL("""INSERT INTO statistics_baseline_items
             SELECT 'CASH',id,savings_account_id,NULL,currency_code,balance_minor,NULL FROM cash_accounts""")
         db.execSQL("""INSERT INTO statistics_baseline_items

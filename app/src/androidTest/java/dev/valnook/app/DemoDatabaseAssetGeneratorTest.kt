@@ -25,7 +25,7 @@ import dev.valnook.data.database.InstrumentPriceEntity
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
     @Test
-    fun exportRoomV7DemoDatabase() = runBlocking {
+    fun exportRoomV8DemoDatabase() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(EXPORT_DATABASE_NAME)
         val clock = Clock.fixed(Instant.parse("2026-10-02T04:00:00Z"), ZoneId.of("Asia/Hong_Kong"))
@@ -144,6 +144,6 @@ class DemoDatabaseAssetGeneratorTest {
 
     private companion object {
         const val EXPORT_DATABASE_NAME = "valnook-demo-asset-export.db"
-        const val ASSET_FILE_NAME = "valnook-demo-v7.db"
+        const val ASSET_FILE_NAME = "valnook-demo-v8.db"
     }
 }

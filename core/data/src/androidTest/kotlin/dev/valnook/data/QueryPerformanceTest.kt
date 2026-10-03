@@ -363,7 +363,7 @@ class QueryPerformanceTest {
                             statisticsRows()
                         })
                         results.put(measure(db, "statistics-mutation-today-trade", 24, 5) {
-                            commands.execute(RecordAccountTrade(UUID.randomUUID().toString(), 1, 1, Direction.BUY,
+                            commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), 1, Direction.BUY,
                                 100000000, 10000000000, clock.millis(), false))
                             statisticsRows()
                         })
@@ -408,7 +408,7 @@ class QueryPerformanceTest {
                             1
                         })
                         results.put(measure(db, "append-trade", 1) {
-                            commands.execute(RecordAccountTrade(UUID.randomUUID().toString(), 1, 1, Direction.BUY,
+                            commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), 1, Direction.BUY,
                                 100000000, 10000000000, 50001 + db.positions().investment(1)!!.revision, false))
                             1
                         })

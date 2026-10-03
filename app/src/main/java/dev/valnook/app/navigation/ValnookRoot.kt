@@ -154,6 +154,7 @@ private fun SessionRoot(
         is InstrumentKey -> stringResource(R.string.title_instrument_detail)
         is InstrumentPriceEditKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
         is AccountInstrumentKey -> accountName(current.accountId)
+        is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
         is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
         else -> "Valnook"
     }
@@ -185,10 +186,10 @@ private fun SessionRoot(
                 if (!current.isRoot()) BackButton(stringResource(R.string.nav_back), back)
             }, actions = {
                 when (current) {
-                    AccountsKey -> IconButton({ open(AccountEditKey()) }, Modifier.semantics {
+                    AccountsKey, HiddenAccountsKey -> IconButton({ open(AccountEditKey()) }, Modifier.semantics {
                         contentDescription = addAccountDescription
                     }) { Text("＋") }
-                    InvestmentsKey -> IconButton({ open(InstrumentLibraryKey) }, Modifier.semantics {
+                    InvestmentsKey, HiddenInvestmentsKey -> IconButton({ open(InstrumentLibraryKey) }, Modifier.semantics {
                         contentDescription = instrumentLibraryDescription
                     }) { MenuIcon() }
                     is AccountKey -> dev.valnook.designsystem.TopBarAction(stringResource(R.string.nav_edit),
@@ -224,7 +225,7 @@ private fun SessionRoot(
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
                                 }
                                 SettingsHome(vm, active.mode == DataMode.DEMO, switching, switchFailed,
-                                    { open(FxSettingsKey) }, { open(LanguageSettingsKey) },
+                                    { open(FxSettingsKey) }, { if (active.mode != DataMode.DEMO) open(LanguageSettingsKey) },
                                     { open(GainLossColorsKey) }, { enable ->
                                         if (!switching) scope.launch {
                                             switching = true

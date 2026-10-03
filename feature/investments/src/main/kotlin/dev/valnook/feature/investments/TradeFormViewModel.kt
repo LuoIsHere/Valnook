@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.*
 import java.time.*
 import java.util.UUID
 
-enum class TradeFormMode { CREATE, EDIT, DELETE, OPENING, OPENING_COST }
+enum class TradeFormMode { CREATE, EDIT, DELETE }
 data class TradeFormUiState(val mode: TradeFormMode, val instrumentId: Long?, val positionId: Long?,
     val tradeId: Long?, val expectedRevision: Long?, val currency: Currency?,
     val direction: Direction, val quantityInput: String, val executionPriceInput: String, val feeInput: String,
@@ -39,12 +39,6 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         saved["linked"] ?: false, saved["cashAccountId"], saved["name"] ?: "",
         saved["loaded"] ?: false, originalCashImpactMinor = saved["originalCashImpact"] ?: 0))
     val state = mutable.asStateFlow()
-    val availableInstruments = instruments.observeInstruments()
-        .catch {
-            mutable.value = state.value.copy(failed = true)
-            emit(emptyList())
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyList())
     val cashAccounts = cashRepository.observe_cash(accountId)
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyList())
@@ -64,9 +58,8 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
                 expectedRevision = trade?.revision ?: asset?.revision, currency = instrument?.currency,
                 direction = trade?.direction ?: input.direction,
                 quantityInput = trade?.let { R.format_e8(it.quantity_e8) } ?: input.quantityInput,
-                executionPriceInput = trade?.let { R.format_e8(it.execution_price_e8) } ?:
-                    if (input.mode == TradeFormMode.OPENING_COST) asset?.opening_cost_price_e8?.let(R::format_e8).orEmpty()
-                    else instrument?.let { java.math.BigDecimal.valueOf(it.currentPriceE5, 5).stripTrailingZeros().toPlainString() }.orEmpty(),
+                executionPriceInput = trade?.let { R.format_e8(it.execution_price_e8) }
+                    ?: instrument?.let { java.math.BigDecimal.valueOf(it.currentPriceE5, 5).stripTrailingZeros().toPlainString() }.orEmpty(),
                 feeInput = trade?.let { R.format_units(it.fee_minor, it.currency.fraction_digits) } ?: input.feeInput,
                 occurredAt = trade?.let { Instant.ofEpochMilli(it.occurred_at_ms).atZone(clock.zone).toLocalDateTime() } ?: input.occurredAt,
                 cashLinked = trade?.cash_linked ?: false, cashAccountId = trade?.cashAccountId,
@@ -95,9 +88,6 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         saved["originalCashImpact"] = value.originalCashImpactMinor
     }
     fun update(transform: (TradeFormUiState) -> TradeFormUiState) { if (submission.value.editable) change(transform(state.value)) }
-    fun chooseInstrument(instrument: Instrument) = update { it.copy(instrumentId = instrument.id, currency = instrument.currency,
-        name = instrument.name, cashLinked = false, cashAccountId = null,
-        executionPriceInput = java.math.BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString()) }
     fun setCashLinked(linked: Boolean) = update { current ->
         val candidates = cashAccounts.value.filter { it.currency == current.currency }
         current.copy(cashLinked = linked,
@@ -129,7 +119,7 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
         val occurredAtMs = input.occurredAt.atZone(clock.zone).toInstant().toEpochMilli()
         when (input.mode) {
-            TradeFormMode.CREATE -> RecordAccountTrade(operationId, accountId, requireNotNull(input.instrumentId),
+            TradeFormMode.CREATE -> RecordInvestmentTrade(operationId, requireNotNull(input.positionId),
                 input.direction, R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), occurredAtMs,
                 input.cashLinked, if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null,
                 R.parse_units(input.feeInput, requireNotNull(input.currency).fraction_digits))
@@ -138,10 +128,6 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
                 input.cashLinked, if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null,
                 R.parse_units(input.feeInput, requireNotNull(input.currency).fraction_digits))
             TradeFormMode.DELETE -> DeleteInvestmentTrade(operationId, requireNotNull(input.tradeId), requireNotNull(input.expectedRevision))
-            TradeFormMode.OPENING -> SaveOpeningPosition(operationId, accountId, requireNotNull(input.instrumentId),
-                R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), occurredAtMs)
-            TradeFormMode.OPENING_COST -> SetOpeningInvestmentCost(operationId, requireNotNull(input.positionId),
-                requireNotNull(input.expectedRevision), R.parse_e8(input.executionPriceInput, true))
         }
     }
     fun consumeSuccess(): Boolean {

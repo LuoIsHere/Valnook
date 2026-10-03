@@ -59,12 +59,18 @@ class StatisticsRepositoryTest {
             symbol = "EX", currency_code = "CNY", current_price_e5 = 12_000_000, currency_locked = true,
             revision = 1, price_updated_at_ms = clock.millis(), created_at_ms = at(OctoberDay.START),
             updated_at_ms = clock.millis()))
-        db.positions().insert_investment(InvestmentEntity(savings_account_id = account, instrument_id = instrument,
-            opening_quantity_e8 = 200_000_000, holding_quantity_e8 = 200_000_000, revision = 1,
-            created_at_ms = at(OctoberDay.START), updated_at_ms = at(OctoberDay.START), opening_cost_price_e8 = 1,
-            opening_at_ms = at(OctoberDay.START), remaining_cost = "0", realized_profit = "0",
-            chronology_valid = true, algorithm_version = 3, position_state = "HOLDING",
-            last_activity_at_ms = at(OctoberDay.START)))
+        val position = db.positions().insert_investment(InvestmentEntity(savings_account_id = account,
+            instrument_id = instrument, holding_quantity_e8 = 200_000_000, revision = 1,
+            created_at_ms = at(OctoberDay.START), updated_at_ms = at(OctoberDay.START),
+            remaining_cost = "200", realized_profit = "0", chronology_valid = true,
+            algorithm_version = 4, position_state = "HOLDING", last_activity_at_ms = at(OctoberDay.START)))
+        db.operations().insert_operation(OperationEntity("initial-buy", "BUY", "test", null, null,
+            at(OctoberDay.START)))
+        db.ledger().insert_trade(TradeEntity(investment_id = position, operation_id = "initial-buy",
+            direction = Direction.BUY.name, quantity_e8 = 200_000_000, execution_price_e8 = 10_000_000_000,
+            amount_minor = 20_000, currency_code = "CNY", cash_linked = false,
+            occurred_at_ms = at(OctoberDay.START), created_at_ms = at(OctoberDay.START),
+            updated_at_ms = at(OctoberDay.START)))
         db.statistics().insertPrice(InstrumentPriceEntity(instrument_id = instrument, price_e5 = 10_000_000,
             currency_code = "CNY", effective_at_ms = at(OctoberDay.END), created_at_ms = clock.millis()))
         db.statistics().insertPrice(InstrumentPriceEntity(instrument_id = instrument, price_e5 = 11_000_000,
@@ -242,6 +248,40 @@ class StatisticsRepositoryTest {
         val stillPreserved = db.statistics().cached(StatisticsMetric.TOTAL_ASSETS.name,
             octoberFirst.toEpochDay(), octoberFirst.toEpochDay(), after, STATISTICS_RULE_VERSION)
         assertEquals(preserved.single(), stillPreserved.single())
+    }
+
+    @Test fun invalidatedSuffixCannotBePromotedByALaterEdit() = runBlocking {
+        val metric = StatisticsMetric.TOTAL_ASSETS.name
+        val request = StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10))
+        val repository = RoomStatistics(db, clock)
+        repository.loadSeries(request)
+        val originalRevision = requireNotNull(db.statistics().state()).source_revision
+
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val firstRevision = requireNotNull(db.statistics().state()).source_revision
+        assertTrue(db.statistics().cached(metric, octoberFirst.toEpochDay(),
+            octoberFirst.plusDays(2).toEpochDay(), originalRevision, STATISTICS_RULE_VERSION).isEmpty())
+
+        db.statistics().insertCache(listOf(StatisticsCacheEntity(metric,
+            octoberFirst.plusDays(2).toEpochDay(), "999", true, firstRevision,
+            STATISTICS_RULE_VERSION, clock.millis())))
+        db.statistics().markValid(firstRevision)
+        db.statistics().invalidate(octoberFirst.plusDays(2).toEpochDay())
+        val secondRevision = requireNotNull(db.statistics().state()).source_revision
+
+        assertTrue(db.statistics().cached(metric, octoberFirst.toEpochDay(),
+            octoberFirst.plusDays(1).toEpochDay(), secondRevision, STATISTICS_RULE_VERSION).isEmpty())
+    }
+
+    @Test fun depositExistsFromBusinessStartDateEvenWhenEnteredLater() = runBlocking {
+        db.openHelper.writableDatabase.execSQL(
+            "UPDATE term_deposits SET created_at_ms=?,updated_at_ms=? WHERE id=1",
+            arrayOf(clock.millis(), clock.millis()))
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val series = RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        decimal("330", requireNotNull(series.points[0].value))
     }
 
     @Test fun correctingHistoricalPriceInvalidatesItsControlRangeWithoutChangingLaterPrice() = runBlocking {

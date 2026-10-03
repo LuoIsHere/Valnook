@@ -16,11 +16,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -88,7 +93,7 @@ fun SettingsHome(
             SettingEntry(stringResource(R.string.settings_exchange_rates),
                 stringResource(R.string.settings_fx_default), onRates)
         }
-        item {
+        if (!demoMode) item {
             SettingEntry(stringResource(R.string.settings_language), languageLabel(state.savedSettings.language), onLanguage)
         }
         item {
@@ -172,9 +177,11 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
                 .padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
                 Text(navigationLabel(item), Modifier.weight(1f).padding(horizontal = Space.md),
                     style = MaterialTheme.typography.titleMedium)
-                TextButton({ vm.toggle(item) }, enabled = state.editing && item != NavigationItemId.SETTINGS,
+                IconButton({ vm.toggle(item) }, enabled = state.editing && item != NavigationItemId.SETTINGS,
                     modifier = Modifier.testTag("navigation-visible-${item.name.lowercase()}")) {
-                    Text(if (item in state.draft.visible) "◉" else "○", modifier = Modifier.semantics {
+                    val visible = item in state.draft.visible
+                    Icon(if (visible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                        contentDescription = null, modifier = Modifier.semantics {
                         contentDescription = if (item in state.draft.visible) visibleLabel else hiddenLabel
                     })
                 }

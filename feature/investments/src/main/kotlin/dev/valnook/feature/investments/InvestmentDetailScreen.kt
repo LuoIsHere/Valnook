@@ -13,8 +13,7 @@ import dev.valnook.domain.calculation.InvestmentProfitCalculator
 import dev.valnook.domain.model.*
 
 @Composable fun InvestmentDetail(vm: InvestmentDetailViewModel, onTrade: (Long) -> Unit,
-    onCreateTrade: (Direction, Investment) -> Unit, onCost: (Investment) -> Unit,
-    onPrice: (Investment) -> Unit) {
+    onCreateTrade: (Direction, Investment) -> Unit, onPrice: (Investment) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val asset = state.asset
     if (asset == null) {
@@ -31,14 +30,12 @@ import dev.valnook.domain.model.*
         }
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton({ onCreateTrade(Direction.BUY, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_buy)) }
-            ActionButton({ onCreateTrade(Direction.SELL, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_sell)) }
+            ActionButton({ onCreateTrade(Direction.SELL, asset) }, Modifier.weight(1f),
+                enabled = asset.holding_quantity_e8 > 0) { Text(stringResource(R.string.investment_sell)) }
         } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton({ onPrice(asset) }, Modifier.weight(1f)) {
+            ActionButton({ onPrice(asset) }, Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.instrument_price_edit_title))
-            }
-            if (asset.opening_quantity_e8 > 0) ActionButton({ onCost(asset) }, Modifier.weight(1f)) {
-                Text(stringResource(R.string.investment_edit_opening_cost))
             }
         } }
         item { Text(stringResource(R.string.investment_trade_history), style = MaterialTheme.typography.titleLarge) }

@@ -9,7 +9,7 @@ import dev.valnook.domain.model.Currency
     TypeEntity::class,InstrumentEntity::class,InvestmentEntity::class,TradeEntity::class,OperationEntity::class,MovementEntity::class,CashEntryEntity::class,
     SettingsEntity::class,FxRateEntity::class,InstrumentPriceEntity::class,StatisticsStateEntity::class,
     StatisticsBaselineItemEntity::class,StatisticsCacheEntity::class,DemoLabelEntity::class],
-    version = 7, exportSchema = true)
+    version = 8, exportSchema = true)
 abstract class ValnookDatabase : RoomDatabase() {
     abstract fun ledger(): LedgerDao
     abstract fun accounts(): AccountDao
@@ -37,12 +37,12 @@ abstract class ValnookDatabase : RoomDatabase() {
         }
         fun open(context: Context): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")
-                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7)
+                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun fromAsset(context: Context, name: String, assetPath: String): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,name)
                 .createFromAsset(assetPath)
-                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7)
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun inMemory(context: Context): ValnookDatabase =
             Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(seed).build()

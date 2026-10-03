@@ -10,7 +10,7 @@ class AssetValuationTest {
     private val cny = Currency.of("CNY")
     private val usd = Currency.of("USD")
     private fun position(account: Long, quantity: Long = 1000000000, cost: String? = "1000", realized: String? = "100") =
-        Investment(account, account, 1, "ETF", "QQQ", "QQQ", usd, 0, quantity, 10000000000, 0,
+        Investment(account, account, 1, "ETF", "QQQ", "QQQ", usd, quantity, 10000000000, 0,
             remainingCost = cost, realizedProfit = realized)
     private fun snapshot(rate: String = "7.2") = AssetSnapshot(
         listOf(SavingsAccount(1, "A", ""), SavingsAccount(2, "现金账户", "")),

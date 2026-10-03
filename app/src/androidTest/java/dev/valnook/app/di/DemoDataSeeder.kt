@@ -7,12 +7,12 @@ import dev.valnook.domain.model.FxRate
 import dev.valnook.domain.money.DecimalRules as R
 import dev.valnook.domain.repository.CashBalanceChange
 import dev.valnook.domain.repository.CloseTermDeposit
+import dev.valnook.domain.repository.CreateInvestmentPosition
 import dev.valnook.domain.repository.OpenTermDeposit
-import dev.valnook.domain.repository.RecordAccountTrade
+import dev.valnook.domain.repository.RecordInvestmentTrade
 import dev.valnook.domain.repository.SaveAccount
 import dev.valnook.domain.repository.SaveAssetType
 import dev.valnook.domain.repository.SaveInstrument
-import dev.valnook.domain.repository.SaveOpeningPosition
 import dev.valnook.domain.repository.SaveFinancialSettings
 import dev.valnook.domain.repository.SaveGainLossColors
 import dev.valnook.domain.repository.SaveLanguage
@@ -135,8 +135,11 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
             val openingPrice = R.parse_e8(stock.price.multiply(openingFactor)
                 .setScale(2, java.math.RoundingMode.HALF_UP).toPlainString())
             val openingQuantity = demoQuantity(stock.currency, positionIndex, opening = true)
-            graph.commands.execute(SaveOpeningPosition(id(), accountId, instrumentId, openingQuantity,
-                openingPrice, start + positionIndex * 60_000L))
+            val positionId = graph.commands.execute(
+                CreateInvestmentPosition(id(), accountId, instrumentId)
+            ).id
+            graph.commands.execute(RecordInvestmentTrade(id(), positionId, Direction.BUY,
+                openingQuantity, openingPrice, start + positionIndex * 60_000L, false))
             repeat(9) { tradeIndex ->
                 val closedFixture = positionIndex % 10 == 0
                 val direction = if (closedFixture && tradeIndex == 0) Direction.SELL
@@ -152,7 +155,7 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
                 val cashLinked = (positionIndex * 2 + tradeIndex) % 3 != 0
                 val cashAccountId = if (cashLinked)
                     requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id else null
-                graph.commands.execute(RecordAccountTrade(id(), accountId, instrumentId, direction,
+                graph.commands.execute(RecordInvestmentTrade(id(), positionId, direction,
                     quantity, price, start + ((positionIndex % 20) + (tradeIndex + 1) * 58L) * 86_400_000L,
                     cashLinked,
                     cashAccountId, fee))

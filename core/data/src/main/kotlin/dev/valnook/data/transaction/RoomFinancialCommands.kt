@@ -41,14 +41,12 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is SaveAccount -> accounts.save(command, now)
                 is SaveInstrument -> instruments.save(command, now)
                 is EditInstrumentPrice -> instruments.editPrice(command, now)
-                is SaveOpeningPosition -> positions.opening(command, now)
-                is RecordAccountTrade -> positions.record(command, now)
+                is CreateInvestmentPosition -> positions.create(command, now)
                 is SetCashBalance -> accounts.setBalance(command, now)
                 is EditCashEntry -> accounts.editEntry(command, now)
                 is OpenTermDeposit -> deposits.open(command, now)
                 is CloseTermDeposit -> deposits.close(command, now)
                 is EditTermDeposit -> deposits.edit(command, now)
-                is SetOpeningInvestmentCost -> positions.cost(command, now)
                 is RecordInvestmentTrade -> positions.record(command, now)
                 is EditInvestmentTrade -> positions.edit(command, now)
                 is DeleteInvestmentTrade -> positions.delete(command, now)
@@ -65,7 +63,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             .atZone(clock.zone).toLocalDate().toEpochDay()
         val baseline = db.statistics().state()?.baseline_at_ms?.let(::day) ?: day(now)
         return when (command) {
-            is SaveAssetType, is SetOpeningInvestmentCost -> null
+            is SaveAssetType, is CreateInvestmentPosition -> null
             is SaveInstrument -> {
                 val old = command.instrumentId?.let { db.instruments().instrument(it) }
                 if (old == null || old.current_price_e5 != command.currentPriceE5 ||
@@ -77,8 +75,6 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 minOf(day(old.effective_at_ms), day(command.effectiveAtMs)).coerceAtLeast(baseline)
             }
             is SaveAccount -> if (cashBalanceChanges(command)) day(now) else null
-            is SaveOpeningPosition -> day(command.occurredAtMs).coerceAtLeast(baseline)
-            is RecordAccountTrade -> day(command.occurredAtMs).coerceAtLeast(baseline)
             is RecordInvestmentTrade -> day(command.occurred_at_ms).coerceAtLeast(baseline)
             is EditInvestmentTrade -> {
                 val old = db.trades().trade(command.trade_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)
@@ -90,8 +86,13 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 val old = db.cash().cash_entry(command.entry_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)
                 minOf(old, day(command.occurred_at_ms)).coerceAtLeast(baseline)
             }
-            is SetCashBalance, is OpenTermDeposit, is CloseTermDeposit -> day(now)
-            is EditTermDeposit -> baseline
+            is SetCashBalance, is CloseTermDeposit -> day(now)
+            is OpenTermDeposit -> command.start_epoch_day.coerceAtLeast(baseline)
+            is EditTermDeposit -> {
+                val old = db.deposits().deposit(command.deposit_id)
+                    ?: throw DomainException(ErrorCode.NOT_FOUND)
+                minOf(old.start_epoch_day, command.start_epoch_day).coerceAtLeast(baseline)
+            }
         }
     }
 

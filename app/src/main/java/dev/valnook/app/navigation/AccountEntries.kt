@@ -41,12 +41,12 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
             },
             investmentContent = {
                 AccountInvestments(portfolioVm, route.id, false, { open(AssetKey(route.id, it)) },
-                    { open(TradeFormKey(route.id, TradeFormMode.CREATE)) }, { open(AccountInvestmentsKey(route.id, true)) })
+                    { open(PositionCreateKey(route.id)) }, { open(AccountInvestmentsKey(route.id, true)) })
             })
     }
     entry<AccountInvestmentsKey> { route ->
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         AccountInvestments(vm, route.accountId, route.all, { open(AssetKey(route.accountId, it)) },
-            { open(TradeFormKey(route.accountId, TradeFormMode.CREATE)) }, { open(route.copy(all = true)) })
+            { open(PositionCreateKey(route.accountId)) }, { open(route.copy(all = true)) })
     }
 }

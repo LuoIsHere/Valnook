@@ -7,21 +7,17 @@ import java.math.RoundingMode
 
 /** Independent moving-average cost chain for one account position. Never replay cash here. */
 object InvestmentProfitCalculator {
-    const val ALGORITHM_VERSION = 3
+    const val ALGORITHM_VERSION = 4
     const val ALLOCATION_SCALE = 32
 
     fun calculate(asset: Investment, trades: List<Trade>): InvestmentProfit {
-        var quantityE8 = asset.opening_quantity_e8
-        var remainingCost = openingCost(asset)
+        var quantityE8 = 0L
+        var remainingCost: BigDecimal? = BigDecimal.ZERO
         var realized: BigDecimal? = BigDecimal.ZERO
         var conflictTradeId: Long? = null
         var chronological = true
         for (trade in trades.sortedWith(compareBy<Trade> { it.occurred_at_ms }.thenBy { it.id })) {
             require(trade.investment_id == asset.id && trade.currency == asset.currency)
-            if (asset.opening_quantity_e8 > 0 && trade.occurred_at_ms < asset.openingAtMs) {
-                chronological = false
-                conflictTradeId = conflictTradeId ?: trade.id
-            }
             val amount = BigDecimal.valueOf(trade.amount_minor, asset.currency.fraction_digits)
             val fee = BigDecimal.valueOf(trade.fee_minor, asset.currency.fraction_digits)
             if (trade.direction == Direction.BUY) {
@@ -53,13 +49,6 @@ object InvestmentProfitCalculator {
         asset.remainingCost?.toBigDecimal(), asset.realizedProfit?.toBigDecimal(),
         asset.chronologyValid && asset.algorithmVersion == ALGORITHM_VERSION, null
     )
-
-    private fun openingCost(asset: Investment): BigDecimal? = when {
-        asset.opening_quantity_e8 == 0L -> BigDecimal.ZERO
-        asset.opening_cost_price_e8 == null -> null
-        else -> BigDecimal.valueOf(DecimalRules.amount(asset.opening_quantity_e8, asset.opening_cost_price_e8,
-            asset.currency), asset.currency.fraction_digits)
-    }
 
     private fun value(quantityE8: Long, priceE8: Long, cost: BigDecimal?, realized: BigDecimal?,
         valid: Boolean, conflictId: Long?): InvestmentProfit {

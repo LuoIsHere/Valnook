@@ -54,7 +54,7 @@
     <string name="empty_cash">尚未记录现金余额。按币种设置当前余额。</string>
     <string name="empty_deposits">尚未开立存单。</string>
     <string name="empty_investments">尚未记录投资品。</string>
-    <string name="empty_trades">还没有买卖记录。期初份额不生成交易。</string>
+    <string name="empty_trades">还没有买卖记录。记录一笔买入后开始持仓。</string>
     <string name="cash_set">修改余额</string>
     <string name="balance">当前余额</string>
     <string name="currency_value">币种：%1$s</string>
@@ -83,7 +83,6 @@
     <string name="type_value">类型：%1$s</string>
     <string name="new_type">新增类型</string>
     <string name="edit_type">修改类型名称</string>
-    <string name="opening_quantity">期初份额</string>
     <string name="quantity">成交份额</string>
     <string name="current_price">当前每份价格</string>
     <string name="execution_price">成交单价</string>

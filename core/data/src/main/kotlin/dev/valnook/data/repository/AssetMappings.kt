@@ -7,10 +7,10 @@ import dev.valnook.domain.money.DecimalRules
 internal fun InvestmentWithType.toModel(): Investment {
     val position = asset
     return Investment(position.id, position.savings_account_id, asset_type_id, type_name, name, symbol,
-        Currency.of(currency_code), position.opening_quantity_e8, position.holding_quantity_e8,
+        Currency.of(currency_code), position.holding_quantity_e8,
         DecimalRules.exact_long(java.math.BigDecimal.valueOf(current_price_e5).multiply(java.math.BigDecimal("1000"))),
-        price_updated_at_ms, position.opening_cost_price_e8, position.revision, position.last_activity_at_ms,
-        position.instrument_id, position.opening_at_ms, position.remaining_cost, position.realized_profit,
+        price_updated_at_ms, position.revision, position.last_activity_at_ms,
+        position.instrument_id, position.remaining_cost, position.realized_profit,
         position.chronology_valid, position.algorithm_version)
 }
 internal fun TradeEntity.toModel(): Trade = Trade(id, investment_id, Direction.valueOf(direction),

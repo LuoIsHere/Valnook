@@ -76,8 +76,11 @@ class UiFlowTest {
         currencyCode:String,quantityE8:Long,currentPriceE8:Long,costPriceE8:Long)=run {
         val instrumentId=graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(),null,null,
             name,symbol,typeId,currencyCode,currentPriceE8/1_000L)).id
-        graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(),accountId,instrumentId,
-            quantityE8,costPriceE8,Long.MIN_VALUE)).id
+        val positionId=graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),
+            accountId,instrumentId)).id
+        if(quantityE8>0) graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(),
+            positionId,Direction.BUY,quantityE8,costPriceE8,Long.MIN_VALUE,false))
+        positionId
     }
     private fun wait_text(text:String) {
         try {
@@ -348,7 +351,9 @@ class UiFlowTest {
             val type = createType("合成基金")
             val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
                 null, "来源投资", "", type, "USD", 12000000)).id
-            graph.commands.execute(RecordAccountTrade(UUID.randomUUID().toString(), account_id, instrument,
+            val position = graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),
+                account_id, instrument)).id
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), position,
                 Direction.BUY, R.parse_e8("1"), R.parse_e8("10"), graph.clock.millis(), true)).id
         }
         wait_text("投资买卖")
@@ -377,13 +382,15 @@ class UiFlowTest {
         shot("cash-entry-unlinked")
     }
 
-    @Test fun opening_cost_profit_and_global_zero_position_reentry() {
+    @Test fun buy_cost_profit_and_global_zero_position_reentry() {
         runBlocking {
             val type = createType("合成基金")
             val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
                 null, "QQQ", "QQQ", type, "CNY", 12000000)).id
-            graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id,
-                instrument, R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis() - 1000))
+            val position = graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),
+                account_id, instrument)).id
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), position,
+                Direction.BUY, R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis() - 1000, false))
         }
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performClick()
@@ -450,7 +457,7 @@ class UiFlowTest {
         )
         val deposits=listOf(TermDeposit(1,1,Currency.of("CNY"),1000000,R.parse_e8("3"),
             LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),7397,false,true,null))
-        val asset=Investment(1,1,1,"合成基金","一项名称非常长的合成投资资产","TEST-VERY-LONG-SYMBOL-1234567890123456789012345678901234567890",Currency.of("USD"),0,R.parse_e8("38.991"),R.parse_e8("26.1161"),0,remainingCost="1000",realizedProfit="0")
+        val asset=Investment(1,1,1,"合成基金","一项名称非常长的合成投资资产","TEST-VERY-LONG-SYMBOL-1234567890123456789012345678901234567890",Currency.of("USD"),R.parse_e8("38.991"),R.parse_e8("26.1161"),0,remainingCost="1000",realizedProfit="0")
         for(dark in listOf(false,true))for((width,height) in listOf(320 to 720,360 to 800,420 to 900,600 to 960,840 to 360))for(scale in listOf(1f,2f)) {
             val density=if(width<=420)2f else 1f
             val name="gallery-${if(dark)"dark" else "light"}-$width-$scale"
@@ -581,7 +588,6 @@ class UiFlowTest {
         val buyUnitPriceLabel = localized(dev.valnook.core.designsystem.R.string.execution_price) + " 1300 CNY"
         val sellUnitPriceLabel = localized(dev.valnook.core.designsystem.R.string.execution_price) + " 1400 CNY"
         val updatePriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
-        val openingCostLabel = localized(dev.valnook.feature.investments.R.string.investment_edit_opening_cost)
         val sharedPriceHint = localized(dev.valnook.feature.investments.R.string.instrument_price_shared_hint)
         val currentPriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_current_price)
         val saveLabel = localized(dev.valnook.core.designsystem.R.string.save)
@@ -615,11 +621,7 @@ class UiFlowTest {
         wait_text(sellUnitPriceLabel)
         rule.onNodeWithTag("trade-record-$tradeId").assertExists()
         rule.onNodeWithTag("trade-record-$sellTradeId").assertExists()
-        val updatePrice = rule.onNodeWithText(updatePriceLabel).performScrollTo().assertIsDisplayed()
-        val openingCost = rule.onNodeWithText(openingCostLabel).assertIsDisplayed()
-        assertEquals(updatePrice.fetchSemanticsNode().boundsInRoot.top,
-            openingCost.fetchSemanticsNode().boundsInRoot.top, 1f)
-        updatePrice.performClick()
+        rule.onNodeWithText(updatePriceLabel).performScrollTo().assertIsDisplayed().performClick()
         wait_text(sharedPriceHint)
         rule.onNodeWithText(currentPriceLabel).performTextReplacement("1500")
         save(saveLabel)
@@ -640,8 +642,10 @@ class UiFlowTest {
             val type = createType("ETF")
             val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null, null,
                 "QQQ", "QQQ", type, "USD", 10000000)).id
-            graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id, instrument,
-                R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis()))
+            val position = graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),
+                account_id, instrument)).id
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), position,
+                Direction.BUY, R.parse_e8("10"), R.parse_e8("100"), graph.clock.millis(), false))
             graph.commands.execute(OpenTermDeposit(UUID.randomUUID().toString(), account_id, "USD", 100000,
                 0, LocalDate.parse("2026-01-01").toEpochDay(), LocalDate.parse("2027-01-01").toEpochDay(), false))
             repeat(40) { createAccount("合成长列表 ${it + 1}","仅用于滚动验证") }
@@ -814,7 +818,19 @@ class UiFlowTest {
         wait_text("交易历史")
         rule.onNodeWithText("暂无交易记录").assertIsDisplayed()
         runBlocking { assertTrue(graph.overview.observeSnapshot().first().positions.isEmpty()) }
-        window_shot("account-instrument-empty", "录入期初持仓")
+        window_shot("account-instrument-empty", "添加投资品到账户")
+        click_list("添加投资品到账户")
+        wait_text("添加投资品到账户")
+        save()
+        wait_text("交易历史")
+        rule.onNodeWithText("暂无交易记录").assertIsDisplayed()
+        runBlocking {
+            val positions = graph.overview.observeSnapshot().first().positions
+            assertEquals(1, positions.size)
+            assertEquals(account_id, positions.single().account_id)
+            assertEquals(0L, positions.single().holding_quantity_e8)
+            assertTrue(graph.investments.trade_page(positions.single().id, null).isEmpty())
+        }
         click_list("买入")
         wait_text("份额")
         rule.onNodeWithText("份额").performScrollTo().performTextInput("2")
@@ -847,14 +863,18 @@ class UiFlowTest {
                 val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null, null,
                     name, if (name == "盈利标的") "GAIN" else "LOSS", type,
                     if (name == "盈利标的") "USD" else "CNY", R.parse_units(price, 5))).id
-                graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id, instrument,
-                    R.parse_e8("10"), R.parse_e8(cost), graph.clock.millis()))
+                val position = graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),
+                    account_id, instrument)).id
+                graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), position,
+                    Direction.BUY, R.parse_e8("10"), R.parse_e8(cost), graph.clock.millis(), false))
             }
             val cleared = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null, null,
                 "已清仓历史", "CLOSED", type, "CNY", 10000000)).id
-            graph.commands.execute(SaveOpeningPosition(UUID.randomUUID().toString(), account_id, cleared,
-                R.parse_e8("1"), R.parse_e8("100"), graph.clock.millis()))
-            graph.commands.execute(RecordAccountTrade(UUID.randomUUID().toString(), account_id, cleared,
+            val clearedPosition = graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),
+                account_id, cleared)).id
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), clearedPosition,
+                Direction.BUY, R.parse_e8("1"), R.parse_e8("100"), graph.clock.millis(), false))
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), clearedPosition,
                 Direction.SELL, R.parse_e8("1"), R.parse_e8("50000"), graph.clock.millis(), false))
         }
         wait_text("合成账户 A")

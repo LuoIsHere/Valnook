@@ -17,11 +17,7 @@ internal object CommandFingerprint {
                 command.currentPriceE5, command.currencyPriceConfirmed)
             is EditInstrumentPrice -> listOf("INSTRUMENT_PRICE_EDIT", command.priceRecordId,
                 command.expectedRevision, command.priceE5, command.effectiveAtMs)
-            is SaveOpeningPosition -> listOf("POSITION_OPEN", command.accountId, command.instrumentId,
-                command.quantityE8, command.costPriceE8, command.occurredAtMs)
-            is RecordAccountTrade -> listOf("ACCOUNT_TRADE", command.accountId, command.instrumentId,
-                command.direction, command.quantityE8, command.executionPriceE8, command.occurredAtMs,
-                command.cashLinked, command.cashAccountId, command.feeMinor)
+            is CreateInvestmentPosition -> listOf("POSITION_CREATE", command.accountId, command.instrumentId)
             is SetCashBalance -> listOf("CASH_SET",command.account_id,Currency.of(command.currency_code).code,
                 command.balance_minor,command.expected_revision,command.cashAccountId,command.name.trim(),command.note)
             is OpenTermDeposit -> listOf("TERM_OPEN",command.account_id,Currency.of(command.currency_code).code,command.principal_minor,
@@ -31,7 +27,6 @@ internal object CommandFingerprint {
             is EditTermDeposit -> listOf("TERM_EDIT",command.deposit_id,command.expected_revision,command.principal_minor,
                 command.annual_rate_percent_e8,command.start_epoch_day,command.end_epoch_day,command.open_cash_linked,
                 command.close_cash_linked,command.openCashAccountId,command.closeCashAccountId)
-            is SetOpeningInvestmentCost -> listOf("OPENING_COST",command.investment_id,command.expected_revision,command.price_e8)
             is RecordInvestmentTrade -> listOf(command.direction.name,command.investment_id,command.quantity_e8,
                 command.execution_price_e8,command.occurred_at_ms,command.cash_linked,command.cashAccountId,
                 command.fee_minor)

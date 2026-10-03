@@ -44,8 +44,12 @@ class SharedAssetDatabaseTest {
     }
     @After fun close() { db.close() }
     private suspend fun instrument() = commands.execute(SaveInstrument(id(), null, null, "QQQ", "QQQ", type, "USD", 18000000)).id
-    private suspend fun trade(account: Long, instrument: Long, direction: Direction, quantity: String, price: String, time: Long, cash: Boolean = false) =
-        commands.execute(RecordAccountTrade(id(), account, instrument, direction, e(quantity), e(price), time, cash)).id
+    private suspend fun trade(account: Long, instrument: Long, direction: Direction, quantity: String, price: String, time: Long, cash: Boolean = false): Long {
+        val position = db.positions().position(account, instrument)?.id
+            ?: commands.execute(CreateInvestmentPosition(id(), account, instrument)).id
+        return commands.execute(RecordInvestmentTrade(id(), position, direction,
+            e(quantity), e(price), time, cash)).id
+    }
     private suspend fun expect(code: ErrorCode, action: suspend () -> Unit) {
         try { action(); fail("Expected $code") } catch (error: DomainException) { assertEquals(code, error.code) }
     }
@@ -104,12 +108,11 @@ class SharedAssetDatabaseTest {
         assertTrue(investments.observe_investments(a, 50, InvestmentSection.ALL).first().isNotEmpty())
         assertTrue(instruments.observeInstruments().first().isNotEmpty())
     }
-    @Test fun opening_cost_is_required_and_reentry_preserves_realized_profit() = runBlocking {
+    @Test fun ordinary_buy_history_preserves_realized_profit_across_reentry() = runBlocking {
         val shared = instrument()
-        expect(ErrorCode.FORMAT) { commands.execute(SaveOpeningPosition(id(), a, shared, e("10"), null, 100)) }
-        commands.execute(SaveOpeningPosition(id(), a, shared, e("10"), e("100"), 100))
+        commands.execute(CreateInvestmentPosition(id(), a, shared))
+        trade(a, shared, Direction.BUY, "10", "100", 100)
         assertTrue(db.instruments().instrument(shared)!!.currency_locked)
-        expect(ErrorCode.HISTORY_CONFLICT) { trade(a, shared, Direction.BUY, "1", "100", 50) }
         trade(a, shared, Direction.SELL, "10", "120", 200)
         trade(a, shared, Direction.BUY, "1", "200", 300)
         val position = db.positions().position(a, shared)!!
@@ -179,7 +182,8 @@ class SharedAssetDatabaseTest {
             val account = commands.testAccount("持久化合成账户")
             val type = commands.testType("基金")
             val instrument = commands.execute(SaveInstrument(id(), null, null, "QQQ", "QQQ", type, "USD", 10000000)).id
-            commands.execute(SaveOpeningPosition(id(), account, instrument, e("1"), e("100"), 1))
+            val position = commands.execute(CreateInvestmentPosition(id(), account, instrument)).id
+            commands.execute(RecordInvestmentTrade(id(), position, Direction.BUY, e("1"), e("100"), 1, false))
             commands.execute(SaveAccount(id(), account, 1, "持久化合成账户", "", listOf(CashBalanceChange("USD", 0, null))))
             RoomSettings(disk,clock).applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
                 listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),BigDecimal("7.123456789012")))))

@@ -88,6 +88,18 @@ class StatisticsViewModelTest {
         assertTrue(labels.all { it.endsWith("M") })
     }
 
+    @Test fun xAxisUsesSparseDayAndMonthLabels() {
+        fun series(period: StatisticsPeriod, dates: List<LocalDate>) = StatisticsSeries(
+            StatisticsMetric.TOTAL_ASSETS, period, Currency.of("CNY"),
+            dates.map { StatisticsPoint(it, BigDecimal.ONE, true) })
+        val dailyDates=(1..31).map { LocalDate.of(2026,10,it) }
+        assertEquals(listOf("1","8","15","22","31"), sparseXAxisLabels(series(
+            StatisticsPeriod(StatisticsGranularity.DAILY,2026,10),dailyDates)).map { it.second })
+        val monthlyDates=(1..12).map { LocalDate.of(2026,it,1) }
+        assertEquals(listOf("1","4","7","10","12"), sparseXAxisLabels(series(
+            StatisticsPeriod(StatisticsGranularity.MONTHLY,2026),monthlyDates)).map { it.second })
+    }
+
     private class FakeRepository : StatisticsRepository {
         private val revision = MutableStateFlow(1L)
         override fun observeRevision(): Flow<Long> = revision

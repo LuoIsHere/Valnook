@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.valnook.data.database.*
 import dev.valnook.data.transaction.RoomFinancialCommands
+import dev.valnook.domain.model.Direction
 import dev.valnook.domain.repository.*
 import kotlinx.coroutines.runBlocking
 import java.util.UUID
@@ -175,8 +176,9 @@ class MigrationTest {
             val type=commands.testType("ETF")
             val instrument=commands.testInstrument("QQQ","QQQ",type,"USD",18000000000L)
             val operationId=UUID.randomUUID().toString()
-            val result=commands.execute(SaveOpeningPosition(operationId,account,instrument,100000000L,
-                10000000000L,1234L))
+            val result=commands.execute(CreateInvestmentPosition(operationId,account,instrument))
+            commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(),result.id,Direction.BUY,
+                100000000L,10000000000L,1234L,false))
             val positionBefore=requireNotNull(database.positions().investment(result.id))
             val receiptBefore=requireNotNull(database.operations().operation(operationId))
             database.close()
@@ -222,7 +224,61 @@ class MigrationTest {
                     assertTrue(it.moveToFirst());assertEquals(12345L,it.getLong(0))
                 }
                 query("SELECT rule_version,source_revision FROM statistics_state WHERE id=1").use {
-                    assertTrue(it.moveToFirst());assertEquals(STATISTICS_RULE_VERSION,it.getInt(0));assertEquals(1L,it.getLong(1))
+                    assertTrue(it.moveToFirst());assertEquals(1,it.getInt(0));assertEquals(1L,it.getLong(1))
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    @Test fun v7_to_v8_turns_opening_position_into_buy_and_uses_deposit_business_date() {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name="migration-v7-business-dates-${UUID.randomUUID()}.db"
+        val startDay=java.time.LocalDate.of(2025,1,2).toEpochDay()
+        try {
+            helper.createDatabase(name,7).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts VALUES (1,'账户','',5000,5000,1)")
+                execSQL("INSERT INTO cash_accounts VALUES (1,'CNY',100000,1,5000,1,'现金','',1,5000)")
+                execSQL("INSERT INTO asset_types VALUES (1,'股票','股票',5000,5000)")
+                execSQL("INSERT INTO instruments VALUES (1,1,'示例','EX','CNY',12000000,1,1,1,5000,5000,5000)")
+                execSQL("""INSERT INTO investments VALUES
+                    (1,1,1,200000000,200000000,1,5000,6000,10000000000,1234,'200','0',1,3,'HOLDING',1234)""")
+                execSQL("INSERT INTO operations VALUES ('deposit-open','OPEN_DEPOSIT','fixture','TERM_DEPOSIT',1,9000)")
+                execSQL("""INSERT INTO term_deposits VALUES
+                    (1,1,'CNY',50000,300000000,$startDay,${startDay+90},'ACTUAL_DAYS_365',1,
+                    'HALF_UP',370,'OPEN',1,NULL,1,NULL,'deposit-open',NULL,NULL,9000,9000,1)""")
+                execSQL("""INSERT INTO cash_entries VALUES
+                    (1,'deposit-open',1,'CNY',1,'TERM_OPEN',1,-50000,9000,'',1,0,9000,9000)""")
+                execSQL("INSERT INTO statistics_state VALUES (1,3,1,0,NULL)")
+                execSQL("INSERT INTO statistics_cache VALUES ('TOTAL_ASSETS',$startDay,'1',1,3,1,9000)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name,8,true,MIGRATION_7_8).apply {
+                query("""SELECT direction,quantity_e8,execution_price_e8,occurred_at_ms,
+                    cash_linked,fee_minor FROM investment_trades WHERE investment_id=1""").use {
+                    assertTrue(it.moveToFirst());assertEquals("BUY",it.getString(0))
+                    assertEquals(200000000L,it.getLong(1));assertEquals(10000000000L,it.getLong(2))
+                    assertEquals(1234L,it.getLong(3));assertEquals(0,it.getInt(4));assertEquals(0L,it.getLong(5))
+                    assertFalse(it.moveToNext())
+                }
+                query("""SELECT opening_quantity_e8,opening_cost_price_e8,opening_at_ms,
+                    algorithm_version FROM investments WHERE id=1""").use {
+                    assertTrue(it.moveToFirst());assertEquals(0L,it.getLong(0));assertTrue(it.isNull(1))
+                    assertEquals(0L,it.getLong(2));assertEquals(4,it.getInt(3))
+                }
+                val businessTime=java.time.LocalDate.ofEpochDay(startDay)
+                    .atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+                query("SELECT occurred_at_ms FROM cash_entries WHERE source_kind='TERM_OPEN'").use {
+                    assertTrue(it.moveToFirst());assertEquals(businessTime,it.getLong(0))
+                }
+                query("SELECT COUNT(*) FROM statistics_cache").use {
+                    assertTrue(it.moveToFirst());assertEquals(0,it.getInt(0))
+                }
+                query("SELECT source_revision,rule_version,earliest_invalidated_epoch_day FROM statistics_state WHERE id=1").use {
+                    assertTrue(it.moveToFirst());assertEquals(4L,it.getLong(0));assertEquals(2,it.getInt(1))
+                    assertEquals(0L,it.getLong(2))
                 }
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()

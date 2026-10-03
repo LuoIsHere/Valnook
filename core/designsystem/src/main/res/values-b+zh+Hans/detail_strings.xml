@@ -20,12 +20,8 @@
     <string name="average_buy_cost">买入成本价</string>
     <string name="realized_profit">已实现盈亏</string>
     <string name="unrealized_profit">未实现盈亏</string>
-    <string name="opening_cost">期初买入单价</string>
-    <string name="edit_opening_cost">修改期初成本</string>
-    <string name="opening_cost_required">有期初持仓时，必须填写其买入单价。</string>
-    <string name="cost_incomplete">期初成本待补全，补填后显示盈亏。</string>
     <string name="profit_order_invalid">部分卖出日期早于可用持仓，请修正交易日期后查看已实现盈亏。</string>
-    <string name="profit_rule">按累计买入份额加权计算成本，包含期初持仓；卖出不改变成本价。已实现盈亏使用卖出当时的买入均价。</string>
+    <string name="profit_rule">按累计买入份额加权计算成本；卖出不改变成本价。已实现盈亏使用卖出当时的买入均价。</string>
     <string name="no_cost_yet">暂无买入成本</string>
     <string name="trade_detail_title">交易详情</string>
     <string name="deposit_detail_title">存单详情</string>

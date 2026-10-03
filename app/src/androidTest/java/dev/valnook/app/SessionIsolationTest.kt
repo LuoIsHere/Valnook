@@ -64,7 +64,7 @@ class SessionIsolationTest {
         assertEquals(60, snapshot.instruments.size)
         assertEquals(80, snapshot.positions.size)
         val demoTrades = snapshot.positions.flatMap { demo.graph.investments.trade_page(it.id, null, 100) }
-        assertEquals(720, demoTrades.size)
+        assertEquals(800, demoTrades.size)
         assertTrue(snapshot.positions.map { it.holding_quantity_e8 }.distinct().size > 10)
         assertTrue(demoTrades.map { it.quantity_e8 }.distinct().size > 10)
         assertTrue(demoTrades.map { it.fee_minor }.distinct().size > 20)

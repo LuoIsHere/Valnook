@@ -31,8 +31,6 @@ interface PositionDao {
         WHERE id=:id AND revision=:expectedRevision""")
     suspend fun saveCost(id: Long, expectedRevision: Long, holding: Long, cost: String?, realized: String?,
         valid: Boolean, algorithm: Int, now: Long): Int
-    @Query("UPDATE investments SET opening_cost_price_e8=:price WHERE id=:id AND revision=:old_revision")
-    suspend fun update_opening_cost(id: Long, price: Long, old_revision: Long): Int
     @Query("SELECT revision FROM investments WHERE id=:investment_id")
     fun trade_revision(investment_id: Long): Flow<Long>
 }

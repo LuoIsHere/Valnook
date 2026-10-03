@@ -32,8 +32,12 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
         val vm = pageViewModel { AccountInstrumentViewModel(route.accountId, route.instrumentId, graph.overview) }
         AccountInstrumentScreen(vm,
             { positionId -> AccountPositionDetail(graph, route.accountId, positionId, open) },
-            { open(TradeFormKey(route.accountId, TradeFormMode.CREATE, instrumentId = route.instrumentId)) },
-            { open(TradeFormKey(route.accountId, TradeFormMode.OPENING, instrumentId = route.instrumentId)) })
+            { open(PositionCreateKey(route.accountId, route.instrumentId)) })
+    }
+    entry<PositionCreateKey> { route ->
+        val vm = pageViewModel { PositionCreateViewModel(route.accountId, route.instrumentId,
+            graph.instruments, graph.investments, graph.commands, createSavedStateHandle()) }
+        PositionCreateForm(vm, back)
     }
     entry<InstrumentEditKey> { route ->
         val vm = pageViewModel { InstrumentEditViewModel(route.id, graph.instruments, graph.investments, graph.commands, createSavedStateHandle()) }
@@ -72,6 +76,5 @@ private fun AccountPositionDetail(graph: AppGraph, accountId: Long, positionId: 
     val vm = pageViewModel { InvestmentDetailViewModel(accountId, positionId, graph.investments) }
     InvestmentDetail(vm, { open(TradeDetailKey(accountId, it)) },
         { direction, asset -> open(TradeFormKey(accountId, TradeFormMode.CREATE, asset.instrumentId, asset.id, direction = direction)) },
-        { open(TradeFormKey(accountId, TradeFormMode.OPENING_COST, it.instrumentId, it.id)) },
         { open(InstrumentPriceEditKey(it.instrumentId)) })
 }

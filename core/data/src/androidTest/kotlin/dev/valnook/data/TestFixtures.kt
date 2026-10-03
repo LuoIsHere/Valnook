@@ -1,11 +1,13 @@
 package dev.valnook.data
 
 import dev.valnook.data.database.ValnookDatabase
+import dev.valnook.domain.model.Direction
+import dev.valnook.domain.repository.CreateInvestmentPosition
 import dev.valnook.domain.repository.FinancialCommands
+import dev.valnook.domain.repository.RecordInvestmentTrade
 import dev.valnook.domain.repository.SaveAccount
 import dev.valnook.domain.repository.SaveAssetType
 import dev.valnook.domain.repository.SaveInstrument
-import dev.valnook.domain.repository.SaveOpeningPosition
 import java.util.UUID
 
 internal fun testOperationId():String=UUID.randomUUID().toString()
@@ -23,8 +25,10 @@ internal suspend fun FinancialCommands.testInstrument(name:String,symbol:String,
 internal suspend fun FinancialCommands.testInvestment(accountId:Long,name:String,symbol:String,typeId:Long,
     currencyCode:String,quantityE8:Long,currentPriceE8:Long,costPriceE8:Long?):Long {
     val instrumentId=testInstrument(name,symbol,typeId,currencyCode,currentPriceE8)
-    return execute(SaveOpeningPosition(testOperationId(),accountId,instrumentId,quantityE8,costPriceE8,
-        Long.MIN_VALUE)).id
+    val positionId = execute(CreateInvestmentPosition(testOperationId(), accountId, instrumentId)).id
+    if (quantityE8 > 0) execute(RecordInvestmentTrade(testOperationId(), positionId, Direction.BUY,
+        quantityE8, requireNotNull(costPriceE8), Long.MIN_VALUE, false))
+    return positionId
 }
 
 internal suspend fun FinancialCommands.testUpdatePrice(database:ValnookDatabase,positionId:Long,

@@ -13,7 +13,7 @@ import org.junit.Assert.*
 class InvestmentsViewModelTest {
     private val dispatcher=StandardTestDispatcher()
     private val clock=Clock.fixed(Instant.parse("2026-09-30T12:00:00Z"),ZoneId.of("Asia/Hong_Kong"))
-    private val asset=Investment(1,1,1,"类型","资产","",Currency.of("CNY"),R.parse_e8("10"),R.parse_e8("10"),R.parse_e8("100"),0)
+    private val asset=Investment(1,1,1,"类型","资产","",Currency.of("CNY"),R.parse_e8("10"),R.parse_e8("100"),0)
     private val repo=object:InvestmentRepository{
         override suspend fun get_trade(id:Long):Trade?=null
         override fun observe_trade(account_id:Long,id:Long)=flowOf<Trade?>(null)
@@ -114,13 +114,13 @@ class InvestmentsViewModelTest {
         assertEquals(0,active)
     }
     @Test fun creation_snapshot_and_timestamp_are_stable_across_unknown_retry()=runTest(dispatcher) {
-        val requests=mutableListOf<RecordAccountTrade>()
+        val requests=mutableListOf<RecordInvestmentTrade>()
         val commands=object:FinancialCommands {override suspend fun execute(command:FinancialCommand):OperationResult {
-            requests+=command as RecordAccountTrade
+            requests+=command as RecordInvestmentTrade
             if(requests.size==1)throw java.io.IOException()
             return OperationResult("TRADE",1)
         }}
-        val vm=TradeFormViewModel(1,TradeFormMode.CREATE,1,null,null,Direction.BUY,repo,instruments,cash,commands,clock,SavedStateHandle())
+        val vm=TradeFormViewModel(1,TradeFormMode.CREATE,1,1,null,Direction.BUY,repo,instruments,cash,commands,clock,SavedStateHandle())
         runCurrent()
         vm.update {it.copy(quantityInput="2",executionPriceInput="90",feeInput="3.50")}
         assertEquals("183.50 CNY",vm.amountPreview())
@@ -132,6 +132,23 @@ class InvestmentsViewModelTest {
         vm.submit()
         runCurrent()
         assertEquals(requests.first(),requests.last())
-        assertFalse(requests.first().cashLinked)
+        assertFalse(requests.first().cash_linked)
+    }
+    @Test fun adding_instrument_creates_an_empty_position_without_a_trade()=runTest(dispatcher) {
+        val requests=mutableListOf<FinancialCommand>()
+        val emptyPositions=object:InvestmentRepository by repo {
+            override fun observe_investments(account_id:Long,limit:Int,section:InvestmentSection)=
+                flowOf(emptyList<Investment>())
+        }
+        val commands=object:FinancialCommands {override suspend fun execute(command:FinancialCommand):OperationResult {
+            requests+=command
+            return OperationResult("INVESTMENT_POSITION",7)
+        }}
+        val vm=PositionCreateViewModel(1,1,instruments,emptyPositions,commands,SavedStateHandle())
+        vm.submit()
+        runCurrent()
+        val command=requests.single() as CreateInvestmentPosition
+        assertEquals(1L,command.accountId)
+        assertEquals(1L,command.instrumentId)
     }
 }

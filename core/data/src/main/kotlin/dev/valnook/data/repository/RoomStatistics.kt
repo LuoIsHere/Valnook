@@ -134,21 +134,21 @@ class RoomStatistics(
         val pricesByInstrument = source.prices.groupBy { it.instrument_id }
         return dates.distinct().associateWith { date ->
             val cutoff = cutoff(date)
-            val cash = source.cash.filter { it.created_at_ms <= cutoff }.fold(BigDecimal.ZERO) { total, account ->
+            val cash = source.cash.fold(BigDecimal.ZERO) { total, account ->
                 val after = entriesByCash[account.id].orEmpty().asSequence()
                     .filter { it.occurred_at_ms > cutoff }.sumOf { it.delta_minor }
                 total + convertMinor(account.balance_minor - after, account.currency_code, source.settings)
             }
             val deposits = source.deposits.asSequence().filter { deposit ->
-                deposit.created_at_ms <= cutoff && (deposit.closed_at_ms == null || deposit.closed_at_ms > cutoff)
+                deposit.start_epoch_day <= date.toEpochDay() &&
+                    (deposit.closed_at_ms == null || deposit.closed_at_ms > cutoff)
             }.fold(BigDecimal.ZERO) { total, deposit ->
                 total + convertMinor(deposit.principal_minor, deposit.currency_code, source.settings)
             }
             var investment = BigDecimal.ZERO
             var investmentKnown = true
             source.positions.forEach { position ->
-                if (position.opening_at_ms > cutoff) return@forEach
-                var quantity = position.opening_quantity_e8
+                var quantity = 0L
                 tradesByPosition[position.id].orEmpty().forEach { trade ->
                     if (trade.occurred_at_ms <= cutoff) quantity += if (trade.direction == Direction.BUY.name)
                         trade.quantity_e8 else -trade.quantity_e8

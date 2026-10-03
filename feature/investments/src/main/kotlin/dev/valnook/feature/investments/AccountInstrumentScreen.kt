@@ -11,7 +11,7 @@ import dev.valnook.designsystem.*
 
 @Composable
 fun AccountInstrumentScreen(vm: AccountInstrumentViewModel, showPosition: @Composable (Long) -> Unit,
-    onBuy: () -> Unit, onOpening: () -> Unit) {
+    onAdd: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         AccountInstrumentState.Loading -> CircularProgressIndicator()
@@ -25,8 +25,7 @@ fun AccountInstrumentScreen(vm: AccountInstrumentViewModel, showPosition: @Compo
                 item { InstrumentIdentity(current.instrument) }
                 item { Text(stringResource(R.string.investment_trade_history), style = MaterialTheme.typography.titleLarge) }
                 item { EmptyState(stringResource(R.string.investment_no_trades)) }
-                item { ActionButton(onBuy, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_buy)) } }
-                item { ActionButton(onOpening, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_record_opening)) } }
+                item { ActionButton(onAdd, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_add_to_account)) } }
             }
         }
     }

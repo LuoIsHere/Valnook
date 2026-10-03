@@ -25,12 +25,18 @@ interface StatisticsDao {
     suspend fun markInvalid(epochDay: Long): Int
 
     @Query("""UPDATE statistics_cache SET source_revision=(SELECT source_revision FROM statistics_state WHERE id=1)
-        WHERE epoch_day<(SELECT earliest_invalidated_epoch_day FROM statistics_state WHERE id=1)""")
+        WHERE epoch_day<(SELECT earliest_invalidated_epoch_day FROM statistics_state WHERE id=1)
+        AND rule_version=(SELECT rule_version FROM statistics_state WHERE id=1)""")
     suspend fun promoteUnaffectedCache(): Int
+
+    @Query("""DELETE FROM statistics_cache
+        WHERE epoch_day>=(SELECT earliest_invalidated_epoch_day FROM statistics_state WHERE id=1)""")
+    suspend fun deleteInvalidatedCache(): Int
 
     @androidx.room.Transaction
     suspend fun invalidate(epochDay: Long) {
         markInvalid(epochDay)
+        deleteInvalidatedCache()
         promoteUnaffectedCache()
     }
 
@@ -74,11 +80,10 @@ interface StatisticsDao {
     @Query("SELECT * FROM cash_accounts ORDER BY id")
     suspend fun currentCash(): List<CashEntity>
 
-    @Query("SELECT * FROM term_deposits ORDER BY created_at_ms,id")
+    @Query("SELECT * FROM term_deposits ORDER BY start_epoch_day,id")
     suspend fun deposits(): List<DepositEntity>
 
-    @Query("""SELECT p.id,p.savings_account_id,p.instrument_id,s.currency_code,
-        p.opening_quantity_e8,p.opening_at_ms FROM investments p
+    @Query("""SELECT p.id,p.savings_account_id,p.instrument_id,s.currency_code FROM investments p
         JOIN instruments s ON s.id=p.instrument_id ORDER BY p.id""")
     suspend fun positions(): List<StatisticsPositionRow>
 

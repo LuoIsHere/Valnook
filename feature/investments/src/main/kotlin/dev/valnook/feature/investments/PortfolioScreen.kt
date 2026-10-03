@@ -102,7 +102,7 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
     }
 }
 @Composable fun AccountInvestments(vm: PortfolioViewModel, accountId: Long, all: Boolean,
-    onPosition: (Long) -> Unit, onBuy: () -> Unit, onAll: () -> Unit) {
+    onPosition: (Long) -> Unit, onAdd: () -> Unit, onAll: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val current = state as? PortfolioState.Ready
     if (current == null) { Text(stringResource(if (state == PortfolioState.Failed) R.string.investment_read_failed else R.string.investment_loading))
@@ -113,6 +113,6 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
         if (!all) item { ActionButton(onAll, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_all_instruments)) } }
         if (positions.isEmpty()) item { EmptyState(stringResource(if (all) R.string.investment_no_associations else R.string.investment_no_holdings)) }
         item { HoldingTable(positions) { onPosition(it.id) } }
-        item { Button(onClick = onBuy, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_choose_to_buy)) } }
+        item { Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_add_to_account)) } }
     }
 }

@@ -37,7 +37,8 @@ internal class DepositCommandHandler(
         fault(TransactionPoint.AFTER_BUSINESS)
         if (targetId != null) {
             cash.change(command.operation_id, targetId, -command.principal_minor, "TERM_OPEN", now)
-            cash.entry(command.operation_id, targetId, "TERM_OPEN", id, -command.principal_minor, now, now)
+            cash.entry(command.operation_id, targetId, "TERM_OPEN", id, -command.principal_minor,
+                businessTime(command.start_epoch_day), now)
         }
         return OperationResult("TERM_DEPOSIT", id)
     }
@@ -90,7 +91,7 @@ internal class DepositCommandHandler(
             closeTarget to newReturn
         ), "TERM_EDIT", now)
         syncEntry(old, "TERM_OPEN", old.open_operation_id, old.open_cash_account_id,
-            openTarget, -command.principal_minor, old.created_at_ms, now)
+            openTarget, -command.principal_minor, businessTime(command.start_epoch_day), now)
         if (closed) syncEntry(old, "TERM_CLOSE", requireNotNull(old.close_operation_id),
             old.close_cash_account_id, closeTarget, newReturn, requireNotNull(old.closed_at_ms), now)
         return OperationResult("TERM_DEPOSIT", old.id)
@@ -118,9 +119,12 @@ internal class DepositCommandHandler(
         val targetId = newTarget ?: entry.cash_account_id
         val target = db.cash().cashAccount(targetId) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
         if (db.cash().editEntry(entry.id, entry.revision, target.id, target.savings_account_id,
-                target.currency_code, if (newTarget != null) newDelta else entry.delta_minor,
-                entry.occurred_at_ms, entry.note, newTarget == null, now) != 1) {
+            target.currency_code, if (newTarget != null) newDelta else entry.delta_minor,
+                occurred, entry.note, newTarget == null, now) != 1) {
             throw DomainException(ErrorCode.STALE_RECORD)
         }
     }
+
+    private fun businessTime(epochDay: Long): Long = LocalDate.ofEpochDay(epochDay)
+        .atStartOfDay(clock.zone).toInstant().toEpochMilli()
 }
