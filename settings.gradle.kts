@@ -29,3 +29,4 @@ include(":feature:accounts", ":feature:cash", ":feature:deposits", ":feature:inv
 include(":feature:settings")
 include(":feature:statistics")
 include(":feature:backup")
+include(":feature:webadmin")

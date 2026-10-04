@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Valnook</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main id="pairing" class="pairing-shell">
+    <section class="pairing-card" aria-labelledby="pair-title">
+      <div class="brand-mark" aria-hidden="true">V</div>
+      <p class="eyebrow">VALNOOK</p>
+      <h1 id="pair-title">连接到手机</h1>
+      <p id="pair-copy" class="muted">请在手机上打开 Web 管理，并输入手机显示的 6 位配对码。</p>
+      <form id="pair-form" class="pair-form">
+        <label for="pair-code">配对码</label>
+        <input id="pair-code" name="code" inputmode="numeric" autocomplete="one-time-code"
+               pattern="[0-9]{6}" maxlength="6" placeholder="000000" required>
+        <button id="pair-submit" class="primary" type="submit">连接</button>
+      </form>
+      <p id="pair-status" class="status" role="status" aria-live="polite"></p>
+      <p class="security-note">仅用于可信局域网。此版本使用 HTTP/WS，不提供传输加密。</p>
+    </section>
+  </main>
+
+  <div id="workspace" class="workspace" hidden>
+    <aside id="sidebar" class="sidebar">
+      <div class="brand"><span class="brand-mark small">V</span><strong>Valnook</strong></div>
+      <nav id="nav" aria-label="主导航"></nav>
+      <div class="sidebar-foot">
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="切换主题">◐</button>
+        <div class="connection"><span class="dot"></span><span id="connected-label">已连接</span></div>
+      </div>
+      <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" tabindex="0"></div>
+    </aside>
+    <section class="content-shell">
+      <header class="topbar">
+        <div><p id="page-kicker" class="eyebrow"></p><h1 id="page-title"></h1></div>
+        <div class="top-actions"><span id="save-state" class="save-state" role="status"></span><button id="end-session" class="secondary danger" type="button">结束会话</button></div>
+      </header>
+      <main id="content" class="content" tabindex="-1"></main>
+    </section>
+  </div>
+
+  <div id="scrim" class="scrim" hidden></div>
+  <aside id="drawer" class="drawer" aria-modal="true" role="dialog" hidden>
+    <header><div><p id="drawer-kicker" class="eyebrow"></p><h2 id="drawer-title"></h2></div><button id="drawer-close" class="icon-button" type="button" aria-label="关闭">×</button></header>
+    <div id="drawer-content" class="drawer-content"></div>
+  </aside>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

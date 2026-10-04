@@ -8,17 +8,20 @@ import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import dev.valnook.app.di.AppSessionManager
 import dev.valnook.app.navigation.ValnookRoot
+import dev.valnook.app.webadmin.AppWebAdminCoordinator
 import kotlinx.coroutines.launch
 @AndroidEntryPoint
 class MainActivity:ComponentActivity() {
     @Inject lateinit var sessions:AppSessionManager
+    @Inject lateinit var webAdmin:AppWebAdminCoordinator
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.isNavigationBarContrastEnforced=false
         setContent {
-            ValnookRoot(sessions) {
+            ValnookRoot(sessions, webAdmin) {
                 lifecycleScope.launch {
+                    webAdmin.stop()
                     sessions.exitDemo()
                     finish()
                 }

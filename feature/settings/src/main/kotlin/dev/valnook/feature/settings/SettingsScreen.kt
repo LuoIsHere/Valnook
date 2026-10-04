@@ -75,6 +75,7 @@ fun SettingsHome(
     onClear: () -> Unit,
     onNavigation: () -> Unit,
     onBackupExport: () -> Unit,
+    onWebAdmin: () -> Unit,
     onHiddenPage: (NavigationItemId) -> Unit,
     versionName: String,
     internalBuildId: String
@@ -110,6 +111,11 @@ fun SettingsHome(
                 if (demoMode) stringResource(R.string.settings_backup_export_demo_summary)
                 else stringResource(R.string.settings_backup_export_summary), onBackupExport,
                 Modifier.testTag("settings-backup-export"))
+        }
+        item {
+            SettingEntry(stringResource(R.string.settings_webadmin),
+                stringResource(R.string.settings_webadmin_summary), onWebAdmin,
+                Modifier.testTag("settings-webadmin"))
         }
         if (state.savedSettings.navigation.hiddenInOrder.isNotEmpty()) {
             item { Text(stringResource(R.string.settings_hidden_pages), style = MaterialTheme.typography.titleMedium) }

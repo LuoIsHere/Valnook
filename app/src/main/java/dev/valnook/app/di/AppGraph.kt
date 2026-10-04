@@ -55,7 +55,8 @@ internal data class DatabaseGraph(
     val cashPages: PagedCashRepository,
     val depositPages: PagedDepositRepository,
     val maintenance: DataMaintenance,
-    val portability: RoomPortabilityEngine
+    val portability: RoomPortabilityEngine,
+    val webAdminReads: dev.valnook.domain.webadmin.WebAdminReadRepository
 )
 
 internal fun createDatabaseGraph(
@@ -82,7 +83,10 @@ internal fun createDatabaseGraph(
         cashPages = cash,
         depositPages = deposits,
         maintenance = RoomDataMaintenance(database),
-        portability = RoomPortabilityEngine(context, database, clock, buildInfo)
+        portability = RoomPortabilityEngine(context, database, clock, buildInfo),
+        webAdminReads = dev.valnook.data.webadmin.RoomWebAdminReadRepository(
+            database, RoomOverview(database), RoomStatistics(database, clock),
+            deposits, RoomInvestments(database))
     )
 }
 

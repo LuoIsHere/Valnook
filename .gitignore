@@ -18,6 +18,7 @@ local.properties
 *.xlsx
 *.zip
 .kotlin/
+node_modules/
 **/build/
 .idea/
 .env

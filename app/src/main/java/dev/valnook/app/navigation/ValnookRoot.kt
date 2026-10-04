@@ -76,7 +76,11 @@ import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ValnookRoot(sessions: AppSessionManager, onExit: () -> Unit = {}) {
+fun ValnookRoot(
+    sessions: AppSessionManager,
+    webAdmin: dev.valnook.domain.webadmin.WebAdminService,
+    onExit: () -> Unit = {}
+) {
     val active by sessions.session.collectAsState()
     val cloudState by sessions.observeCloudState().collectAsStateWithLifecycle(
         dev.valnook.domain.cloud.CloudBackupRuntimeState())
@@ -84,13 +88,19 @@ fun ValnookRoot(sessions: AppSessionManager, onExit: () -> Unit = {}) {
         active.graph.settings.observeSettings().map<AppSettings, AppSettings?> { it }
     }.collectAsStateWithLifecycle(null)
     val loadedSettings = settings ?: return
+    val webState by webAdmin.state.collectAsStateWithLifecycle()
+    val webScope = rememberCoroutineScope()
     LaunchedEffect(active.id, loadedSettings.language) {
         if (active.mode == DataMode.REAL) sessions.syncPlatformLanguage(active.id, loadedSettings.language)
     }
     key(active.id) {
         ValnookTheme(redGain = loadedSettings.gainLossColors == GainLossColorScheme.RED_GAIN) {
-            Box(Modifier.fillMaxSize()) {
-                SessionRoot(active, loadedSettings, sessions, onExit)
+            if (webState.phase == dev.valnook.domain.webadmin.WebAdminPhase.ACTIVE) {
+                dev.valnook.feature.webadmin.WebAdminLockScreen(webState.client) {
+                    webScope.launch { webAdmin.stop() }
+                }
+            } else Box(Modifier.fillMaxSize()) {
+                SessionRoot(active, loadedSettings, sessions, webAdmin, onExit)
                 CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
             }
         }
@@ -150,6 +160,7 @@ private fun SessionRoot(
     active: ActiveSession,
     settings: AppSettings,
     sessions: AppSessionManager,
+    webAdmin: dev.valnook.domain.webadmin.WebAdminService,
     onExit: () -> Unit
 ) {
     val graph = active.graph
@@ -206,6 +217,7 @@ private fun SessionRoot(
         GainLossColorsKey -> stringResource(R.string.title_gain_loss_colors)
         ClearDataKey -> stringResource(R.string.title_clear_data)
         BackupKey -> stringResource(dev.valnook.feature.backup.R.string.backup_title)
+        WebAdminKey -> stringResource(dev.valnook.feature.webadmin.R.string.webadmin_title)
         is AccountKey -> accountName(current.id)
         is AccountEditKey -> stringResource(R.string.title_edit_account)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
@@ -295,6 +307,7 @@ private fun SessionRoot(
                                                 }
                                         }
                                     }, { open(ClearDataKey) }, { open(NavigationSettingsKey) }, { open(BackupKey) },
+                                    { open(WebAdminKey) },
                                     { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID)
                             }
                             entry<BackupKey> {
@@ -302,6 +315,11 @@ private fun SessionRoot(
                                     dev.valnook.feature.backup.BackupViewModel(
                                         graph.portability, graph.settings, active.mode == DataMode.DEMO,
                                         graph.cloudBackup, sessions.googleAuthorization)
+                                }, active.mode == DataMode.DEMO)
+                            }
+                            entry<WebAdminKey> {
+                                dev.valnook.feature.webadmin.WebAdminScreen(pageViewModel {
+                                    dev.valnook.feature.webadmin.WebAdminViewModel(webAdmin)
                                 }, active.mode == DataMode.DEMO)
                             }
                             entry<NavigationSettingsKey> {

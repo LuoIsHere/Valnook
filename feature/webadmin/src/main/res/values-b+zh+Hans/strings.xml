@@ -1,0 +1,23 @@
+<resources>
+    <string name="webadmin_title">网页端管理</string>
+    <string name="webadmin_summary">通过同一局域网中的浏览器管理此设备</string>
+    <string name="webadmin_description">启动临时本地网页会话，查看和编辑此设备中的真实数据。</string>
+    <string name="webadmin_description_demo">启动临时本地网页会话，查看和编辑可丢弃的演示数据；所有修改均不会影响真实数据。</string>
+    <string name="webadmin_plaintext_warning">请仅在可信局域网中使用。v0.0.6 使用 HTTP 和 WebSocket，不提供传输加密。</string>
+    <string name="webadmin_start">开启网页端管理</string>
+    <string name="webadmin_stop">关闭网页端管理</string>
+    <string name="webadmin_end">结束网页端管理</string>
+    <string name="webadmin_waiting">等待配对</string>
+    <string name="webadmin_active">已连接</string>
+    <string name="webadmin_pairing_code">六位配对码</string>
+    <string name="webadmin_timeout">五分钟内没有有效配对活动时将自动关闭。</string>
+    <string name="webadmin_qr_description">网页端管理配对二维码</string>
+    <string name="webadmin_lock_title">正在网页端管理</string>
+    <string name="webadmin_lock_message">为避免数据冲突，手机暂时锁定。结束会话后可继续使用应用。</string>
+    <string name="webadmin_connected_at">连接时间 %1$s</string>
+    <string name="webadmin_last_seen">最后活动 %1$s</string>
+    <string name="webadmin_error_no_lan">请先连接私有 Wi-Fi 或以太网。</string>
+    <string name="webadmin_error_busy">已有其他浏览器会话正在使用。</string>
+    <string name="webadmin_error_maintenance">请先结束当前恢复、清空数据或文件操作。</string>
+    <string name="webadmin_error_start">本地网页服务启动失败。</string>
+</resources>

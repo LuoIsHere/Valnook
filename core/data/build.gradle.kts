@@ -22,6 +22,10 @@ dependencies {
     implementation(project(":core:domain"))
 
     implementation(libs.coroutines.core)
+    implementation(libs.serialization.json)
+    implementation(libs.ktor.server.core)
+    implementation(libs.ktor.server.cio)
+    implementation(libs.ktor.server.websockets)
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
     api(libs.room.runtime)

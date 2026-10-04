@@ -15,10 +15,10 @@ android {
     defaultConfig {
         applicationId = "dev.valnook.app"
         minSdk = 36
-        targetSdk = 37
-        versionCode = 5
-        versionName = "0.0.5"
-        buildConfigField("String", "INTERNAL_BUILD_ID", "\"20261003.4\"")
+        targetSdk = 36
+        versionCode = 6
+        versionName = "0.0.6"
+        buildConfigField("String", "INTERNAL_BUILD_ID", "\"20261004.1\"")
 
         testInstrumentationRunner = "dev.valnook.app.HiltTestRunner"
     }
@@ -52,12 +52,14 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:statistics"))
     implementation(project(":feature:backup"))
+    implementation(project(":feature:webadmin"))
     implementation(libs.androidx.viewmodel.navigation3)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.navigation3.runtime)
     implementation(libs.navigation3.ui)
     implementation(libs.serialization.core)
+    implementation(libs.serialization.json)
     implementation(libs.androidx.lifecycle.compose)
     implementation(libs.androidx.viewmodel.compose)
     implementation(platform(libs.androidx.compose.bom))

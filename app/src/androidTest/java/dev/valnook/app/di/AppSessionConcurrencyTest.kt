@@ -30,6 +30,8 @@ import java.io.ByteArrayOutputStream
 import java.io.ByteArrayInputStream
 import dev.valnook.domain.portability.PortabilityErrorCode
 import dev.valnook.domain.portability.PortabilityException
+import dev.valnook.domain.webadmin.WebAdminError
+import dev.valnook.domain.webadmin.WebAdminException
 
 @RunWith(AndroidJUnit4::class)
 class AppSessionConcurrencyTest {
@@ -144,6 +146,109 @@ class AppSessionConcurrencyTest {
             dev.valnook.data.repository.RoomOverview(database).snapshot().accounts.map { it.name })
         expectExpired { original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
             "stale page","",emptyList())) }
+    }
+
+    @Test fun web_lease_is_the_only_writer_and_release_rotates_back_to_mobile()=runBlocking {
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()),database,clock)
+        val mobileBefore=manager.session.value
+        manager.reserveWebAdminServer("server-a")
+        val lease=manager.acquireWebWriteLease("web-a")
+        assertTrue(manager.session.value.id!=mobileBefore.id)
+
+        try {
+            manager.session.value.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
+                "blocked mobile","",emptyList()))
+            throw AssertionError("Mobile write must be blocked while Web owns the lease")
+        } catch(error:DomainException) {
+            assertEquals(ErrorCode.WEB_ADMIN_ACTIVE,error.code)
+        }
+        try {
+            manager.acquireWebWriteLease("web-b")
+            throw AssertionError("A second Web writer must be rejected")
+        } catch(error:WebAdminException) {
+            assertEquals(WebAdminError.SESSION_BUSY,error.error)
+        }
+        try {
+            manager.enterDemo()
+            throw AssertionError("Demo switch must be blocked while Web owns the lease")
+        } catch(error:DomainException) {
+            assertEquals(ErrorCode.WEB_ADMIN_ACTIVE,error.code)
+        }
+        try {
+            manager.issueClearChallenge()
+            throw AssertionError("Clear must be blocked while Web owns the lease")
+        } catch(error:DomainException) {
+            assertEquals(ErrorCode.WEB_ADMIN_ACTIVE,error.code)
+        }
+
+        val operation=UUID.randomUUID().toString()
+        val receipt=manager.executeWebCommand("web-a",lease.dataGeneration,
+            SaveAccount(operation,null,null,"web account","",emptyList()))
+        assertEquals("ACCOUNT",receipt.result.kind)
+        assertEquals("WEB_ADMIN",database.audit().eventForOperation(operation)?.source)
+        try {
+            manager.executeWebCommand("web-a",lease.dataGeneration,
+                SaveAccount(UUID.randomUUID().toString(),null,null,"stale web","",emptyList()))
+            throw AssertionError("Stale Web generation must be rejected")
+        } catch(error:DomainException) {
+            assertEquals(ErrorCode.STALE_RECORD,error.code)
+        }
+        try {
+            manager.executeWebCommand("web-b",receipt.dataGeneration,
+                SaveAccount(UUID.randomUUID().toString(),null,null,"wrong owner","",emptyList()))
+            throw AssertionError("Wrong Web owner must be rejected")
+        } catch(error:DomainException) {
+            assertEquals(ErrorCode.SESSION_EXPIRED,error.code)
+        }
+
+        val lockedSession=manager.session.value.id
+        manager.releaseWebWriteLease("web-a")
+        assertTrue(manager.session.value.id!=lockedSession)
+        try {
+            manager.executeWebCommand("web-a",receipt.dataGeneration,
+                SaveAccount(UUID.randomUUID().toString(),null,null,"late web","",emptyList()))
+            throw AssertionError("Released Web session must stay revoked")
+        } catch(error:DomainException) {
+            assertEquals(ErrorCode.SESSION_EXPIRED,error.code)
+        }
+        val mobileResult=manager.session.value.graph.commands.execute(SaveAccount(
+            UUID.randomUUID().toString(),null,null,"mobile resumed","",emptyList()))
+        assertEquals("ACCOUNT",mobileResult.kind)
+        manager.releaseWebAdminServer("server-a")
+    }
+
+    @Test fun demo_web_admin_writes_only_the_disposable_demo_database()=runBlocking {
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()),database,clock)
+        val realNamesBefore=dev.valnook.data.repository.RoomOverview(database).snapshot().accounts.map { it.name }
+        manager.enterDemo()
+        manager.reserveWebAdminServer("demo-server")
+
+        try {
+            manager.exitDemo()
+            throw AssertionError("Demo exit must be blocked while the Web server is waiting")
+        } catch(error:DomainException) {
+            assertEquals(ErrorCode.WEB_ADMIN_ACTIVE,error.code)
+        }
+
+        val demoBefore=manager.webAdminReads().snapshot().accounts.map { it.name }
+        val lease=manager.acquireWebWriteLease("demo-web")
+        val operation=UUID.randomUUID().toString()
+        val receipt=manager.executeWebCommand("demo-web",lease.dataGeneration,
+            SaveAccount(operation,null,null,"Web demo only","",emptyList()))
+        assertEquals("ACCOUNT",receipt.result.kind)
+        val demoAfter=manager.webAdminReads().snapshot().accounts.map { it.name }
+        assertTrue("Web demo only" in demoAfter)
+        assertEquals(demoBefore.size+1,demoAfter.size)
+        assertEquals(realNamesBefore,
+            dev.valnook.data.repository.RoomOverview(database).snapshot().accounts.map { it.name })
+
+        manager.releaseWebWriteLease("demo-web")
+        assertEquals(DataMode.DEMO,manager.session.value.mode)
+        manager.releaseWebAdminServer("demo-server")
+        manager.exitDemo()
+        assertEquals(DataMode.REAL,manager.session.value.mode)
+        assertEquals(realNamesBefore,
+            dev.valnook.data.repository.RoomOverview(database).snapshot().accounts.map { it.name })
     }
 
     private suspend fun expectExpired(block:suspend ()->Unit){

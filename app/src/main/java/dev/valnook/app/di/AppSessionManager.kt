@@ -45,9 +45,12 @@ class AppSessionManager @Inject internal constructor(
     private val writeMutex = Mutex()
     private var demoDatabase: ValnookDatabase? = null
     private var demoDatabaseName: String? = null
+    @Volatile private var demoDatabaseGraph: DatabaseGraph? = null
     private var pendingClear: PendingClear? = null
     private var pendingRestore: PendingRestore? = null
     private var activeFileJob: ActiveFileJob? = null
+    @Volatile private var writeOwner: WriteOwner = WriteOwner.Mobile
+    @Volatile private var webAdminReservation: WebAdminReservation? = null
     private val initialId = UUID.randomUUID().toString()
     @Volatile private var currentSessionId = initialId
     private val mutable = MutableStateFlow(ActiveSession(initialId, DataMode.REAL,
@@ -58,6 +61,7 @@ class AppSessionManager @Inject internal constructor(
     suspend fun reconcileCloudSchedule() = cloudCoordinator.reconcileSchedule()
 
     suspend fun enterDemo() = writeMutex.withLock {
+        rejectWhenWebAdminOpen()
         if (mutable.value.mode == DataMode.DEMO) return@withLock
         if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
             dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
@@ -80,6 +84,7 @@ class AppSessionManager @Inject internal constructor(
             currentSessionId = id
             demoDatabase = database
             demoDatabaseName = databaseName
+            demoDatabaseGraph = raw
             mutable.value = ActiveSession(id, DataMode.DEMO, bind(raw, id, DataMode.DEMO))
         } catch (error: Exception) {
             database.close()
@@ -89,6 +94,7 @@ class AppSessionManager @Inject internal constructor(
     }
 
     suspend fun exitDemo() = writeMutex.withLock {
+        rejectWhenWebAdminOpen()
         if (mutable.value.mode != DataMode.DEMO) return@withLock
         if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
             dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
@@ -97,11 +103,13 @@ class AppSessionManager @Inject internal constructor(
         publishRealSession()
         demoDatabase?.close()
         demoDatabaseName?.let(context::deleteDatabase)
+        demoDatabaseGraph = null
         demoDatabase = null
         demoDatabaseName = null
     }
 
     suspend fun issueClearChallenge(): String = writeMutex.withLock {
+        rejectWhenWebOwnsWrites()
         val active = mutable.value
         if (active.mode != DataMode.REAL) throw DomainException(ErrorCode.SESSION_EXPIRED)
         rejectWhenFileJobIsActive()
@@ -136,6 +144,7 @@ class AppSessionManager @Inject internal constructor(
     }
 
     suspend fun clearRealData(challenge: String, input: String) = writeMutex.withLock {
+        rejectWhenWebOwnsWrites()
         val active = mutable.value
         rejectWhenFileJobIsActive()
         val pending = pendingClear
@@ -154,9 +163,91 @@ class AppSessionManager @Inject internal constructor(
     }
 
     private fun publishRealSession() {
+        publishSession(realDatabaseGraph, DataMode.REAL)
+    }
+
+    private fun publishSession(source: DatabaseGraph, mode: DataMode) {
         val id = UUID.randomUUID().toString()
         currentSessionId = id
-        mutable.value = ActiveSession(id, DataMode.REAL, bind(realDatabaseGraph, id, DataMode.REAL))
+        mutable.value = ActiveSession(id, mode, bind(source, id, mode))
+    }
+
+    internal suspend fun reserveWebAdminServer(reservationId: String) = writeMutex.withLock {
+        if (webAdminReservation != null || writeOwner !is WriteOwner.Mobile) {
+            throw dev.valnook.domain.webadmin.WebAdminException(
+                dev.valnook.domain.webadmin.WebAdminError.SESSION_BUSY)
+        }
+        if (activeFileJob != null || pendingRestore != null || pendingClear != null) {
+            throw dev.valnook.domain.webadmin.WebAdminException(
+                dev.valnook.domain.webadmin.WebAdminError.MAINTENANCE_ACTIVE)
+        }
+        webAdminReservation = WebAdminReservation(reservationId, mutable.value.mode)
+    }
+
+    internal suspend fun releaseWebAdminServer(reservationId: String) = writeMutex.withLock {
+        if (webAdminReservation?.id == reservationId) webAdminReservation = null
+    }
+
+    internal suspend fun acquireWebWriteLease(webSessionId: String): dev.valnook.domain.webadmin.WebWriteLease =
+        writeMutex.withLock {
+            val reservation = webAdminReservation ?: throw dev.valnook.domain.webadmin.WebAdminException(
+                dev.valnook.domain.webadmin.WebAdminError.SESSION_EXPIRED)
+            if (mutable.value.mode != reservation.mode) throw dev.valnook.domain.webadmin.WebAdminException(
+                dev.valnook.domain.webadmin.WebAdminError.SESSION_EXPIRED)
+            if (writeOwner !is WriteOwner.Mobile) throw dev.valnook.domain.webadmin.WebAdminException(
+                dev.valnook.domain.webadmin.WebAdminError.SESSION_BUSY)
+            if (activeFileJob != null || pendingRestore != null || pendingClear != null) {
+                throw dev.valnook.domain.webadmin.WebAdminException(
+                    dev.valnook.domain.webadmin.WebAdminError.MAINTENANCE_ACTIVE)
+            }
+            val graph = databaseGraphFor(reservation.mode)
+            writeOwner = WriteOwner.Web(webSessionId)
+            publishSession(graph, reservation.mode)
+            dev.valnook.domain.webadmin.WebWriteLease(webSessionId, graph.database.audit().generation())
+        }
+
+    internal suspend fun releaseWebWriteLease(webSessionId: String) = writeMutex.withLock {
+        if ((writeOwner as? WriteOwner.Web)?.sessionId == webSessionId) {
+            val reservation = webAdminReservation
+            writeOwner = WriteOwner.Mobile
+            if (reservation != null && mutable.value.mode == reservation.mode) {
+                publishSession(databaseGraphFor(reservation.mode), reservation.mode)
+            } else {
+                publishRealSession()
+            }
+        }
+    }
+
+    internal fun webAdminReads(): dev.valnook.domain.webadmin.WebAdminReadRepository =
+        webAdminGraph().webAdminReads
+
+    internal suspend fun executeWebCommand(
+        webSessionId: String,
+        expectedGeneration: Long,
+        command: FinancialCommand
+    ): dev.valnook.domain.webadmin.WebMutationReceipt = writeMutex.withLock {
+        requireWebOwner(webSessionId)
+        val graph = webAdminGraph()
+        if (graph.database.audit().generation() != expectedGeneration) throw DomainException(ErrorCode.STALE_RECORD)
+        val result = graph.commands.execute(command, CommandSource.WEB_ADMIN)
+        dev.valnook.domain.webadmin.WebMutationReceipt(result, graph.database.audit().generation())
+    }
+
+    internal suspend fun webOperationResult(webSessionId: String, operationId: String): OperationResult? =
+        writeMutex.withLock {
+            requireWebOwner(webSessionId)
+            webAdminGraph().commands.operationResult(operationId)
+        }
+
+    private fun webAdminGraph(): DatabaseGraph {
+        val reservation = webAdminReservation ?: throw DomainException(ErrorCode.SESSION_EXPIRED)
+        if (mutable.value.mode != reservation.mode) throw DomainException(ErrorCode.SESSION_EXPIRED)
+        return databaseGraphFor(reservation.mode)
+    }
+
+    private fun databaseGraphFor(mode: DataMode): DatabaseGraph = when (mode) {
+        DataMode.REAL -> realDatabaseGraph
+        DataMode.DEMO -> demoDatabaseGraph ?: throw DomainException(ErrorCode.SESSION_EXPIRED)
     }
 
     private fun bind(source: DatabaseGraph, sessionId: String, mode: DataMode): AppGraph = AppGraph(
@@ -189,6 +280,8 @@ class AppSessionManager @Inject internal constructor(
         override fun observeState() = if (mode == DataMode.REAL) delegate.observeState()
             else kotlinx.coroutines.flow.flowOf(dev.valnook.domain.cloud.CloudBackupRuntimeState())
         private fun check() {
+            if (writeOwner !is WriteOwner.Mobile) throw dev.valnook.domain.cloud.CloudBackupException(
+                dev.valnook.domain.cloud.CloudBackupError.WEB_ADMIN_ACTIVE)
             requireCurrent(sessionId)
             if (mode != DataMode.REAL) throw dev.valnook.domain.cloud.CloudBackupException(
                 dev.valnook.domain.cloud.CloudBackupError.DEMO_RESTRICTED)
@@ -219,12 +312,15 @@ class AppSessionManager @Inject internal constructor(
         private val delegate: FinancialCommands
     ) : FinancialCommands {
         override suspend fun execute(command: FinancialCommand): OperationResult = writeMutex.withLock {
-            requireCurrent(sessionId)
+            requireMobileWrite(sessionId)
             delegate.execute(command)
         }
 
+        override suspend fun execute(command: FinancialCommand, source: CommandSource): OperationResult =
+            execute(command)
+
         override suspend fun operationResult(operationId: String): OperationResult? = writeMutex.withLock {
-            requireCurrent(sessionId)
+            requireMobileWrite(sessionId)
             delegate.operationResult(operationId)
         }
     }
@@ -235,7 +331,7 @@ class AppSessionManager @Inject internal constructor(
     ) : SettingsWriter {
         override suspend fun applyChange(change: SettingsChange): dev.valnook.domain.model.AppSettings =
             writeMutex.withLock {
-                requireCurrent(sessionId)
+                requireMobileWrite(sessionId)
                 delegate.applyChange(change)
             }
     }
@@ -278,8 +374,8 @@ class AppSessionManager @Inject internal constructor(
 
         override suspend fun issueRestoreChallenge(candidateId: String): dev.valnook.domain.portability.RestoreChallenge =
             writeMutex.withLock {
+                requireMobilePortability(sessionId)
                 requireReal()
-                requireCurrent(sessionId)
                 val pending = pendingRestore?.takeIf {
                     it.sessionId == sessionId && it.staged.candidateId == candidateId
                 } ?: expired()
@@ -297,8 +393,8 @@ class AppSessionManager @Inject internal constructor(
             confirmation: String,
             progress: (dev.valnook.domain.portability.PortabilityProgress) -> Unit
         ): dev.valnook.domain.portability.RestoreResult = writeMutex.withLock {
+            requireMobilePortability(sessionId)
             requireReal()
-            requireCurrent(sessionId)
             val pending = pendingRestore?.takeIf {
                 it.sessionId == sessionId && it.staged.candidateId == candidateId
             } ?: expired()
@@ -347,13 +443,13 @@ class AppSessionManager @Inject internal constructor(
 
     private suspend fun <T> fileJob(sessionId: String, block: suspend () -> T): T {
         val jobId = writeMutex.withLock {
-            requireCurrent(sessionId)
+            requireMobilePortability(sessionId)
             if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
                 dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
             UUID.randomUUID().toString().also { activeFileJob = ActiveFileJob(it, sessionId) }
         }
         try {
-            return block().also { writeMutex.withLock { requireCurrent(sessionId) } }
+            return block().also { writeMutex.withLock { requireMobilePortability(sessionId) } }
         } finally {
             writeMutex.withLock { if (activeFileJob?.id == jobId) activeFileJob = null }
         }
@@ -379,12 +475,44 @@ class AppSessionManager @Inject internal constructor(
         if (mutable.value.id != sessionId) throw DomainException(ErrorCode.SESSION_EXPIRED)
     }
 
+    private fun requireMobileWrite(sessionId: String) {
+        if (writeOwner !is WriteOwner.Mobile) throw DomainException(ErrorCode.WEB_ADMIN_ACTIVE)
+        requireCurrent(sessionId)
+    }
+
+    private fun requireMobilePortability(sessionId: String) {
+        if (writeOwner !is WriteOwner.Mobile) throw dev.valnook.domain.portability.PortabilityException(
+            dev.valnook.domain.portability.PortabilityErrorCode.WEB_ADMIN_ACTIVE)
+        requireCurrent(sessionId)
+    }
+
+    private fun requireWebOwner(webSessionId: String) {
+        if ((writeOwner as? WriteOwner.Web)?.sessionId != webSessionId) {
+            throw DomainException(ErrorCode.SESSION_EXPIRED)
+        }
+    }
+
+    private fun rejectWhenWebOwnsWrites() {
+        if (writeOwner !is WriteOwner.Mobile) throw DomainException(ErrorCode.WEB_ADMIN_ACTIVE)
+    }
+
+    private fun rejectWhenWebAdminOpen() {
+        if (webAdminReservation != null || writeOwner !is WriteOwner.Mobile) {
+            throw DomainException(ErrorCode.WEB_ADMIN_ACTIVE)
+        }
+    }
+
     private fun rejectWhenFileJobIsActive() {
         if (activeFileJob != null) throw dev.valnook.domain.portability.PortabilityException(
             dev.valnook.domain.portability.PortabilityErrorCode.JOB_IN_PROGRESS)
     }
 
     private data class PendingClear(val sessionId: String, val challenge: String)
+    private data class WebAdminReservation(val id: String, val mode: DataMode)
+    private sealed interface WriteOwner {
+        data object Mobile : WriteOwner
+        data class Web(val sessionId: String) : WriteOwner
+    }
     private data class ActiveFileJob(val id: String, val sessionId: String)
     private data class PendingRestore(
         val sessionId: String,

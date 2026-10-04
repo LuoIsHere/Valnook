@@ -1,0 +1,23 @@
+<resources>
+    <string name="webadmin_title">Web administration</string>
+    <string name="webadmin_summary">Manage this device from a browser on the same LAN</string>
+    <string name="webadmin_description">Start a temporary local web session to view and edit the real data on this device.</string>
+    <string name="webadmin_description_demo">Start a temporary local web session to view and edit the disposable demo data. Changes do not affect your real data.</string>
+    <string name="webadmin_plaintext_warning">Use only on a trusted local network. v0.0.6 uses HTTP and WebSocket without transport encryption.</string>
+    <string name="webadmin_start">Start web administration</string>
+    <string name="webadmin_stop">Close web administration</string>
+    <string name="webadmin_end">End web administration</string>
+    <string name="webadmin_waiting">Waiting for pairing</string>
+    <string name="webadmin_active">Connected</string>
+    <string name="webadmin_pairing_code">Six-digit pairing code</string>
+    <string name="webadmin_timeout">Pairing closes after five minutes without valid activity.</string>
+    <string name="webadmin_qr_description">Web administration pairing QR code</string>
+    <string name="webadmin_lock_title">Web administration in progress</string>
+    <string name="webadmin_lock_message">The phone is temporarily locked to prevent conflicting changes. End the session to use the app again.</string>
+    <string name="webadmin_connected_at">Connected %1$s</string>
+    <string name="webadmin_last_seen">Last seen %1$s</string>
+    <string name="webadmin_error_no_lan">Connect to a private Wi-Fi or Ethernet network first.</string>
+    <string name="webadmin_error_busy">Another browser session is active.</string>
+    <string name="webadmin_error_maintenance">Finish the current restore, clear-data, or file operation first.</string>
+    <string name="webadmin_error_start">The local web service could not start.</string>
+</resources>

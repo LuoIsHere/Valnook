@@ -32,9 +32,12 @@ interface InvestmentRepository {
 /** Each command is committed as ONE transaction by the implementation. */
 interface FinancialCommands {
     suspend fun execute(command: FinancialCommand): OperationResult
+    suspend fun execute(command: FinancialCommand, source: CommandSource): OperationResult = execute(command)
     /** Reconcile a possibly committed request using the original operation ID. */
     suspend fun operationResult(operationId: String): OperationResult? = null
 }
+
+enum class CommandSource { MOBILE, WEB_ADMIN }
 
 sealed interface FinancialCommand { val operation_id: String }
 data class SetCashBalance(override val operation_id: String, val account_id: Long,

@@ -66,7 +66,7 @@ enum class ErrorCode { CURRENCY, FORMAT, PRECISION, OVERFLOW, POSITIVE, DATE, IN
     INSUFFICIENT_HOLDING, STALE_BALANCE, ALREADY_CLOSED, NOT_MATURED, OPERATION_CONFLICT,
     NOT_FOUND, NAME, AMOUNT_TOO_SMALL, DUPLICATE_TYPE, STALE_RECORD, SOURCE_RECORD,
     CURRENCY_LOCKED, SYMBOL_LOCKED, PRICE_CONFIRMATION, HISTORY_CONFLICT, DUPLICATE_CURRENCY,
-    WRONG_CASH_ACCOUNT, CASH_ACCOUNT_IN_USE, SESSION_EXPIRED }
+    WRONG_CASH_ACCOUNT, CASH_ACCOUNT_IN_USE, SESSION_EXPIRED, WEB_ADMIN_ACTIVE, MAINTENANCE_ACTIVE }
 class DomainException(val code: ErrorCode) : IllegalArgumentException(code.name)
 data class SavingsAccount(val id: Long, val name: String, val note: String, val revision: Long = 1)
 data class CashAccount(val account_id: Long, val currency: Currency, val balance_minor: Long, val revision: Long,

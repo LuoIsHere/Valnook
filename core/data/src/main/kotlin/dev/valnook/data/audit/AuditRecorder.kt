@@ -25,7 +25,8 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         command: FinancialCommand,
         result: OperationResult,
         beforeJson: String?,
-        recordedAtMs: Long
+        recordedAtMs: Long,
+        source: CommandSource = CommandSource.MOBILE
     ) {
         val after = rowJson(tableForResult(result.kind), result.id)
         val context = contextSnapshot(result)
@@ -49,7 +50,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             after_json = afterJson,
             changed_fields_json = changedFields(auditedBeforeJson, afterJson),
             cash_effects_json = cashEffects,
-            source = "USER"
+            source = if (source == CommandSource.WEB_ADMIN) "WEB_ADMIN" else "USER"
         ))
         if (accounts.isNotEmpty()) {
             db.audit().insertAccounts(accounts.sorted().map { AuditEventAccountEntity(eventId, it) })

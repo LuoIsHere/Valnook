@@ -84,6 +84,7 @@ enum class PortabilityErrorCode {
     CONFIRMATION_MISMATCH,
     STORAGE_FULL,
     WORKBOOK_LIMIT,
+    WEB_ADMIN_ACTIVE,
     INTERNAL
 }
 

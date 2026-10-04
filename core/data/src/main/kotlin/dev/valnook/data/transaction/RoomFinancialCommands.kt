@@ -25,7 +25,9 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
         if (it.result_kind == null || it.result_id == null) null else OperationResult(it.result_kind, it.result_id)
     }
 
-    override suspend fun execute(command: FinancialCommand): OperationResult {
+    override suspend fun execute(command: FinancialCommand): OperationResult = execute(command, CommandSource.MOBILE)
+
+    override suspend fun execute(command: FinancialCommand, source: CommandSource): OperationResult {
         try { UUID.fromString(command.operation_id) } catch (_: IllegalArgumentException) { throw DomainException(ErrorCode.FORMAT) }
         val (kind, digest) = CommandFingerprint.fingerprint(command)
         return db.withTransaction {
@@ -57,7 +59,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             fault(TransactionPoint.BEFORE_RECEIPT)
             invalidatedDay?.let { db.statistics().invalidate(it) }
             dao.complete_operation(command.operation_id, result.kind, result.id)
-            audit.recordCommand(command, result, auditBefore, now)
+            audit.recordCommand(command, result, auditBefore, now, source)
             result
         }
     }

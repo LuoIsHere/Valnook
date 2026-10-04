@@ -44,6 +44,7 @@ enum class CloudBackupError {
     SESSION_EXPIRED,
     DEMO_RESTRICTED,
     INVALID_INTERVAL,
+    WEB_ADMIN_ACTIVE,
     INTERNAL
 }
 
