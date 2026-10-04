@@ -4,38 +4,46 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
@@ -44,6 +52,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -118,10 +127,20 @@ fun SettingsHome(
                 Modifier.testTag("settings-webadmin"))
         }
         if (state.savedSettings.navigation.hiddenInOrder.isNotEmpty()) {
-            item { Text(stringResource(R.string.settings_hidden_pages), style = MaterialTheme.typography.titleMedium) }
-            items(state.savedSettings.navigation.hiddenInOrder, key = { it.name }) { item ->
-                SettingEntry(navigationLabel(item), stringResource(R.string.settings_hidden_page_summary),
-                    { onHiddenPage(item) })
+            item {
+                OutlinedCard(Modifier.fillMaxWidth()) {
+                    Column {
+                        Text(stringResource(R.string.settings_hidden_pages),
+                            modifier = Modifier.padding(horizontal = Space.md, vertical = Space.sm),
+                            style = MaterialTheme.typography.titleMedium)
+                        HorizontalDivider()
+                        state.savedSettings.navigation.hiddenInOrder.forEachIndexed { index, item ->
+                            SettingEntry(navigationLabel(item), stringResource(R.string.settings_hidden_page_summary),
+                                { onHiddenPage(item) })
+                            if (index < state.savedSettings.navigation.hiddenInOrder.lastIndex) HorizontalDivider()
+                        }
+                    }
+                }
             }
         }
         item {
@@ -175,7 +194,31 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
         CircularProgressIndicator()
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
+    val listState = rememberLazyListState()
+    var localOrder by remember { mutableStateOf(state.draft.order) }
+    var draggedItem by remember { mutableStateOf<NavigationItemId?>(null) }
+    var dragStartOffset by remember { mutableFloatStateOf(0f) }
+    var dragDistance by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(state.draft.order, draggedItem) {
+        if (draggedItem == null && localOrder != state.draft.order) localOrder = state.draft.order
+    }
+
+    fun finishDrag(commit: Boolean) {
+        val item = draggedItem
+        if (item != null && commit) {
+            val from = state.draft.order.indexOf(item)
+            val to = localOrder.indexOf(item)
+            if (from >= 0 && to >= 0 && from != to) vm.move(item, to - from)
+        } else if (!commit) {
+            localOrder = state.draft.order
+        }
+        draggedItem = null
+        dragStartOffset = 0f
+        dragDistance = 0f
+    }
+
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -185,23 +228,37 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
                 } else Button(vm::edit) { Text(stringResource(R.string.settings_edit)) }
             }
         }
-        itemsIndexed(state.draft.order, key = { _, item -> item.name }) { index, item ->
-            Row(Modifier.fillMaxWidth().testTag("navigation-row-${item.name.lowercase()}")
-                .padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
-                Text(navigationLabel(item), Modifier.weight(1f).padding(horizontal = Space.md),
-                    style = MaterialTheme.typography.titleMedium)
-                IconButton({ vm.toggle(item) }, enabled = state.editing && item != NavigationItemId.SETTINGS,
-                    modifier = Modifier.testTag("navigation-visible-${item.name.lowercase()}")) {
-                    val visible = item in state.draft.visible
-                    Icon(if (visible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
-                        contentDescription = null, modifier = Modifier.semantics {
-                        contentDescription = if (item in state.draft.visible) visibleLabel else hiddenLabel
-                    })
+        itemsIndexed(localOrder, key = { _, item -> item.name }) { index, item ->
+            val dragging = draggedItem == item
+            Column(Modifier.fillMaxWidth()
+                .animateItem(fadeInSpec = null,
+                    placementSpec = if (dragging) null else tween(durationMillis = 140), fadeOutSpec = null)
+                .graphicsLayer {
+                    val currentOffset = listState.layoutInfo.visibleItemsInfo
+                        .firstOrNull { it.key == item.name }?.offset?.toFloat() ?: dragStartOffset
+                    translationY = if (dragging) dragStartOffset + dragDistance - currentOffset else 0f
                 }
-                Text("≡", style = MaterialTheme.typography.titleLarge,
-                    color = if (state.editing) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
-                    modifier = Modifier.semantics {
+                .zIndex(if (dragging) 1f else 0f)) {
+                Surface(color = if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh
+                    else MaterialTheme.colorScheme.surface,
+                    tonalElevation = if (dragging) 4.dp else 0.dp) {
+                    Row(Modifier.fillMaxWidth().testTag("navigation-row-${item.name.lowercase()}")
+                        .padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
+                        Text(navigationLabel(item), Modifier.weight(1f).padding(horizontal = Space.md),
+                            style = MaterialTheme.typography.titleMedium)
+                        IconButton({ vm.toggle(item) }, enabled = state.editing && item != NavigationItemId.SETTINGS,
+                            modifier = Modifier.testTag("navigation-visible-${item.name.lowercase()}")) {
+                            val visible = item in state.draft.visible
+                            Icon(if (visible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                contentDescription = null, modifier = Modifier.semantics {
+                                contentDescription = if (item in state.draft.visible) visibleLabel else hiddenLabel
+                            })
+                        }
+                        Icon(Icons.Outlined.DragHandle, contentDescription = null,
+                            tint = if (state.editing) MaterialTheme.colorScheme.onSurfaceVariant
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
+                            modifier = Modifier.size(48.dp)
+                                .testTag("navigation-reorder-${item.name.lowercase()}").semantics {
                         contentDescription = reorder
                         customActions = listOf(
                             CustomAccessibilityAction(moveUp) {
@@ -212,28 +269,56 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
                                 if (state.editing && index < state.draft.order.lastIndex) vm.move(item, 1)
                                 state.editing && index < state.draft.order.lastIndex
                             })
-                    }.pointerInput(state.editing, item, index) {
-                        if (!state.editing) return@pointerInput
-                        var accumulated = 0f
-                        val threshold = 40.dp.toPx()
-                        detectVerticalDragGestures(
-                            onDragEnd = { accumulated = 0f },
-                            onDragCancel = { accumulated = 0f },
-                            onVerticalDrag = { change, distance ->
-                                change.consume()
-                                accumulated += distance
-                                if (accumulated >= threshold) {
-                                    vm.move(item, 1)
-                                    accumulated = 0f
-                                } else if (accumulated <= -threshold) {
-                                    vm.move(item, -1)
-                                    accumulated = 0f
-                                }
-                            }
-                        )
-                    })
+                            }.pointerInput(state.editing, item) {
+                                if (!state.editing) return@pointerInput
+                                detectVerticalDragGestures(
+                                    onDragStart = {
+                                        val itemInfo = listState.layoutInfo.visibleItemsInfo
+                                            .firstOrNull { it.key == item.name }
+                                        if (itemInfo != null) {
+                                            draggedItem = item
+                                            dragStartOffset = itemInfo.offset.toFloat()
+                                            dragDistance = 0f
+                                        }
+                                    },
+                                    onDragEnd = { finishDrag(commit = true) },
+                                    onDragCancel = { finishDrag(commit = false) },
+                                    onVerticalDrag = { change, distance ->
+                                        change.consume()
+                                        if (draggedItem == item) {
+                                            dragDistance += distance
+                                            val itemInfo = listState.layoutInfo.visibleItemsInfo
+                                                .firstOrNull { it.key == item.name }
+                                            val from = localOrder.indexOf(item)
+                                            if (itemInfo != null && from >= 0) {
+                                                val draggedCenter = dragStartOffset + dragDistance + itemInfo.size / 2f
+                                                val previous = localOrder.getOrNull(from - 1)?.let { previousItem ->
+                                                    listState.layoutInfo.visibleItemsInfo
+                                                        .firstOrNull { it.key == previousItem.name }
+                                                }
+                                                val next = localOrder.getOrNull(from + 1)?.let { nextItem ->
+                                                    listState.layoutInfo.visibleItemsInfo
+                                                        .firstOrNull { it.key == nextItem.name }
+                                                }
+                                                val target = when {
+                                                    previous != null && draggedCenter < previous.offset + previous.size / 2f -> from - 1
+                                                    next != null && draggedCenter > next.offset + next.size / 2f -> from + 1
+                                                    else -> from
+                                                }
+                                                if (target != from) {
+                                                    localOrder = localOrder.toMutableList().apply {
+                                                        add(target, removeAt(from))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                )
+                            }.padding(12.dp))
+                    }
+                }
+                HorizontalDivider()
             }
-            HorizontalDivider()
         }
         state.error?.let { error -> item {
             Column {
@@ -269,43 +354,38 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
     }
     val base = state.settings.baseCurrency
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Text(stringResource(R.string.settings_base_currency), style = MaterialTheme.typography.titleLarge) }
         item { CurrencyChoice(base?.code.orEmpty(), { vm.selectBase(Currency.of(it)) }, !state.busy,
             Currency.supported.map { it.code to it.name }) }
-        item { Text(if (base == null) stringResource(R.string.settings_no_base) else
-            stringResource(R.string.settings_fx_direction, base.code)) }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                Text(if (base == null) stringResource(R.string.settings_no_base) else
+                    stringResource(R.string.settings_fx_direction, base.code))
+                Text(stringResource(R.string.settings_rate_precision), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         itemsIndexed(state.rows, key = { _, row -> row.sourceCurrency.code }) { index, row ->
-            OutlinedCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    val currencyField: @Composable () -> Unit = {
+            Column(Modifier.fillMaxWidth()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                    verticalAlignment = Alignment.Top) {
+                    Box(Modifier.weight(0.42f)) {
                         CurrencyChoice(row.sourceCurrency.code, { vm.updateRow(index, source = Currency.of(it)) },
                             !state.busy, Currency.supported.map { it.code to it.name },
                             state.rows.filterIndexed { i, _ -> i != index }.map { it.sourceCurrency.code }.toSet() +
                                 listOfNotNull(base?.code))
                     }
-                    val rateField: @Composable () -> Unit = {
+                    Box(Modifier.weight(0.58f)) {
                         Field(stringResource(R.string.settings_rate), row.rateInput,
                             { vm.updateRow(index, rate = it) }, numeric = true, enabled = !state.busy)
                     }
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        if (maxWidth >= 320.dp && LocalDensity.current.fontScale <= 1.3f) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm),
-                                verticalAlignment = Alignment.Top) {
-                                Box(Modifier.weight(1f)) { currencyField() }
-                                Box(Modifier.weight(1f)) { rateField() }
-                            }
-                        } else {
-                            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                                currencyField()
-                                rateField()
-                            }
-                        }
-                    }
-                    TextButton({ vm.removeRate(index) }, enabled = !state.busy) {
-                        Text(stringResource(R.string.settings_remove_rate))
+                    IconButton({ vm.removeRate(index) }, enabled = !state.busy,
+                        modifier = Modifier.size(48.dp).testTag("remove-rate-$index")) {
+                        Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.settings_remove_rate))
                     }
                 }
+                HorizontalDivider(Modifier.padding(top = Space.xs))
             }
         }
         item { ActionButton(vm::addRate, enabled = !state.busy && base != null) {
@@ -353,21 +433,29 @@ fun GainLossColorsScreen(vm: SettingsViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
     if (!state.loaded) return
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item {
-            ChoiceField(stringResource(R.string.settings_gain_loss_colors), state.settings.gainLossColors.name,
-                GainLossColorScheme.entries.map { it.name to colorLabel(it) },
-                { vm.selectGainLossColors(GainLossColorScheme.valueOf(it)) }, !state.busy)
-        }
-        item {
+        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        items(GainLossColorScheme.entries, key = { it.name }) { scheme ->
             val savedColors = LocalGainLossPalette.current
-            val colors = if (state.settings.gainLossColors == state.savedSettings.gainLossColors) savedColors else
-                dev.valnook.designsystem.GainLossPalette(savedColors.loss, savedColors.gain, savedColors.neutral)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.md)) {
-                Text(stringResource(R.string.settings_color_gain), color = colors.gain)
-                Text(stringResource(R.string.settings_color_loss), color = colors.loss)
-                Text(stringResource(R.string.settings_color_zero), color = colors.neutral)
+            val gainColor = if (scheme == state.savedSettings.gainLossColors) savedColors.gain else savedColors.loss
+            val lossColor = if (scheme == state.savedSettings.gainLossColors) savedColors.loss else savedColors.gain
+            Row(Modifier.fillMaxWidth()
+                .clickable(enabled = !state.busy) { vm.selectGainLossColors(scheme) }
+                .testTag("gain-loss-${scheme.name.lowercase()}")
+                .padding(horizontal = Space.sm, vertical = Space.sm),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                    Text(colorLabel(scheme), style = MaterialTheme.typography.titleMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
+                        Text(stringResource(R.string.settings_color_gain), color = gainColor,
+                            style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.settings_color_loss), color = lossColor,
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Checkbox(checked = state.settings.gainLossColors == scheme,
+                    onCheckedChange = { vm.selectGainLossColors(scheme) }, enabled = !state.busy)
             }
+            HorizontalDivider()
         }
         item {
             state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }

@@ -5,14 +5,25 @@ import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -88,13 +99,17 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         } }
         if (!demoMode) {
             item { HorizontalDivider() }
-            item { Text(stringResource(R.string.cloud_title), style = MaterialTheme.typography.titleLarge) }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Image(painterResource(R.drawable.ic_google_g), contentDescription = null,
+                        modifier = Modifier.size(24.dp).testTag("cloud-title-icon"))
+                    Text(stringResource(R.string.cloud_title), style = MaterialTheme.typography.titleLarge)
+                }
+            }
             if (!state.cloud.connected) {
                 item { Button({ vm.beginGoogleConnection(launchAuthorization) },
                     enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth().testTag("cloud-connect")) {
-                    Image(painterResource(R.drawable.ic_google_g), contentDescription = null,
-                        modifier = Modifier.size(18.dp).testTag("cloud-connect-icon"))
-                    Spacer(Modifier.width(8.dp))
                     Text(stringResource(R.string.cloud_connect))
                 } }
             } else {
@@ -145,17 +160,20 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                 }
                 items(state.cloud.backups.size, key = { state.cloud.backups[it].fileId }) { index ->
                     val value = state.cloud.backups[index]
-                    CloudBackupRow(value) { vm.selectCloudBackup(value) }
-                    HorizontalDivider()
+                    CloudBackupItem(
+                        value = value,
+                        expanded = state.selectedCloudBackupId == value.fileId,
+                        busy = state.cloudBusy,
+                        onToggle = { vm.toggleCloudBackup(value.fileId) },
+                        onDownload = {
+                            vm.cloudDownloadRequest(value).also {
+                                cloudDownload = it
+                                downloadLauncher.launch(it.fileName)
+                            }
+                        },
+                        onRestore = { vm.prepareCloudRestore(value) }
+                    )
                 }
-                state.selectedCloudBackup?.let { value -> item {
-                    CloudBackupDetail(value, state.cloudBusy, vm) {
-                        vm.cloudDownloadRequest(value).also {
-                            cloudDownload = it
-                            downloadLauncher.launch(it.fileName)
-                        }
-                    }
-                } }
                 item { TextButton({ vm.disconnect(false) }, enabled = !state.cloudBusy,
                     modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.cloud_disconnect)) } }
                 item { TextButton({ vm.disconnect(true) }, enabled = !state.cloudBusy,
@@ -205,11 +223,33 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             result.committedAtUtc), color = MaterialTheme.colorScheme.primary) } }
         state.error?.let { item { Text(errorLabel(it), color = MaterialTheme.colorScheme.error) } }
         state.cloudError?.let { item { Text(cloudErrorLabel(it), color = MaterialTheme.colorScheme.error) } }
+        if (!demoMode) item {
+            Text(stringResource(R.string.cloud_google_attribution),
+                modifier = Modifier.fillMaxWidth().padding(top = Space.lg).testTag("cloud-google-attribution"),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
-@Composable private fun CloudBackupRow(value: CloudBackupDescriptor, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.sm),
+@Composable private fun CloudBackupItem(value: CloudBackupDescriptor, expanded: Boolean, busy: Boolean,
+    onToggle: () -> Unit, onDownload: () -> Unit, onRestore: () -> Unit) {
+    Column(Modifier.fillMaxWidth().animateContentSize()) {
+        CloudBackupRow(value, expanded, onToggle)
+        AnimatedVisibility(visible = expanded,
+            enter = expandVertically(animationSpec = tween(160)) + fadeIn(tween(100)),
+            exit = shrinkVertically(animationSpec = tween(130)) + fadeOut(tween(80))) {
+            CloudBackupDetail(value, busy, onDownload, onRestore)
+        }
+        HorizontalDivider()
+    }
+}
+
+@Composable private fun CloudBackupRow(value: CloudBackupDescriptor, expanded: Boolean, onClick: () -> Unit) {
+    val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, tween(160),
+        label = "cloud-backup-arrow")
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick)
+        .testTag("cloud-backup-${value.fileId}").padding(vertical = Space.sm),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(value.snapshotCreatedAtUtc.ifBlank { value.driveCreatedAtUtc }, maxLines = 1,
@@ -221,16 +261,18 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             else stringResource(R.string.cloud_unverified), style = MaterialTheme.typography.labelMedium,
             color = if (value.verificationState == "verified") MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.error)
+        Icon(Icons.Outlined.ExpandMore,
+            contentDescription = stringResource(if (expanded) R.string.cloud_collapse_detail
+                else R.string.cloud_expand_detail),
+            modifier = Modifier.padding(start = Space.sm).rotate(arrowRotation))
     }
 }
 
 @Composable private fun CloudBackupDetail(value: CloudBackupDescriptor, busy: Boolean,
-    vm: BackupViewModel, onDownload: () -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(stringResource(R.string.cloud_backup_detail), style = MaterialTheme.typography.titleMedium)
-            TextButton({ vm.selectCloudBackup(null) }) { Text(stringResource(R.string.backup_cancel)) }
-        }
+    onDownload: () -> Unit, onRestore: () -> Unit) {
+    Column(Modifier.fillMaxWidth().testTag("cloud-backup-detail-${value.fileId}")
+        .padding(start = Space.md, end = Space.md, bottom = Space.md),
+        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         PreviewRow(stringResource(R.string.backup_created), value.snapshotCreatedAtUtc)
         PreviewRow(stringResource(R.string.cloud_drive_created), value.driveCreatedAtUtc)
         PreviewRow(stringResource(R.string.cloud_file_size), value.byteCount.toString())
@@ -241,7 +283,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             TextButton(onDownload, enabled = !busy, modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.cloud_download))
             }
-            Button({ vm.prepareCloudRestore(value) },
+            Button(onRestore,
                 enabled = !busy && value.compatible && value.verificationState == "verified",
                 modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cloud_restore)) }
         }

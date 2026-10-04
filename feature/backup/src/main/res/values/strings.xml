@@ -56,6 +56,8 @@
     <string name="cloud_verified">Verified</string>
     <string name="cloud_unverified">Not verified</string>
     <string name="cloud_backup_detail">Backup details</string>
+    <string name="cloud_expand_detail">Show backup details</string>
+    <string name="cloud_collapse_detail">Hide backup details</string>
     <string name="cloud_drive_created">Drive creation time</string>
     <string name="cloud_file_size">File size (bytes)</string>
     <string name="cloud_incompatible">This backup can be downloaded, but this app version cannot restore it.</string>
@@ -83,4 +85,5 @@
     <string name="cloud_error_drive_missing">The cloud backup folder or file is no longer available. Refresh or reconnect.</string>
     <string name="cloud_error_interval">Enter a whole number from 1 to 720 hours.</string>
     <string name="cloud_error_generic">The Google Drive operation could not be completed.</string>
+    <string name="cloud_google_attribution">Google Drive and the Google logo are trademarks of Google LLC.</string>
 </resources>

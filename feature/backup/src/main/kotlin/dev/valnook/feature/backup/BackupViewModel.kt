@@ -40,7 +40,7 @@ data class BackupUiState(
     val cloudBusy: Boolean = false,
     val cloudError: CloudBackupError? = null,
     val intervalDraft: String = DEFAULT_BACKUP_INTERVAL_HOURS.toString(),
-    val selectedCloudBackup: CloudBackupDescriptor? = null
+    val selectedCloudBackupId: String? = null
 )
 
 class BackupViewModel(
@@ -56,9 +56,13 @@ class BackupViewModel(
     init {
         viewModelScope.launch {
             cloudBackup.observeState().collect { cloud ->
-                mutable.value = state.value.copy(cloud = cloud,
-                    intervalDraft = if (state.value.cloud.intervalHours != cloud.intervalHours)
-                        cloud.intervalHours.toString() else state.value.intervalDraft)
+                val current = state.value
+                mutable.value = current.copy(cloud = cloud,
+                    intervalDraft = if (current.cloud.intervalHours != cloud.intervalHours)
+                        cloud.intervalHours.toString() else current.intervalDraft,
+                    selectedCloudBackupId = current.selectedCloudBackupId?.takeIf { selectedId ->
+                        cloud.backups.any { it.fileId == selectedId }
+                    })
             }
         }
     }
@@ -106,8 +110,12 @@ class BackupViewModel(
             throw CloudBackupException(CloudBackupError.AUTH_FAILED)
         }
     }
-    fun selectCloudBackup(value: CloudBackupDescriptor?) {
-        mutable.value = state.value.copy(selectedCloudBackup = value, cloudError = null)
+    fun toggleCloudBackup(fileId: String) {
+        val current = state.value
+        mutable.value = current.copy(
+            selectedCloudBackupId = fileId.takeUnless { it == current.selectedCloudBackupId },
+            cloudError = null
+        )
     }
     fun downloadCloudBackup(request: CloudDownloadRequest, openOutput: () -> OutputStream?) = runCloudJob {
         withContext(Dispatchers.IO) {
@@ -125,7 +133,7 @@ class BackupViewModel(
                     }
                 }
                 mutable.value = state.value.copy(busy = false, stage = null, preview = preview,
-                    selectedCloudBackup = null, error = null)
+                    selectedCloudBackupId = null, error = null)
             } catch (error: PortabilityException) {
                 mutable.value = state.value.copy(busy = false, stage = null, error = error.errorCode)
             }

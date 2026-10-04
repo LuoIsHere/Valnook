@@ -109,6 +109,32 @@ class BackupViewModelTest {
         assertNull(restoredState.stage)
     }
 
+    @Test fun cloud_backup_selection_toggles_and_is_cleared_when_the_file_disappears() = runTest(dispatcher) {
+        val first = CloudBackupDescriptor("first", "first.val_backup", "created-1", "drive-1", 1,
+            "app", "build", 10, 1, 1, "verified", true)
+        val second = CloudBackupDescriptor("second", "second.val_backup", "created-2", "drive-2", 2,
+            "app", "build", 10, 1, 1, "verified", true)
+        val cloudState = MutableStateFlow(CloudBackupRuntimeState(connected = true,
+            backups = listOf(first, second)))
+        val cloud = object : CloudBackupService by UnavailableCloudBackupService {
+            override val cloudAllowed = true
+            override fun observeState() = cloudState
+        }
+        val vm = BackupViewModel(UnavailableDataPortability, settings, demo = false, cloudBackup = cloud)
+        advanceUntilIdle()
+
+        vm.toggleCloudBackup(first.fileId)
+        assertEquals(first.fileId, vm.state.value.selectedCloudBackupId)
+        vm.toggleCloudBackup(first.fileId)
+        assertNull(vm.state.value.selectedCloudBackupId)
+        vm.toggleCloudBackup(second.fileId)
+        assertEquals(second.fileId, vm.state.value.selectedCloudBackupId)
+
+        cloudState.value = cloudState.value.copy(backups = listOf(first))
+        advanceUntilIdle()
+        assertNull(vm.state.value.selectedCloudBackupId)
+    }
+
     private fun sha256(bytes: ByteArray): String = MessageDigest.getInstance("SHA-256")
         .digest(bytes).joinToString("") { "%02x".format(it) }
 }

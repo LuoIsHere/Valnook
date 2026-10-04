@@ -56,6 +56,8 @@
     <string name="cloud_verified">已验证</string>
     <string name="cloud_unverified">未验证</string>
     <string name="cloud_backup_detail">备份详情</string>
+    <string name="cloud_expand_detail">显示备份详情</string>
+    <string name="cloud_collapse_detail">收起备份详情</string>
     <string name="cloud_drive_created">Drive 创建时间</string>
     <string name="cloud_file_size">文件大小（字节）</string>
     <string name="cloud_incompatible">可以下载此备份，但当前应用版本无法恢复。</string>
@@ -83,4 +85,5 @@
     <string name="cloud_error_drive_missing">云端备份目录或文件已不可用，请刷新或重新连接。</string>
     <string name="cloud_error_interval">请输入 1 到 720 之间的整数小时。</string>
     <string name="cloud_error_generic">Google Drive 操作未能完成。</string>
+    <string name="cloud_google_attribution">Google Drive 及 Google 标志是 Google LLC 的商标。</string>
 </resources>

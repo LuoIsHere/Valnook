@@ -15,7 +15,8 @@
     <string name="settings_clear_data">Clear data</string>
     <string name="settings_no_base">No base currency selected; original-currency features remain available</string>
     <string name="settings_fx_direction">1 source currency = r %1$s</string>
-    <string name="settings_rate">Rate (up to 12 decimal places)</string>
+    <string name="settings_rate">Rate</string>
+    <string name="settings_rate_precision">Rates support up to 12 decimal places.</string>
     <string name="settings_remove_rate">Remove this rate</string>
     <string name="settings_add_rate">+ Add rate</string>
     <string name="settings_saved">Settings saved</string>

@@ -15,7 +15,8 @@
     <string name="settings_clear_data">清空数据</string>
     <string name="settings_no_base">未设置主币种，原币功能可正常使用</string>
     <string name="settings_fx_direction">1 原币 = r %1$s</string>
-    <string name="settings_rate">汇率（最多 12 位小数）</string>
+    <string name="settings_rate">汇率</string>
+    <string name="settings_rate_precision">汇率最多支持 12 位小数。</string>
     <string name="settings_remove_rate">删除此汇率</string>
     <string name="settings_add_rate">＋ 添加汇率</string>
     <string name="settings_saved">设置已保存</string>
