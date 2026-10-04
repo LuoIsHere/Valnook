@@ -19,7 +19,6 @@ data class ChartUiState(
     val metric: StatisticsMetric,
     val period: StatisticsPeriod,
     val series: StatisticsSeries? = null,
-    val selectedIndex: Int? = null,
     val lastDailyPeriod: StatisticsPeriod = period,
     val followCurrentPeriod: Boolean = true
 )
@@ -66,7 +65,7 @@ class StatisticsViewModel(
                 val current = repository.loadCurrent()
                 val loaded = snapshot.charts.mapValues { (_, chart) ->
                     val series = repository.loadSeries(StatisticsRequest(chart.metric, chart.period))
-                    chart.copy(series = series, selectedIndex = chart.selectedIndex?.coerceIn(series.points.indices))
+                    chart.copy(series = series)
                 }
                 mutable.value = StatisticsUiState(today = snapshot.today, current = current,
                     charts = loaded, loading = false)
@@ -83,7 +82,7 @@ class StatisticsViewModel(
         update(metric) { chart ->
             if (chart.period.granularity == granularity) chart else if (granularity == StatisticsGranularity.MONTHLY) {
                 chart.copy(period = StatisticsPeriod(StatisticsGranularity.MONTHLY, chart.period.year),
-                    lastDailyPeriod = chart.period, selectedIndex = null)
+                    lastDailyPeriod = chart.period)
             } else {
                 val restored = when {
                     chart.followCurrentPeriod -> currentPeriod(StatisticsGranularity.DAILY, today)
@@ -91,7 +90,7 @@ class StatisticsViewModel(
                     else -> StatisticsPeriod(StatisticsGranularity.DAILY, chart.period.year,
                         if (chart.period.year == today.year) today.monthValue else 12)
                 }
-                chart.copy(period = restored, lastDailyPeriod = restored, selectedIndex = null)
+                chart.copy(period = restored, lastDailyPeriod = restored)
             }
         }
     }
@@ -104,8 +103,6 @@ class StatisticsViewModel(
         if (next > currentPeriod(chart.period.granularity, today)) chart else
             chart.withPeriod(next, followCurrent = next == currentPeriod(chart.period.granularity, today))
     }
-    fun select(metric: StatisticsMetric, index: Int) = update(metric, reload = false) { it.copy(selectedIndex = index) }
-
     fun millisUntilNextLocalDay(): Long {
         val next = today.plusDays(1).atStartOfDay(clock.zone).toInstant().toEpochMilli()
         return (next - clock.millis() + 100).coerceAtLeast(1_000)
@@ -135,8 +132,8 @@ class StatisticsViewModel(
         val lastDaily = runCatching {
             StatisticsPeriod(StatisticsGranularity.DAILY, dailyYear, dailyMonth)
         }.getOrDefault(currentPeriod(StatisticsGranularity.DAILY, now))
-        return ChartUiState(metric, period, selectedIndex = savedState["$prefix-selected"],
-            lastDailyPeriod = lastDaily, followCurrentPeriod = savedState["$prefix-follow"] ?: true)
+        return ChartUiState(metric, period, lastDailyPeriod = lastDaily,
+            followCurrentPeriod = savedState["$prefix-follow"] ?: true)
     }
 
     private fun persist(chart: ChartUiState) {
@@ -146,12 +143,11 @@ class StatisticsViewModel(
         savedState["$prefix-month"] = chart.period.month
         savedState["$prefix-daily-year"] = chart.lastDailyPeriod.year
         savedState["$prefix-daily-month"] = chart.lastDailyPeriod.month
-        savedState["$prefix-selected"] = chart.selectedIndex
         savedState["$prefix-follow"] = chart.followCurrentPeriod
     }
 
     private fun ChartUiState.withPeriod(value: StatisticsPeriod, followCurrent: Boolean) = copy(
-        period = value, selectedIndex = null, followCurrentPeriod = followCurrent,
+        period = value, followCurrentPeriod = followCurrent,
         lastDailyPeriod = if (value.granularity == StatisticsGranularity.DAILY) value else lastDailyPeriod)
 
     private fun currentPeriod(granularity: StatisticsGranularity, date: LocalDate) = StatisticsPeriod(

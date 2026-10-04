@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -23,6 +24,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -66,15 +68,15 @@ fun StatisticsScreen(vm: StatisticsViewModel) {
     }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.lg)) {
+        item { MonthlyChange(state.current?.monthlyChange) }
         StatisticsMetric.entries.forEach { metric ->
             item(metric.name) {
                 state.charts[metric]?.let { chart ->
                     StatisticChart(chart, state.today, { vm.setGranularity(metric, it) }, { vm.previous(metric) },
-                        { vm.next(metric) }, { vm.select(metric, it) })
+                        { vm.next(metric) })
                 }
             }
         }
-        item { MonthlyChange(state.current?.monthlyChange) }
         if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
     }
 }
@@ -83,7 +85,8 @@ fun StatisticsScreen(vm: StatisticsViewModel) {
 private fun MonthlyChange(change: MonthlyAssetChange?) {
     val palette = LocalGainLossPalette.current
     val value = change?.value
-    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+    Column(Modifier.testTag("statistics-monthly-change"),
+        verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(stringResource(R.string.statistics_change_month), style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.weight(0.42f))
@@ -104,8 +107,7 @@ private fun StatisticChart(
     today: LocalDate,
     onGranularity: (StatisticsGranularity) -> Unit,
     previous: () -> Unit,
-    next: () -> Unit,
-    select: (Int) -> Unit
+    next: () -> Unit
 ) {
     val title = metricTitle(chart.metric)
     val canGoNext = chart.period.year < today.year ||
@@ -139,21 +141,24 @@ private fun StatisticChart(
             }
         }
         Text(periodLabel(chart.period), style = MaterialTheme.typography.labelLarge)
-        chart.series?.let { series ->
-            val selected = chart.selectedIndex?.let(series.points::getOrNull)
+        val series = chart.series
+        var selectedIndex by remember(series) { mutableStateOf<Int?>(null) }
+        series?.let {
+            val selected = selectedIndex?.let(series.points::getOrNull)
                 ?: series.points.indexOfLast { it.value != null }.takeIf { it >= 0 }?.let(series.points::get)
             val currentSuffix = if (selected?.date == today) " · ${stringResource(R.string.statistics_current)}" else ""
             Text(selected?.let { "${it.date.format(DateTimeFormatter.ISO_LOCAL_DATE)} · ${money(it.value, series.currency)}$currentSuffix" }
                 ?: stringResource(R.string.statistics_no_data),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-            ChartCanvas(series, chart.selectedIndex, select, title)
+            ChartCanvas(series, selectedIndex, { selectedIndex = it }, { selectedIndex = null }, title)
         }
     }
 }
 
 @Composable
-private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (Int) -> Unit, title: String) {
+private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (Int) -> Unit,
+    clearSelection: () -> Unit, title: String) {
     val values = series.points.mapNotNull { it.value }
     val scaleHolder = remember(series.metric, series.period) { arrayOfNulls<AxisScale>(1) }
     val scale = remember(values) {
@@ -174,14 +179,23 @@ private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
         scale?.let { axis ->
             val labels = axisLabels(axis.ticks)
+            val labelStyle = MaterialTheme.typography.labelSmall
+            val textMeasurer = rememberTextMeasurer()
+            val density = LocalDensity.current
+            val axisWidth = remember(labels, labelStyle, density) {
+                val measured = labels.maxOfOrNull { label ->
+                    textMeasurer.measure(label, style = labelStyle, maxLines = 1).size.width
+                } ?: 0
+                with(density) { measured.toDp() + 2.dp }.coerceIn(24.dp, 56.dp)
+            }
             Column(
-                modifier = Modifier.widthIn(min = 52.dp, max = 76.dp).height(168.dp),
+                modifier = Modifier.width(axisWidth).height(168.dp),
                 verticalArrangement = Arrangement.SpaceBetween,
             ) {
                 labels.asReversed().forEach { label ->
                     Text(
                         text = label,
-                        style = MaterialTheme.typography.labelSmall,
+                        style = labelStyle,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         textAlign = TextAlign.End,
@@ -209,27 +223,31 @@ private fun ChartCanvas(series: StatisticsSeries, selectedIndex: Int?, select: (
                     ((x / size.width) * (series.points.size - 1)).roundToInt().coerceIn(series.points.indices)
                 select(index)
             }
+            choose(down.position.x)
             var horizontal = false
             var vertical = false
             var pressed = true
             var lastX = down.position.x
-            while (pressed) {
-                val event = awaitPointerEvent()
-                val change = event.changes.firstOrNull() ?: break
-                val delta = change.position - down.position
-                lastX = change.position.x
-                if (!horizontal && !vertical &&
-                    maxOf(abs(delta.x), abs(delta.y)) > viewConfiguration.touchSlop) {
-                    horizontal = abs(delta.x) > abs(delta.y)
-                    vertical = !horizontal
+            try {
+                while (pressed) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull() ?: break
+                    val delta = change.position - down.position
+                    lastX = change.position.x
+                    if (!horizontal && !vertical &&
+                        maxOf(abs(delta.x), abs(delta.y)) > viewConfiguration.touchSlop) {
+                        horizontal = abs(delta.x) > abs(delta.y)
+                        vertical = !horizontal
+                    }
+                    if (horizontal) {
+                        change.consume()
+                        choose(lastX)
+                    }
+                    pressed = event.changes.any { it.pressed }
                 }
-                if (horizontal) {
-                    change.consume()
-                    choose(lastX)
-                }
-                pressed = event.changes.any { it.pressed }
+            } finally {
+                clearSelection()
             }
-            if (!horizontal && !vertical) choose(lastX)
         }
     }) {
         if (scale == null) return@Canvas
@@ -310,27 +328,35 @@ private fun money(value: BigDecimal?, currency: Currency?, signed: Boolean = fal
 }
 
 internal fun axisLabels(values: List<BigDecimal>): List<String> {
-    if (values.isEmpty()) return emptyList()
-    val magnitude = values.maxOf { it.abs() }
-    val (divisor, suffix) = when {
-        magnitude >= BigDecimal("1000000000000") -> BigDecimal("1000000000000") to "T"
-        magnitude >= BigDecimal("1000000000") -> BigDecimal("1000000000") to "B"
-        magnitude >= BigDecimal("1000000") -> BigDecimal("1000000") to "M"
-        magnitude >= BigDecimal("1000") -> BigDecimal("1000") to "K"
-        else -> BigDecimal.ONE to ""
+    val formatted = values.map(::compactAxisLabel)
+    return formatted.mapIndexed { index, label ->
+        if (index == 0 || label != formatted[index - 1]) label else ""
     }
-    val scaled = values.map { it.divide(divisor) }
-    val minimumStep = scaled.zipWithNext { first, second -> second.subtract(first).abs() }
-        .filter { it.signum() > 0 }
-        .minOrNull()
-    var fractionDigits = minimumStep?.stripTrailingZeros()?.scale()?.coerceIn(0, 6) ?: 0
-    var labels: List<String>
-    do {
-        val formatter = NumberFormat.getNumberInstance().apply {
-            maximumFractionDigits = fractionDigits
-        }
-        labels = scaled.map { formatter.format(it) + suffix }
-        fractionDigits++
-    } while (labels.distinct().size != labels.size && fractionDigits <= 6)
-    return labels
+}
+
+private val compactAxisUnits = listOf(
+    BigDecimal.ONE to "",
+    BigDecimal("1000") to "k",
+    BigDecimal("1000000") to "M",
+    BigDecimal("1000000000") to "B",
+    BigDecimal("1000000000000") to "T",
+)
+
+internal fun compactAxisLabel(value: BigDecimal): String {
+    val rounded = value.setScale(2, RoundingMode.HALF_UP)
+    if (rounded.abs() < BigDecimal("1000")) {
+        return if (rounded.signum() == 0) "0" else rounded.stripTrailingZeros().toPlainString()
+    }
+    var unitIndex = compactAxisUnits.indexOfLast { (divisor, _) -> value.abs() >= divisor }.coerceAtLeast(1)
+    var scaled = value.divide(compactAxisUnits[unitIndex].first, 1, RoundingMode.HALF_UP)
+    while (scaled.abs() >= BigDecimal("1000") && unitIndex < compactAxisUnits.lastIndex) {
+        unitIndex++
+        scaled = value.divide(compactAxisUnits[unitIndex].first, 1, RoundingMode.HALF_UP)
+    }
+    if (scaled.abs() >= BigDecimal("1000")) {
+        val exponent = value.precision() - value.scale() - 1
+        val scientific = value.movePointLeft(exponent).setScale(1, RoundingMode.HALF_UP)
+        return "${scientific.toPlainString()}E$exponent"
+    }
+    return "${scaled.toPlainString()}${compactAxisUnits[unitIndex].second}"
 }

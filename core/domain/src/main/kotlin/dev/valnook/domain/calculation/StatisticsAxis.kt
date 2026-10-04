@@ -6,6 +6,12 @@ import java.math.RoundingMode
 
 object StatisticsAxis {
     private val choices = listOf("1", "2", "2.5", "5", "10").map(::BigDecimal)
+    private val compactUnits = listOf(
+        BigDecimal("1000000000000"),
+        BigDecimal("1000000000"),
+        BigDecimal("1000000"),
+        BigDecimal("1000"),
+    )
 
     fun scale(values: List<BigDecimal>, previous: AxisScale? = null): AxisScale? {
         if (values.isEmpty()) return null
@@ -14,7 +20,7 @@ object StatisticsAxis {
         if (previous != null && rawMin >= previous.minimum && rawMax <= previous.maximum) return previous
         val magnitude = rawMin.abs().max(rawMax.abs()).max(BigDecimal.ONE)
         val spread = (rawMax - rawMin).abs()
-        val padding = if (spread.signum() == 0) magnitude.multiply(BigDecimal("0.1"))
+        val padding = if (spread.signum() == 0) constantSeriesPadding(magnitude)
             else spread.multiply(BigDecimal("0.1"))
         val desiredMin = rawMin - padding
         val desiredMax = rawMax + padding
@@ -49,5 +55,11 @@ object StatisticsAxis {
             }
         }
         return AxisScale(minimum.stripTrailingZeros(), maximum.stripTrailingZeros(), ticks)
+    }
+
+    private fun constantSeriesPadding(magnitude: BigDecimal): BigDecimal {
+        val compactUnit = compactUnits.firstOrNull { magnitude >= it }
+        return compactUnit?.divide(BigDecimal.TEN)
+            ?: magnitude.multiply(BigDecimal("0.01")).max(BigDecimal("0.01"))
     }
 }

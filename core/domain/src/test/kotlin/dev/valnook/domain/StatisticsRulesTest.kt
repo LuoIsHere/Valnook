@@ -41,6 +41,15 @@ class StatisticsRulesTest {
         assertTrue(expanded.maximum > first.maximum)
     }
 
+    @Test fun largeConstantSeriesUsesCompactUnitPaddingInsteadOfPercentagePadding() {
+        val value = BigDecimal("114494358.429")
+        val scale = requireNotNull(StatisticsAxis.scale(List(4) { value }))
+
+        assertTrue(value >= scale.minimum && value <= scale.maximum)
+        assertTrue(scale.maximum - scale.minimum <= BigDecimal("300000"))
+        assertTrue(scale.ticks.size in 5..7)
+    }
+
     @Test fun monotoneCurveDoesNotOvershootNeighbourValues() {
         val points = listOf(CurvePoint(0f, 0f), CurvePoint(1f, 10f), CurvePoint(2f, 2f), CurvePoint(3f, 12f))
         MonotoneCurve.segments(points).forEach { segment ->

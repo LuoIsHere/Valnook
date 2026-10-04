@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -31,8 +32,15 @@ class StatisticsNavigationUiTest {
         rule.onNodeWithTag("statistics-total_assets").assertExists()
         rule.onNodeWithTag("statistics-available_cash").assertExists()
         rule.onNodeWithTag("statistics-investment_value").assertExists()
+        assertTrue(rule.onNodeWithTag("statistics-monthly-change").fetchSemanticsNode().boundsInRoot.top <
+            rule.onNodeWithTag("statistics-total_assets").fetchSemanticsNode().boundsInRoot.top)
         val chart = rule.onNodeWithTag("statistics-chart-total_assets")
         val selectionBeforeScroll = chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription]
+        chart.performTouchInput { swipeLeft() }
+        rule.waitForIdle()
+        assertEquals(selectionBeforeScroll,
+            rule.onNodeWithTag("statistics-chart-total_assets").fetchSemanticsNode()
+                .config[SemanticsProperties.StateDescription])
         chart.performTouchInput { swipeUp() }
         rule.waitForIdle()
         assertEquals(selectionBeforeScroll,

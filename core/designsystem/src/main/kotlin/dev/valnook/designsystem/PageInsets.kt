@@ -11,8 +11,8 @@ import androidx.compose.ui.unit.dp
 val LocalPageBottomSpace = compositionLocalOf { 0.dp }
 
 @Composable
-fun pageContentPadding(horizontal: Dp = 16.dp, vertical: Dp = 16.dp): PaddingValues {
+fun pageContentPadding(horizontal: Dp = 16.dp, top: Dp = 8.dp, bottom: Dp = 16.dp): PaddingValues {
     val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    val bottom = if (keyboardOpen) 0.dp else LocalPageBottomSpace.current
-    return PaddingValues(start = horizontal, top = vertical, end = horizontal, bottom = vertical + bottom)
+    val overlay = if (keyboardOpen) 0.dp else LocalPageBottomSpace.current
+    return PaddingValues(start = horizontal, top = top, end = horizontal, bottom = bottom + overlay)
 }

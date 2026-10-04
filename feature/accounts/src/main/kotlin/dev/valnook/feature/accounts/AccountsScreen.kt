@@ -59,7 +59,7 @@ import dev.valnook.domain.money.DecimalRules
     LazyColumn(Modifier.fillMaxSize().testTag("accounts-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(0.dp)) {
         item {
-            Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = Space.md), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(Modifier.fillMaxWidth().padding(bottom = Space.md), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.titleMedium)
                 Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
                     color = amountColor(overview.total))

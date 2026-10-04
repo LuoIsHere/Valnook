@@ -53,18 +53,16 @@ class StatisticsViewModelTest {
         assertEquals(10, vm.state.value.charts.getValue(StatisticsMetric.INVESTMENT_VALUE).period.month)
     }
 
-    @Test fun chartDraftRestoresFromSavedState() = runTest(dispatcher) {
+    @Test fun chartPeriodRestoresWithoutTransientPointSelection() = runTest(dispatcher) {
         val handle = SavedStateHandle()
         val first = StatisticsViewModel(FakeRepository(), clock, handle)
         advanceUntilIdle()
         first.previous(StatisticsMetric.AVAILABLE_CASH)
-        first.select(StatisticsMetric.AVAILABLE_CASH, 0)
         advanceUntilIdle()
         val restored = StatisticsViewModel(FakeRepository(), clock, handle)
         advanceUntilIdle()
         val chart = restored.state.value.charts.getValue(StatisticsMetric.AVAILABLE_CASH)
         assertEquals(9, chart.period.month)
-        assertEquals(0, chart.selectedIndex)
         assertFalse(chart.followCurrentPeriod)
     }
 
@@ -75,17 +73,28 @@ class StatisticsViewModelTest {
         assertEquals(43_200_100L, vm.millisUntilNextLocalDay())
     }
 
-    @Test fun compactAxisLabelsStayDistinctForLargeValuesInANarrowRange() {
-        val labels = axisLabels(listOf(
-            BigDecimal("117555000"),
-            BigDecimal("117557500"),
-            BigDecimal("117560000"),
-            BigDecimal("117562500"),
-            BigDecimal("117565000"),
-        ))
-
-        assertEquals(labels.size, labels.distinct().size)
-        assertTrue(labels.all { it.endsWith("M") })
+    @Test fun axisLabelsUseTwoDecimalsOrOneDecimalWithAnEnglishUnit() {
+        assertEquals(listOf("-12.35", "0", "999.99", "1.0k", "1.3M", "-2.5B"), axisLabels(listOf(
+            BigDecimal("-12.345"),
+            BigDecimal.ZERO,
+            BigDecimal("999.99"),
+            BigDecimal("1000"),
+            BigDecimal("1250000"),
+            BigDecimal("-2500000000"),
+        )))
+        assertEquals("1.0M", compactAxisLabel(BigDecimal("999999")))
+        assertEquals(listOf("117.7M", "", "117.8M", "", "117.9M"), axisLabels(listOf(
+            BigDecimal("117740000"),
+            BigDecimal("117749000"),
+            BigDecimal("117750000"),
+            BigDecimal("117849000"),
+            BigDecimal("117850000"),
+        )))
+        assertEquals(listOf("117.8M", "", ""), axisLabels(listOf(
+            BigDecimal("117774000"),
+            BigDecimal("117779000"),
+            BigDecimal("117784000"),
+        )))
     }
 
     @Test fun xAxisUsesSparseDayAndMonthLabels() {

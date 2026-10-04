@@ -56,7 +56,7 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
             LazyColumn(Modifier.fillMaxSize().testTag("investment-home"), contentPadding = pageContentPadding(),
                 verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 item {
-                    Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                         TotalLine(stringResource(R.string.investment_total_value), current.overview.investmentValue, prominent = true)
                         TotalLine(stringResource(R.string.investment_total_unrealized), current.overview.floating, colorByValue = true)
                         TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized, colorByValue = true)
