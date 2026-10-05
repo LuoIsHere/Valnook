@@ -31,7 +31,6 @@ class StatisticsNavigationUiTest {
         }
         rule.onNodeWithTag("statistics-total_assets").assertExists()
         rule.onNodeWithTag("statistics-available_cash").assertExists()
-        rule.onNodeWithTag("statistics-investment_value").assertExists()
         val daily = rule.onNodeWithTag("statistics-granularity-total_assets-daily")
         val monthly = rule.onNodeWithTag("statistics-granularity-total_assets-monthly")
         daily.assertIsSelected()
@@ -63,6 +62,8 @@ class StatisticsNavigationUiTest {
             rule.onNodeWithTag("statistics-chart-total_assets").fetchSemanticsNode()
                 .config[SemanticsProperties.StateDescription])
 
+        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("statistics-investment_value"))
+        rule.onNodeWithTag("statistics-investment_value").assertExists()
         rule.onNodeWithTag("nav-settings").performClick()
         rule.waitUntil(5_000) {
             rule.onAllNodesWithText(rule.activity.getString(dev.valnook.feature.settings.R.string.settings_navigation))

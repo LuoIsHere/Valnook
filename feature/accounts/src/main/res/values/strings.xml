@@ -1,6 +1,6 @@
 <resources>
-    <string name="accounts_load_failed">Could not load accounts. Go back and try again.</string>
-    <string name="accounts_total_assets">Total assets</string>
+    <string name="accounts_load_failed">Could not load accounts. Please try again.</string>
+    <string name="accounts_total_assets">Net assets</string>
     <string name="accounts_available_cash">Available cash %1$s</string>
     <string name="accounts_cash">Available cash</string>
     <string name="accounts_accounts">Accounts</string>
@@ -12,7 +12,7 @@
     <string name="accounts_investment_count">Investments · %1$d</string>
     <string name="account_detail_missing">This account is no longer available.</string>
     <string name="accounts_set_base_currency">Set a base currency</string>
-    <string name="accounts_summary_incomplete">Incomplete total · %1$s</string>
+    <string name="accounts_summary_incomplete">Total is incomplete: %1$s</string>
     <string name="accounts_partial_summary">Partial total · %1$s</string>
     <string name="accounts_missing_base">Base currency is not set</string>
     <string name="accounts_missing_current_cost">Current cost is incomplete</string>
@@ -52,7 +52,7 @@
     <string name="account_add_balance_account">+ Add account</string>
     <string name="account_review_retry">Review and retry</string>
     <string name="account_save">Save</string>
-    <string name="account_unknown_result">Check the result, then retry with the original operation</string>
+    <string name="account_unknown_result">Save result not yet confirmed. Retry safely without creating a duplicate.</string>
     <string name="account_section_count">Total: %1$d</string>
     <string name="account_tab_deposits">Deposits</string>
     <string name="account_order_title">Sort accounts</string>

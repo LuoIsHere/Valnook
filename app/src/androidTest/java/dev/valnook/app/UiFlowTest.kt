@@ -224,7 +224,7 @@ class UiFlowTest {
         runBlocking{assertEquals(2029589,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)}
         rule.onNodeWithContentDescription("返回").performClick();wait_text("已结算")
         rule.onNodeWithContentDescription("返回").performClick()
-        rule.onNodeWithText("现金").performClick();wait_text("CNY")
+        rule.onNodeWithTag("account-section-ACCOUNTS").performClick();wait_text("CNY")
         rule.onNodeWithContentDescription("余额变化 · 结算现金").performClick()
         wait_text("存单回款");rule.onNodeWithText("修改来源存单记录").assertDoesNotExist()
         click_list("存单回款");wait_text("流水详情")
@@ -666,8 +666,8 @@ class UiFlowTest {
         rule.onAllNodesWithContentDescription("币种:", substring = true)[1].performScrollTo().performClick()
         rule.onNodeWithText("搜索代码或币种名称").performTextInput("USD")
         rule.onNode(hasText("USD") and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
-        rule.onNodeWithText(rateLabel).performScrollTo().performTextReplacement("7.2")
-        rule.onNodeWithText(rateLabel).performImeAction()
+        rule.onNode(hasText(rateLabel) and hasSetTextAction()).performScrollTo().performTextReplacement("7.2")
+        rule.onNode(hasText(rateLabel) and hasSetTextAction()).performImeAction()
         rule.onNodeWithText("保存设置").performScrollTo().performClick()
         wait_text("设置已保存")
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
@@ -1132,10 +1132,10 @@ class UiFlowTest {
         val capsule = rule.onNodeWithTag("root-capsule").fetchSemanticsNode().boundsInWindow
         assertTrue("List must extend behind floating capsule", page.bottom > capsule.bottom)
         val note = rule.onNode(hasText("仅测试数据") and
-            hasAnyAncestor(hasTestTag("account-toggle-$account_id")), useUnmergedTree = true)
+            hasAnyAncestor(hasTestTag("account-header-$account_id")), useUnmergedTree = true)
             .fetchSemanticsNode().boundsInWindow
         val cash = rule.onNode(hasText("可用现金 0.00 CNY") and
-            hasAnyAncestor(hasTestTag("account-toggle-$account_id")), useUnmergedTree = true)
+            hasAnyAncestor(hasTestTag("account-header-$account_id")), useUnmergedTree = true)
             .fetchSemanticsNode().boundsInWindow
         assertEquals(note.top, cash.top, 2f)
         window_shot("floating-account-home")

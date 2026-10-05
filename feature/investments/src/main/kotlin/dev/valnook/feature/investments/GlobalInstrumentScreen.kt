@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
@@ -33,8 +35,8 @@ fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: (
         item { InstrumentIdentity(instrument) }
         item {
             Text(stringResource(R.string.instrument_cross_account_value, money(summary.marketValue, instrument.currency)), style = MaterialTheme.typography.titleMedium)
-            AccountProfitRow(stringResource(R.string.investment_realized_value, money(summary.realized, instrument.currency)),
-                stringResource(R.string.investment_unrealized_value, money(summary.floating, instrument.currency)),
+            AccountProfitRow(money(summary.realized, instrument.currency),
+                money(summary.floating, instrument.currency),
                 summary.realized?.signum() ?: 0, summary.floating?.signum() ?: 0)
         }
         item { ActionButton(onEdit) { Text(stringResource(R.string.instrument_edit_action)) } }
@@ -42,7 +44,8 @@ fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: (
         if (current.snapshot.accounts.isEmpty()) item { EmptyState(stringResource(R.string.instrument_create_account_first)) }
         items(current.snapshot.accounts, key = { it.id }) { account ->
             val position = associated[account.id]
-            Column(Modifier.fillMaxWidth().clickable(role = Role.Button) { onAccount(account.id) }
+            Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button) { onAccount(account.id) }
                 .padding(vertical = 6.dp).testTag("instrument-account-${account.id}"),
                 verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -59,8 +62,8 @@ fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: (
                         ?.stripTrailingZeros()?.toPlainString()?.plus(" " + instrument.currency.code) ?: "—"
                     Text(stringResource(R.string.instrument_position_cost,
                         DecimalRules.format_e8(position.holding_quantity_e8), average), style = MaterialTheme.typography.bodySmall)
-                    AccountProfitRow(stringResource(R.string.investment_realized_value, money(profit.realized, instrument.currency)),
-                        stringResource(R.string.investment_unrealized_value, money(profit.unrealized, instrument.currency)),
+                    AccountProfitRow(money(profit.realized, instrument.currency),
+                        money(profit.unrealized, instrument.currency),
                         profit.realized?.signum() ?: 0, profit.unrealized?.signum() ?: 0)
                 }
             }

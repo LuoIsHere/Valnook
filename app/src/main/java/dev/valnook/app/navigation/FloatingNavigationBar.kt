@@ -14,15 +14,16 @@ import androidx.compose.ui.res.stringResource
 import dev.valnook.app.R
 import androidx.navigation3.runtime.NavKey
 import dev.valnook.domain.model.NavigationItemId
+import dev.valnook.designsystem.GlassBackdrop
+import dev.valnook.designsystem.GlassSurface
 
 /** The surrounding layer is transparent; only the capsule paints a background. */
 @Composable
 internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId>,
-    onSelect: (NavKey) -> Unit, modifier: Modifier) {
+    onSelect: (NavKey) -> Unit, modifier: Modifier, backdrop: GlassBackdrop? = null) {
     Box(modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
         .padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceContainer,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), shadowElevation = 5.dp,
+        GlassSurface(shape = RoundedCornerShape(50), backdrop = backdrop,
             modifier = Modifier.fillMaxWidth().testTag("root-capsule")) {
             Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 items.map { item -> item.rootKey() to stringResource(when (item) {
@@ -35,6 +36,7 @@ internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId
                     TextButton({ onSelect(key) }, Modifier.weight(1f).heightIn(min = 48.dp)
                         .testTag("nav-${itemForKey(key).name.lowercase()}").semantics { selected = isSelected },
                         shape = RoundedCornerShape(50), colors = ButtonDefaults.textButtonColors(
+                            contentColor = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                             containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)) {
                         Text(label, maxLines = 1, style = MaterialTheme.typography.labelMedium)
                     }

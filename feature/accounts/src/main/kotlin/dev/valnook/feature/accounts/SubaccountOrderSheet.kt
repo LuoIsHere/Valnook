@@ -18,6 +18,7 @@ internal fun SubaccountOrderSheet(rows: List<CashAccountRowDraft>, orderedKeys: 
     val byKey = rows.associateBy { it.key }
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        PopupBlurEffect()
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val contentHeight = minOf(maxHeight * 0.7f,
                 (96.dp + 64.dp * rows.size) * LocalDensity.current.fontScale.coerceAtLeast(1f))

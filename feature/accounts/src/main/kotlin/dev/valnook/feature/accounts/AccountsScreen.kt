@@ -14,6 +14,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,8 +55,8 @@ import java.time.LocalDate
     onOpenInvestments: (Long) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
-        AccountsState.Loading -> CircularProgressIndicator()
-        AccountsState.Failed -> Text(stringResource(R.string.accounts_load_failed))
+        AccountsState.Loading -> PageLoading()
+        AccountsState.Failed -> PageFailure(stringResource(R.string.accounts_load_failed), vm::reload)
         is AccountsState.Ready -> AccountsContent(current.overview, onOpen, current.snapshot,
             onOpenCash, onOpenDeposits, onOpenInvestments)
     }
@@ -63,20 +68,27 @@ import java.time.LocalDate
     LazyColumn(Modifier.fillMaxSize().testTag("accounts-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(0.dp)) {
         item {
-            Column(Modifier.fillMaxWidth().padding(bottom = Space.md), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.titleMedium)
+            GlassCard(Modifier.padding(bottom = Space.md).testTag("accounts-summary"), prominent = true) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
                     color = amountColor(overview.total))
-                SummaryLine(stringResource(R.string.accounts_cash), overview.cash)
-                if (overview.creditBalance.amount.signum() != 0 ||
-                    snapshot?.cash?.any { it.type == BalanceAccountType.CREDIT } == true) {
-                    SummaryLine(stringResource(R.string.accounts_credit_balance), overview.creditBalance)
+                val metrics = buildList {
+                    add(stringResource(R.string.accounts_cash) to overview.cash)
+                    add(stringResource(R.string.accounts_investments) to overview.investmentValue)
+                    add(stringResource(R.string.accounts_deposits) to overview.depositValue)
+                    if (overview.creditBalance.amount.signum() != 0 ||
+                        snapshot?.cash?.any { it.type == BalanceAccountType.CREDIT } == true)
+                        add(stringResource(R.string.accounts_credit_balance) to overview.creditBalance)
                 }
-                SummaryLine(stringResource(R.string.accounts_deposits), overview.depositValue)
-                SummaryLine(stringResource(R.string.accounts_investments), overview.investmentValue)
-                if (!overview.total.complete) Text(stringResource(R.string.accounts_summary_incomplete, missingText(overview.total)), color = MaterialTheme.colorScheme.error)
+                MetricGrid(metrics.size) { index ->
+                    val (label, total) = metrics[index]
+                    SummaryMetric(label, totalText(total))
+                }
+                if (!overview.total.complete) HintMessage(stringResource(R.string.accounts_summary_incomplete, missingText(overview.total)))
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
         }
         if (overview.accounts.isEmpty()) item { EmptyState(stringResource(R.string.accounts_empty)) }
         items(overview.accounts, key = { it.account.id }) { row ->
@@ -85,12 +97,16 @@ import java.time.LocalDate
             val depositCount = snapshot?.deposits?.count { it.account_id == row.account.id && !it.closed } ?: 0
             val investmentCount = snapshot?.positions?.count { it.account_id == row.account.id && it.holding_quantity_e8 > 0 } ?: 0
             Column(Modifier.fillMaxWidth().padding(vertical = Space.sm), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Column(Modifier.fillMaxWidth().testTag("account-toggle-${row.account.id}")
-                    .clickable { expandedId = if (isExpanded) null else row.account.id }
-                    .padding(vertical = 4.dp)) {
+                Column(Modifier.fillMaxWidth().testTag("account-header-${row.account.id}").padding(vertical = 4.dp)) {
                     BoxWithConstraints(Modifier.fillMaxWidth()) {
                         val name: @Composable () -> Unit = {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            val expansion = stringResource(if (isExpanded) dev.valnook.core.designsystem.R.string.state_expanded
+                                else dev.valnook.core.designsystem.R.string.state_collapsed)
+                            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                                .testTag("account-toggle-${row.account.id}")
+                                .clickable(role = Role.Button) { expandedId = if (isExpanded) null else row.account.id }
+                                .semantics { stateDescription = expansion },
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(row.account.name, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(if (isExpanded) "▴" else "▾", style = MaterialTheme.typography.labelMedium,
@@ -98,10 +114,13 @@ import java.time.LocalDate
                             }
                         }
                         val amount: @Composable () -> Unit = {
-                            Text(totalText(row.total), Modifier.fillMaxWidth().testTag("account-total-${row.account.id}")
-                                .clickable { onOpen(row.account.id) },
+                            Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                                .testTag("account-total-${row.account.id}").clickable(role = Role.Button) { onOpen(row.account.id) },
+                                contentAlignment = Alignment.CenterEnd) {
+                            Text(totalText(row.total),
                                 style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings="tnum"),
                                 color = amountColor(row.total), textAlign = TextAlign.End)
+                            }
                         }
                         if (maxWidth < 300.dp || LocalDensity.current.fontScale > 1.3f) {
                             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -116,13 +135,13 @@ import java.time.LocalDate
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(row.account.note, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(stringResource(R.string.accounts_available_cash, totalText(row.cash)), Modifier.weight(1.3f),
-                            style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.End,
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                if (!row.total.complete) Text(stringResource(R.string.accounts_partial_summary, missingText(row.total)), color = MaterialTheme.colorScheme.error)
+                if (!row.total.complete) HintMessage(stringResource(R.string.accounts_partial_summary, missingText(row.total)))
                 AnimatedVisibility(isExpanded, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
                     exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
                     Column(Modifier.fillMaxWidth().padding(start = Space.sm), verticalArrangement = Arrangement.spacedBy(0.dp)) {
@@ -151,17 +170,10 @@ import java.time.LocalDate
 @Composable private fun amountColor(total: ConvertedTotal) =
     if (total.amount.signum() < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
 
-@Composable private fun SummaryLine(label: String, total: ConvertedTotal) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(totalText(total), style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings="tnum"),
-            color = amountColor(total), textAlign = TextAlign.End)
-    }
-}
-
 @Composable private fun BalanceAccountNativeRow(account: CashAccount, allAccounts: List<CashAccount>, tag: String,
     onClick: () -> Unit) {
-    Column(Modifier.fillMaxWidth().testTag(tag).clickable(onClick = onClick).padding(vertical = Space.sm),
+    Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .testTag(tag).clickable(role = Role.Button, onClick = onClick).padding(vertical = Space.sm),
         verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             Column(Modifier.weight(1f)) {
@@ -215,7 +227,8 @@ import java.time.LocalDate
 }
 
 @Composable private fun AccountSummaryRow(label: String, total: ConvertedTotal, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = Space.sm),
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .clickable(role = Role.Button, onClick = onClick).padding(vertical = Space.sm),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Text(totalText(total), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings="tnum"),
@@ -249,12 +262,16 @@ import java.time.LocalDate
     FormLayout(stringResource(R.string.account_edit_title), submission.phase == SubmissionPhase.WORKING,
         submission.phase != SubmissionPhase.SUCCEEDED, vm::submit,
         if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.account_review_retry) else stringResource(R.string.account_save)) {
-        Field(stringResource(R.string.account_name), state.name, vm::changeName, enabled = submission.editable)
-        Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable)
+        GlassCard {
+            Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Field(stringResource(R.string.account_name), state.name, vm::changeName, enabled = submission.editable)
+                Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable)
+            }
+        }
         Text(stringResource(R.string.account_balance_accounts), style = MaterialTheme.typography.titleMedium)
         state.rows.forEach { row ->
             key(row.key) {
-            OutlinedCard(Modifier.fillMaxWidth()) {
+            GlassCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 ChoiceField(stringResource(R.string.account_type), row.type.name, listOf(
                     BalanceAccountType.SAVINGS.name to stringResource(R.string.account_type_savings),
@@ -311,7 +328,7 @@ import java.time.LocalDate
     }
     if (pendingDeleteKey != null) AlertDialog(
         onDismissRequest = { pendingDeleteKey = null },
-        title = { Text(stringResource(R.string.account_delete_title)) },
+        title = { PopupBlurEffect(); Text(stringResource(R.string.account_delete_title)) },
         text = { Text(stringResource(R.string.account_delete_message)) },
         dismissButton = { TextButton(onClick = { pendingDeleteKey = null }) {
             Text(stringResource(dev.valnook.core.designsystem.R.string.cancel))

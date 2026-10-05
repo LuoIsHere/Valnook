@@ -1,5 +1,10 @@
 <resources>
     <string name="settings_title">Settings</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_system">Follow system</string>
+    <string name="settings_theme_dark">Dark</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_save_failed">Could not save the theme. Please try again.</string>
     <string name="settings_load_failed">Could not load settings</string>
     <string name="settings_base_currency">Base currency</string>
     <string name="settings_not_set">Not set</string>

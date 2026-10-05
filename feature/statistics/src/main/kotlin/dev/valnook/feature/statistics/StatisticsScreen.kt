@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.LocalGainLossPalette
 import dev.valnook.designsystem.Space
+import dev.valnook.designsystem.GlassCard
 import dev.valnook.designsystem.CapsuleChoiceRow
 import dev.valnook.designsystem.pageContentPadding
 import dev.valnook.domain.calculation.CurvePoint
@@ -120,7 +121,8 @@ private fun StatisticChart(
         R.string.statistics_previous_month else R.string.statistics_previous_year)
     val nextLabel = stringResource(if (chart.period.granularity == StatisticsGranularity.DAILY)
         R.string.statistics_next_month else R.string.statistics_next_year)
-    Column(Modifier.fillMaxWidth().testTag("statistics-${chart.metric.name.lowercase()}"),
+    GlassCard {
+    Column(Modifier.fillMaxWidth().padding(12.dp).testTag("statistics-${chart.metric.name.lowercase()}"),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         Text(title, style = MaterialTheme.typography.titleLarge)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
@@ -154,6 +156,7 @@ private fun StatisticChart(
         }
         Text(periodLabel(chart.period), style = MaterialTheme.typography.labelLarge)
         chart.series?.let { InteractiveChart(it, today, title) }
+    }
     }
 }
 

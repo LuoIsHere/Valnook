@@ -35,16 +35,17 @@ import kotlinx.coroutines.delay
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(horizontal=Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         if(closed)item{Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.titleLarge)}
         else if(on_archive!=null)item{ActionButton(onClick=on_archive,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.settled_deposits))}}
-        item{Text(stringResource(R.string.term_formula),style=MaterialTheme.typography.bodyMedium)}
+        item{Text(stringResource(R.string.term_formula),style=MaterialTheme.typography.bodySmall,
+            color=MaterialTheme.colorScheme.onSurfaceVariant)}
         if(rows.isEmpty())item{EmptyState(stringResource(if(closed)R.string.empty_settled_deposits else R.string.empty_deposits))}
         itemsIndexed(rows,key={_,deposit->deposit.id}) { index,d ->
             RecordListItem(Modifier.testTag("deposit-record-${d.id}"), {on_open(d.id)}, index<rows.lastIndex||hasMore) {
                 AmountText(Decimal.format_display(d.principal_minor,d.currency.fraction_digits),d.currency.code)
                 Text(stringResource(R.string.deposit_detail,Decimal.format_e8(d.annual_rate_percent_e8),
                     LocalDate.ofEpochDay(d.start_epoch_day),LocalDate.ofEpochDay(d.end_epoch_day)),
-                    style=MaterialTheme.typography.bodySmall)
+                    style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.interest_value,Decimal.format_units(d.expected_interest_minor,d.currency.fraction_digits),d.currency.code),
-                    style=MaterialTheme.typography.bodySmall)
+                    style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 val progress=Decimal.progress(d.start_epoch_day,d.end_epoch_day,today)
                 LinearProgressIndicator(progress={progress.toFloat()},modifier=Modifier.fillMaxWidth())
                 Text(stringResource(R.string.progress_value,progress.multiply(java.math.BigDecimal("100")).toInt()),

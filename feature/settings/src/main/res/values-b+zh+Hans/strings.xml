@@ -1,5 +1,10 @@
 <resources>
     <string name="settings_title">设置</string>
+    <string name="settings_theme">主题</string>
+    <string name="settings_theme_system">跟随系统</string>
+    <string name="settings_theme_dark">深色</string>
+    <string name="settings_theme_light">浅色</string>
+    <string name="settings_theme_save_failed">主题保存失败，请重试。</string>
     <string name="settings_load_failed">设置读取失败</string>
     <string name="settings_base_currency">主币种</string>
     <string name="settings_not_set">未设置</string>

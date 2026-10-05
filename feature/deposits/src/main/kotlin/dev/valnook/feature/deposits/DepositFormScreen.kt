@@ -1,6 +1,8 @@
 package dev.valnook.feature.deposits
 
 import androidx.compose.material3.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.Modifier
 import androidx.compose.runtime.*
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -20,6 +22,8 @@ import java.time.LocalDate
         DepositFormMode.EDIT -> R.string.deposit_edit
         DepositFormMode.CLOSE -> R.string.deposit_settle })
     FormLayout(title, submission.phase == SubmissionPhase.WORKING, submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
+        GlassCard {
+        Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         CurrencyChoice(state.currency.code, { value -> vm.update { it.copy(currency = Currency.of(value)) } },
             submission.editable && vm.mode == DepositFormMode.CREATE, Currency.supported.map { it.code to it.name })
         if (vm.mode != DepositFormMode.CLOSE) {
@@ -28,6 +32,8 @@ import java.time.LocalDate
             DateField(stringResource(R.string.deposit_start_date), state.startDate.toString(), { value -> vm.update { it.copy(startDate = LocalDate.parse(value)) } }, submission.editable)
             DateField(stringResource(R.string.deposit_end_date), state.endDate.toString(), { value -> vm.update { it.copy(endDate = LocalDate.parse(value)) } }, submission.editable)
         } else Text(stringResource(R.string.deposit_principal_value, state.principalInput, state.currency.code))
+        }
+        }
         Text(stringResource(R.string.deposit_interest_value, vm.preview() ?: "—", state.currency.code))
         CheckboxRow(stringResource(if (vm.mode == DepositFormMode.CLOSE) R.string.deposit_link_close else R.string.deposit_link_open),
             state.cashLinked, vm::setOpenCashLinked, enabled = submission.editable)
@@ -50,7 +56,7 @@ import java.time.LocalDate
                     dev.valnook.domain.money.DecimalRules.format_display(it.balance_minor, it.currency.fraction_digits))
             }, { vm.selectCloseCashAccount(it.toLong()) }, submission.editable)
         }
-        Text(stringResource(R.string.deposit_link_hint))
+        HintMessage(stringResource(R.string.deposit_link_hint))
         vm.cashImpactPreview()?.let { Text(stringResource(R.string.deposit_cash_change, it)) }
         ErrorMessage(submission.error?.name)
     }

@@ -24,6 +24,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import dev.valnook.designsystem.Space
+import dev.valnook.designsystem.HintMessage
 import dev.valnook.designsystem.pageContentPadding
 import dev.valnook.domain.webadmin.WebAdminClient
 import dev.valnook.domain.webadmin.WebAdminError
@@ -45,7 +46,7 @@ fun WebAdminScreen(vm: WebAdminViewModel, demoMode: Boolean = false) {
             Text(stringResource(R.string.webadmin_plaintext_warning), Modifier.padding(Space.md),
                 style = MaterialTheme.typography.bodySmall)
         }
-        state.error?.let { Text(errorText(it), color = MaterialTheme.colorScheme.error,
+        state.error?.let { HintMessage(errorText(it), isError = true,
             modifier = Modifier.testTag("webadmin-error")) }
         when (state.phase) {
             WebAdminPhase.CLOSED -> Button(vm::start, Modifier.fillMaxWidth().testTag("webadmin-start")) {

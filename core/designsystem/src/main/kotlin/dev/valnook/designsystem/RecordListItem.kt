@@ -6,6 +6,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 /** Compact record row with a shared divider treatment across ledger features. */
 @Composable fun RecordListItem(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null,
@@ -13,7 +16,8 @@ import androidx.compose.ui.semantics.Role
     Column(modifier.fillMaxWidth()) {
         val interaction = if (onClick == null) Modifier else
             Modifier.clickable(role = Role.Button, onClick = onClick)
-        Column(Modifier.fillMaxWidth().then(interaction).padding(vertical = Space.xs),
+        Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+            .then(interaction).padding(vertical = Space.xs),
             verticalArrangement = Arrangement.spacedBy(Space.xs), content = content)
         if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }

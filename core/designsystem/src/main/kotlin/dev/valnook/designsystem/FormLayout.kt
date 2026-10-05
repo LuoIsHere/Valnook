@@ -18,7 +18,7 @@ fun FormLayout(title: String, busy: Boolean, enabled: Boolean, onSave: () -> Uni
         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
         .verticalScroll(rememberScrollState()).padding(pageContentPadding()),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
+        if (title != LocalPageTitle.current) Text(title, style = MaterialTheme.typography.titleLarge)
         content()
         Button(onClick = onSave, enabled = !busy && enabled,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {

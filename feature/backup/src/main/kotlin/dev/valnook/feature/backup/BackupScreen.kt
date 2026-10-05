@@ -32,6 +32,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.Space
+import dev.valnook.designsystem.HintMessage
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.valnook.designsystem.pageContentPadding
 import dev.valnook.domain.cloud.*
 import dev.valnook.domain.portability.PortabilityErrorCode
@@ -221,8 +224,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         }
         state.restoreResult?.let { result -> item { Text(stringResource(R.string.backup_restored,
             result.committedAtUtc), color = MaterialTheme.colorScheme.primary) } }
-        state.error?.let { item { Text(errorLabel(it), color = MaterialTheme.colorScheme.error) } }
-        state.cloudError?.let { item { Text(cloudErrorLabel(it), color = MaterialTheme.colorScheme.error) } }
+        state.error?.let { item { HintMessage(errorLabel(it), isError = true) } }
+        state.cloudError?.let { item { HintMessage(cloudErrorLabel(it), isError = true) } }
         if (!demoMode) item {
             Text(stringResource(R.string.cloud_google_attribution),
                 modifier = Modifier.fillMaxWidth().padding(top = Space.lg).testTag("cloud-google-attribution"),
@@ -248,7 +251,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
 @Composable private fun CloudBackupRow(value: CloudBackupDescriptor, expanded: Boolean, onClick: () -> Unit) {
     val arrowRotation by animateFloatAsState(if (expanded) 180f else 0f, tween(160),
         label = "cloud-backup-arrow")
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)
         .testTag("cloud-backup-${value.fileId}").padding(vertical = Space.sm),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {

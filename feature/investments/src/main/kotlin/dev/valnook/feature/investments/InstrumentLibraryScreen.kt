@@ -7,6 +7,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -41,15 +44,16 @@ fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, on
         if (matches.isEmpty()) item { EmptyState(stringResource(if (query.isBlank()) R.string.instrument_empty else R.string.instrument_no_match)) }
         items(matches, key = { it.instrument.id }) { summary ->
             val instrument = summary.instrument
-            Column(Modifier.fillMaxWidth().clickable { onOpen(instrument.id) }.padding(vertical = 6.dp),
+            Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                .clickable(role = Role.Button) { onOpen(instrument.id) }.padding(vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 InstrumentIdentity(instrument)
                 Text(stringResource(R.string.instrument_price_per_unit,
                     BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString(),
                     instrument.currency.code), style = MaterialTheme.typography.titleMedium,
                     textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.fillMaxWidth())
-                AccountProfitRow(stringResource(R.string.investment_realized_value, money(summary.realized, instrument.currency)),
-                    stringResource(R.string.investment_unrealized_value, money(summary.floating, instrument.currency)),
+                AccountProfitRow(money(summary.realized, instrument.currency),
+                    money(summary.floating, instrument.currency),
                     summary.realized?.signum() ?: 0, summary.floating?.signum() ?: 0)
             }
         }

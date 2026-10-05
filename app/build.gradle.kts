@@ -16,9 +16,9 @@ android {
         applicationId = "dev.valnook.app"
         minSdk = 36
         targetSdk = 36
-        versionCode = 7
-        versionName = "0.0.7"
-        buildConfigField("String", "INTERNAL_BUILD_ID", "\"20261005.1\"")
+        versionCode = 8
+        versionName = "0.08"
+        buildConfigField("String", "INTERNAL_BUILD_ID", "\"20261005.2\"")
 
         testInstrumentationRunner = "dev.valnook.app.HiltTestRunner"
     }

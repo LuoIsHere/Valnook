@@ -12,11 +12,13 @@ import androidx.compose.ui.unit.dp
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
         item{Text(title,style=MaterialTheme.typography.titleLarge)}
         item {
-            Column(Modifier.fillMaxWidth()) {
+            GlassCard {
+            Column(Modifier.fillMaxWidth().padding(horizontal = Space.md)) {
                 rows.forEachIndexed {index,(label,value)->
                     DetailRow(label,value)
                     if(index<rows.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
                 }
+            }
             }
         }
         item{Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(Space.sm),content=actions)}

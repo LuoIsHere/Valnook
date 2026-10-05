@@ -18,10 +18,11 @@ private val light=lightColorScheme(primary=Color(0xFF486477),onPrimary=Color.Whi
     surfaceContainerLow=Color(0xFFF0F4F7),surfaceContainerHigh=Color(0xFFEAF0F4),surfaceContainerHighest=Color(0xFFE5EDF2),
     onSurface=Color(0xFF20272E),onSurfaceVariant=Color(0xFF4D5862),outline=Color(0xFF77838D),outlineVariant=Color(0xFFD4DEE6))
 private val dark=darkColorScheme(primary=Color(0xFFA6C3D7),onPrimary=Color(0xFF153445),
-    background=Color(0xFF181D22),surface=Color(0xFF181D22),surfaceContainer=Color(0xFF252C33),
+    background=Color(0xFF171A1E),surface=Color(0xFF171A1E),surfaceContainer=Color(0xFF262B30),
     surfaceContainerLow=Color(0xFF20282F),surfaceContainerHigh=Color(0xFF29333C),surfaceContainerHighest=Color(0xFF303D48),
     onSurface=Color(0xFFE0E5EB),onSurfaceVariant=Color(0xFFBBC5CE),outline=Color(0xFF84919C),outlineVariant=Color(0xFF45535E))
 private val typography=Typography(
+    headlineMedium=TextStyle(fontFamily=FontFamily.SansSerif,fontWeight=FontWeight.SemiBold,fontSize=32.sp,lineHeight=40.sp),
     headlineSmall=TextStyle(fontFamily=FontFamily.SansSerif,fontWeight=FontWeight.SemiBold,fontSize=24.sp,lineHeight=32.sp),
     titleLarge=TextStyle(fontFamily=FontFamily.SansSerif,fontWeight=FontWeight.SemiBold,fontSize=20.sp,lineHeight=28.sp),
     titleMedium=TextStyle(fontFamily=FontFamily.SansSerif,fontWeight=FontWeight.Medium,fontSize=16.sp,lineHeight=24.sp),

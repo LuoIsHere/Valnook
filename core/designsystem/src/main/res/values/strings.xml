@@ -116,7 +116,7 @@
     <string name="error_small">The trade amount is below the smallest currency unit.</string>
     <string name="error_date">Invalid date. The maturity date must be after the start date.</string>
     <string name="error_positive">Values must be nonnegative; principal, price, and quantity must be positive.</string>
-    <string name="error_storage">The save result is not confirmed. Retry the original request; input is temporarily locked to prevent duplicate records.</string>
+    <string name="error_storage">Save result not yet confirmed. Retry safely without creating a duplicate. Inputs stay locked until confirmed.</string>
     <string name="error_account_type">The account type cannot be changed after creation.</string>
     <string name="error_credit_limit">Enter a positive credit limit for an independent account, or choose a limit source.</string>
     <string name="error_statement_day">Statement day must be between 1 and 31.</string>
@@ -128,4 +128,7 @@
     <string name="error_credit_limit_in_use">Other credit accounts share this limit. Unlink them first.</string>
     <string name="error_balance_account_in_use">This account has a balance, history, or business link and cannot be deleted.</string>
     <string name="error_format">Check field formats, currency, dates, and required information.</string>
+    <string name="retry_loading">Try again</string>
+    <string name="state_expanded">Expanded</string>
+    <string name="state_collapsed">Collapsed</string>
 </resources>

@@ -1,5 +1,5 @@
 <resources>
-    <string name="investment_load_failed">Could not load investments. Go back and try again.</string>
+    <string name="investment_load_failed">Could not load investments. Please try again.</string>
     <string name="investment_loading">Loading</string>
     <string name="investment_read_failed">Could not load</string>
     <string name="investment_record_unavailable">Record unavailable</string>
@@ -10,9 +10,9 @@
     <string name="investment_missing_historical_cost">Historical cost is incomplete</string>
     <string name="investment_invalid_history">Transaction history is invalid</string>
     <string name="investment_total_value">Total investment value</string>
-    <string name="investment_total_unrealized">Total unrealized P/L</string>
-    <string name="investment_total_realized">Total realized P/L</string>
-    <string name="investment_current_fx_hint">Converted using current manual rates, not historical FX gains</string>
+    <string name="investment_total_unrealized">Unrealized P/L</string>
+    <string name="investment_total_realized">Realized P/L to date</string>
+    <string name="investment_current_fx_hint">Totals use currently configured rates. Unconfigured currency pairs use 1. These figures do not represent historical FX gains.</string>
     <string name="investment_no_holdings_summary">No current holdings. Historical realized P/L is still included.</string>
     <string name="investment_open_account">View %1$s holdings and records</string>
     <string name="investment_realized_value">Realized P/L %1$s</string>
@@ -51,7 +51,7 @@
     <string name="investment_cash_account">Cash account</string>
     <string name="investment_cash_change">Cash change for this account %1$s</string>
     <string name="investment_history_conflict">This change would make the historical holding negative. Check the date and quantity.</string>
-    <string name="investment_unknown_result">Check the result, then retry with the original operation ID</string>
+    <string name="investment_unknown_result">Save result not yet confirmed. Retry safely without creating a duplicate.</string>
     <string name="instrument_load_failed">Could not load the instrument</string>
     <string name="instrument_loading">Loading instrument</string>
     <string name="instrument_edit_title">Instrument details and current price</string>
@@ -97,4 +97,5 @@
     <string name="instrument_types_loading_short">Loading asset classes</string>
     <string name="instrument_add_type">Add asset class</string>
     <string name="instrument_edit_type">%1$s · Edit</string>
+    <string name="investment_fx_summary">Converted at configured rates ⓘ</string>
 </resources>

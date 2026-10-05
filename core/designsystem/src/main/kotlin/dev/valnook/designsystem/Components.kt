@@ -71,9 +71,7 @@ import java.util.Locale
         "BALANCE_ACCOUNT_IN_USE"->R.string.error_balance_account_in_use
         else->R.string.error_format
     }
-    Text(stringResource(resource),color=MaterialTheme.colorScheme.error,
-        style=MaterialTheme.typography.bodyMedium,
-        modifier=Modifier.semantics { liveRegion=LiveRegionMode.Polite })
+    HintMessage(stringResource(resource), isError = true)
 }
 @Composable fun AmountText(amount:String,currency:String) {
     Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
@@ -82,8 +80,7 @@ import java.util.Locale
     }
 }
 @Composable fun EmptyState(message:String) {
-    Text(message,modifier=Modifier.fillMaxWidth().padding(vertical=Space.xl),
-        style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+    Box(Modifier.fillMaxWidth().padding(vertical=Space.md)) { HintMessage(message) }
 }
 @Composable fun ActionButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     destructive:Boolean=false,content:@Composable RowScope.()->Unit) {
@@ -163,8 +160,9 @@ import java.util.Locale
     SelectorField(stringResource(R.string.currency),selected,
         {query="";expanded=true},enabled)
     if(expanded) Dialog(onDismissRequest={expanded=false},properties=DialogProperties(decorFitsSystemWindows=false)) {
+        PopupBlurEffect()
         Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(12.dp)) {
-            Surface(shape=RoundedCornerShape(20.dp),color=MaterialTheme.colorScheme.surface) {
+            GlassCard(prominent = true) {
                 Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.md),
                     verticalArrangement=Arrangement.spacedBy(Space.md)) {
                     Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
@@ -177,7 +175,8 @@ import java.util.Locale
                     LazyColumn(Modifier.weight(1f,fill=false).fillMaxWidth().testTag("currency-list")) {
                         if(matches.isEmpty())item{EmptyState(stringResource(R.string.no_currency_match))}
                         items(matches,key={it.first}){(code,name)->
-                            Row(Modifier.fillMaxWidth().clickable {on_change(code);expanded=false}.padding(vertical=8.dp),
+                            Row(Modifier.fillMaxWidth().heightIn(min=48.dp).clip(RoundedCornerShape(12.dp))
+                                .clickable(role=Role.Button) {on_change(code);expanded=false}.padding(vertical=8.dp),
                                 verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.md)) {
                                 Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainer,
                                     modifier=Modifier.width(56.dp)) {
@@ -239,7 +238,7 @@ import java.util.Locale
     }
 }
 @Composable fun CashLinkOption(checked:Boolean,on_change:(Boolean)->Unit,account:String,currency:String,change:String,enabled:Boolean=true,label:String?=null) {
-    OutlinedCard(Modifier.fillMaxWidth(),shape=RoundedCornerShape(12.dp)) {
+    GlassCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,
                 horizontalArrangement=Arrangement.spacedBy(Space.sm)) {

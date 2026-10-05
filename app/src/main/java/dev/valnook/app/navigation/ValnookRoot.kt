@@ -12,6 +12,11 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.background
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -34,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -59,6 +65,11 @@ import dev.valnook.designsystem.MenuIcon
 import dev.valnook.designsystem.SortIcon
 import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.ValnookTheme
+import dev.valnook.designsystem.GlassSurface
+import dev.valnook.designsystem.rememberGlassBackdrop
+import dev.valnook.designsystem.glassSource
+import dev.valnook.designsystem.LocalPageTopSpace
+import dev.valnook.designsystem.LocalPageTitle
 import dev.valnook.domain.model.AppSettings
 import dev.valnook.domain.model.GainLossColorScheme
 import dev.valnook.feature.settings.ClearDataScreen
@@ -66,6 +77,7 @@ import dev.valnook.feature.settings.FxSettingsScreen
 import dev.valnook.feature.settings.GainLossColorsScreen
 import dev.valnook.feature.settings.LanguageSettingsScreen
 import dev.valnook.feature.settings.SettingsHome
+import dev.valnook.feature.settings.AppThemeMode
 import dev.valnook.feature.settings.SettingsViewModel
 import dev.valnook.feature.settings.NavigationSettingsScreen
 import dev.valnook.feature.settings.NavigationSettingsViewModel
@@ -80,6 +92,8 @@ import kotlinx.coroutines.delay
 fun ValnookRoot(
     sessions: AppSessionManager,
     webAdmin: dev.valnook.domain.webadmin.WebAdminService,
+    themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    onThemeChange: suspend (AppThemeMode) -> Boolean = { false },
     onExit: () -> Unit = {}
 ) {
     val active by sessions.session.collectAsState()
@@ -101,7 +115,7 @@ fun ValnookRoot(
                     webScope.launch { webAdmin.stop() }
                 }
             } else Box(Modifier.fillMaxSize()) {
-                SessionRoot(active, loadedSettings, sessions, webAdmin, onExit)
+                SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
                 CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
             }
         }
@@ -162,6 +176,8 @@ private fun SessionRoot(
     settings: AppSettings,
     sessions: AppSessionManager,
     webAdmin: dev.valnook.domain.webadmin.WebAdminService,
+    themeMode: AppThemeMode,
+    onThemeChange: suspend (AppThemeMode) -> Boolean,
     onExit: () -> Unit
 ) {
     val graph = active.graph
@@ -232,7 +248,9 @@ private fun SessionRoot(
         else -> "Valnook"
     }
     val offset = with(LocalDensity.current) { 16.dp.roundToPx() }
-    val barHeight = (64f * LocalDensity.current.fontScale.coerceAtLeast(1f)).dp
+    val barHeight = (56f + 32f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp
+    val backdrop = rememberGlassBackdrop()
+    val glassTop = current.isRoot()
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
     val showCapsule = current.isRoot() && !keyboardOpen
@@ -249,6 +267,7 @@ private fun SessionRoot(
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
+            GlassSurface(Modifier.testTag("root-toolbar"), shape = RectangleShape, backdrop = if (glassTop) backdrop else null) {
             TopAppBar(title = {
                 Column {
                     Text(title, maxLines = 2)
@@ -257,7 +276,8 @@ private fun SessionRoot(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary)
                 }
-            }, expandedHeight = barHeight, navigationIcon = {
+            }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent,
+                scrolledContainerColor = Color.Transparent), expandedHeight = barHeight, navigationIcon = {
                 if (!current.isRoot()) BackButton(stringResource(R.string.nav_back), back)
             }, actions = {
                 when (current) {
@@ -280,10 +300,18 @@ private fun SessionRoot(
                     else -> Unit
                 }
             })
+            }
         }) { padding ->
             CompositionLocalProvider(LocalPageBottomSpace provides bottomSpace,
+                LocalPageTopSpace provides if (glassTop) padding.calculateTopPadding() else 0.dp,
+                LocalPageTitle provides title,
                 LocalCurrencyPickerRates provides pickerRates) {
-                Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).testTag("page-viewport")) {
+                val direction = LocalLayoutDirection.current
+                val viewportPadding = if (glassTop) PaddingValues(
+                    start = padding.calculateLeftPadding(direction), end = padding.calculateRightPadding(direction)) else padding
+                Box(Modifier.fillMaxSize().padding(viewportPadding).consumeWindowInsets(padding)
+                    .then(if (glassTop) Modifier.glassSource(backdrop) else Modifier)
+                    .background(MaterialTheme.colorScheme.background).testTag("page-viewport")) {
                     NavDisplay(backStack = stack, onBack = back, sizeTransform = null,
                         entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(),
                             rememberViewModelStoreNavEntryDecorator()),
@@ -321,7 +349,8 @@ private fun SessionRoot(
                                         }
                                     }, { open(ClearDataKey) }, { open(NavigationSettingsKey) }, { open(BackupKey) },
                                     { open(WebAdminKey) },
-                                    { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID)
+                                    { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID,
+                                    themeMode, onThemeChange)
                             }
                             entry<BackupKey> {
                                 dev.valnook.feature.backup.BackupScreen(pageViewModel {
@@ -377,6 +406,6 @@ private fun SessionRoot(
         }
         if (showCapsule) FloatingNavigationBar(current, settings.navigation.visibleInOrder, selectRoot,
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
-                .testTag("floating-navigation-overlay"))
+                .testTag("floating-navigation-overlay"), backdrop)
     }
 }

@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -33,7 +35,7 @@ import java.time.*
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
         itemsIndexed(rows,key={_,cash->cash.id}) {index,cash->
             val history_label=stringResource(R.string.cash_changes)+" · "+cash.name
-            CashBalanceSummary(cash,null,Modifier.fillMaxWidth().clickable{on_open(cash)}
+            CashBalanceSummary(cash,null,Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable{on_open(cash)}
                 .semantics{contentDescription=history_label}.padding(vertical=Space.sm), allAccounts,
                 creditSourceLabels)
             if(index<rows.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
@@ -56,10 +58,11 @@ import java.time.*
     val balance=ledger.account
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
         item{
+            GlassCard(Modifier.padding(bottom=Space.md), prominent=true) {
             CashBalanceSummary(balance,on_edit=on_form,allAccounts=ledger.allAccounts,
                 creditSourceLabels=ledger.creditSourceLabels,
-                modifier=Modifier.fillMaxWidth().padding(bottom=Space.sm))
-            HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+                modifier=Modifier.fillMaxWidth().padding(16.dp))
+            }
         }
         item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
         if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}

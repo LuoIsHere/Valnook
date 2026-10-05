@@ -11,12 +11,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 /** Keep the checkbox and its full, wrapping label on the same vertical center. */
 @Composable
 fun CheckboxRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier, enabled: Boolean = true) {
     Row(modifier.fillMaxWidth().heightIn(min = 48.dp)
+        .clip(RoundedCornerShape(12.dp))
         .toggleable(checked, enabled = enabled, role = Role.Checkbox, onValueChange = onChange),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.sm)) {

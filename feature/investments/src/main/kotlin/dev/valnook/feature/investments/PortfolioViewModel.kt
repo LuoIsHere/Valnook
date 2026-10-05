@@ -14,8 +14,14 @@ sealed interface PortfolioState {
         val instrumentSummaries: List<InstrumentAssets>) : PortfolioState
 }
 class PortfolioViewModel(repository: OverviewRepository) : ViewModel() {
-    val state = repository.observeSnapshot().map<AssetSnapshot, PortfolioState> {
+    private val refresh = MutableStateFlow(0)
+    private var startedAttempt = -1
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val state = refresh.flatMapLatest { attempt -> repository.observeSnapshot().map<AssetSnapshot, PortfolioState> {
         PortfolioState.Ready(it, AssetValuation.calculate(it), AssetValuation.instrumentSummaries(it))
-    }.flowOn(Dispatchers.Default).catch { emit(PortfolioState.Failed) }
+    }.flowOn(Dispatchers.Default).onStart {
+        if (startedAttempt != attempt) { startedAttempt = attempt; emit(PortfolioState.Loading) }
+    }.catch { emit(PortfolioState.Failed) } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), PortfolioState.Loading)
+    fun reload() { refresh.update { it + 1 } }
 }

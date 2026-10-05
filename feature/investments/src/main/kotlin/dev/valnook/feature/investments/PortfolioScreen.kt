@@ -9,6 +9,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -24,15 +30,10 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
     value?.setScale(currency.fraction_digits, RoundingMode.HALF_UP)?.toPlainString()?.plus(" " + currency.code) ?: "—"
 @Composable internal fun converted(total: ConvertedTotal): String =
     total.currency?.let { money(total.amount, it) } ?: stringResource(R.string.investment_set_base)
-@Composable private fun TotalLine(label: String, total: ConvertedTotal, prominent: Boolean = false,
-    colorByValue: Boolean = false) {
+@Composable private fun TotalLine(label: String, total: ConvertedTotal, colorByValue: Boolean = false) {
     val valueColor = if (colorByValue && total.complete) profitColor(total.amount.signum())
-        else MaterialTheme.colorScheme.onSurface
-    if (prominent) Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(label, style = MaterialTheme.typography.titleMedium)
-        Text(converted(total), Modifier.testTag("investment-market-total"),
-            style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"))
-    } else Text(label + " " + converted(total), style = MaterialTheme.typography.titleMedium, color = valueColor)
+        else MaterialTheme.colorScheme.onSurfaceVariant
+    SummaryMetric(label, converted(total), valueColor = valueColor)
     val missing = total.missing.mapNotNull {
         when (it.kind) {
             MissingKind.BASE_CURRENCY -> stringResource(R.string.investment_missing_base)
@@ -49,18 +50,33 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
     onPosition: (Long, Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
-        PortfolioState.Loading -> CircularProgressIndicator()
-        PortfolioState.Failed -> Text(stringResource(R.string.investment_load_failed))
+        PortfolioState.Loading -> PageLoading()
+        PortfolioState.Failed -> PageFailure(stringResource(R.string.investment_load_failed), vm::reload)
         is PortfolioState.Ready -> {
             val groups = current.snapshot.positions.filter { it.holding_quantity_e8 > 0 }.groupBy { it.account_id }
             LazyColumn(Modifier.fillMaxSize().testTag("investment-home"), contentPadding = pageContentPadding(),
                 verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 item {
-                    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                        TotalLine(stringResource(R.string.investment_total_value), current.overview.investmentValue, prominent = true)
-                        TotalLine(stringResource(R.string.investment_total_unrealized), current.overview.floating, colorByValue = true)
-                        TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized, colorByValue = true)
-                        Text(stringResource(R.string.investment_current_fx_hint), style = MaterialTheme.typography.bodySmall)
+                    GlassCard(Modifier.testTag("investment-summary"), prominent = true) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(stringResource(R.string.investment_total_value), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(converted(current.overview.investmentValue), Modifier.testTag("investment-market-total"),
+                            style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"))
+                        MetricGrid(2) { index ->
+                            Column {
+                                if (index == 0) TotalLine(stringResource(R.string.investment_total_unrealized), current.overview.floating, colorByValue = true)
+                                else TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized, colorByValue = true)
+                            }
+                        }
+                        var showFx by rememberSaveable { mutableStateOf(false) }
+                        TextButton(onClick = { showFx = !showFx }, contentPadding = PaddingValues(horizontal = 0.dp),
+                            modifier = Modifier.heightIn(min = 48.dp).testTag("investment-fx-info")) {
+                            Text(stringResource(R.string.investment_fx_summary), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (showFx) HintMessage(stringResource(R.string.investment_current_fx_hint))
+                    }
                     }
                 }
                 if (groups.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_holdings_summary)) }
@@ -68,21 +84,38 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                     var expanded by rememberSaveable(account.account.id) { mutableStateOf(false) }
                     val openDescription = stringResource(R.string.investment_open_account, account.account.name)
                     Column(Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(account.account.name + if (expanded) " ▴" else " ▾",
-                                Modifier.weight(1f).testTag("investment-account-toggle-${account.account.id}")
-                                    .clickable { expanded = !expanded },
-                                style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(converted(account.investmentValue), Modifier.weight(1.3f)
-                                .clickable(role = androidx.compose.ui.semantics.Role.Button) { onAccount(account.account.id) }
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            val name: @Composable () -> Unit = {
+                                val expansion = stringResource(if (expanded) dev.valnook.core.designsystem.R.string.state_expanded
+                                    else dev.valnook.core.designsystem.R.string.state_collapsed)
+                                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                                    .testTag("investment-account-toggle-${account.account.id}")
+                                    .clickable(role = Role.Button) { expanded = !expanded }
+                                    .semantics { stateDescription = expansion }, contentAlignment = Alignment.CenterStart) {
+                                    Text(account.account.name + if (expanded) " ▴" else " ▾",
+                                        style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            val amount: @Composable () -> Unit = {
+                            Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                                .clickable(role = Role.Button) { onAccount(account.account.id) }
                                 .semantics { contentDescription = openDescription }
                                 .testTag("investment-account-total-${account.account.id}"),
-                                style = MaterialTheme.typography.titleLarge.copy(fontFeatureSettings = "tnum"),
+                                contentAlignment = Alignment.CenterEnd) {
+                            Text(converted(account.investmentValue),
+                                style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.End)
+                            }
+                            }
+                            if (maxWidth < 300.dp || LocalDensity.current.fontScale > 1.3f) {
+                                Column { name(); amount() }
+                            } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.weight(1f)) { name() }
+                                Box(Modifier.weight(1.3f)) { amount() }
+                            }
                         }
-                        AccountProfitRow(stringResource(R.string.investment_realized_value, converted(account.realized)),
-                            stringResource(R.string.investment_unrealized_value, converted(account.floating)),
+                        AccountProfitRow(converted(account.realized),
+                            converted(account.floating),
                             if (account.realized.complete) account.realized.amount.signum() else 0,
                             if (account.floating.complete) account.floating.amount.signum() else 0,
                             realizedModifier = Modifier.testTag("account-realized-${account.account.id}"),

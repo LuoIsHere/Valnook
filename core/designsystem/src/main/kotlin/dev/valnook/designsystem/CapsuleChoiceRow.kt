@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalDensity
 
 /** Compact single-choice control that follows the floating navigation capsule style. */
 @Composable
@@ -39,12 +40,12 @@ fun <T> CapsuleChoiceRow(
     label: @Composable RowScope.(T) -> Unit,
 ) {
     val capsuleShape = RoundedCornerShape(percent = 50)
-    Box(modifier = modifier.height(controlHeight)) {
+    val height = maxOf(controlHeight, 48.dp, (24f * LocalDensity.current.fontScale + 16f).dp)
+    Box(modifier = modifier.height(height)) {
         Surface(
-            modifier = Modifier.fillMaxWidth().height(controlHeight).align(Alignment.Center),
+            modifier = Modifier.fillMaxWidth().height(height).align(Alignment.Center),
             shape = capsuleShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {}
         Row(
             modifier = Modifier.fillMaxSize().selectableGroup(),
@@ -75,7 +76,7 @@ fun <T> CapsuleChoiceRow(
                     contentAlignment = Alignment.Center,
                 ) {
                     Surface(
-                        modifier = Modifier.padding(horizontal = 3.dp).fillMaxWidth().height(controlHeight - 6.dp),
+                        modifier = Modifier.padding(horizontal = 3.dp).fillMaxWidth().height(height - 6.dp),
                         shape = capsuleShape,
                         color = containerColor.value,
                         contentColor = contentColor.value,

@@ -15,6 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.CapsuleChoiceRow
+import dev.valnook.designsystem.GlassCard
+import dev.valnook.designsystem.LocalPageTitle
+import dev.valnook.designsystem.PageLoading
+import dev.valnook.designsystem.PageFailure
 import dev.valnook.domain.model.ConvertedTotal
 import java.math.RoundingMode
 
@@ -26,8 +30,8 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
     investmentContent: @Composable () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
-        AccountsState.Loading -> CircularProgressIndicator()
-        AccountsState.Failed -> Text(stringResource(R.string.accounts_load_failed))
+        AccountsState.Loading -> PageLoading()
+        AccountsState.Failed -> PageFailure(stringResource(R.string.accounts_load_failed), vm::reload)
         is AccountsState.Ready -> {
             val assets = current.overview.accounts.firstOrNull { it.account.id == accountId }
             if (assets == null) Text(stringResource(R.string.account_detail_missing)) else {
@@ -39,19 +43,19 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
                 var selected by rememberSaveable(accountId) { mutableStateOf(initialSection) }
                 val sectionStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 Column(Modifier.fillMaxSize()) {
-                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = Space.sm),
+                    GlassCard(Modifier.padding(horizontal = 16.dp, vertical = Space.sm)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(assets.account.name, style = MaterialTheme.typography.titleLarge,
+                        if (LocalPageTitle.current != assets.account.name) Text(assets.account.name, style = MaterialTheme.typography.titleMedium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                            Text(assets.account.note, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
+                            Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(detailTotal(assets.total), style = MaterialTheme.typography.headlineSmall.copy(
                                 fontFeatureSettings = "tnum"), color = detailAmountColor(assets.total),
-                                textAlign = TextAlign.End)
-                        }
+                                textAlign = TextAlign.Start)
+                            if (assets.account.note.isNotBlank()) Text(assets.account.note, style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                     }
                     val labels = mapOf(
                         AccountDetailSection.ACCOUNTS to stringResource(R.string.accounts_accounts),

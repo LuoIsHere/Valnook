@@ -8,6 +8,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -58,7 +60,8 @@ fun HoldingRow(asset: Investment, onOpen: (() -> Unit)? = null) {
     val percentage = profit.unrealizedPercent?.let { signed(it, 2) + "%" } ?: "—"
     val color = profitColor(profit.unrealized?.signum() ?: 0)
     val click = if (onOpen == null) Modifier else Modifier.clickable(role = Role.Button, onClick = onOpen)
-    Row(Modifier.fillMaxWidth().then(click).padding(vertical = 6.dp).testTag("holding-${asset.id}"),
+    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .then(click).padding(vertical = 6.dp).testTag("holding-${asset.id}"),
         horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1.55f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(asset.name, style = MaterialTheme.typography.bodyMedium, maxLines = 1,

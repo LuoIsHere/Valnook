@@ -43,6 +43,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.pointer.pointerInput
@@ -58,6 +62,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import dev.valnook.designsystem.ActionButton
+import dev.valnook.designsystem.GlassCard
 import dev.valnook.designsystem.ChoiceField
 import dev.valnook.designsystem.CurrencyChoice
 import dev.valnook.designsystem.Field
@@ -87,7 +92,9 @@ fun SettingsHome(
     onWebAdmin: () -> Unit,
     onHiddenPage: (NavigationItemId) -> Unit,
     versionName: String,
-    internalBuildId: String
+    internalBuildId: String,
+    themeMode: AppThemeMode = AppThemeMode.SYSTEM,
+    onThemeChange: suspend (AppThemeMode) -> Boolean = { false }
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     if (!state.loaded) {
@@ -97,38 +104,44 @@ fun SettingsHome(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item {
+            GlassCard {
             SettingEntry(stringResource(R.string.settings_base_currency),
                 state.savedSettings.baseCurrency?.code ?: stringResource(R.string.settings_not_set), onRates)
-        }
-        item {
+            HorizontalDivider(Modifier.padding(horizontal = Space.md))
             SettingEntry(stringResource(R.string.settings_exchange_rates),
                 stringResource(R.string.settings_fx_default), onRates)
-        }
-        if (!demoMode) item {
-            SettingEntry(stringResource(R.string.settings_language), languageLabel(state.savedSettings.language), onLanguage)
+            }
         }
         item {
+            GlassCard {
+            ThemeSetting(themeMode, onThemeChange)
+            HorizontalDivider(Modifier.padding(horizontal = Space.md))
+            if (!demoMode) {
+            SettingEntry(stringResource(R.string.settings_language), languageLabel(state.savedSettings.language), onLanguage)
+            HorizontalDivider(Modifier.padding(horizontal = Space.md))
+            }
             SettingEntry(stringResource(R.string.settings_gain_loss_colors),
                 colorLabel(state.savedSettings.gainLossColors), onColors)
-        }
-        item {
+            HorizontalDivider(Modifier.padding(horizontal = Space.md))
             SettingEntry(stringResource(R.string.settings_navigation),
                 stringResource(R.string.settings_navigation_summary), onNavigation)
+            }
         }
         item {
+            GlassCard {
             SettingEntry(stringResource(R.string.settings_backup_export),
                 if (demoMode) stringResource(R.string.settings_backup_export_demo_summary)
                 else stringResource(R.string.settings_backup_export_summary), onBackupExport,
                 Modifier.testTag("settings-backup-export"))
-        }
-        item {
+            HorizontalDivider(Modifier.padding(horizontal = Space.md))
             SettingEntry(stringResource(R.string.settings_webadmin),
                 stringResource(R.string.settings_webadmin_summary), onWebAdmin,
                 Modifier.testTag("settings-webadmin"))
+            }
         }
         if (state.savedSettings.navigation.hiddenInOrder.isNotEmpty()) {
             item {
-                OutlinedCard(Modifier.fillMaxWidth()) {
+                GlassCard(Modifier.fillMaxWidth()) {
                     Column {
                         Text(stringResource(R.string.settings_hidden_pages),
                             modifier = Modifier.padding(horizontal = Space.md, vertical = Space.sm),
@@ -333,8 +346,9 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
 }
 
 @Composable
-private fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Row(modifier.fillMaxWidth().clickable(onClick = onClick).padding(Space.md),
+internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Row(modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .clickable(role = Role.Button, onClick = onClick).padding(Space.md),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
