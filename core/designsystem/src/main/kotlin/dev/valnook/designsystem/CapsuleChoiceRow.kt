@@ -20,6 +20,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -34,10 +35,11 @@ fun <T> CapsuleChoiceRow(
     optionModifier: (T) -> Modifier = { Modifier },
     label: @Composable RowScope.(T) -> Unit,
 ) {
+    val capsuleShape = RoundedCornerShape(percent = 50)
     Box(modifier = modifier.height(38.dp)) {
         Surface(
             modifier = Modifier.fillMaxWidth().height(38.dp).align(Alignment.Center),
-            shape = RoundedCornerShape(percent = 50),
+            shape = capsuleShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         ) {}
@@ -61,6 +63,7 @@ fun <T> CapsuleChoiceRow(
                 Box(
                     modifier = Modifier.weight(1f).fillMaxHeight()
                         .then(optionModifier(option))
+                        .clip(capsuleShape)
                         .selectable(
                             selected = isSelected,
                             onClick = { onOptionSelected(option) },
@@ -70,7 +73,7 @@ fun <T> CapsuleChoiceRow(
                 ) {
                     Surface(
                         modifier = Modifier.padding(horizontal = 3.dp).fillMaxWidth().height(32.dp),
-                        shape = RoundedCornerShape(percent = 50),
+                        shape = capsuleShape,
                         color = containerColor.value,
                         contentColor = contentColor.value,
                     ) {

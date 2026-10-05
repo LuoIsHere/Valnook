@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -127,9 +128,10 @@ import java.util.Locale
     val focus=LocalFocusManager.current
     val keyboard=LocalSoftwareKeyboardController.current
     val arrow_color=MaterialTheme.colorScheme.onSurfaceVariant
+    val shape=RoundedCornerShape(12.dp)
     Box(Modifier.fillMaxWidth().testTag("input-$label")) {
         OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},
-            singleLine=true,textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(12.dp),
+            singleLine=true,textStyle=MaterialTheme.typography.bodyLarge,shape=shape,
             enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
             trailingIcon={Canvas(Modifier.size(18.dp)) {
                 val stroke=2.dp.toPx()
@@ -139,7 +141,7 @@ import java.util.Locale
             colors=OutlinedTextFieldDefaults.colors(
                 disabledTextColor=MaterialTheme.colorScheme.onSurface,
                 disabledLabelColor=MaterialTheme.colorScheme.onSurfaceVariant))
-        Box(Modifier.matchParentSize().clickable(enabled=enabled,role=Role.Button,onClick={focus.clearFocus();keyboard?.hide();on_select()})
+        Box(Modifier.matchParentSize().clip(shape).clickable(enabled=enabled,role=Role.Button,onClick={focus.clearFocus();keyboard?.hide();on_select()})
             .semantics {contentDescription="$label: $value"})
     }
 }
