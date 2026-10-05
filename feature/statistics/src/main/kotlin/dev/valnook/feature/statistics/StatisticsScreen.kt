@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
@@ -26,12 +27,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.LocalGainLossPalette
 import dev.valnook.designsystem.Space
+import dev.valnook.designsystem.CapsuleChoiceRow
 import dev.valnook.designsystem.pageContentPadding
 import dev.valnook.domain.calculation.CurvePoint
 import dev.valnook.domain.calculation.MonotoneCurve
@@ -120,15 +123,24 @@ private fun StatisticChart(
     Column(Modifier.fillMaxWidth().testTag("statistics-${chart.metric.name.lowercase()}"),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         Text(title, style = MaterialTheme.typography.titleLarge)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            SingleChoiceSegmentedButtonRow {
-                StatisticsGranularity.entries.forEachIndexed { index, value ->
-                    SegmentedButton(selected = chart.period.granularity == value,
-                        onClick = { onGranularity(value) }, shape = SegmentedButtonDefaults.itemShape(index, 2)) {
-                        Text(if (value == StatisticsGranularity.DAILY) stringResource(R.string.statistics_daily)
-                        else stringResource(R.string.statistics_monthly))
-                    }
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically) {
+            CapsuleChoiceRow(
+                options = StatisticsGranularity.entries,
+                selectedOption = chart.period.granularity,
+                onOptionSelected = onGranularity,
+                modifier = Modifier.widthIn(min = 128.dp, max = 144.dp)
+                    .testTag("statistics-granularity-${chart.metric.name.lowercase()}"),
+                optionModifier = { value ->
+                    Modifier.testTag("statistics-granularity-${chart.metric.name.lowercase()}-${value.name.lowercase()}")
+                },
+            ) { value ->
+                Text(
+                    if (value == StatisticsGranularity.DAILY) stringResource(R.string.statistics_daily)
+                    else stringResource(R.string.statistics_monthly),
+                    maxLines = 1,
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
             Row {
                 TextButton(previous, modifier = Modifier.semantics { contentDescription = previousLabel }) {
@@ -141,19 +153,44 @@ private fun StatisticChart(
             }
         }
         Text(periodLabel(chart.period), style = MaterialTheme.typography.labelLarge)
-        val series = chart.series
-        var selectedIndex by remember(series) { mutableStateOf<Int?>(null) }
-        series?.let {
-            val selected = selectedIndex?.let(series.points::getOrNull)
-                ?: series.points.indexOfLast { it.value != null }.takeIf { it >= 0 }?.let(series.points::get)
-            val currentSuffix = if (selected?.date == today) " · ${stringResource(R.string.statistics_current)}" else ""
-            Text(selected?.let { "${it.date.format(DateTimeFormatter.ISO_LOCAL_DATE)} · ${money(it.value, series.currency)}$currentSuffix" }
-                ?: stringResource(R.string.statistics_no_data),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            ChartCanvas(series, selectedIndex, { selectedIndex = it }, { selectedIndex = null }, title)
-        }
+        chart.series?.let { InteractiveChart(it, today, title) }
     }
+}
+
+@Composable
+private fun InteractiveChart(series: StatisticsSeries, today: LocalDate, title: String) {
+    var selectedIndex by remember(series) { mutableStateOf<Int?>(null) }
+    val selected = selectedIndex?.let(series.points::getOrNull)
+        ?: series.points.indexOfLast { it.value != null }.takeIf { it >= 0 }?.let(series.points::get)
+    val currentSuffix = if (selected?.date == today) " · ${stringResource(R.string.statistics_current)}" else ""
+    val dateText = selected?.let { "${it.date.format(DateTimeFormatter.ISO_LOCAL_DATE)}$currentSuffix" }.orEmpty()
+    val valueText = selected?.let { money(it.value, series.currency) }
+        ?: stringResource(R.string.statistics_no_data)
+    Row(
+        modifier = Modifier.fillMaxWidth().heightIn(min = 24.dp)
+            .testTag("statistics-readout-${series.metric.name.lowercase()}"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Space.sm),
+    ) {
+        Text(
+            text = dateText,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = valueText,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.End,
+            style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    ChartCanvas(series, selectedIndex, { selectedIndex = it }, { selectedIndex = null }, title)
 }
 
 @Composable

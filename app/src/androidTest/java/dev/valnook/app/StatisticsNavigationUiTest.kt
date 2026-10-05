@@ -32,8 +32,24 @@ class StatisticsNavigationUiTest {
         rule.onNodeWithTag("statistics-total_assets").assertExists()
         rule.onNodeWithTag("statistics-available_cash").assertExists()
         rule.onNodeWithTag("statistics-investment_value").assertExists()
+        val daily = rule.onNodeWithTag("statistics-granularity-total_assets-daily")
+        val monthly = rule.onNodeWithTag("statistics-granularity-total_assets-monthly")
+        daily.assertIsSelected()
+        monthly.assertIsNotSelected().performClick()
+        rule.waitUntil(5_000) {
+            rule.onNodeWithTag("statistics-granularity-total_assets-monthly")
+                .fetchSemanticsNode().config[SemanticsProperties.Selected]
+        }
+        monthly.assertIsSelected()
+        daily.performClick()
+        rule.waitUntil(5_000) {
+            rule.onNodeWithTag("statistics-granularity-total_assets-daily")
+                .fetchSemanticsNode().config[SemanticsProperties.Selected]
+        }
         assertTrue(rule.onNodeWithTag("statistics-monthly-change").fetchSemanticsNode().boundsInRoot.top <
             rule.onNodeWithTag("statistics-total_assets").fetchSemanticsNode().boundsInRoot.top)
+        assertTrue(rule.onNodeWithTag("statistics-readout-total_assets")
+            .fetchSemanticsNode().boundsInRoot.height > 0f)
         val chart = rule.onNodeWithTag("statistics-chart-total_assets")
         val selectionBeforeScroll = chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription]
         chart.performTouchInput { swipeLeft() }
