@@ -29,8 +29,11 @@ interface CashDao {
         ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size""")
     suspend fun cashAccountLedgerPage(cashAccountId: Long, time: Long?, id: Long?, size: Int): List<CashEntryWithSource>
 
-    @Query("SELECT * FROM cash_accounts WHERE savings_account_id=:accountId ORDER BY name,id")
-    fun cash(accountId: Long): Flow<List<CashEntity>>
+    @Query("""SELECT c.*,p.account_id AS profile_account_id,p.credit_limit_minor,p.statement_day,
+        p.due_rule_type,p.due_rule_value,p.limit_source_account_id FROM cash_accounts c
+        LEFT JOIN credit_account_profiles p ON p.account_id=c.id
+        WHERE c.savings_account_id=:accountId ORDER BY c.name,c.id""")
+    fun cash(accountId: Long): Flow<List<BalanceAccountRow>>
 
     @Query("SELECT * FROM cash_accounts WHERE savings_account_id=:accountId AND currency_code=:code ORDER BY id LIMIT 1")
     suspend fun cash_one(accountId: Long, code: String): CashEntity?
@@ -38,10 +41,13 @@ interface CashDao {
     @Query("SELECT * FROM cash_accounts WHERE id=:cashAccountId")
     suspend fun cashAccount(cashAccountId: Long): CashEntity?
 
-    @Query("SELECT * FROM cash_accounts WHERE id=:cashAccountId")
-    fun observeCashAccount(cashAccountId: Long): Flow<CashEntity?>
+    @Query("""SELECT c.*,p.account_id AS profile_account_id,p.credit_limit_minor,p.statement_day,
+        p.due_rule_type,p.due_rule_value,p.limit_source_account_id FROM cash_accounts c
+        LEFT JOIN credit_account_profiles p ON p.account_id=c.id WHERE c.id=:cashAccountId""")
+    fun observeCashAccount(cashAccountId: Long): Flow<BalanceAccountRow?>
 
-    @Query("SELECT * FROM cash_accounts WHERE savings_account_id=:accountId AND currency_code=:code ORDER BY name,id")
+    @Query("""SELECT c.* FROM cash_accounts c LEFT JOIN credit_account_profiles p ON p.account_id=c.id
+        WHERE c.savings_account_id=:accountId AND c.currency_code=:code AND p.account_id IS NULL ORDER BY c.name,c.id""")
     suspend fun cashCandidates(accountId: Long, code: String): List<CashEntity>
 
     @Insert
@@ -95,6 +101,28 @@ interface CashDao {
     @Query("SELECT COUNT(*) FROM cash_entries WHERE cash_account_id=:cashAccountId")
     suspend fun cashEntryCount(cashAccountId: Long): Int
 
+    @Query("""SELECT COUNT(*) FROM cash_entries WHERE cash_account_id=:cashAccountId AND
+        (source_kind!='CASH_SET' OR delta_minor!=0 OR is_deleted!=0)""")
+    suspend fun meaningfulCashEntryCount(cashAccountId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM cash_movements WHERE cash_account_id=:cashAccountId AND delta_minor!=0")
+    suspend fun meaningfulMovementCount(cashAccountId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM term_deposits WHERE open_cash_account_id=:cashAccountId OR close_cash_account_id=:cashAccountId")
+    suspend fun depositReferenceCount(cashAccountId: Long): Int
+
+    @Query("SELECT COUNT(*) FROM investment_trades WHERE cash_account_id=:cashAccountId")
+    suspend fun tradeReferenceCount(cashAccountId: Long): Int
+
+    @Query("DELETE FROM cash_entries WHERE cash_account_id=:cashAccountId AND source_kind='CASH_SET' AND delta_minor=0")
+    suspend fun deleteZeroInitializationEntries(cashAccountId: Long): Int
+
+    @Query("DELETE FROM cash_movements WHERE cash_account_id=:cashAccountId AND delta_minor=0")
+    suspend fun deleteZeroInitializationMovements(cashAccountId: Long): Int
+
+    @Query("DELETE FROM cash_accounts WHERE id=:cashAccountId AND revision=:expectedRevision AND balance_minor=0")
+    suspend fun deleteEmptyCashAccount(cashAccountId: Long, expectedRevision: Long): Int
+
     @Insert
     suspend fun insert_entry(value: CashEntryEntity): Long
 
@@ -107,3 +135,13 @@ interface CashDao {
     @Insert
     suspend fun insert_movement(value: MovementEntity): Long
 }
+
+data class BalanceAccountRow(
+    @androidx.room.Embedded val account: CashEntity,
+    val profile_account_id: Long?,
+    val credit_limit_minor: Long?,
+    val statement_day: Int?,
+    val due_rule_type: String?,
+    val due_rule_value: Int?,
+    val limit_source_account_id: Long?
+)

@@ -19,7 +19,7 @@ const copy = {
     pairTitle: "连接到手机", pairCopy: "请在手机上打开网页端管理，并输入手机显示的 6 位配对码。", pairCode: "配对码", connect: "连接",
     trustedLan: "仅用于可信局域网。此版本使用 HTTP/WS，不提供传输加密。", mainNav: "主导航", theme: "切换主题", close: "关闭",
     pairWrong: "配对码不正确，手机上已生成新码。", pairFailed: "连接失败", wsFailed: "WebSocket 连接未建立。请检查浏览器代理、VPN 或安全软件，然后在手机上重新开启网页端管理。", qrConnecting: "正在使用二维码凭据连接…", loadFailed: "加载失败",
-    account: "账户", cash: "现金", deposits: "定期", investmentValue: "投资市值", totalAssets: "总资产", complete: "完整",
+    account: "账户", cash: "可用现金", creditBalance: "信用账户余额", balanceAccounts: "账户", deposits: "定期", investmentValue: "投资市值", totalAssets: "总资产", complete: "完整",
     settled: "已结算", holding: "持有", name: "名称", note: "备注", currency: "币种", balance: "余额", principal: "本金",
     start: "开始", endDate: "结束", annualRate: "年利率", status: "状态", quantity: "数量", currentPrice: "现价", marketValue: "市值", pnl: "盈亏",
     accountDetails: "账户详情", openDeposit: "开立存单", editAccount: "编辑账户", newCashName: "新增现金账户名称",
@@ -36,7 +36,10 @@ const copy = {
     history: "历史资产变化", staleRecord: "记录已变化，请刷新后重试。", staleBalance: "余额已变化，请刷新后重试。",
     currencyLocked: "该币种已被交易使用，不能修改。", symbolLocked: "代码已被交易使用，不能修改。",
     insufficientHolding: "持仓数量不足。", invalidFormat: "输入格式不正确。", saveFailed: "保存失败",
-    cashChange: "余额调整", depositOpen: "存单开立", depositClose: "存单结算", operation: "操作"
+    cashChange: "余额调整", depositOpen: "存单开立", depositClose: "存单结算", operation: "操作",
+    savingsAccount: "储蓄账户", creditAccount: "信用账户", creditLimit: "信用额度", usedLimit: "已用额度", availableLimit: "可用额度",
+    limitSource: "额度来源", independentLimit: "独立额度", statementDay: "账单日", dueRule: "最后还款日规则", dueValue: "规则日期/天数",
+    dueAfter: "账单日后 N 天", dueFixed: "每月固定日期"
   },
   "en": {
     accounts: "Accounts", records: "Records", investments: "Investments", statistics: "Statistics", demoMode: "Demo mode",
@@ -47,7 +50,7 @@ const copy = {
     pairTitle: "Connect to phone", pairCopy: "Open Web administration on your phone and enter its 6-digit pairing code.", pairCode: "Pairing code", connect: "Connect",
     trustedLan: "Use only on a trusted local network. This version uses HTTP/WS without transport encryption.", mainNav: "Main navigation", theme: "Toggle theme", close: "Close",
     pairWrong: "The pairing code was incorrect. A new code is now shown on the phone.", pairFailed: "Connection failed", wsFailed: "The WebSocket connection could not be established. Check the browser proxy, VPN, or security software, then restart Web administration on the phone.", qrConnecting: "Connecting with QR credentials…", loadFailed: "Load failed",
-    account: "Account", cash: "Cash", deposits: "Deposits", investmentValue: "Investment value", totalAssets: "Total assets", complete: "Complete",
+    account: "Account", cash: "Available cash", creditBalance: "Credit account balance", balanceAccounts: "Accounts", deposits: "Deposits", investmentValue: "Investment value", totalAssets: "Total assets", complete: "Complete",
     settled: "Settled", holding: "Open", name: "Name", note: "Note", currency: "Currency", balance: "Balance", principal: "Principal",
     start: "Start", endDate: "End", annualRate: "Annual rate", status: "Status", quantity: "Quantity", currentPrice: "Current price", marketValue: "Market value", pnl: "P/L",
     accountDetails: "Account details", openDeposit: "Open deposit", editAccount: "Edit account", newCashName: "New cash account name",
@@ -64,7 +67,10 @@ const copy = {
     history: "Asset history", staleRecord: "This record changed. Refresh and try again.", staleBalance: "This balance changed. Refresh and try again.",
     currencyLocked: "The currency is locked after use in a trade.", symbolLocked: "The symbol is locked after use in a trade.",
     insufficientHolding: "Insufficient holding quantity.", invalidFormat: "Check the input format.", saveFailed: "Save failed",
-    cashChange: "Balance adjustment", depositOpen: "Deposit opened", depositClose: "Deposit settled", operation: "Action"
+    cashChange: "Balance adjustment", depositOpen: "Deposit opened", depositClose: "Deposit settled", operation: "Action",
+    savingsAccount: "Savings account", creditAccount: "Credit account", creditLimit: "Credit limit", usedLimit: "Used", availableLimit: "Available",
+    limitSource: "Limit source", independentLimit: "Independent limit", statementDay: "Statement day", dueRule: "Payment due rule", dueValue: "Rule day/days",
+    dueAfter: "Days after statement", dueFixed: "Fixed day each month"
   }
 };
 const t = key => (copy[state.locale] || copy["zh-CN"])[key] || key;
@@ -342,18 +348,22 @@ async function renderAccounts() {
   const rows = data.items.map(item => el("tr", { "data-clickable": "true", onclick: () => accountDetail(item.id) },
     el("td", {}, el("strong", { text: item.name }), el("div", { class: "subtle", text: item.note || "—" })),
     el("td", { class: "numeric", text: fmt(item.cash, data.baseCurrency) }),
+    el("td", { class: "numeric", text: fmt(item.creditBalance, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.deposits, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.investments, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.total, data.baseCurrency) }),
     el("td", { text: item.complete ? "✓" : "!" })));
-  root.append(table([t("account"), t("cash"), t("deposits"), t("investmentValue"), t("totalAssets"), t("complete")], rows));
+  root.append(table([t("account"), t("cash"), t("creditBalance"), t("deposits"), t("investmentValue"), t("totalAssets"), t("complete")], rows));
 }
 async function accountDetail(id) {
   const data = await api(`/api/v1/accounts/${id}`); const a = data.account;
   const cashRows = data.cash.map(v => el("tr", {},
+    el("td", { text: v.type === "CREDIT" ? t("creditAccount") : t("savingsAccount") }),
     el("td", { text: v.name }), el("td", { text: v.note || "—" }),
-    el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.balance, v.currencyCode) })));
-  const depositRows = data.deposits.map(v => el("tr", { "data-clickable": "true", onclick: () => depositForm(v, null, data.cash) },
+    el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.balance, v.currencyCode) }),
+    el("td", { class: "numeric", text: v.credit ? `${fmt(v.credit.used, v.currencyCode)} / ${fmt(v.credit.totalLimit, v.currencyCode)}` : "—" })));
+  const savingsCash = data.cash.filter(v => v.type === "SAVINGS");
+  const depositRows = data.deposits.map(v => el("tr", { "data-clickable": "true", onclick: () => depositForm(v, null, savingsCash) },
     el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.principal, v.currencyCode) }),
     el("td", { text: v.startDate }), el("td", { text: v.endDate }),
     el("td", { class: "numeric", text: `${fmt(v.annualRatePercent)}%` }), el("td", { text: v.closed ? t("settled") : t("holding") })));
@@ -364,10 +374,10 @@ async function accountDetail(id) {
     el("td", { class: `numeric ${gainClass(v.unrealized)}`, text: fmt(v.unrealized, v.currencyCode) })));
   const content = el("div", {},
     el("div", { class: "section-head" }, el("div", {}, el("strong", { text: a.name }),
-      el("div", { class: "subtle", text: a.note || "—" })), button(t("edit"), () => accountForm({ ...a, cash: data.cash }))),
-    sectionTable(t("cash"), [t("name"), t("note"), t("currency"), t("balance")], cashRows),
+      el("div", { class: "subtle", text: a.note || "—" })), button(t("edit"), () => accountForm({ ...a, cash: data.cash, creditSourceCandidates: data.creditSourceCandidates }))),
+    sectionTable(t("balanceAccounts"), [t("type"), t("name"), t("note"), t("currency"), t("balance"), t("usedLimit")], cashRows),
     sectionTable(t("deposits"), [t("currency"), t("principal"), t("start"), t("endDate"), t("annualRate"), t("status")], depositRows,
-      button(t("openDeposit"), () => depositForm(null, a.id, data.cash))),
+      button(t("openDeposit"), () => depositForm(null, a.id, savingsCash))),
     sectionTable(t("positions"), [t("nameCode"), t("quantity"), t("currentPrice"), t("marketValue"), t("pnl")], positionRows));
   openDrawer(t("accountDetails"), "ACCOUNT", content);
 }
@@ -379,17 +389,32 @@ function accountForm(account) {
   form.append(field(t("name"), "name", account?.name || "", true), field(t("note"), "note", account?.note || "", false, "text", true));
   cash.forEach((v, index) => {
     form.append(field(`${v.currencyCode} · ${v.name}`, `cash-${index}`, v.balance, true));
+    if (v.type === "CREDIT") form.append(selectField(`${t("limitSource")} · ${v.name}`, `source-${index}`,
+      [{ value: "", label: t("independentLimit") }, ...(account?.creditSourceCandidates || []).filter(s => s.accountId === account.id && s.id !== v.id && s.currencyCode === v.currencyCode)
+        .map(s => ({ value: s.id, label: `${s.accountName} · ${s.name}` }))], v.credit?.limitSourceAccountId),
+      field(`${t("creditLimit")} · ${v.name}`, `limit-${index}`, v.credit?.creditLimit || ""),
+      field(`${t("statementDay")} · ${v.name}`, `statement-${index}`, v.credit?.statementDay || 12, true),
+      selectField(`${t("dueRule")} · ${v.name}`, `dueType-${index}`, [{ value: "AFTER_STATEMENT_DAYS", label: t("dueAfter") }, { value: "FIXED_DAY_OF_MONTH", label: t("dueFixed") }], v.credit?.dueRule?.type),
+      field(`${t("dueValue")} · ${v.name}`, `dueValue-${index}`, v.credit?.dueRule?.value || 20, true));
   });
   form.append(field(t("newCashName"), "newCashName", ""), field(t("newCashCurrency"), "newCashCurrency", account ? "" : (state.session.baseCurrency || "CNY"), !account),
-    field(t("newCashBalance"), "newCashBalance", "0"));
+    field(t("newCashBalance"), "newCashBalance", "0"),
+    selectField(t("type"), "newCashType", [{ value: "SAVINGS", label: t("savingsAccount") }, { value: "CREDIT", label: t("creditAccount") }]),
+    selectField(t("limitSource"), "newLimitSource", [{ value: "", label: t("independentLimit") }, ...(account?.creditSourceCandidates || []).filter(s => s.accountId === account?.id)
+      .map(s => ({ value: s.id, label: `${s.accountName} · ${s.name}` }))]),
+    field(t("creditLimit"), "newCreditLimit", "10000", true), field(t("statementDay"), "newStatementDay", "12", true),
+    selectField(t("dueRule"), "newDueType", [{ value: "AFTER_STATEMENT_DAYS", label: t("dueAfter") }, { value: "FIXED_DAY_OF_MONTH", label: t("dueFixed") }]),
+    field(t("dueValue"), "newDueValue", "20", true));
   const error = el("p", { class: "drawer-error" });
   form.append(error, actions(async submit => {
     const fd = new FormData(form);
     const body = { operationId: uuid(), dataGeneration: state.generation, expectedRevision: account?.revision ?? null,
-      name: fd.get("name"), note: fd.get("note") || "", cashChanges: cash.map((v, i) => ({ cashAccountId: v.id, expectedRevision: v.revision, currencyCode: v.currencyCode, balance: fd.get(`cash-${i}`), name: v.name, note: v.note })) };
+      name: fd.get("name"), note: fd.get("note") || "", cashChanges: cash.map((v, i) => ({ cashAccountId: v.id, expectedRevision: v.revision, currencyCode: v.currencyCode, balance: fd.get(`cash-${i}`), name: v.name, note: v.note, type: v.type,
+        credit: v.type === "CREDIT" ? { limitSourceAccountId: fd.get(`source-${i}`) ? Number(fd.get(`source-${i}`)) : null, creditLimit: fd.get(`limit-${i}`) || v.credit?.creditLimit || "", statementDay: Number(fd.get(`statement-${i}`)), dueRule: { type: fd.get(`dueType-${i}`), value: Number(fd.get(`dueValue-${i}`)) } } : null })) };
     if (String(fd.get("newCashCurrency") || "").trim()) body.cashChanges.push({ cashAccountId: null, expectedRevision: null,
       currencyCode: String(fd.get("newCashCurrency")).trim().toUpperCase(), balance: fd.get("newCashBalance") || "0",
-      name: fd.get("newCashName") || String(fd.get("newCashCurrency")).trim().toUpperCase(), note: "" });
+      name: fd.get("newCashName") || String(fd.get("newCashCurrency")).trim().toUpperCase(), note: "", type: fd.get("newCashType"),
+      credit: fd.get("newCashType") === "CREDIT" ? { limitSourceAccountId: fd.get("newLimitSource") ? Number(fd.get("newLimitSource")) : null, creditLimit: fd.get("newCreditLimit"), statementDay: Number(fd.get("newStatementDay")), dueRule: { type: fd.get("newDueType"), value: Number(fd.get("newDueValue")) } } : null });
     await saveForm(submit, error, account ? `/api/v1/accounts/${account.id}` : "/api/v1/accounts", account ? "PUT" : "POST", body);
   }));
   openDrawer(account ? t("editAccount") : t("newAccount"), "ACCOUNT", form);
@@ -434,7 +459,7 @@ async function openRecord(record) {
       const account = await api(`/api/v1/accounts/${position.accountId}`);
       const trade = data.trades.find(v => v.id === tradeId);
       if (!trade) throw new Error("NOT_FOUND");
-      return tradeForm(position, trade, account.cash.filter(v => v.currencyCode === position.currencyCode));
+      return tradeForm(position, trade, account.cash.filter(v => v.type === "SAVINGS" && v.currencyCode === position.currencyCode));
     }
     const account = await api(`/api/v1/accounts/${record.accountId}`);
     const depositId = record.kind === "DEPOSIT" ? record.id : record.sourceId;
@@ -506,7 +531,7 @@ function instrumentForm(item) {
 async function positionDetail(id) {
   const data = await api(`/api/v1/positions/${id}`), p = data.position;
   const account = await api(`/api/v1/accounts/${p.accountId}`);
-  const cash = account.cash.filter(v => v.currencyCode === p.currencyCode);
+  const cash = account.cash.filter(v => v.type === "SAVINGS" && v.currencyCode === p.currencyCode);
   const summary = el("div", { class: "cards" }, metric(t("quantity"), fmt(p.quantity)), metric(t("marketValue"), fmt(p.marketValue, p.currencyCode)), metric(t("realized"), fmt(p.realized, p.currencyCode), gainClass(p.realized)), metric(t("unrealized"), fmt(p.unrealized, p.currencyCode), gainClass(p.unrealized)));
   const tradeRows = data.trades.map(v => el("tr", { "data-clickable": "true", onclick: () => tradeForm(p, v, cash) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: v.action === "BUY" ? "gain" : "loss", text: v.action === "BUY" ? t("buy") : t("sell") }), el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmt(v.unitPrice, p.currencyCode) }), el("td", { class: "numeric", text: fmt(v.fee, p.currencyCode) }), el("td", { text: v.cashLinked ? "✓" : "—" })));
   const content = el("div", {}, summary, toolbar(el("div", { class: "spacer" }), button(t("newTrade"), () => tradeForm(p, null, cash), "primary")), table([t("time"), t("direction"), t("quantity"), t("executionPrice"), t("fee"), t("cashLink")], tradeRows));
@@ -531,7 +556,7 @@ function tradeForm(position, trade, cashAccounts) {
 
 function depositForm(deposit, accountId = null, cashAccounts = []) {
   const form = el("form", { class: "form-grid" });
-  const eligibleCash = cashAccounts.filter(v => !deposit || v.currencyCode === deposit.currencyCode);
+  const eligibleCash = cashAccounts.filter(v => v.type === "SAVINGS" && (!deposit || v.currencyCode === deposit.currencyCode));
   form.append(field(t("currency"), "currency", deposit?.currencyCode || state.session.baseCurrency || "CNY", true, "text", false, !!deposit),
     field(t("principal"), "principal", deposit?.principal || "", true), field(t("rate"), "rate", deposit?.annualRatePercent || "", true),
     field(t("startDate"), "start", deposit?.startDate || new Date().toISOString().slice(0, 10), true, "date"),

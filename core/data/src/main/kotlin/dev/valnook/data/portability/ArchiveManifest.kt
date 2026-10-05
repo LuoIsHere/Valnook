@@ -23,12 +23,13 @@ data class ArchiveManifest(
     val auditEventCount: Long,
     val producer: AppBuildInfo,
     val files: List<PayloadFileInfo>,
-    val requiredFeatures: List<String>
+    val requiredFeatures: List<String>,
+    val dataSchemaVersion: Int = BackupContract.DATA_SCHEMA_VERSION
 ) {
     fun toJson(): String = JSONObject().apply {
         put("format", BackupContract.FORMAT)
         put("formatVersion", BackupContract.FORMAT_VERSION)
-        put("dataSchemaVersion", BackupContract.DATA_SCHEMA_VERSION)
+        put("dataSchemaVersion", dataSchemaVersion)
         put("backupId", backupId)
         put("producer", JSONObject().apply {
             put("applicationFamily", producer.applicationFamily)
@@ -72,9 +73,10 @@ data class ArchiveManifest(
             val root = PortableJson.parse(text, limits.maxJsonDepth).asObject()
             requireKeys(root, setOf("format", "formatVersion", "dataSchemaVersion", "backupId", "producer",
                 "creation", "snapshot", "rules", "requiredFeatures", "files"))
+            val dataSchemaVersion = root.number("dataSchemaVersion").toIntExact()
             if (root.string("format") != BackupContract.FORMAT ||
                 root.number("formatVersion") != BackupContract.FORMAT_VERSION.toLong() ||
-                root.number("dataSchemaVersion") != BackupContract.DATA_SCHEMA_VERSION.toLong()) incompatible()
+                dataSchemaVersion !in 1..BackupContract.DATA_SCHEMA_VERSION) incompatible()
             val producerValue = root.objectValue("producer")
             requireKeys(producerValue, setOf("applicationFamily", "appVersion", "appVersionCode",
                 "internalBuildRevision", "internalBuildLabel", "databaseSchemaVersion"))
@@ -98,6 +100,7 @@ data class ArchiveManifest(
                 rules.number("historicalValuation") != BackupContract.HISTORICAL_VALUATION_RULE.toLong()) incompatible()
             val features = root.list("requiredFeatures").map { it as? String ?: fail() }
             if (features.toSet().size != features.size) fail()
+            if (dataSchemaVersion >= 2 && "credit-accounts-v1" !in features) incompatible()
             val files = root.list("files").map { item ->
                 val value = item.asObject()
                 requireKeys(value, setOf("path", "recordCount", "uncompressedBytes", "sha256"))
@@ -110,6 +113,7 @@ data class ArchiveManifest(
                     it.recordCount < 0 || it.uncompressedBytes < 0
                 }) fail()
             return ArchiveManifest(
+                dataSchemaVersion = dataSchemaVersion,
                 backupId = root.string("backupId"),
                 createdAtUtc = creation.string("createdAtUtc"),
                 snapshotAtUtc = creation.string("snapshotAtUtc"),

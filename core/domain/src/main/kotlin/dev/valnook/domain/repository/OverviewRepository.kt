@@ -40,10 +40,16 @@ data class SaveGainLossColors(override val expectedRevision: Long,
 data class SaveNavigationConfiguration(override val expectedRevision: Long,
     val configuration: NavigationConfiguration) : SettingsChange
 
-data class CashBalanceChange(val currencyCode: String, val balanceMinor: Long, val expectedRevision: Long?,
-    val cashAccountId: Long? = null, val name: String = currencyCode, val note: String = "")
+data class BalanceAccountChange(val currencyCode: String, val balanceMinor: Long, val expectedRevision: Long?,
+    val cashAccountId: Long? = null, val name: String = currencyCode, val note: String = "",
+    val type: BalanceAccountType = BalanceAccountType.SAVINGS,
+    val credit: CreditAccountInput? = null)
+typealias CashBalanceChange = BalanceAccountChange
 data class SaveAccount(override val operation_id: String, val accountId: Long?, val expectedRevision: Long?,
-    val name: String, val note: String, val cashChanges: List<CashBalanceChange>) : FinancialCommand
+    val name: String, val note: String, val cashChanges: List<BalanceAccountChange>) : FinancialCommand
+
+data class DeleteBalanceAccount(override val operation_id: String, val accountId: Long,
+    val balanceAccountId: Long, val expectedRevision: Long) : FinancialCommand
 
 data class SaveInstrument(override val operation_id: String, val instrumentId: Long?, val expectedRevision: Long?,
     val name: String, val symbol: String, val typeId: Long, val currencyCode: String,

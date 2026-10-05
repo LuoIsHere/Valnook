@@ -6,16 +6,18 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import dev.valnook.domain.model.Currency
 
 @Database(entities = [AccountEntity::class,CurrencyEntity::class,CashEntity::class,DepositEntity::class,
+    CreditAccountProfileEntity::class,
     TypeEntity::class,InstrumentEntity::class,InvestmentEntity::class,TradeEntity::class,OperationEntity::class,MovementEntity::class,CashEntryEntity::class,
     SettingsEntity::class,FxRateEntity::class,InstrumentPriceEntity::class,StatisticsStateEntity::class,
     StatisticsBaselineItemEntity::class,StatisticsCacheEntity::class,DemoLabelEntity::class,
     AuditEventEntity::class,AuditEventAccountEntity::class,AuditMetadataEntity::class,
     LocalMaintenanceStateEntity::class,CloudBackupStateEntity::class,CloudBackupAttemptEntity::class],
-    version = 10, exportSchema = true)
+    version = 11, exportSchema = true)
 abstract class ValnookDatabase : RoomDatabase() {
     abstract fun ledger(): LedgerDao
     abstract fun accounts(): AccountDao
     abstract fun cash(): CashDao
+    abstract fun credit(): CreditDao
     abstract fun deposits(): DepositDao
     abstract fun positions(): PositionDao
     abstract fun trades(): TradeDao
@@ -44,12 +46,12 @@ abstract class ValnookDatabase : RoomDatabase() {
         }
         fun open(context: Context): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")
-                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10)
+                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10,MIGRATION_10_11)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun fromAsset(context: Context, name: String, assetPath: String): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,name)
                 .createFromAsset(assetPath)
-                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10)
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10,MIGRATION_10_11)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun inMemory(context: Context): ValnookDatabase =
             Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(seed).build()

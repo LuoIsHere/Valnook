@@ -80,6 +80,26 @@ class QueryPerformanceTest {
             sql.execSQL("INSERT INTO cash_accounts VALUES (?,'CNY',100000000,100,0,?,'CNY fixture','synthetic',1,0)",
                 arrayOf<Any>(id, id))
         }
+        if (fixture.label == "wide") {
+            // 110 CREDIT accounts in 21 groups, including one 60-member group. This keeps
+            // the overview query-count assertion sensitive to accidental per-profile/group reads.
+            for (id in 1..110) {
+                val creditAccountId = 1_000 + id
+                val sourceId = when {
+                    id <= 21 -> null
+                    id <= 80 -> 1_001
+                    else -> 1_002 + (id - 81) % 20
+                }
+                sql.execSQL("INSERT INTO cash_accounts VALUES (1,'CNY',0,100,0,?,?,'synthetic',1,0)",
+                    arrayOf<Any>(creditAccountId, "credit-$id"))
+                sql.execSQL(
+                    """INSERT INTO credit_account_profiles(account_id,credit_limit_minor,statement_day,
+                        due_rule_type,due_rule_value,limit_source_account_id) VALUES (?,?,?,?,?,?)""",
+                    arrayOf<Any?>(creditAccountId, if (sourceId == null) 5_000_000L else null, 12,
+                        "AFTER_STATEMENT_DAYS", 20, sourceId)
+                )
+            }
+        }
         sql.execSQL("INSERT INTO asset_types VALUES (1,'ETF','etf',0,0)")
         sql.execSQL(
             """INSERT INTO app_settings(
@@ -267,7 +287,7 @@ class QueryPerformanceTest {
             assertEquals("A current-year invalidation should preserve the prior-year cache",
                 repetitions + 1, statisticsHistory.size)
         if (name == "dao-overview" || name == "repository-overview")
-            assertTrue("N+1 snapshot: $counts", counts.all { it == 7 })
+            assertTrue("N+1 snapshot: $counts", counts.all { it == 8 })
         if (name == "historical-price-correction" || name == "append-trade") {
             val replay = history.filter { it.sql.contains("ORDER BY occurred_at_ms,id") }
             assertEquals(repetitions + 1, replay.size)
@@ -284,7 +304,7 @@ class QueryPerformanceTest {
     @Test fun persistent_production_paths_small_wide_and_single_position_hotspot() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val datasets = JSONArray()
-        val fixtures = listOf(Fixture("small", 5, 20, 1000), Fixture("wide", 50, 2000, 100000),
+        val fixtures = listOf(Fixture("small", 5, 20, 1000), Fixture("wide", 120, 2000, 100000),
             Fixture("hotspot", 1, 1, 50000, true))
         var sqliteVersion = ""
         try {
@@ -312,6 +332,12 @@ class QueryPerformanceTest {
                     results.put(measure(db, "dao-overview", positions) { db.overview().snapshot().positions.size })
                     results.put(measure(db, "repository-overview", positions) {
                         val snapshot = overview.snapshot()
+                        if (fixture.label == "wide") {
+                            assertEquals(110, snapshot.cash.count { it.type == BalanceAccountType.CREDIT })
+                            assertEquals(21, snapshot.cash.count {
+                                it.creditProfile?.limitSourceAccountId == null && it.type == BalanceAccountType.CREDIT
+                            })
+                        }
                         assertTrue(AssetValuation.calculate(snapshot).total.complete)
                         snapshot.positions.size
                     })
@@ -417,6 +443,8 @@ class QueryPerformanceTest {
                         .put("instruments", fixture.instruments).put("positions", positions).put("trades", fixture.trades)
                         .put("soft_deleted_trades", if (fixture.hotspot) 0 else fixture.trades / 10)
                         .put("cash_entries", fixture.accounts * 101).put("deposits", fixture.accounts * 2)
+                        .put("credit_accounts", if (fixture.label == "wide") 110 else 0)
+                        .put("credit_groups", if (fixture.label == "wide") 21 else 0)
                         .put("fixture_seed", 20261001).put("measurements", results))
                 } finally { db.close(); context.deleteDatabase(name) }
             }

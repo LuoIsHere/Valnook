@@ -182,6 +182,122 @@ class WebAdminEndToEndTest {
         assertEquals(realNames, RoomOverview(database).snapshot().accounts.map { it.name })
     }
 
+    @Test fun credit_accounts_round_trip_through_web_commands_and_reject_invalid_relations() = runBlocking<Unit> {
+        web.start()
+        val waiting = web.state.value
+        val endpoint = URI(requireNotNull(waiting.url))
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
+            body = "{\"code\":\"${requireNotNull(waiting.pairingCode)}\"}")
+        assertEquals(200, paired.status)
+        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf = JSONObject(paired.body).getString("csrfToken")
+        val socket = openWebSocket(endpoint, origin, cookie)
+        awaitPhase(WebAdminPhase.ACTIVE)
+        var generation = JSONObject(http(endpoint, "GET", "/api/v1/session", cookie = cookie).body)
+            .getLong("dataGeneration")
+
+        fun creditChange(name: String, balance: String, sourceId: Long? = null,
+            limit: String = "5000.00", cashId: Long? = null, revision: Long? = null) =
+            JSONObject().put("cashAccountId", cashId ?: JSONObject.NULL)
+                .put("expectedRevision", revision ?: JSONObject.NULL)
+                .put("currencyCode", "CNY").put("balance", balance).put("name", name).put("note", "Web credit")
+                .put("type", "CREDIT").put("credit", JSONObject()
+                    .put("limitSourceAccountId", sourceId ?: JSONObject.NULL)
+                    .put("creditLimit", if (sourceId == null) limit else JSONObject.NULL)
+                    .put("statementDay", 25)
+                    .put("dueRule", JSONObject().put("type", "AFTER_STATEMENT_DAYS").put("value", 20)))
+
+        fun createParent(name: String, change: JSONObject): JSONObject {
+            val body = JSONObject().put("operationId", UUID.randomUUID().toString())
+                .put("dataGeneration", generation).put("expectedRevision", JSONObject.NULL)
+                .put("name", name).put("note", "Credit relation test")
+                .put("cashChanges", org.json.JSONArray().put(change))
+            val response = http(endpoint, "POST", "/api/v1/accounts", origin = origin,
+                cookie = cookie, csrf = csrf, body = body.toString())
+            assertEquals(response.body, 200, response.status)
+            return JSONObject(response.body).also { generation = it.getLong("dataGeneration") }
+        }
+
+        val rootParent = createParent("Web credit root", creditChange("Root card", "-1200.00"))
+        var rootDetail = JSONObject(http(endpoint, "GET", "/api/v1/accounts/${rootParent.getLong("id")}",
+            cookie = cookie).body)
+        val rootCash = rootDetail.getJSONArray("cash").getJSONObject(0)
+        assertEquals("CREDIT", rootCash.getString("type"))
+        assertEquals("5000.00", rootCash.getJSONObject("credit").getString("creditLimit"))
+        assertEquals("1200", rootCash.getJSONObject("credit").getString("used"))
+
+        var rootAccount = rootDetail.getJSONObject("account")
+        val addChild = JSONObject().put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", generation).put("expectedRevision", rootAccount.getLong("revision"))
+            .put("name", rootAccount.getString("name")).put("note", rootAccount.getString("note"))
+            .put("cashChanges", org.json.JSONArray().put(
+                creditChange("Supplementary card", "-300.00", rootCash.getLong("id"))))
+        val addedChild = http(endpoint, "PUT", "/api/v1/accounts/${rootParent.getLong("id")}", origin = origin,
+            cookie = cookie, csrf = csrf, body = addChild.toString())
+        assertEquals(addedChild.body, 200, addedChild.status)
+        generation = JSONObject(addedChild.body).getLong("dataGeneration")
+        rootDetail = JSONObject(http(endpoint, "GET", "/api/v1/accounts/${rootParent.getLong("id")}",
+            cookie = cookie).body)
+        val rootCashRows = rootDetail.getJSONArray("cash")
+        val childCash = (0 until rootCashRows.length()).map(rootCashRows::getJSONObject)
+            .single { it.getString("name") == "Supplementary card" }
+        assertEquals(rootCash.getLong("id"), childCash.getJSONObject("credit").getLong("limitSourceAccountId"))
+
+        val crossParent = JSONObject().put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", generation).put("expectedRevision", JSONObject.NULL)
+            .put("name", "Invalid cross-parent credit").put("note", "")
+            .put("cashChanges", org.json.JSONArray().put(
+                creditChange("Invalid card", "0", rootCash.getLong("id"))))
+        val crossParentResponse = http(endpoint, "POST", "/api/v1/accounts", origin = origin,
+            cookie = cookie, csrf = csrf, body = crossParent.toString())
+        assertEquals(crossParentResponse.body, 409, crossParentResponse.status)
+        assertTrue(crossParentResponse.body.contains("CREDIT_SOURCE_PARENT"))
+
+        rootAccount = rootDetail.getJSONObject("account")
+        val invalidChain = JSONObject().put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", generation).put("expectedRevision", rootAccount.getLong("revision"))
+            .put("name", rootAccount.getString("name")).put("note", rootAccount.getString("note"))
+            .put("cashChanges", org.json.JSONArray().put(
+                creditChange("Invalid chained card", "0", childCash.getLong("id"))))
+        val invalidResponse = http(endpoint, "PUT", "/api/v1/accounts/${rootParent.getLong("id")}", origin = origin,
+            cookie = cookie, csrf = csrf, body = invalidChain.toString())
+        assertEquals(invalidResponse.body, 409, invalidResponse.status)
+        assertTrue(invalidResponse.body.contains("CREDIT_SOURCE_CHAIN"))
+
+        rootAccount = rootDetail.getJSONObject("account")
+        val edit = JSONObject().put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", generation).put("expectedRevision", rootAccount.getLong("revision"))
+            .put("name", rootAccount.getString("name")).put("note", rootAccount.getString("note"))
+            .put("cashChanges", org.json.JSONArray().put(creditChange("Root card", "-1200.00",
+                limit = "6000.00", cashId = rootCash.getLong("id"), revision = rootCash.getLong("revision"))))
+        val edited = http(endpoint, "PUT", "/api/v1/accounts/${rootParent.getLong("id")}", origin = origin,
+            cookie = cookie, csrf = csrf, body = edit.toString())
+        assertEquals(edited.body, 200, edited.status)
+        generation = JSONObject(edited.body).getLong("dataGeneration")
+        rootDetail = JSONObject(http(endpoint, "GET", "/api/v1/accounts/${rootParent.getLong("id")}",
+            cookie = cookie).body)
+        assertEquals("6000.00", rootDetail.getJSONArray("cash").getJSONObject(0)
+            .getJSONObject("credit").getString("creditLimit"))
+
+        val stale = JSONObject(edit.toString()).put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", generation)
+        val staleResponse = http(endpoint, "PUT", "/api/v1/accounts/${rootParent.getLong("id")}", origin = origin,
+            cookie = cookie, csrf = csrf, body = stale.toString())
+        assertEquals(staleResponse.body, 409, staleResponse.status)
+        assertTrue(JSONObject(staleResponse.body).getJSONObject("error").getBoolean("refreshRequired"))
+
+        val currentRootCash = rootDetail.getJSONArray("cash").getJSONObject(0)
+        val protectedDelete = JSONObject().put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", generation).put("accountId", rootParent.getLong("id"))
+            .put("expectedRevision", currentRootCash.getLong("revision"))
+        val deleteResponse = http(endpoint, "DELETE", "/api/v1/balance-accounts/${currentRootCash.getLong("id")}",
+            origin = origin, cookie = cookie, csrf = csrf, body = protectedDelete.toString())
+        assertEquals(deleteResponse.body, 409, deleteResponse.status)
+        assertTrue(deleteResponse.body.contains("CREDIT_LIMIT_IN_USE"))
+        socket.close()
+    }
+
     @Test fun protocol_pong_keeps_session_active_without_javascript_timer_heartbeat() = runBlocking<Unit> {
         web.start()
         val waiting = web.state.value

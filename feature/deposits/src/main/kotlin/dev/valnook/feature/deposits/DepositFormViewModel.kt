@@ -31,7 +31,9 @@ class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMod
         saved["closeCashAccountId"], saved["loaded"] ?: false,
         originalCashContributionMinor = saved["originalCashContribution"] ?: 0))
     val state = mutable.asStateFlow()
-    val cashAccounts = cashRepository.observe_cash(accountId).catch { emit(emptyList()) }
+    val cashAccounts = cashRepository.observe_cash(accountId).map { rows ->
+        rows.filter { it.type == BalanceAccountType.SAVINGS }
+    }.catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyList())
     init {
         if (!state.value.loaded) viewModelScope.launch {

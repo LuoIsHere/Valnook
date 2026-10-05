@@ -6,9 +6,12 @@ import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.data.repository.RoomOverview
 import dev.valnook.domain.calculation.AssetValuation
 import dev.valnook.domain.calculation.InvestmentProfitCalculator
+import dev.valnook.domain.calculation.CreditLimitCalculator
 import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.model.AssetSnapshot
 import dev.valnook.domain.model.Currency
+import dev.valnook.domain.model.BalanceAccountType
+import dev.valnook.domain.model.CreditDueRule
 import dev.valnook.domain.portability.PortabilityErrorCode
 import dev.valnook.domain.portability.PortabilityException
 import java.io.BufferedWriter
@@ -117,12 +120,24 @@ internal class SpreadsheetWriter(
             sheet.blank()
             sheet.row(section(label(english, "当前汇总（主币种）", "Current totals (base currency)")))
             sheet.row(header(label(english, "类别", "Category")), header(label(english, "金额", "Amount")), header(label(english, "币种", "Currency")))
-            sheet.row(text(label(english, "现金", "Cash")), decimal(valuation.cash.amount), text(base))
+            sheet.row(text(label(english, "可用现金", "Available cash")), decimal(valuation.cash.amount), text(base))
+            sheet.row(text(label(english, "信用账户余额", "Credit account balance")), decimal(valuation.creditBalance.amount), text(base))
             sheet.row(text(label(english, "未结束存单本金", "Open deposit principal")), decimal(valuation.depositValue.amount), text(base))
             sheet.row(text(label(english, "当前投资市值", "Current investment value")), decimal(valuation.investmentValue.amount), text(base))
             sheet.row(text(label(english, "总资产", "Total assets")), decimal(valuation.total.amount), text(base))
             sheet.row(text(label(english, "主账户数", "Account count")), number(snapshot.accounts.size.toString()))
-            sheet.row(text(label(english, "现金账户数", "Cash account count")), number(snapshot.cash.size.toString()))
+            sheet.row(text(label(english, "子账户数", "Balance account count")), number(snapshot.cash.size.toString()))
+            sheet.row(text(label(english, "储蓄账户数", "Savings account count")),
+                number(snapshot.cash.count { it.type == BalanceAccountType.SAVINGS }.toString()))
+            sheet.row(text(label(english, "信用账户数", "Credit account count")),
+                number(snapshot.cash.count { it.type == BalanceAccountType.CREDIT }.toString()))
+            val roots = snapshot.cash.filter { it.creditProfile?.limitSourceAccountId == null && it.type == BalanceAccountType.CREDIT }
+            val totalLimit = roots.fold(BigDecimal.ZERO) { sum, root -> sum + convert(snapshot, root.currency,
+                BigDecimal.valueOf(root.creditProfile!!.creditLimitMinor!!, root.currency.fraction_digits)).orZero() }
+            val usedLimit = roots.fold(BigDecimal.ZERO) { sum, root -> sum + convert(snapshot, root.currency,
+                CreditLimitCalculator.calculate(root.id, snapshot.cash).usedLimitMinor.movePointLeft(root.currency.fraction_digits)).orZero() }
+            sheet.row(text(label(english, "信用总额度", "Total credit limit")), decimal(totalLimit), text(base))
+            sheet.row(text(label(english, "已用信用额度", "Used credit limit")), decimal(usedLimit), text(base))
             sheet.blank()
             sheet.row(section(label(english, "审计覆盖", "Audit coverage")))
             sheet.row(text(label(english, "覆盖起点", "Coverage start")), text(metadata?.first?.let(::instantText) ?: ""))
@@ -150,14 +165,33 @@ internal class SpreadsheetWriter(
             sheet.row(text(label(english, "备注", "Note")), text(account.note))
             sheet.row(text(label(english, "快照时间（UTC）", "Snapshot time (UTC)")), text(BackupSnapshotWriter.formatUtc(createdAt)))
             sheet.blank()
-            sheet.row(section(label(english, "现金账户", "Cash accounts")))
-            sheet.row(header(label(english, "名称", "Name")), header(label(english, "备注", "Note")),
+            sheet.row(section(label(english, "账户", "Accounts")))
+            sheet.row(header(label(english, "类型", "Type")), header(label(english, "名称", "Name")), header(label(english, "备注", "Note")),
                 header(label(english, "币种", "Currency")), header(label(english, "余额", "Balance")),
-                header(label(english, "主币种折算", "Base-currency value")))
+                header(label(english, "主币种折算", "Base-currency value")), header(label(english, "信用额度", "Credit limit")),
+                header(label(english, "已用额度", "Used")), header(label(english, "可用额度", "Available")),
+                header(label(english, "额度来源", "Limit source")), header(label(english, "账单日", "Statement day")),
+                header(label(english, "还款规则", "Payment due rule")))
+            val accountNames = snapshot.accounts.associate { it.id to it.name }
+            val balanceNames = snapshot.cash.associateBy { it.id }
             snapshot.cash.filter { it.account_id == accountId }.forEach { cash ->
-                sheet.row(text(cash.name), text(cash.note), text(cash.currency.code),
+                val summary = if (cash.type == BalanceAccountType.CREDIT)
+                    CreditLimitCalculator.calculate(cash.id, snapshot.cash) else null
+                val source = cash.creditProfile?.limitSourceAccountId?.let(balanceNames::get)
+                val sourceLabel = source?.let { "${accountNames[it.account_id].orEmpty()} · ${it.name}" }.orEmpty()
+                val dueRule = when (val rule = cash.creditProfile?.dueRule) {
+                    is CreditDueRule.AfterStatementDays -> label(english, "账单日后 ${rule.days} 天", "${rule.days} days after statement")
+                    is CreditDueRule.FixedDayOfMonth -> label(english, "每月 ${rule.day} 日", "Day ${rule.day} each month")
+                    null -> ""
+                }
+                sheet.row(text(if (cash.type == BalanceAccountType.CREDIT) label(english, "信用", "Credit") else label(english, "储蓄", "Savings")),
+                    text(cash.name), text(cash.note), text(cash.currency.code),
                     minor(cash.balance_minor, cash.currency), decimal(convert(snapshot, cash.currency,
-                        BigDecimal.valueOf(cash.balance_minor, cash.currency.fraction_digits))))
+                        BigDecimal.valueOf(cash.balance_minor, cash.currency.fraction_digits))),
+                    summary?.let { minor(it.totalLimitMinor.longValueExact(), cash.currency) } ?: text(""),
+                    summary?.let { minor(it.usedLimitMinor.longValueExact(), cash.currency) } ?: text(""),
+                    summary?.let { minor(it.availableLimitMinor.longValueExact(), cash.currency) } ?: text(""),
+                    text(sourceLabel), cash.creditProfile?.let { number(it.statementDay.toString()) } ?: text(""), text(dueRule))
             }
             sheet.blank()
             sheet.row(section(label(english, "定期存单", "Term deposits")))
@@ -293,6 +327,8 @@ internal class SpreadsheetWriter(
         }?.rate ?: BigDecimal.ONE
         return value.multiply(rate)
     }
+
+    private fun BigDecimal?.orZero(): BigDecimal = this ?: BigDecimal.ZERO
 
     private fun sheetNames(snapshot: AssetSnapshot, english: Boolean): WorkbookNames {
         val used = mutableSetOf<String>()

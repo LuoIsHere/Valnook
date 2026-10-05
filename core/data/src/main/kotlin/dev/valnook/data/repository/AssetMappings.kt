@@ -17,6 +17,24 @@ internal fun TradeEntity.toModel(): Trade = Trade(id, investment_id, Direction.v
     quantity_e8, execution_price_e8, amount_minor, Currency.of(currency_code), cash_linked, occurred_at_ms, revision,
     cash_account_id, fee_minor)
 
+internal fun CreditAccountProfileEntity.toModel(): CreditAccountProfile = CreditAccountProfile(
+    credit_limit_minor, statement_day,
+    when (due_rule_type) {
+        "AFTER_STATEMENT_DAYS" -> CreditDueRule.AfterStatementDays(due_rule_value)
+        "FIXED_DAY_OF_MONTH" -> CreditDueRule.FixedDayOfMonth(due_rule_value)
+        else -> throw DomainException(ErrorCode.INVALID_DUE_RULE)
+    }, limit_source_account_id)
+
+internal fun BalanceAccountRow.toModel(): CashAccount {
+    val value = account
+    val profile = profile_account_id?.let {
+        CreditAccountProfileEntity(it, credit_limit_minor, requireNotNull(statement_day),
+            requireNotNull(due_rule_type), requireNotNull(due_rule_value), limit_source_account_id).toModel()
+    }
+    return CashAccount(value.savings_account_id, Currency.of(value.currency_code), value.balance_minor,
+        value.revision, value.id, value.name, value.note, value.currency_locked, profile)
+}
+
 internal fun InstrumentWithType.toModel(): Instrument {
     val value = instrument
     return Instrument(value.id, value.name, value.symbol, value.asset_type_id, type_name,

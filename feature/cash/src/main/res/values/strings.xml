@@ -19,4 +19,17 @@
     <string name="cash_note">Note</string>
     <string name="cash_edit_entry_hint">Correct this record’s effect on the balance. Use Edit balance to set the current balance directly.</string>
     <string name="cash_correction_preview">Balance correction %1$s</string>
+    <string name="cash_savings_account">Savings account</string>
+    <string name="cash_credit_account">Credit account</string>
+    <string name="cash_amount_owed">Amount owed</string>
+    <string name="cash_credit_balance">Credit balance</string>
+    <string name="cash_no_debt">No amount owed</string>
+    <string name="cash_limit_summary">Used %1$s · Available %2$s · Limit %3$s %4$s</string>
+    <string name="cash_over_limit">Over limit %1$s %2$s</string>
+    <string name="cash_limit_source">Limit source: %1$s</string>
+    <string name="cash_statement_day">Statement date: day %1$d</string>
+    <string name="cash_statement_today">Statement date today</string>
+    <string name="cash_due_today">Payment due today</string>
+    <string name="cash_due_in">Payment due in %1$d days</string>
+    <string name="cash_statement_in">Statement date in %1$d days</string>
 </resources>

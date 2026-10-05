@@ -33,7 +33,7 @@ key.properties
 *.log
 *.hprof
 *.db
-!app/src/main/assets/database/valnook-demo-v10.db
+!app/src/main/assets/database/valnook-demo-v11.db
 *.db-wal
 *.db-shm
 *.sqlite

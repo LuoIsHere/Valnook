@@ -98,6 +98,22 @@ class StatisticsRepositoryTest {
         assertNull(series.points[2].value)
     }
 
+    @Test fun creditBalanceLowersTotalButIsExcludedFromAvailableCashHistory() = runBlocking {
+        db.credit().upsert(CreditAccountProfileEntity(2, 100_000, 12,
+            "AFTER_STATEMENT_DAYS", 20, null))
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val repository = RoomStatistics(db, clock)
+        val current = repository.loadCurrent()
+        decimal("370", requireNotNull(current.totalAssets))
+        decimal("100", requireNotNull(current.availableCash))
+        val total = repository.loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        val cash = repository.loadSeries(StatisticsRequest(StatisticsMetric.AVAILABLE_CASH,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        decimal("330", requireNotNull(total.points.first().value))
+        decimal("100", requireNotNull(cash.points.first().value))
+    }
+
     @Test fun cacheHitDoesNotReplayTradesOrCashEntries() = runBlocking {
         val repository = RoomStatistics(db, clock)
         val request = StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,

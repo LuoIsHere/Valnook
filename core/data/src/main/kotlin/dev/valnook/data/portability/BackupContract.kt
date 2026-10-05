@@ -48,13 +48,13 @@ data class PortableTable(
 internal object BackupContract {
     const val FORMAT = "valnook-backup"
     const val FORMAT_VERSION = 1
-    const val DATA_SCHEMA_VERSION = 1
-    const val REPORT_FORMAT_VERSION = 1
+    const val DATA_SCHEMA_VERSION = 2
+    const val REPORT_FORMAT_VERSION = 2
     const val POSITION_COST_RULE = InvestmentProfitCalculator.ALGORITHM_VERSION
     const val DEPOSIT_INTEREST_RULE = 1
     const val HISTORICAL_VALUATION_RULE = STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -70,6 +70,10 @@ internal object BackupContract {
             long("savings_account_id"), text("currency_code"), long("balance_minor"), long("revision"),
             long("updated_at_ms"), long("id"), text("name"), text("note"), bool("currency_locked"), long("created_at_ms")
         ), "savings_account_id,id"),
+        PortableTable("data/credit_account_profiles.jsonl", "credit_account_profiles", listOf(
+            long("account_id"), long("credit_limit_minor", true), long("statement_day"),
+            text("due_rule_type"), long("due_rule_value"), long("limit_source_account_id", true)
+        ), "account_id"),
         PortableTable("data/operation_receipts.jsonl", "operations", listOf(
             text("operation_id"), text("kind"), text("request_fingerprint"), text("result_kind", true),
             long("result_id", true), long("created_at_ms")
@@ -143,11 +147,20 @@ internal object BackupContract {
         "verification/snapshot_totals.json"
     )
 
-    val payloadPaths: Set<String> = tables.mapTo(linkedSetOf()) { it.path } + specialPaths
+    fun tablesFor(dataSchemaVersion: Int): List<PortableTable> = when (dataSchemaVersion) {
+        1 -> tables.filterNot { it.table == "credit_account_profiles" }
+        2 -> tables
+        else -> emptyList()
+    }
+
+    fun payloadPathsFor(dataSchemaVersion: Int): Set<String> =
+        tablesFor(dataSchemaVersion).mapTo(linkedSetOf()) { it.path } + specialPaths
+
+    val payloadPaths: Set<String> = payloadPathsFor(DATA_SCHEMA_VERSION)
     val zipPaths: Set<String> = payloadPaths + "manifest.json"
 
     val importOrder = listOf(
-        "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "investments",
+        "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "investments",
         "term_deposits", "investment_trades", "cash_entries", "cash_movements", "instrument_price_history",
         "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "audit_metadata",
         "audit_events", "audit_event_accounts"

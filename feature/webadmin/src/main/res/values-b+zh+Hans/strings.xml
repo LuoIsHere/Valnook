@@ -3,7 +3,7 @@
     <string name="webadmin_summary">通过同一局域网中的浏览器管理此设备</string>
     <string name="webadmin_description">启动临时本地网页会话，查看和编辑此设备中的真实数据。</string>
     <string name="webadmin_description_demo">启动临时本地网页会话，查看和编辑可丢弃的演示数据；所有修改均不会影响真实数据。</string>
-    <string name="webadmin_plaintext_warning">请仅在可信局域网中使用。v0.0.6 使用 HTTP 和 WebSocket，不提供传输加密。</string>
+    <string name="webadmin_plaintext_warning">请仅在可信局域网中使用。v0.0.7 使用 HTTP 和 WebSocket，不提供传输加密。</string>
     <string name="webadmin_start">开启网页端管理</string>
     <string name="webadmin_stop">关闭网页端管理</string>
     <string name="webadmin_end">结束网页端管理</string>

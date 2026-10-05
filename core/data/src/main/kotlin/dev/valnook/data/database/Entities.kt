@@ -24,6 +24,20 @@ data class CashEntity(val savings_account_id: Long, val currency_code: String, v
     val name: String = currency_code, val note: String = "", val currency_locked: Boolean = true,
     val created_at_ms: Long = updated_at_ms)
 
+@Entity(tableName = "credit_account_profiles",
+    foreignKeys = [
+        ForeignKey(entity = CashEntity::class, parentColumns = ["id"], childColumns = ["account_id"], onDelete = ForeignKey.RESTRICT),
+        ForeignKey(entity = CashEntity::class, parentColumns = ["id"], childColumns = ["limit_source_account_id"], onDelete = ForeignKey.RESTRICT)
+    ], indices = [Index("limit_source_account_id")])
+data class CreditAccountProfileEntity(
+    @PrimaryKey val account_id: Long,
+    val credit_limit_minor: Long?,
+    val statement_day: Int,
+    val due_rule_type: String,
+    val due_rule_value: Int,
+    val limit_source_account_id: Long?
+)
+
 @Entity(tableName = "term_deposits", foreignKeys = [ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["savings_account_id"], onDelete = ForeignKey.RESTRICT), ForeignKey(entity = CurrencyEntity::class, parentColumns = ["code"], childColumns = ["currency_code"], onDelete = ForeignKey.RESTRICT),
     ForeignKey(entity = OperationEntity::class, parentColumns = ["operation_id"], childColumns = ["open_operation_id"], onDelete = ForeignKey.RESTRICT), ForeignKey(entity = OperationEntity::class, parentColumns = ["operation_id"], childColumns = ["close_operation_id"], onDelete = ForeignKey.RESTRICT),
     ForeignKey(entity = CashEntity::class, parentColumns = ["id"], childColumns = ["open_cash_account_id"], onDelete = ForeignKey.RESTRICT),

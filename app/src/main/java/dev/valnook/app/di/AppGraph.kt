@@ -96,7 +96,7 @@ internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
     appVersionCode = dev.valnook.app.BuildConfig.VERSION_CODE.toLong(),
     internalBuildRevision = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
     internalBuildLabel = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
-    databaseSchemaVersion = 10
+    databaseSchemaVersion = 11
 )
 
 @Module

@@ -44,6 +44,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             val result = when (command) {
                 is SaveAssetType -> OperationResult("ASSET_TYPE", types.save(command.typeId, command.name, now))
                 is SaveAccount -> accounts.save(command, now)
+                is DeleteBalanceAccount -> accounts.delete(command)
                 is SaveInstrument -> instruments.save(command, now)
                 is EditInstrumentPrice -> instruments.editPrice(command, now)
                 is CreateInvestmentPosition -> positions.create(command, now)
@@ -81,6 +82,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 minOf(day(old.effective_at_ms), day(command.effectiveAtMs)).coerceAtLeast(baseline)
             }
             is SaveAccount -> if (cashBalanceChanges(command)) day(now) else null
+            is DeleteBalanceAccount -> null
             is RecordInvestmentTrade -> day(command.occurred_at_ms).coerceAtLeast(baseline)
             is EditInvestmentTrade -> {
                 val old = db.trades().trade(command.trade_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)

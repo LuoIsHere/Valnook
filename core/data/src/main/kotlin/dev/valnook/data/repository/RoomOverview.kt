@@ -11,15 +11,16 @@ import java.time.Clock
 
 class RoomOverview(private val db: ValnookDatabase) : OverviewRepository {
     override fun observeSnapshot(): Flow<AssetSnapshot> = db.invalidationTracker.createFlow(
-        "savings_accounts", "cash_accounts", "term_deposits", "investments", "instruments",
+        "savings_accounts", "cash_accounts", "credit_account_profiles", "term_deposits", "investments", "instruments",
         "asset_types", "app_settings", "fx_rates"
     ).map { snapshot() }.flowOn(Dispatchers.IO)
 
     override suspend fun snapshot(): AssetSnapshot {
         val rows = db.overview().snapshot()
+        val profiles = rows.creditProfiles.associateBy { it.account_id }
         return AssetSnapshot(rows.accounts.map { SavingsAccount(it.id, it.name, it.note, it.revision) },
             rows.cash.map { CashAccount(it.savings_account_id, Currency.of(it.currency_code), it.balance_minor, it.revision,
-                it.id, it.name, it.note, it.currency_locked) },
+                it.id, it.name, it.note, it.currency_locked, profiles[it.id]?.toModel()) },
             rows.deposits.map { it.toModel() }, rows.positions.map { it.toModel() },
             rows.instruments.map { it.toModel() }, settingsModel(rows.settings, rows.rates))
     }

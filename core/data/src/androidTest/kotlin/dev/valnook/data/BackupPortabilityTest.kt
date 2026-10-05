@@ -22,6 +22,9 @@ import dev.valnook.data.transaction.TransactionPoint
 import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.model.Direction
+import dev.valnook.domain.model.BalanceAccountType
+import dev.valnook.domain.model.CreditAccountInput
+import dev.valnook.domain.model.CreditDueRule
 import dev.valnook.domain.portability.PortabilityException
 import dev.valnook.domain.portability.PortabilityErrorCode
 import dev.valnook.domain.repository.*
@@ -34,6 +37,9 @@ import java.util.UUID
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.security.MessageDigest
+import org.json.JSONArray
+import org.json.JSONObject
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -70,6 +76,16 @@ class BackupPortabilityTest {
         val thirdAccountId = sourceCommands.execute(SaveAccount(testOperationId(), null, null,
             "汇丰香港", "@not-a-formula", listOf(CashBalanceChange("HKD", 54321, null,
                 name = "港币现金")))).id
+        val firstOwner = requireNotNull(source.accounts().account(accountId))
+        sourceCommands.execute(SaveAccount(testOperationId(), accountId, firstOwner.revision, firstOwner.name, firstOwner.note,
+            listOf(BalanceAccountChange("CNY", -63_284, null, name = "Visa 主卡", type = BalanceAccountType.CREDIT,
+                credit = CreditAccountInput(2_000_000, 12, CreditDueRule.AfterStatementDays(20), null)))))
+        val creditRoot = RoomOverview(source).snapshot().cash.single { it.name == "Visa 主卡" }.id
+        val refreshedFirstOwner = requireNotNull(source.accounts().account(accountId))
+        sourceCommands.execute(SaveAccount(testOperationId(), accountId, refreshedFirstOwner.revision,
+            refreshedFirstOwner.name, refreshedFirstOwner.note,
+            listOf(BalanceAccountChange("CNY", -20_000, null, name = "Visa 附属卡", type = BalanceAccountType.CREDIT,
+                credit = CreditAccountInput(null, 12, CreditDueRule.FixedDayOfMonth(5), creditRoot)))))
         val typeId = sourceCommands.testType("股票")
         val instrumentId = sourceCommands.testInstrument("平安银行", "000001.SZ", typeId, "CNY", 1_468_200_000_00L)
         val positionId = sourceCommands.execute(CreateInvestmentPosition(testOperationId(), accountId, instrumentId)).id
@@ -108,6 +124,7 @@ class BackupPortabilityTest {
         val entries = zipEntries(packageBytes)
         assertTrue("manifest.json" in entries)
         assertTrue("data/audit_events.jsonl" in entries)
+        assertTrue("data/credit_account_profiles.jsonl" in entries)
         assertTrue("verification/snapshot_totals.json" in entries)
         val termRows = zipText(packageBytes, "data/term_deposits.jsonl")
         assertTrue(termRows.contains("\"start_date\":\"2026-01-15\""))
@@ -127,8 +144,14 @@ class BackupPortabilityTest {
 
         val restored = RoomOverview(target).snapshot()
         assertEquals(listOf("=安全名称", "Schwab", "汇丰香港"), restored.accounts.map { it.name })
-        assertEquals(-12345L, restored.cash.first { it.account_id == accountId }.balance_minor)
-        assertEquals(4, restored.cash.size)
+        assertEquals(
+            -12345L,
+            restored.cash.single { it.account_id == accountId && it.name == "现金账户" }.balance_minor,
+        )
+        assertEquals(6, restored.cash.size)
+        assertEquals(2, restored.cash.count { it.type == BalanceAccountType.CREDIT })
+        val restoredChild = restored.cash.single { it.name == "Visa 附属卡" }
+        assertEquals(creditRoot, restoredChild.creditProfile?.limitSourceAccountId)
         assertEquals(100_000_000L, restored.positions.first { it.id == positionId }.holding_quantity_e8)
         assertEquals(0L, restored.positions.first { it.id == sharedPositionId }.holding_quantity_e8)
         assertEquals(1, restored.deposits.size)
@@ -161,6 +184,7 @@ class BackupPortabilityTest {
         assertEquals(7, workbookEntries.count { it.startsWith("xl/worksheets/sheet") })
         val workbookXml = zipText(workbookBytes, "xl/worksheets/sheet1.xml")
         assertTrue(workbookXml.contains("仅供分析"))
+        assertTrue(workbookXml.contains("信用账户数"))
         assertFalse(workbookXml.contains("<f>"))
         assertTrue(workbookXml.contains("<hyperlink"))
         target.openHelper.readableDatabase.query(
@@ -182,6 +206,26 @@ class BackupPortabilityTest {
         val summary = zipText(bytes, "xl/worksheets/sheet1.xml")
         assertTrue(summary.contains("For analysis only"))
         assertFalse(summary.contains("<f>"))
+    }
+
+    @Test fun data_schema_v1_restores_all_legacy_balance_accounts_as_savings() = runBlocking {
+        val source = database("v1-source")
+        RoomFinancialCommands(source, clock).execute(SaveAccount(testOperationId(), null, null, "Legacy", "",
+            listOf(CashBalanceChange("CNY", -12_345, null, name = "Legacy negative balance"))))
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(UUID.randomUUID().toString(), output) {}
+        val v1 = downgradeToDataSchemaV1(output.toByteArray())
+        val target = database("v1-target")
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(v1), "legacy-v1.val_backup") {}
+        try {
+            assertEquals(1, targetEngine.preview(staged).dataSchemaVersion)
+            targetEngine.commitRestore(staged) {}
+        } finally { targetEngine.close(staged) }
+        val restored = RoomOverview(target).snapshot().cash.single()
+        assertEquals(-12_345, restored.balance_minor)
+        assertEquals(BalanceAccountType.SAVINGS, restored.type)
+        assertNull(restored.creditProfile)
     }
 
     @Test fun restore_faults_roll_back_the_complete_original_dataset() = runBlocking {
@@ -297,6 +341,65 @@ class BackupPortabilityTest {
         } catch (_: PortabilityException) {
             assertEquals("keep", RoomOverview(target).snapshot().accounts.single().name)
         }
+    }
+
+    @Test fun crossParentCreditGraphIsRejectedBeforeTargetRowsChange() = runBlocking {
+        val source = database("cross-parent-source")
+        val sourceCommands = RoomFinancialCommands(source, clock)
+        val first = sourceCommands.testAccount("root parent")
+        val second = sourceCommands.testAccount("child parent")
+
+        suspend fun independent(parentId: Long, name: String): Long {
+            val owner = requireNotNull(source.accounts().account(parentId))
+            sourceCommands.execute(SaveAccount(testOperationId(), parentId, owner.revision, owner.name, owner.note,
+                listOf(BalanceAccountChange("CNY", 0, null, name = name, type = BalanceAccountType.CREDIT,
+                    credit = CreditAccountInput(100_000, 12, CreditDueRule.AfterStatementDays(20), null)))))
+            return RoomOverview(source).snapshot().cash.single { it.account_id == parentId && it.name == name }.id
+        }
+
+        val root = independent(first, "Root")
+        val child = independent(second, "Child")
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(UUID.randomUUID().toString(), output) {}
+        val files = linkedMapOf<String, ByteArray>()
+        ZipInputStream(ByteArrayInputStream(output.toByteArray())).use { zip -> while (true) {
+            val entry = zip.nextEntry ?: break
+            files[entry.name] = zip.readBytes()
+        } }
+        val profiles = files.getValue("data/credit_account_profiles.jsonl").toString(Charsets.UTF_8)
+            .lineSequence().filter(String::isNotBlank).map { line -> JSONObject(line).also { row ->
+                if (row.getLong("account_id") == child) {
+                    row.put("credit_limit_minor", JSONObject.NULL)
+                    row.put("limit_source_account_id", root.toString())
+                }
+            }.toString() }.joinToString("\n", postfix = "\n").toByteArray()
+        files["data/credit_account_profiles.jsonl"] = profiles
+        val manifest = JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
+        val manifestFiles = manifest.getJSONArray("files")
+        repeat(manifestFiles.length()) { index ->
+            val row = manifestFiles.getJSONObject(index)
+            if (row.getString("path") == "data/credit_account_profiles.jsonl") {
+                row.put("uncompressedBytes", profiles.size)
+                row.put("sha256", MessageDigest.getInstance("SHA-256").digest(profiles)
+                    .joinToString("") { "%02x".format(it) })
+            }
+        }
+        files["manifest.json"] = manifest.toString().toByteArray()
+        val invalidPackage = ByteArrayOutputStream().also { bytes -> ZipOutputStream(bytes).use { zip ->
+            files.forEach { (name, value) ->
+                zip.putNextEntry(ZipEntry(name)); zip.write(value); zip.closeEntry()
+            }
+        } }.toByteArray()
+
+        val target = database("cross-parent-target")
+        RoomFinancialCommands(target, clock).testAccount("keep")
+        val targetEngine = engine(target)
+        expect(PortabilityErrorCode.RELATIONSHIP_ERROR) {
+            runBlocking {
+                targetEngine.prepareRestore(ByteArrayInputStream(invalidPackage), "cross-parent.val_backup") {}
+            }
+        }
+        assertEquals("keep", RoomOverview(target).snapshot().accounts.single().name)
     }
 
     @Test fun audit_is_idempotent_and_rolls_back_with_the_business_transaction() = runBlocking {
@@ -421,5 +524,40 @@ class BackupPortabilityTest {
             }
         }
         return result
+    }
+
+    private fun downgradeToDataSchemaV1(bytes: ByteArray): ByteArray {
+        val files = linkedMapOf<String, ByteArray>()
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> while (true) {
+            val entry = zip.nextEntry ?: break
+            files[entry.name] = zip.readBytes()
+        } }
+        files.remove("data/credit_account_profiles.jsonl")
+        val totals = JSONObject(files.getValue("verification/snapshot_totals.json").toString(Charsets.UTF_8))
+        totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
+        files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
+        val manifest = JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
+        manifest.put("dataSchemaVersion", 1)
+        manifest.put("requiredFeatures", JSONArray(listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1")))
+        val fileRows = manifest.getJSONArray("files")
+        val rebuilt = JSONArray()
+        repeat(fileRows.length()) { index ->
+            val row = fileRows.getJSONObject(index)
+            val path = row.getString("path")
+            if (path != "data/credit_account_profiles.jsonl") {
+                if (path == "verification/snapshot_totals.json") {
+                    val value = files.getValue(path)
+                    row.put("uncompressedBytes", value.size)
+                    row.put("sha256", MessageDigest.getInstance("SHA-256").digest(value)
+                        .joinToString("") { "%02x".format(it) })
+                }
+                rebuilt.put(row)
+            }
+        }
+        manifest.put("files", rebuilt)
+        files["manifest.json"] = manifest.toString().toByteArray()
+        return ByteArrayOutputStream().also { output -> ZipOutputStream(output).use { zip ->
+            files.forEach { (name, value) -> zip.putNextEntry(ZipEntry(name)); zip.write(value); zip.closeEntry() }
+        } }.toByteArray()
     }
 }

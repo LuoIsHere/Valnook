@@ -117,5 +117,15 @@
     <string name="error_date">Invalid date. The maturity date must be after the start date.</string>
     <string name="error_positive">Values must be nonnegative; principal, price, and quantity must be positive.</string>
     <string name="error_storage">The save result is not confirmed. Retry the original request; input is temporarily locked to prevent duplicate records.</string>
+    <string name="error_account_type">The account type cannot be changed after creation.</string>
+    <string name="error_credit_limit">Enter a positive credit limit for an independent account, or choose a limit source.</string>
+    <string name="error_statement_day">Statement day must be between 1 and 31.</string>
+    <string name="error_due_rule">Check the payment due rule and its day value.</string>
+    <string name="error_credit_source">The selected credit-limit source is no longer available. Refresh and choose again.</string>
+    <string name="error_credit_source_currency">Shared credit accounts must use the same currency.</string>
+    <string name="error_credit_source_parent">Shared credit accounts must belong to the same main account.</string>
+    <string name="error_credit_source_chain">Choose an independent credit account as the limit source.</string>
+    <string name="error_credit_limit_in_use">Other credit accounts share this limit. Unlink them first.</string>
+    <string name="error_balance_account_in_use">This account has a balance, history, or business link and cannot be deleted.</string>
     <string name="error_format">Check field formats, currency, dates, and required information.</string>
 </resources>

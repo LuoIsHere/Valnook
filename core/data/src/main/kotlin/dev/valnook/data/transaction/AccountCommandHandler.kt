@@ -17,6 +17,8 @@ internal class AccountCommandHandler(
     private val cash: CashWriter,
     private val fault: (TransactionPoint) -> Unit
 ) {
+    private val credit = CreditAccountWriter(db)
+
     suspend fun save(command: SaveAccount, now: Long): OperationResult {
         val accountName = valid_name(command.name)
         if (command.note.length > 2000) throw DomainException(ErrorCode.FORMAT)
@@ -39,7 +41,11 @@ internal class AccountCommandHandler(
                 cash.requireCashAccount(it, accountId, currency.code)
             }
             if (old?.revision != row.expectedRevision) throw DomainException(ErrorCode.STALE_BALANCE)
-            ValidatedCashChange(row, name, currency.code, old)
+            val profile = old?.let { db.credit().profile(it.id) }
+            if (old != null && ((profile == null) != (row.type == dev.valnook.domain.model.BalanceAccountType.SAVINGS))) {
+                throw DomainException(ErrorCode.INVALID_ACCOUNT_TYPE)
+            }
+            ValidatedCashChange(row, name, currency.code, old, profile)
         }
 
         if (oldAccount != null) {
@@ -55,14 +61,20 @@ internal class AccountCommandHandler(
             if (old == null) {
                 val created = cash.createAccount(command.operation_id, accountId, value.name, value.row.note,
                     value.currencyCode, value.row.balanceMinor, now)
+                credit.save(credit.validateAndBuild(created.id, value.currencyCode, value.row.type,
+                    value.row.credit, existingAccount = false))
                 cash.entry(command.operation_id, created.id, CashSource.CASH_SET.name, null,
                     value.row.balanceMinor, now, now)
             } else {
+                val nextProfile = credit.validateAndBuild(old.id, value.currencyCode, value.row.type,
+                    value.row.credit, existingAccount = true)
                 val metadataChanged = old.name != value.name || old.note != value.row.note
                 val balanceChanged = old.balance_minor != value.row.balanceMinor
-                if (metadataChanged || balanceChanged) {
+                val profileChanged = value.profile != nextProfile
+                if (metadataChanged || balanceChanged || profileChanged) {
                     if (db.cash().updateCashAccount(old.id, old.revision, value.name, value.row.note,
                             value.row.balanceMinor, now) != 1) throw DomainException(ErrorCode.STALE_BALANCE)
+                    credit.save(nextProfile)
                     if (balanceChanged) {
                         val delta = R.replace_contribution(value.row.balanceMinor, old.balance_minor, 0)
                         db.cash().insert_movement(dev.valnook.data.database.MovementEntity(
@@ -77,6 +89,25 @@ internal class AccountCommandHandler(
             }
         }
         return OperationResult("ACCOUNT", accountId)
+    }
+
+    suspend fun delete(command: dev.valnook.domain.repository.DeleteBalanceAccount): OperationResult {
+        val account = cash.requireCashAccount(command.balanceAccountId, command.accountId,
+            db.cash().cashAccount(command.balanceAccountId)?.currency_code
+                ?: throw DomainException(ErrorCode.NOT_FOUND))
+        if (account.revision != command.expectedRevision) throw DomainException(ErrorCode.STALE_BALANCE)
+        if (db.credit().dependents(account.id).isNotEmpty()) throw DomainException(ErrorCode.CREDIT_LIMIT_IN_USE)
+        if (account.balance_minor != 0L || db.cash().meaningfulCashEntryCount(account.id) != 0 ||
+            db.cash().meaningfulMovementCount(account.id) != 0 || db.cash().depositReferenceCount(account.id) != 0 ||
+            db.cash().tradeReferenceCount(account.id) != 0) throw DomainException(ErrorCode.BALANCE_ACCOUNT_IN_USE)
+        db.cash().deleteZeroInitializationEntries(account.id)
+        db.cash().deleteZeroInitializationMovements(account.id)
+        db.credit().delete(account.id)
+        if (db.cash().deleteEmptyCashAccount(account.id, account.revision) != 1) {
+            throw DomainException(ErrorCode.BALANCE_ACCOUNT_IN_USE)
+        }
+        fault(TransactionPoint.AFTER_BUSINESS)
+        return OperationResult("BALANCE_ACCOUNT", account.id)
     }
 
     suspend fun setBalance(command: SetCashBalance, now: Long): OperationResult {
@@ -121,6 +152,7 @@ internal class AccountCommandHandler(
         val row: dev.valnook.domain.repository.CashBalanceChange,
         val name: String,
         val currencyCode: String,
-        val old: dev.valnook.data.database.CashEntity?
+        val old: dev.valnook.data.database.CashEntity?,
+        val profile: dev.valnook.data.database.CreditAccountProfileEntity?
     )
 }

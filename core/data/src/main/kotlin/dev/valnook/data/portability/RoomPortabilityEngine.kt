@@ -156,7 +156,7 @@ class RoomPortabilityEngine(
         internalBuildRevision = staged.manifest.producer.internalBuildRevision,
         databaseSchemaVersion = staged.manifest.producer.databaseSchemaVersion,
         formatVersion = BackupContract.FORMAT_VERSION,
-        dataSchemaVersion = BackupContract.DATA_SCHEMA_VERSION,
+        dataSchemaVersion = staged.manifest.dataSchemaVersion,
         accountCount = staged.manifest.accountCount,
         cashAccountCount = staged.manifest.cashAccountCount,
         tradeCount = staged.manifest.tradeCount,

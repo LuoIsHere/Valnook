@@ -11,7 +11,8 @@ import dev.valnook.feature.investments.TradeFormMode
 internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (NavKey) -> Unit,
     back: () -> Unit, accountName: (Long) -> String) {
     entry<CashKey> { route ->
-        val vm = pageViewModel { CashViewModel(route.accountId, graph.cash, graph.cashPages, createSavedStateHandle()) }
+        val vm = pageViewModel { CashViewModel(route.accountId, graph.cash, graph.cashPages,
+            createSavedStateHandle(), graph.overview) }
         CashDetail(vm, route.cashAccountId,
             { open(CashBalanceEditKey(route.accountId, route.cashAccountId)) },
             { open(CashEntryKey(route.accountId, route.cashAccountId, it)) })

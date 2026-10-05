@@ -119,6 +119,35 @@ class CashViewModelTest {
         runCurrent()
         assertEquals(0, active)
     }
+    @Test fun shared_credit_source_label_includes_its_parent_account() = runTest(dispatcher) {
+        val root = CashAccount(1, Currency.of("KWD"), -1000, 1, 20, "Primary card", creditProfile =
+            CreditAccountProfile(10_000, 5, CreditDueRule.AfterStatementDays(20), null))
+        val child = CashAccount(1, Currency.of("KWD"), -500, 1, 10, "Supplementary", creditProfile =
+            CreditAccountProfile(null, 5, CreditDueRule.AfterStatementDays(20), root.id))
+        val repository = object : CashRepository by reads {
+            override fun observe_cash(account_id: Long) = flowOf(listOf(child))
+        }
+        val overview = object : OverviewRepository {
+            private val value = AssetSnapshot(
+                listOf(SavingsAccount(1, "Daily", "")),
+                listOf(child, root), emptyList(), emptyList(), emptyList(), AppSettings())
+            override fun observeSnapshot() = flowOf(value)
+            override suspend fun snapshot() = value
+        }
+        val pages = object : PagedCashRepository {
+            override fun observeRevision(accountId: Long, currencyCode: String) = flowOf(1L)
+            override suspend fun page(accountId: Long, currencyCode: String, cursor: LedgerCursor?, size: Int) = emptyList<CashEntry>()
+            override fun observeCashAccountRevision(cashAccountId: Long) = flowOf(1L)
+            override suspend fun cashAccountPage(cashAccountId: Long, cursor: LedgerCursor?, size: Int) = emptyList<CashEntry>()
+        }
+        val vm = CashViewModel(1, repository, pages, SavedStateHandle(), overview)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.balances.collect() }
+        runCurrent()
+        val state = vm.balances.value as CashBalancesState.Ready
+        assertEquals("Daily · Primary card", state.creditSourceLabels[root.id])
+        assertEquals(listOf(child, root), state.allAccounts)
+        collector.cancel()
+    }
     @Test fun balance_editor_accepts_negative_target_and_reports_signed_delta() = runTest(dispatcher) {
         var request: SetCashBalance? = null
         val commands = object : FinancialCommands {

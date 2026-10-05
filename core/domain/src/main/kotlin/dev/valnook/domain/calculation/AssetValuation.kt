@@ -23,7 +23,11 @@ object AssetValuation {
         val depositsByAccount = snapshot.deposits.filterNot { it.closed }.groupBy { it.account_id }
         val positionsByAccount = snapshot.positions.groupBy { it.account_id }
         val accounts = snapshot.accounts.map { account ->
-            val cashAmounts = cashByAccount[account.id].orEmpty().map {
+            val balanceAccounts = cashByAccount[account.id].orEmpty()
+            val savingsAmounts = balanceAccounts.filter { it.type == BalanceAccountType.SAVINGS }.map {
+                it.currency to BigDecimal.valueOf(it.balance_minor, it.currency.fraction_digits)
+            }
+            val creditAmounts = balanceAccounts.filter { it.type == BalanceAccountType.CREDIT }.map {
                 it.currency to BigDecimal.valueOf(it.balance_minor, it.currency.fraction_digits)
             }
             val deposits = depositsByAccount[account.id].orEmpty().map {
@@ -45,8 +49,8 @@ object AssetValuation {
                 it.algorithmVersion != InvestmentProfitCalculator.ALGORITHM_VERSION }
                 .map { MissingAmount(if (it.chronologyValid) MissingKind.HISTORICAL_COST else MissingKind.INVALID_HISTORY,
                     it.currency.code, it.id) }.toSet()
-            AccountAssets(account, convert(cashAmounts + deposits + values, snapshot.settings),
-                convert(cashAmounts, snapshot.settings), convert(deposits, snapshot.settings),
+            AccountAssets(account, convert(savingsAmounts + creditAmounts + deposits + values, snapshot.settings),
+                convert(savingsAmounts, snapshot.settings), convert(creditAmounts, snapshot.settings), convert(deposits, snapshot.settings),
                 convert(values, snapshot.settings),
                 convert(floating, snapshot.settings, floatingMissing), convert(realized, snapshot.settings, realizedMissing))
         }
@@ -55,7 +59,7 @@ object AssetValuation {
             snapshot.settings.baseCurrency,
             accounts.flatMap { select(it).missing }.toSet() +
                 if (snapshot.settings.baseCurrency == null) setOf(MissingAmount(MissingKind.BASE_CURRENCY)) else emptySet())
-        return AssetOverview(accounts, total { it.total }, total { it.cash }, total { it.depositValue }, total { it.investmentValue },
+        return AssetOverview(accounts, total { it.total }, total { it.cash }, total { it.creditBalance }, total { it.depositValue }, total { it.investmentValue },
             total { it.floating }, total { it.realized })
     }
 

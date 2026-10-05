@@ -66,11 +66,17 @@ enum class ErrorCode { CURRENCY, FORMAT, PRECISION, OVERFLOW, POSITIVE, DATE, IN
     INSUFFICIENT_HOLDING, STALE_BALANCE, ALREADY_CLOSED, NOT_MATURED, OPERATION_CONFLICT,
     NOT_FOUND, NAME, AMOUNT_TOO_SMALL, DUPLICATE_TYPE, STALE_RECORD, SOURCE_RECORD,
     CURRENCY_LOCKED, SYMBOL_LOCKED, PRICE_CONFIRMATION, HISTORY_CONFLICT, DUPLICATE_CURRENCY,
-    WRONG_CASH_ACCOUNT, CASH_ACCOUNT_IN_USE, SESSION_EXPIRED, WEB_ADMIN_ACTIVE, MAINTENANCE_ACTIVE }
+    WRONG_CASH_ACCOUNT, CASH_ACCOUNT_IN_USE, SESSION_EXPIRED, WEB_ADMIN_ACTIVE, MAINTENANCE_ACTIVE,
+    INVALID_ACCOUNT_TYPE, INVALID_CREDIT_LIMIT, INVALID_STATEMENT_DAY, INVALID_DUE_RULE,
+    CREDIT_SOURCE_INVALID, CREDIT_SOURCE_CURRENCY, CREDIT_SOURCE_PARENT, CREDIT_SOURCE_CHAIN, CREDIT_SOURCE_CYCLE,
+    CREDIT_LIMIT_IN_USE, BALANCE_ACCOUNT_IN_USE }
 class DomainException(val code: ErrorCode) : IllegalArgumentException(code.name)
 data class SavingsAccount(val id: Long, val name: String, val note: String, val revision: Long = 1)
 data class CashAccount(val account_id: Long, val currency: Currency, val balance_minor: Long, val revision: Long,
-    val id: Long = 0, val name: String = "", val note: String = "", val currencyLocked: Boolean = true)
+    val id: Long = 0, val name: String = "", val note: String = "", val currencyLocked: Boolean = true,
+    val creditProfile: CreditAccountProfile? = null) {
+    val type: BalanceAccountType get() = if (creditProfile == null) BalanceAccountType.SAVINGS else BalanceAccountType.CREDIT
+}
 typealias CashBalance = CashAccount
 data class TermDeposit(val id: Long, val account_id: Long, val currency: Currency,
     val principal_minor: Long, val annual_rate_percent_e8: Long, val start_epoch_day: Long,

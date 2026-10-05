@@ -343,4 +343,29 @@ class MigrationTest {
             }
         } finally { context.deleteDatabase(name) }
     }
+
+    @Test fun v10_to_v11_adds_empty_credit_profiles_and_preserves_balance_accounts() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-v10-credit-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 10).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts VALUES (1,'保留账户','备注',100,100,1)")
+                execSQL("INSERT INTO cash_accounts VALUES (1,'CNY',-12345,4,200,7,'历史余额账户','保留',1,100)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 11, true, MIGRATION_10_11).apply {
+                query("SELECT savings_account_id,currency_code,balance_minor,revision,name,note FROM cash_accounts WHERE id=7").use {
+                    assertTrue(it.moveToFirst()); assertEquals(1L, it.getLong(0)); assertEquals("CNY", it.getString(1))
+                    assertEquals(-12345L, it.getLong(2)); assertEquals(4L, it.getLong(3))
+                    assertEquals("历史余额账户", it.getString(4)); assertEquals("保留", it.getString(5))
+                }
+                query("SELECT COUNT(*) FROM credit_account_profiles").use {
+                    assertTrue(it.moveToFirst()); assertEquals(0, it.getInt(0))
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
 }

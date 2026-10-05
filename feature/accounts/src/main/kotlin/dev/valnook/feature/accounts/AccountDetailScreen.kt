@@ -17,7 +17,7 @@ import dev.valnook.designsystem.Space
 import dev.valnook.domain.model.ConvertedTotal
 import java.math.RoundingMode
 
-enum class AccountDetailSection { CASH, DEPOSITS, INVESTMENTS }
+enum class AccountDetailSection { ACCOUNTS, DEPOSITS, INVESTMENTS }
 
 @Composable
 fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: AccountDetailSection,
@@ -52,9 +52,11 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
                         }
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    AccountSectionHeader("CASH", stringResource(R.string.accounts_cash), cashCount, assets.cash,
-                        selected == AccountDetailSection.CASH) { selected = AccountDetailSection.CASH }
-                    if (selected == AccountDetailSection.CASH) Box(Modifier.fillMaxWidth().weight(1f)) { cashContent() }
+                    AccountSectionHeader("ACCOUNTS", stringResource(R.string.accounts_accounts), cashCount,
+                        ConvertedTotal(assets.cash.amount + assets.creditBalance.amount, assets.cash.currency,
+                            assets.cash.missing + assets.creditBalance.missing),
+                        selected == AccountDetailSection.ACCOUNTS) { selected = AccountDetailSection.ACCOUNTS }
+                    if (selected == AccountDetailSection.ACCOUNTS) Box(Modifier.fillMaxWidth().weight(1f)) { cashContent() }
                     AccountSectionHeader("DEPOSITS", stringResource(R.string.accounts_deposits), depositCount, assets.depositValue,
                         selected == AccountDetailSection.DEPOSITS) { selected = AccountDetailSection.DEPOSITS }
                     if (selected == AccountDetailSection.DEPOSITS) Box(Modifier.fillMaxWidth().weight(1f)) { depositContent() }

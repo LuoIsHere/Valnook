@@ -12,7 +12,9 @@ val LocalPageBottomSpace = compositionLocalOf { 0.dp }
 
 @Composable
 fun pageContentPadding(horizontal: Dp = 16.dp, top: Dp = 8.dp, bottom: Dp = 16.dp): PaddingValues {
-    val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    val overlay = if (keyboardOpen) 0.dp else LocalPageBottomSpace.current
+    val density = LocalDensity.current
+    val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
+    val systemBottom = with(density) { WindowInsets.safeDrawing.getBottom(density).toDp() }
+    val overlay = if (keyboardOpen) 0.dp else maxOf(LocalPageBottomSpace.current, systemBottom)
     return PaddingValues(start = horizontal, top = top, end = horizontal, bottom = bottom + overlay)
 }

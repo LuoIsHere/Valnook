@@ -22,16 +22,20 @@ import java.time.*
     when (val current = state) {
         CashBalancesState.Loading -> CircularProgressIndicator()
         CashBalancesState.Failed -> Text(stringResource(CashR.string.cash_balance_load_failed))
-        is CashBalancesState.Ready -> CashContent(current.rows) { on_open(it.id) }
+        is CashBalancesState.Ready -> CashContent(current.rows, current.allAccounts,
+            current.creditSourceLabels) { on_open(it.id) }
     }
 }
-@Composable fun CashContent(rows:List<CashAccount>,on_open:(CashAccount)->Unit) {
+@Composable fun CashContent(rows:List<CashAccount>,allAccounts:List<CashAccount> = rows,
+    creditSourceLabels:Map<Long,String> = emptyMap(),
+    on_open:(CashAccount)->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
         itemsIndexed(rows,key={_,cash->cash.id}) {index,cash->
             val history_label=stringResource(R.string.cash_changes)+" · "+cash.name
             CashBalanceSummary(cash,null,Modifier.fillMaxWidth().clickable{on_open(cash)}
-                .semantics{contentDescription=history_label}.padding(vertical=Space.sm))
+                .semantics{contentDescription=history_label}.padding(vertical=Space.sm), allAccounts,
+                creditSourceLabels)
             if(index<rows.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
         }
     }
@@ -52,7 +56,9 @@ import java.time.*
     val balance=ledger.account
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
         item{
-            CashBalanceSummary(balance,on_edit=on_form,modifier=Modifier.fillMaxWidth().padding(bottom=Space.sm))
+            CashBalanceSummary(balance,on_edit=on_form,allAccounts=ledger.allAccounts,
+                creditSourceLabels=ledger.creditSourceLabels,
+                modifier=Modifier.fillMaxWidth().padding(bottom=Space.sm))
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
         }
         item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
@@ -73,4 +79,4 @@ import java.time.*
 @Preview(showBackground=true,widthDp=360,fontScale=2f)
 @Preview(showBackground=true,widthDp=420,uiMode=android.content.res.Configuration.UI_MODE_NIGHT_YES)
 @Composable fun CashPreview(){ValnookTheme{CashContent(listOf(CashAccount(1,Currency.of("CNY"),9223372036854775807,1,1,"日常现金"),
-    CashAccount(1,Currency.of("USD"),1234567,1,2,"美元交易资金"),CashAccount(1,Currency.of("JPY"),0,1,3,"日元备用")),{})}}
+    CashAccount(1,Currency.of("USD"),1234567,1,2,"美元交易资金"),CashAccount(1,Currency.of("JPY"),0,1,3,"日元备用")),on_open={})}}

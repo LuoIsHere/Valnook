@@ -5,9 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.valnook.domain.model.CashAccount
 import dev.valnook.domain.model.CashEntry
+import dev.valnook.domain.model.AssetSnapshot
 import dev.valnook.domain.repository.CashRepository
 import dev.valnook.domain.repository.LedgerCursor
 import dev.valnook.domain.repository.PagedCashRepository
+import dev.valnook.domain.repository.OverviewRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,23 +24,41 @@ import kotlinx.coroutines.flow.stateIn
 sealed interface CashBalancesState {
     data object Loading : CashBalancesState
     data object Failed : CashBalancesState
-    data class Ready(val rows: List<CashAccount>) : CashBalancesState
+    data class Ready(val rows: List<CashAccount>, val allAccounts: List<CashAccount>,
+        val creditSourceLabels: Map<Long, String> = emptyMap()) : CashBalancesState
 }
 
 sealed interface CashLedgerState {
     data object Loading : CashLedgerState
     data object Failed : CashLedgerState
-    data class Ready(val account: CashAccount, val rows: List<CashEntry>, val hasMore: Boolean) : CashLedgerState
+    data class Ready(val account: CashAccount, val rows: List<CashEntry>, val hasMore: Boolean,
+        val allAccounts: List<CashAccount> = emptyList(),
+        val creditSourceLabels: Map<Long, String> = emptyMap()) : CashLedgerState
+}
+
+private data class BalanceContext(val accounts: List<CashAccount>, val sourceLabels: Map<Long, String>)
+
+private fun AssetSnapshot.balanceContext(): BalanceContext {
+    val parentNames = accounts.associate { it.id to it.name }
+    return BalanceContext(cash, cash.associate { balance ->
+        val parentName = parentNames[balance.account_id].orEmpty()
+        balance.id to listOf(parentName, balance.name.ifBlank { balance.currency.code })
+            .filter(String::isNotBlank).joinToString(" · ")
+    })
 }
 
 class CashViewModel(
     private val accountId: Long,
     private val repository: CashRepository,
     private val pages: PagedCashRepository,
-    private val saved: SavedStateHandle
+    private val saved: SavedStateHandle,
+    private val overview: OverviewRepository? = null
 ) : ViewModel() {
-    val balances = repository.observe_cash(accountId).map<List<CashAccount>, CashBalancesState> {
-        CashBalancesState.Ready(it)
+    private val balanceContext = overview?.observeSnapshot()?.map(AssetSnapshot::balanceContext)
+        ?: flowOf(BalanceContext(emptyList(), emptyMap()))
+
+    val balances = combine(repository.observe_cash(accountId), balanceContext) { rows, context ->
+        CashBalancesState.Ready(rows, context.accounts.ifEmpty { rows }, context.sourceLabels) as CashBalancesState
     }.catch { emit(CashBalancesState.Failed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), CashBalancesState.Loading)
 
@@ -54,9 +74,10 @@ class CashViewModel(
     val entries = selected.flatMapLatest { cashAccountId ->
         if (cashAccountId == 0L) flowOf<CashLedgerState>(CashLedgerState.Loading)
         else combine(repository.observeCashAccount(cashAccountId),
-            pages.observeCashAccountRevision(cashAccountId), requests) { account, revision, request ->
-            Triple(account, revision, request)
-        }.map<Triple<CashAccount?, Long, Int>, CashLedgerState> { (account, revision, request) ->
+            pages.observeCashAccountRevision(cashAccountId), requests,
+            balanceContext) { account, revision, request, context ->
+            LedgerInput(account, revision, request, context)
+        }.map<LedgerInput, CashLedgerState> { (account, revision, request, context) ->
             val current = account?.takeIf { it.account_id == accountId } ?: return@map CashLedgerState.Failed
             if (cashAccountId != loadedCashAccountId || revision != loadedRevision) {
                 rows = pages.cashAccountPage(cashAccountId, null, PAGE_SIZE)
@@ -72,7 +93,7 @@ class CashViewModel(
                 loadedRequest = request
                 more = next.size == PAGE_SIZE
             }
-            CashLedgerState.Ready(current, rows, more)
+            CashLedgerState.Ready(current, rows, more, context.accounts, context.sourceLabels)
         }
     }.catch { emit(CashLedgerState.Failed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), CashLedgerState.Loading)
@@ -88,4 +109,7 @@ class CashViewModel(
     companion object {
         const val PAGE_SIZE = 50
     }
+
+    private data class LedgerInput(val account: CashAccount?, val revision: Long,
+        val request: Int, val context: BalanceContext)
 }

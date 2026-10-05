@@ -117,5 +117,15 @@
     <string name="error_date">日期无效，到期日必须晚于开始日。</string>
     <string name="error_positive">输入必须非负，本金、成交价与成交份额须大于零。</string>
     <string name="error_storage">保存结果暂未确认。请重试原请求；输入暂时锁定以避免重复记账。</string>
+    <string name="error_account_type">账户类型创建后不能直接修改。</string>
+    <string name="error_credit_limit">独立额度必须大于零；也可以选择一个额度来源。</string>
+    <string name="error_statement_day">账单日必须为 1 至 31 日。</string>
+    <string name="error_due_rule">请检查最后还款日规则和日期数值。</string>
+    <string name="error_credit_source">所选额度来源已不可用，请刷新后重新选择。</string>
+    <string name="error_credit_source_currency">共享额度的信用账户必须使用相同币种。</string>
+    <string name="error_credit_source_parent">共享额度的信用账户必须属于同一个主账户。</string>
+    <string name="error_credit_source_chain">请选择具有独立额度的信用账户作为额度来源。</string>
+    <string name="error_credit_limit_in_use">有其他信用账户正在共享该额度，请先解除关联。</string>
+    <string name="error_balance_account_in_use">该账户存在余额、历史记录或业务关联，无法删除。</string>
     <string name="error_format">请检查字段格式、币种、日期或必填信息。</string>
 </resources>

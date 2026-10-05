@@ -6,6 +6,8 @@ import dev.valnook.data.webadmin.WebHttpRequest
 import dev.valnook.data.webadmin.WebHttpResponse
 import dev.valnook.domain.calculation.AssetValuation
 import dev.valnook.domain.calculation.InvestmentProfitCalculator
+import dev.valnook.domain.calculation.CreditBillingCalendar
+import dev.valnook.domain.calculation.CreditLimitCalculator
 import dev.valnook.domain.model.*
 import dev.valnook.domain.money.DecimalRules
 import dev.valnook.domain.repository.*
@@ -49,6 +51,9 @@ internal class WebAdminApiRouter(
         ACCOUNT.matchEntire(path)?.let { match ->
             if (method == "GET") return account(match.groupValues[1].toLong())
             if (method == "PUT") return saveAccount(sessionId, match.groupValues[1].toLong(), request)
+        }
+        BALANCE_ACCOUNT.matchEntire(path)?.let { match ->
+            if (method == "DELETE") return deleteBalanceAccount(sessionId, match.groupValues[1].toLong(), request)
         }
         if (method == "POST" && path == "/api/v1/accounts") return saveAccount(sessionId, null, request)
         if (method == "GET" && path == "/api/v1/records") return records(request)
@@ -112,7 +117,8 @@ internal class WebAdminApiRouter(
             put("items", buildJsonArray { overview.accounts.forEach { row -> add(buildJsonObject {
                 put("id", row.account.id); put("revision", row.account.revision)
                 put("name", row.account.name); put("note", row.account.note)
-                put("cash", decimal(row.cash.amount)); put("deposits", decimal(row.depositValue.amount))
+                put("cash", decimal(row.cash.amount)); put("creditBalance", decimal(row.creditBalance.amount))
+                put("deposits", decimal(row.depositValue.amount))
                 put("investments", decimal(row.investmentValue.amount)); put("total", decimal(row.total.amount))
                 put("complete", row.total.complete)
             }) } })
@@ -128,7 +134,16 @@ internal class WebAdminApiRouter(
             put("account", buildJsonObject {
                 put("id", account.id); put("revision", account.revision); put("name", account.name); put("note", account.note)
             })
-            put("cash", buildJsonArray { snapshot.cash.filter { it.account_id == id }.forEach { add(cash(it)) } })
+            put("cash", buildJsonArray { snapshot.cash.filter { it.account_id == id }.forEach { add(cash(it, snapshot)) } })
+            put("creditSourceCandidates", buildJsonArray {
+                val names = snapshot.accounts.associate { it.id to it.name }
+                snapshot.cash.filter { it.account_id == id && it.type == BalanceAccountType.CREDIT &&
+                    it.creditProfile?.limitSourceAccountId == null }
+                    .forEach { value -> add(buildJsonObject {
+                        put("id", value.id); put("name", value.name); put("currencyCode", value.currency.code)
+                        put("accountId", value.account_id); put("accountName", names[value.account_id].orEmpty())
+                    }) }
+            })
             put("deposits", buildJsonArray { deposits.forEach { add(deposit(it)) } })
             put("positions", buildJsonArray { snapshot.positions.filter { it.account_id == id }.forEach { add(position(it)) } })
         })
@@ -139,12 +154,32 @@ internal class WebAdminApiRouter(
         val changes = body["cashChanges"]?.jsonArray?.map { value ->
             val row = value.jsonObject
             val currency = Currency.of(row.text("currencyCode"))
+            val type = row.optionalText("type")?.let(BalanceAccountType::valueOf) ?: BalanceAccountType.SAVINGS
+            val credit = if (type == BalanceAccountType.CREDIT) {
+                val value = row["credit"]?.jsonObject ?: throw IllegalArgumentException()
+                val source = value.optionalLong("limitSourceAccountId")
+                val due = value["dueRule"]?.jsonObject ?: throw IllegalArgumentException()
+                CreditAccountInput(
+                    if (source == null) DecimalRules.parse_minor(value.text("creditLimit"), currency, positive = true) else null,
+                    value.long("statementDay").toInt(),
+                    when (due.text("type")) {
+                        "AFTER_STATEMENT_DAYS" -> CreditDueRule.AfterStatementDays(due.long("value").toInt())
+                        "FIXED_DAY_OF_MONTH" -> CreditDueRule.FixedDayOfMonth(due.long("value").toInt())
+                        else -> throw IllegalArgumentException()
+                    }, source)
+            } else null
             CashBalanceChange(currency.code, DecimalRules.parse_signed_minor(row.text("balance"), currency),
                 row.optionalLong("expectedRevision"), row.optionalLong("cashAccountId"),
-                row.optionalText("name") ?: currency.code, row.optionalText("note").orEmpty())
+                row.optionalText("name") ?: currency.code, row.optionalText("note").orEmpty(), type, credit)
         }.orEmpty()
         return save(sessionId, body, SaveAccount(body.operationId(), id, body.optionalLong("expectedRevision"),
             body.text("name"), body.optionalText("note").orEmpty(), changes))
+    }
+
+    private suspend fun deleteBalanceAccount(sessionId: String, id: Long, request: WebHttpRequest): WebHttpResponse {
+        val body = body(request)
+        return save(sessionId, body, DeleteBalanceAccount(body.operationId(), body.long("accountId"), id,
+            body.long("expectedRevision")))
     }
 
     private suspend fun records(request: WebHttpRequest): WebHttpResponse {
@@ -377,11 +412,34 @@ internal class WebAdminApiRouter(
         })
     }
 
-    private fun cash(value: CashAccount) = buildJsonObject {
+    private fun cash(value: CashAccount, snapshot: AssetSnapshot) = buildJsonObject {
         put("id", value.id); put("accountId", value.account_id); put("revision", value.revision)
         put("name", value.name); put("note", value.note); put("currencyCode", value.currency.code)
         put("balance", DecimalRules.format_units(value.balance_minor, value.currency.fraction_digits))
         put("currencyLocked", value.currencyLocked)
+        put("type", value.type.name)
+        if (value.creditProfile == null) put("credit", JsonNull) else {
+            val profile = requireNotNull(value.creditProfile)
+            val summary = runCatching { CreditLimitCalculator.calculate(value.id, snapshot.cash) }.getOrNull()
+            val billing = CreditBillingCalendar.calculate(LocalDate.now(), profile.statementDay, profile.dueRule)
+            put("credit", buildJsonObject {
+                put("limitSourceAccountId", profile.limitSourceAccountId)
+                put("creditLimit", profile.creditLimitMinor?.let {
+                    DecimalRules.format_units(it, value.currency.fraction_digits) })
+                put("statementDay", profile.statementDay)
+                put("dueRule", buildJsonObject {
+                    put("type", if (profile.dueRule is CreditDueRule.FixedDayOfMonth)
+                        "FIXED_DAY_OF_MONTH" else "AFTER_STATEMENT_DAYS")
+                    put("value", profile.dueRule.value)
+                })
+                put("used", summary?.usedLimitMinor?.movePointLeft(value.currency.fraction_digits)?.let(::decimal))
+                put("available", summary?.availableLimitMinor?.movePointLeft(value.currency.fraction_digits)?.let(::decimal))
+                put("totalLimit", summary?.totalLimitMinor?.movePointLeft(value.currency.fraction_digits)?.let(::decimal))
+                put("overLimit", summary?.overLimitMinor?.movePointLeft(value.currency.fraction_digits)?.let(::decimal))
+                put("focus", billing.focus.name); put("focusDate", billing.focusDate.toString())
+                put("daysRemaining", billing.daysRemaining)
+            })
+        }
     }
 
     private fun deposit(value: TermDeposit) = buildJsonObject {
@@ -480,7 +538,10 @@ internal class WebAdminApiRouter(
         ErrorCode.HISTORY_CONFLICT -> failure(409, code.name, true)
         ErrorCode.WEB_ADMIN_ACTIVE, ErrorCode.MAINTENANCE_ACTIVE -> failure(423, code.name)
         ErrorCode.CURRENCY_LOCKED, ErrorCode.SYMBOL_LOCKED, ErrorCode.INSUFFICIENT_CASH,
-        ErrorCode.INSUFFICIENT_HOLDING, ErrorCode.CASH_ACCOUNT_IN_USE, ErrorCode.ALREADY_CLOSED ->
+        ErrorCode.INSUFFICIENT_HOLDING, ErrorCode.CASH_ACCOUNT_IN_USE, ErrorCode.ALREADY_CLOSED,
+        ErrorCode.CREDIT_SOURCE_INVALID, ErrorCode.CREDIT_SOURCE_CURRENCY, ErrorCode.CREDIT_SOURCE_PARENT,
+        ErrorCode.CREDIT_SOURCE_CHAIN,
+        ErrorCode.CREDIT_SOURCE_CYCLE, ErrorCode.CREDIT_LIMIT_IN_USE, ErrorCode.BALANCE_ACCOUNT_IN_USE ->
             failure(409, code.name)
         else -> failure(400, code.name)
     }
@@ -495,6 +556,7 @@ internal class WebAdminApiRouter(
 
     private companion object {
         val ACCOUNT = Regex("/api/v1/accounts/([0-9]+)")
+        val BALANCE_ACCOUNT = Regex("/api/v1/balance-accounts/([0-9]+)")
         val CASH_ENTRY = Regex("/api/v1/cash-entries/([0-9]+)")
         val ASSET_TYPE = Regex("/api/v1/asset-types/([0-9]+)")
         val INSTRUMENT = Regex("/api/v1/instruments/([0-9]+)")

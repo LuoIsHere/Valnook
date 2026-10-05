@@ -141,4 +141,76 @@ class AccountsViewModelTest {
         vm.submit(); runCurrent()
         assertEquals(-1234L, request!!.cashChanges.single().balanceMinor)
     }
+
+    @Test fun restored_draft_refreshes_credit_limit_sources_without_overwriting_input() = runTest(dispatcher) {
+        val creditSnapshot = snapshot.copy(
+            accounts = snapshot.accounts + SavingsAccount(8, "其他主账户", "", 1),
+            cash = snapshot.cash + listOf(CashAccount(
+                account_id = 7,
+                currency = Currency.of("CNY"),
+                balance_minor = -2_000,
+                revision = 2,
+                id = 12,
+                name = "共享额度主账户",
+                creditProfile = CreditAccountProfile(
+                    creditLimitMinor = 100_000,
+                    statementDay = 12,
+                    dueRule = CreditDueRule.AfterStatementDays(20),
+                    limitSourceAccountId = null
+                )
+            ), CashAccount(
+                account_id = 8,
+                currency = Currency.of("CNY"),
+                balance_minor = -1_000,
+                revision = 1,
+                id = 13,
+                name = "其他主账户信用卡",
+                creditProfile = CreditAccountProfile(100_000, 12,
+                    CreditDueRule.AfterStatementDays(20), null)
+            ))
+        )
+        val creditRepository = object : OverviewRepository {
+            override fun observeSnapshot() = flowOf(creditSnapshot)
+            override suspend fun snapshot() = creditSnapshot
+        }
+        val commands = object : FinancialCommands {
+            override suspend fun execute(command: FinancialCommand) = OperationResult("ACCOUNT", 7)
+        }
+        val saved = SavedStateHandle()
+        val original = AccountEditViewModel(7, creditRepository, commands, saved)
+        runCurrent()
+        original.changeName("未保存草稿")
+
+        val restored = AccountEditViewModel(
+            7,
+            creditRepository,
+            commands,
+            SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) })
+        )
+        runCurrent()
+
+        assertEquals("未保存草稿", restored.state.value.name)
+        assertEquals(listOf(12L), restored.state.value.creditSources.map { it.id })
+        assertEquals("旧名称 · 共享额度主账户", restored.state.value.creditSources.single().label)
+    }
+
+    @Test fun existing_balance_account_delete_uses_guarded_command_identity() = runTest(dispatcher) {
+        var request: DeleteBalanceAccount? = null
+        val commands = object : FinancialCommands {
+            override suspend fun execute(command: FinancialCommand): OperationResult {
+                request = command as DeleteBalanceAccount
+                return OperationResult("BALANCE_ACCOUNT", command.balanceAccountId)
+            }
+        }
+        val vm = AccountEditViewModel(7, repository, commands, SavedStateHandle())
+        runCurrent()
+
+        vm.deleteRow("11")
+        runCurrent()
+
+        assertEquals(7L, request?.accountId)
+        assertEquals(11L, request?.balanceAccountId)
+        assertEquals(8L, request?.expectedRevision)
+        assertEquals(SubmissionPhase.SUCCEEDED, vm.submission.value.phase)
+    }
 }

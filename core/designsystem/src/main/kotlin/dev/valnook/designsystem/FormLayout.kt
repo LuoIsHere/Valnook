@@ -14,7 +14,9 @@ import dev.valnook.core.designsystem.R
 @Composable
 fun FormLayout(title: String, busy: Boolean, enabled: Boolean, onSave: () -> Unit,
     saveLabel: String? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(pageContentPadding()),
+    Column(Modifier.fillMaxSize().imePadding()
+        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+        .verticalScroll(rememberScrollState()).padding(pageContentPadding()),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         Text(title, style = MaterialTheme.typography.headlineSmall)
         content()

@@ -26,6 +26,10 @@ import dev.valnook.domain.model.*
 import dev.valnook.domain.command.SubmissionPhase
 import java.math.RoundingMode
 import dev.valnook.domain.money.DecimalRules
+import dev.valnook.domain.calculation.CreditBillingCalendar
+import dev.valnook.domain.calculation.CreditBillingFocus
+import dev.valnook.domain.calculation.CreditLimitCalculator
+import java.time.LocalDate
 
 @Composable private fun totalText(total: ConvertedTotal): String = total.currency?.let {
     total.amount.setScale(it.fraction_digits, RoundingMode.HALF_UP).toPlainString() + " " + it.code
@@ -64,6 +68,10 @@ import dev.valnook.domain.money.DecimalRules
                 Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
                     color = amountColor(overview.total))
                 SummaryLine(stringResource(R.string.accounts_cash), overview.cash)
+                if (overview.creditBalance.amount.signum() != 0 ||
+                    snapshot?.cash?.any { it.type == BalanceAccountType.CREDIT } == true) {
+                    SummaryLine(stringResource(R.string.accounts_credit_balance), overview.creditBalance)
+                }
                 SummaryLine(stringResource(R.string.accounts_deposits), overview.depositValue)
                 SummaryLine(stringResource(R.string.accounts_investments), overview.investmentValue)
                 if (!overview.total.complete) Text(stringResource(R.string.accounts_summary_incomplete, missingText(overview.total)), color = MaterialTheme.colorScheme.error)
@@ -119,9 +127,9 @@ import dev.valnook.domain.money.DecimalRules
                     exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
                     Column(Modifier.fillMaxWidth().padding(start = Space.sm), verticalArrangement = Arrangement.spacedBy(0.dp)) {
                         cashRows.forEach { cash ->
-                            AccountNativeRow(cash.name.ifBlank { cash.currency.code }, cash.note,
-                                DecimalRules.format_display(cash.balance_minor, cash.currency.fraction_digits) + " " + cash.currency.code,
-                                cash.balance_minor < 0, "account-cash-${cash.id}") { onOpenCash(row.account.id, cash.id) }
+                            BalanceAccountNativeRow(cash, snapshot?.cash.orEmpty(), "account-cash-${cash.id}") {
+                                onOpenCash(row.account.id, cash.id)
+                            }
                         }
                         if (cashRows.isEmpty()) Text(stringResource(R.string.accounts_no_cash),
                             Modifier.padding(vertical = Space.sm), style = MaterialTheme.typography.bodySmall,
@@ -151,18 +159,58 @@ import dev.valnook.domain.money.DecimalRules
     }
 }
 
-@Composable private fun AccountNativeRow(title: String, note: String, amount: String, negative: Boolean, tag: String,
+@Composable private fun BalanceAccountNativeRow(account: CashAccount, allAccounts: List<CashAccount>, tag: String,
     onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().testTag(tag).clickable(onClick = onClick).padding(vertical = Space.sm),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (note.isNotBlank()) Text(note, style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Column(Modifier.fillMaxWidth().testTag(tag).clickable(onClick = onClick).padding(vertical = Space.sm),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            Column(Modifier.weight(1f)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(account.name.ifBlank { account.currency.code }, style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(if (account.type == BalanceAccountType.CREDIT) stringResource(R.string.account_type_credit)
+                        else stringResource(R.string.account_type_savings), style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (account.note.isNotBlank()) Text(account.note, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            val amount = DecimalRules.format_display(account.balance_minor, account.currency.fraction_digits) + " " + account.currency.code
+            Text(amount, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings="tnum"),
+                color = if (account.type == BalanceAccountType.CREDIT) MaterialTheme.colorScheme.onSurface
+                    else if (account.balance_minor < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text(amount, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings="tnum"),
-            color = if (negative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-        Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (account.type == BalanceAccountType.CREDIT) {
+            val summary = remember(account.id, account.revision, allAccounts) {
+                runCatching { CreditLimitCalculator.calculate(account.id, allAccounts) }.getOrNull()
+            }
+            val billing = account.creditProfile?.let { profile ->
+                remember(profile, LocalDate.now()) {
+                    runCatching { CreditBillingCalendar.calculate(LocalDate.now(), profile.statementDay, profile.dueRule) }.getOrNull()
+                }
+            }
+            if (summary != null) {
+                val scale = account.currency.fraction_digits
+                LinearProgressIndicator(
+                    progress = { if (summary.totalLimitMinor.signum() == 0) 0f else
+                        summary.usedLimitMinor.divide(summary.totalLimitMinor, 4, RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth())
+                val used = DecimalRules.format_display(summary.usedLimitMinor.longValueExact(), scale)
+                val limit = DecimalRules.format_display(summary.totalLimitMinor.longValueExact(), scale)
+                Text(stringResource(R.string.account_credit_usage, used, limit, account.currency.code),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (summary.overLimitMinor.signum() > 0) Text(stringResource(R.string.account_credit_over_limit,
+                    DecimalRules.format_display(summary.overLimitMinor.longValueExact(), scale), account.currency.code),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+            if (billing != null) Text(when {
+                billing.daysRemaining == 0L && billing.focus == CreditBillingFocus.STATEMENT -> stringResource(R.string.account_statement_today)
+                billing.daysRemaining == 0L -> stringResource(R.string.account_due_today)
+                billing.focus == CreditBillingFocus.DUE -> stringResource(R.string.account_due_in_days, billing.daysRemaining)
+                else -> stringResource(R.string.account_statement_in_days, billing.daysRemaining)
+            }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -178,6 +226,7 @@ import dev.valnook.domain.money.DecimalRules
 @Composable fun AccountEditScreen(vm: AccountEditViewModel, onBack: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
+    var pendingDeleteKey by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
     if (!state.loaded) {
         if (state.loadError) TextButton(onClick = vm::reload) { Text(stringResource(R.string.account_edit_load_failed)) } else CircularProgressIndicator()
@@ -188,11 +237,16 @@ import dev.valnook.domain.money.DecimalRules
         if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.account_review_retry) else stringResource(R.string.account_save)) {
         Field(stringResource(R.string.account_name), state.name, vm::changeName, enabled = submission.editable)
         Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable)
-        Text(stringResource(R.string.account_cash_accounts), style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.account_balance_accounts), style = MaterialTheme.typography.titleMedium)
         state.rows.forEach { row ->
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Field(stringResource(R.string.account_cash_name), row.nameInput, { vm.changeRow(row.key, name = it) }, enabled = submission.editable)
+                ChoiceField(stringResource(R.string.account_type), row.type.name, listOf(
+                    BalanceAccountType.SAVINGS.name to stringResource(R.string.account_type_savings),
+                    BalanceAccountType.CREDIT.name to stringResource(R.string.account_type_credit)),
+                    { vm.changeRow(row.key, type = BalanceAccountType.valueOf(it)) },
+                    submission.editable && row.cashAccountId == null)
+                Field(stringResource(R.string.account_balance_name), row.nameInput, { vm.changeRow(row.key, name = it) }, enabled = submission.editable)
                 Field(stringResource(R.string.account_note), row.noteInput, { vm.changeRow(row.key, note = it) }, enabled = submission.editable)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
@@ -202,14 +256,56 @@ import dev.valnook.domain.money.DecimalRules
                     Box(Modifier.weight(1.3f)) { Field(stringResource(R.string.account_balance), row.balanceInput,
                         { vm.changeRow(row.key, balance = it) }, true, submission.editable, signed = true) }
                 }
+                if (row.type == BalanceAccountType.CREDIT) {
+                    val sourceOptions = listOf("" to stringResource(R.string.account_independent_limit)) + state.creditSources
+                        .filter { it.id != row.cashAccountId && it.currency == row.currency }
+                        .map { it.id.toString() to it.label }
+                    ChoiceField(stringResource(R.string.account_limit_source), row.limitSourceAccountId?.toString().orEmpty(),
+                        sourceOptions, { selected -> vm.changeRow(row.key,
+                            limitSourceAccountId = selected.toLongOrNull(), clearLimitSource = selected.isEmpty()) }, submission.editable)
+                    if (row.limitSourceAccountId == null) Field(stringResource(R.string.account_credit_limit), row.creditLimitInput,
+                        { vm.changeRow(row.key, creditLimit = it) }, numeric = true, enabled = submission.editable)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f)) { Field(stringResource(R.string.account_statement_day), row.statementDayInput,
+                            { vm.changeRow(row.key, statementDay = it) }, numeric = true, enabled = submission.editable) }
+                        Box(Modifier.weight(1.4f)) { ChoiceField(stringResource(R.string.account_due_rule), row.dueRuleType,
+                            listOf("AFTER_STATEMENT_DAYS" to stringResource(R.string.account_due_after),
+                                "FIXED_DAY_OF_MONTH" to stringResource(R.string.account_due_fixed)),
+                            { vm.changeRow(row.key, dueRuleType = it) }, submission.editable) }
+                    }
+                    Field(if (row.dueRuleType == "FIXED_DAY_OF_MONTH") stringResource(R.string.account_due_day)
+                        else stringResource(R.string.account_due_days_after), row.dueRuleValueInput,
+                        { vm.changeRow(row.key, dueRuleValue = it) }, numeric = true, enabled = submission.editable)
+                }
                 if (!row.currencyLocked) TextButton(onClick = { vm.removeRow(row.key) }, enabled = submission.editable) {
-                    Text(stringResource(R.string.account_cancel_cash))
+                    Text(stringResource(R.string.account_cancel_balance_account))
+                }
+                if (row.cashAccountId != null) TextButton(
+                    onClick = { pendingDeleteKey = row.key },
+                    enabled = submission.editable,
+                    modifier = Modifier.testTag("account-delete-${row.cashAccountId}")) {
+                    Text(stringResource(R.string.account_delete_balance_account), color = MaterialTheme.colorScheme.error)
                 }
                 }
             }
         }
-        ActionButton(vm::addRow, enabled = submission.editable) { Text(stringResource(R.string.account_add_cash)) }
+        ActionButton(vm::addRow, enabled = submission.editable) { Text(stringResource(R.string.account_add_balance_account)) }
         ErrorMessage(submission.error?.name)
         if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.account_unknown_result))
     }
+    if (pendingDeleteKey != null) AlertDialog(
+        onDismissRequest = { pendingDeleteKey = null },
+        title = { Text(stringResource(R.string.account_delete_title)) },
+        text = { Text(stringResource(R.string.account_delete_message)) },
+        dismissButton = { TextButton(onClick = { pendingDeleteKey = null }) {
+            Text(stringResource(dev.valnook.core.designsystem.R.string.cancel))
+        } },
+        confirmButton = { TextButton(onClick = {
+            val key = pendingDeleteKey
+            pendingDeleteKey = null
+            if (key != null) vm.deleteRow(key)
+        }, modifier = Modifier.testTag("account-delete-confirm")) {
+            Text(stringResource(R.string.account_delete_confirm), color = MaterialTheme.colorScheme.error)
+        } }
+    )
 }

@@ -29,10 +29,11 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
     }
     entry<AccountKey> { route ->
         val summaryVm = pageViewModel { AccountsViewModel(graph.overview) }
-        val cashVm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle()) }
+        val cashVm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle(), graph.overview) }
         val depositVm = pageViewModel { DepositsViewModel(route.id, false, graph.depositPages, graph.clock) }
         val portfolioVm = pageViewModel { PortfolioViewModel(graph.overview) }
-        val initial = runCatching { AccountDetailSection.valueOf(route.section) }.getOrDefault(AccountDetailSection.CASH)
+        val initial = if (route.section == "CASH") AccountDetailSection.ACCOUNTS else
+            runCatching { AccountDetailSection.valueOf(route.section) }.getOrDefault(AccountDetailSection.ACCOUNTS)
         AccountDetailScreen(summaryVm, route.id, initial,
             cashContent = { CashScreen(cashVm) { open(CashKey(route.id, it)) } },
             depositContent = {

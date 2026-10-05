@@ -5,7 +5,7 @@ import java.io.InputStream
 import java.io.OutputStream
 
 const val BACKUP_FORMAT_VERSION = 1
-const val BACKUP_DATA_SCHEMA_VERSION = 1
+const val BACKUP_DATA_SCHEMA_VERSION = 2
 const val AUDIT_PROTOCOL_VERSION = 1
 
 enum class PortabilityStage {

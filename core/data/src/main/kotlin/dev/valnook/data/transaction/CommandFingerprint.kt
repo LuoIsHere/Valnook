@@ -11,7 +11,11 @@ internal object CommandFingerprint {
             is SaveAccount -> listOf("ACCOUNT_SAVE", command.accountId, command.expectedRevision,
                 command.name.trim(), command.note) + command.cashChanges.sortedWith(compareBy({ it.cashAccountId ?: Long.MAX_VALUE }, { it.name }))
                     .flatMap { listOf(it.cashAccountId, it.name.trim(), it.note, Currency.of(it.currencyCode).code,
-                        it.balanceMinor, it.expectedRevision) }
+                        it.balanceMinor, it.expectedRevision, it.type.name, it.credit?.creditLimitMinor,
+                        it.credit?.statementDay, it.credit?.dueRule?.javaClass?.simpleName,
+                        it.credit?.dueRule?.value, it.credit?.limitSourceAccountId) }
+            is DeleteBalanceAccount -> listOf("BALANCE_ACCOUNT_DELETE", command.accountId,
+                command.balanceAccountId, command.expectedRevision)
             is SaveInstrument -> listOf("INSTRUMENT_SAVE", command.instrumentId, command.expectedRevision,
                 command.name.trim(), command.symbol.trim(), command.typeId, Currency.of(command.currencyCode).code,
                 command.currentPriceE5, command.currencyPriceConfirmed)

@@ -61,7 +61,8 @@ internal class ArchiveReader(
             val manifestFile = BackupSnapshotWriter.safeFile(extracted, "manifest.json")
             val manifest = ArchiveManifest.parse(readTextBounded(manifestFile, limits.maxManifestBytes), limits)
             CompatibilityRules.validate(manifest, readerBuild)
-            if (manifest.files.map { it.path }.toSet() != BackupContract.payloadPaths) {
+            val expectedPayloadPaths = BackupContract.payloadPathsFor(manifest.dataSchemaVersion)
+            if (manifest.files.map { it.path }.toSet() != expectedPayloadPaths) {
                 throw PortabilityException(PortabilityErrorCode.MISSING_FILE)
             }
             var totalRecords = 0L
@@ -79,7 +80,7 @@ internal class ArchiveReader(
             staging = ValnookDatabase.staging(context, stagingName)
             // Force schema creation before loading the isolated candidate.
             staging.openHelper.writableDatabase
-            val counts = loadCandidate(staging, extracted)
+            val counts = loadCandidate(staging, extracted, manifest.dataSchemaVersion)
             manifest.files.forEach { declared ->
                 if (counts[declared.path] != declared.recordCount) {
                     throw PortabilityException(PortabilityErrorCode.RECORD_COUNT_MISMATCH)
@@ -156,14 +157,14 @@ internal class ArchiveReader(
         } catch (error: ZipException) {
             throw PortabilityException(PortabilityErrorCode.INVALID_ARCHIVE, error)
         }
-        if (seen != BackupContract.zipPaths) throw PortabilityException(PortabilityErrorCode.MISSING_FILE)
+        if ("manifest.json" !in seen) throw PortabilityException(PortabilityErrorCode.MISSING_FILE)
     }
 
-    private suspend fun loadCandidate(db: ValnookDatabase, root: File): Map<String, Long> {
+    private suspend fun loadCandidate(db: ValnookDatabase, root: File, dataSchemaVersion: Int): Map<String, Long> {
         val counts = linkedMapOf<String, Long>()
         db.withTransaction {
             counts["data/currencies.json"] = loadCurrencies(db, root)
-            BackupContract.tables.sortedBy { BackupContract.importOrder.indexOf(it.table) }.forEach { table ->
+            BackupContract.tablesFor(dataSchemaVersion).sortedBy { BackupContract.importOrder.indexOf(it.table) }.forEach { table ->
                 counts[table.path] = loadTable(db, root, table)
             }
             counts["data/valuation_baselines.jsonl"] = loadValuationBaselines(db, root)
@@ -327,6 +328,7 @@ internal class ArchiveReader(
     ) {
         val sql = db.openHelper.readableDatabase
         sql.query("PRAGMA foreign_key_check").use { if (it.moveToFirst()) relationship() }
+        validateCreditAccounts(sql)
         if (counts["data/accounts.jsonl"] != manifest.accountCount ||
             counts["data/cash_accounts.jsonl"] != manifest.cashAccountCount ||
             counts["data/investment_trades.jsonl"] != manifest.tradeCount ||
@@ -364,6 +366,30 @@ internal class ArchiveReader(
         if (declaredCash != actualCash) summaryMismatch()
         val state = db.statistics().state()
         if (state != null && state.rule_version != BackupContract.HISTORICAL_VALUATION_RULE) incompatible()
+    }
+
+    private fun validateCreditAccounts(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.query("""SELECT 1 FROM credit_account_profiles p
+            JOIN cash_accounts a ON a.id=p.account_id
+            LEFT JOIN credit_account_profiles source ON source.account_id=p.limit_source_account_id
+            LEFT JOIN cash_accounts source_account ON source_account.id=p.limit_source_account_id
+            WHERE p.statement_day NOT BETWEEN 1 AND 31
+               OR p.due_rule_type NOT IN ('AFTER_STATEMENT_DAYS','FIXED_DAY_OF_MONTH')
+               OR (p.due_rule_type='AFTER_STATEMENT_DAYS' AND p.due_rule_value NOT BETWEEN 1 AND 365)
+               OR (p.due_rule_type='FIXED_DAY_OF_MONTH' AND p.due_rule_value NOT BETWEEN 1 AND 31)
+               OR (p.limit_source_account_id IS NULL AND (p.credit_limit_minor IS NULL OR p.credit_limit_minor<=0))
+               OR (p.limit_source_account_id IS NOT NULL AND p.credit_limit_minor IS NOT NULL)
+               OR p.limit_source_account_id=p.account_id
+               OR (p.limit_source_account_id IS NOT NULL AND source.account_id IS NULL)
+               OR (p.limit_source_account_id IS NOT NULL AND source.limit_source_account_id IS NOT NULL)
+               OR (p.limit_source_account_id IS NOT NULL AND (source.credit_limit_minor IS NULL OR source.credit_limit_minor<=0))
+               OR (p.limit_source_account_id IS NOT NULL AND source_account.savings_account_id!=a.savings_account_id)
+               OR (p.limit_source_account_id IS NOT NULL AND source_account.currency_code!=a.currency_code)
+            LIMIT 1""").use { if (it.moveToFirst()) relationship() }
+        db.query("""SELECT 1 FROM credit_account_profiles root
+            JOIN credit_account_profiles child ON child.limit_source_account_id=root.account_id
+            WHERE root.limit_source_account_id IS NOT NULL LIMIT 1""")
+            .use { if (it.moveToFirst()) relationship() }
     }
 
     private fun validatePositionCosts(db: androidx.sqlite.db.SupportSQLiteDatabase) {

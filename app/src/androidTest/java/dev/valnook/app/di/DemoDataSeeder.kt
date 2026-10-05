@@ -4,6 +4,9 @@ import dev.valnook.domain.model.AppSettings
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.model.Direction
 import dev.valnook.domain.model.FxRate
+import dev.valnook.domain.model.BalanceAccountType
+import dev.valnook.domain.model.CreditAccountInput
+import dev.valnook.domain.model.CreditDueRule
 import dev.valnook.domain.money.DecimalRules as R
 import dev.valnook.domain.repository.CashBalanceChange
 import dev.valnook.domain.repository.CloseTermDeposit
@@ -29,6 +32,8 @@ import java.util.UUID
 internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Clock) {
     private data class DemoStock(val name: String, val symbol: String, val market: String,
         val currency: String, val price: BigDecimal)
+    private data class DemoCash(val currency: String, val balanceMinor: Long, val name: String)
+    private data class DemoAccount(val name: String, val note: String, val cash: List<DemoCash>)
 
     suspend fun seed(displayPreferences: AppSettings) {
         var stored = graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),listOf(
@@ -40,18 +45,38 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         if(stored.gainLossColors!=displayPreferences.gainLossColors) graph.settingsWriter.applyChange(
             SaveGainLossColors(stored.revision,displayPreferences.gainLossColors))
 
-        val accountNames = listOf("招商证券", "华泰证券", "中信证券", "国泰君安证券", "广发证券", "中金财富",
-            "富途证券", "中银国际", "汇丰证券", "盈透证券", "嘉信理财", "老虎证券")
-        val accounts = accountNames.mapIndexed { index, name ->
-            graph.commands.execute(SaveAccount(id(), null, null, name, "股票投资账户 ${index + 1}", listOf(
-                CashBalanceChange("CNY", 150_000_000L + index * 3_754_300L, null, name = "人民币日常资金"),
-                CashBalanceChange("USD", 60_000_000L + index * 743_100L, null, name = "美元交易资金"),
-                CashBalanceChange("USD", 15_000_000L + index * 287_500L, null, name = "美元备用资金"),
-                CashBalanceChange("HKD", 200_000_000L + index * 4_381_700L, null, name = "港币现金")
-            ))).id
+        val bankSpecs = listOf(
+            DemoAccount("招商银行", "银行账户 · 工资与日常支出", listOf(
+                DemoCash("CNY", 500_000L, "招商银行活期"), DemoCash("USD", 20_000L, "美元储蓄"))),
+            DemoAccount("中国工商银行", "银行账户 · 家庭日常开支", listOf(
+                DemoCash("CNY", 400_000L, "工商银行活期"))),
+            DemoAccount("中国银行", "银行账户 · 跨境资金", listOf(
+                DemoCash("CNY", 300_000L, "中国银行活期"), DemoCash("HKD", 100_000L, "港币储蓄"))),
+            DemoAccount("中国建设银行", "银行账户 · 家庭储备", listOf(
+                DemoCash("CNY", 400_000L, "建设银行活期"))),
+            DemoAccount("交通银行", "银行账户 · 交通与出行", listOf(
+                DemoCash("CNY", 200_000L, "交通银行活期"))),
+            DemoAccount("汇丰银行", "银行账户 · 外币往来", listOf(
+                DemoCash("USD", 25_000L, "美元往来账户"), DemoCash("HKD", 250_000L, "港币往来账户")))
+        )
+        val brokerSpecs = listOf("中信证券", "华泰证券", "广发证券", "中金财富", "富途证券", "盈透证券")
+            .mapIndexed { index, name ->
+                DemoAccount(name, "证券账户 · ${listOf("A 股与长期持有", "稳健组合", "价值投资", "多市场组合", "港美股交易", "海外长期持有")[index]}", listOf(
+                    DemoCash("CNY", listOf(240_000L, 60_000L, 90_000L, 902_000L, 70_000L, 259_000L)[index], "人民币交易资金"),
+                    DemoCash("USD", listOf(180_000L, 35_000L, 72_600L, 114_200L, 115_000L, 30_000L)[index], "美元交易资金"),
+                    DemoCash("HKD", listOf(1_000_000L, 1_810_000L, 475_000L, 1_175_000L, 686_000L, 80_000L)[index], "港币交易资金")
+                ))
+            }
+        suspend fun createAccounts(specs: List<DemoAccount>) = specs.map { spec ->
+            graph.commands.execute(SaveAccount(id(), null, null, spec.name, spec.note, spec.cash.map { cash ->
+                CashBalanceChange(cash.currency, cash.balanceMinor, null, name = cash.name)
+            })).id
         }
+        val bankAccounts = createAccounts(bankSpecs)
+        val brokerAccounts = createAccounts(brokerSpecs)
+        seedCreditAccounts(bankAccounts)
         val tradeCashByAccountCurrency = graph.overview.snapshot().cash
-            .filterNot { it.name == "美元备用资金" }
+            .filter { it.type == BalanceAccountType.SAVINGS }
             .associateBy { it.account_id to it.currency.code }
 
         val typeNames = listOf("A股股票", "港股股票", "美股股票")
@@ -129,10 +154,10 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         val today = LocalDate.now(clock)
         val historyStart = LocalDate.of(today.year - 8, 1, 5)
         val pairs = buildList {
-            accounts.forEachIndexed { accountIndex, accountId ->
-                repeat(7) { offset -> add(accountId to instruments[(accountIndex * 5 + offset * 7) % instruments.size]) }
+            brokerAccounts.forEachIndexed { accountIndex, accountId ->
+                repeat(4) { offset -> add(accountId to instruments[(accountIndex * 7 + offset * 13) % instruments.size]) }
             }
-        }.take(80)
+        }
         pairs.forEachIndexed { positionIndex, (accountId, instrumentId) ->
             val stock = requireNotNull(stockById[instrumentId])
             val positionStart = historyStart.plusDays(((positionIndex * 19) % 500).toLong())
@@ -144,7 +169,8 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
                 CreateInvestmentPosition(id(), accountId, instrumentId)
             ).id
             graph.commands.execute(RecordInvestmentTrade(id(), positionId, Direction.BUY,
-                openingQuantity, openingPrice, at(positionStart), false))
+                openingQuantity, openingPrice, at(positionStart), true,
+                requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id))
             repeat(9) { tradeIndex ->
                 val closedFixture = positionIndex % 10 == 0
                 val direction = if (closedFixture && tradeIndex == 0) Direction.SELL
@@ -157,7 +183,7 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
                 val price = R.parse_e8(stock.price.multiply(factor)
                     .setScale(2, java.math.RoundingMode.HALF_UP).toPlainString())
                 val fee = demoFee(stock.currency, positionIndex, tradeIndex)
-                val cashLinked = (positionIndex * 2 + tradeIndex) % 3 != 0
+                val cashLinked = positionIndex % 4 != 3 || tradeIndex % 3 != 0
                 val cashAccountId = if (cashLinked)
                     requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id else null
                 graph.commands.execute(RecordInvestmentTrade(id(), positionId, direction,
@@ -172,46 +198,82 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
             val startDate = if (closed) today.minusYears(8).plusMonths(index * 3L)
                 else today.minusYears(5).plusMonths(index * 2L)
             val endDate = if (closed) startDate.plusYears(1) else startDate.plusYears(7)
-            val depositId = graph.commands.execute(OpenTermDeposit(id(), accounts[index % accounts.size],
-                listOf("CNY", "USD", "HKD")[index % 3], 100_000L + index * 10_000L,
+            val depositId = graph.commands.execute(OpenTermDeposit(id(), bankAccounts[index % bankAccounts.size],
+                listOf("CNY", "USD", "HKD")[index % 3], 10_000L + index * 1_000L,
                 R.parse_e8((2 + index % 4).toString()), startDate.toEpochDay(), endDate.toEpochDay(), false)).id
             if (closed) graph.commands.execute(CloseTermDeposit(id(), depositId, false))
         }
-        seedLifecycleExamples(accounts.first(), instruments.zip(stocks).associate { (instrumentId, stock) ->
+        seedLifecycleExamples(bankAccounts.first(), brokerAccounts.first(),
+            instruments.zip(stocks).associate { (instrumentId, stock) ->
             stock.symbol to instrumentId
         })
     }
 
-    private suspend fun seedLifecycleExamples(accountId: Long, instrumentBySymbol: Map<String, Long>) {
-        seedCashLifecycle(accountId)
-        val cash = graph.overview.snapshot().cash.filter { it.account_id == accountId }
-        val cnyCashId = cash.single { it.currency.code == "CNY" }.id
-        val usdCashId = cash.single { it.currency.code == "USD" && it.name == "美元交易资金" }.id
-        seedDepositLifecycle(accountId, cnyCashId)
-        seedInvestmentLifecycle(accountId, usdCashId, requireNotNull(instrumentBySymbol["AAPL"]),
+    private suspend fun seedCreditAccounts(accounts: List<Long>) {
+        suspend fun create(accountId: Long, name: String, balanceMinor: Long, limitMinor: Long?,
+            statementDay: Int, dueRule: CreditDueRule, sourceId: Long? = null): Long {
+            val snapshot = graph.overview.snapshot()
+            val owner = snapshot.accounts.single { it.id == accountId }
+            return graph.commands.execute(SaveAccount(id(), accountId, owner.revision, owner.name, owner.note,
+                listOf(CashBalanceChange("CNY", balanceMinor, null, name = name,
+                    note = "演示信用账户", type = BalanceAccountType.CREDIT,
+                    credit = CreditAccountInput(limitMinor, statementDay, dueRule, sourceId))))).id.let {
+                graph.overview.snapshot().cash.filter { row -> row.account_id == accountId && row.name == name }.single().id
+            }
+        }
+        create(accounts[0], "招商银行 Visa", -238_456L, 2_000_000L, 12, CreditDueRule.AfterStatementDays(20))
+        create(accounts[0], "招商银行 Mastercard", 12_840L, 1_000_000L, 5, CreditDueRule.FixedDayOfMonth(20))
+        val sharedRoot = create(accounts[1], "工商银行共享额度主卡", -365_000L, 5_000_000L, 25,
+            CreditDueRule.AfterStatementDays(20))
+        create(accounts[1], "工商银行附属卡 · 家庭", -92_000L, null, 25, CreditDueRule.AfterStatementDays(20), sharedRoot)
+        create(accounts[1], "工商银行附属卡 · 出行", 30_000L, null, 31, CreditDueRule.FixedDayOfMonth(5), sharedRoot)
+        create(accounts[1], "工商银行附属卡 · 网购", -46_000L, null, 31, CreditDueRule.FixedDayOfMonth(31), sharedRoot)
+        create(accounts[3], "建设银行 Visa", -323_000L, 300_000L, 18, CreditDueRule.AfterStatementDays(15))
+        create(accounts[4], "交通银行银联信用卡", -168_652L, 3_000_000L, 25, CreditDueRule.AfterStatementDays(20))
+        create(accounts[5], "汇丰银行 Mastercard", -82_900L, 2_500_000L, 12, CreditDueRule.FixedDayOfMonth(5))
+        create(accounts[2], "中国银行信用卡", 0L, 800_000L, 28, CreditDueRule.AfterStatementDays(18))
+    }
+
+    private suspend fun seedLifecycleExamples(
+        bankAccountId: Long,
+        brokerAccountId: Long,
+        instrumentBySymbol: Map<String, Long>
+    ) {
+        seedCashLifecycle(bankAccountId)
+        val snapshot = graph.overview.snapshot()
+        val cnyCashId = snapshot.cash.single {
+            it.account_id == bankAccountId &&
+            it.type == BalanceAccountType.SAVINGS && it.currency.code == "CNY"
+        }.id
+        val usdCashId = snapshot.cash.single {
+            it.account_id == brokerAccountId && it.currency.code == "USD" && it.name == "美元交易资金"
+        }.id
+        seedDepositLifecycle(bankAccountId, cnyCashId)
+        seedInvestmentLifecycle(brokerAccountId, usdCashId, requireNotNull(instrumentBySymbol["AAPL"]),
             requireNotNull(instrumentBySymbol["META"]))
     }
 
     private suspend fun seedCashLifecycle(accountId: Long) {
         data class TimelineEntry(val date: LocalDate, val deltaMinor: Long, val note: String)
         val entries = listOf(
-            TimelineEntry(LocalDate.of(2016, 3, 1), 5_000_000L, "长期账本 · 初始资金修正"),
-            TimelineEntry(LocalDate.of(2018, 8, 17), -3_500_000L, "长期账本 · 大额支出"),
-            TimelineEntry(LocalDate.of(2020, 4, 9), 8_234_567L, "长期账本 · 资金转入"),
-            TimelineEntry(LocalDate.of(2022, 11, 23), -1_680_000L, "长期账本 · 账户划转"),
-            TimelineEntry(LocalDate.of(2024, 6, 14), 12_000_000L, "长期账本 · 年中入金"),
-            TimelineEntry(LocalDate.of(2026, 9, 18), -2_735_025L, "长期账本 · 近期调整")
+            TimelineEntry(LocalDate.of(2016, 3, 1), 500_000L, "长期账本 · 初始资金修正"),
+            TimelineEntry(LocalDate.of(2018, 8, 17), -350_000L, "长期账本 · 大额支出"),
+            TimelineEntry(LocalDate.of(2020, 4, 9), 823_457L, "长期账本 · 资金转入"),
+            TimelineEntry(LocalDate.of(2022, 11, 23), -168_000L, "长期账本 · 账户划转"),
+            TimelineEntry(LocalDate.of(2024, 6, 14), 1_200_000L, "长期账本 · 年中入金"),
+            TimelineEntry(LocalDate.of(2026, 9, 18), -273_525L, "长期账本 · 近期调整")
         )
         entries.forEachIndexed { index, value ->
             val current = graph.overview.snapshot().cash.single {
-                it.account_id == accountId && it.currency.code == "CNY"
+                it.account_id == accountId && it.type == BalanceAccountType.SAVINGS &&
+                    it.currency.code == "CNY"
             }
             val result = graph.commands.execute(SetCashBalance(id(), accountId, "CNY",
                 current.balance_minor + value.deltaMinor, current.revision, current.id))
             if (index == 0) {
-                graph.commands.execute(EditCashEntry(id(), result.id, 1, 4_750_000L,
+                graph.commands.execute(EditCashEntry(id(), result.id, 1, 475_000L,
                     at(LocalDate.of(2016, 2, 15)), "长期账本 · 第一次修正"))
-                graph.commands.execute(EditCashEntry(id(), result.id, 2, 5_150_000L,
+                graph.commands.execute(EditCashEntry(id(), result.id, 2, 515_000L,
                     at(LocalDate.of(2016, 2, 28)), "长期账本 · 第二次修正"))
                 graph.commands.execute(EditCashEntry(id(), result.id, 3, value.deltaMinor,
                     at(value.date), value.note))
@@ -223,39 +285,42 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
 
         val snapshot = graph.overview.snapshot()
         val account = snapshot.accounts.single { it.id == accountId }
-        val cny = snapshot.cash.single { it.account_id == accountId && it.currency.code == "CNY" }
+        val cny = snapshot.cash.single {
+            it.account_id == accountId && it.type == BalanceAccountType.SAVINGS &&
+                it.currency.code == "CNY"
+        }
         graph.commands.execute(SaveAccount(id(), accountId, account.revision, account.name,
-            "含长期现金、投资与存单生命周期样本", listOf(CashBalanceChange(
+            "银行账户 · 含长期现金与存单样本", listOf(CashBalanceChange(
                 "CNY", cny.balance_minor, cny.revision, cny.id,
                 name = "人民币长期资金", note = "2016 年起的多次修正记录"
             ))))
     }
 
     private suspend fun seedDepositLifecycle(accountId: Long, cnyCashId: Long) {
-        val closed = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 50_000_000L,
+        val closed = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 1_280_000L,
             R.parse_e8("3.25"), LocalDate.of(2017, 1, 15).toEpochDay(),
             LocalDate.of(2018, 1, 15).toEpochDay(), true, cnyCashId)).id
-        graph.commands.execute(EditTermDeposit(id(), closed, 1, 52_000_000L, R.parse_e8("3.35"),
+        graph.commands.execute(EditTermDeposit(id(), closed, 1, 1_320_000L, R.parse_e8("3.35"),
             LocalDate.of(2017, 2, 1).toEpochDay(), LocalDate.of(2018, 2, 1).toEpochDay(),
             true, null, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), closed, 2, 51_500_000L, R.parse_e8("3.45"),
+        graph.commands.execute(EditTermDeposit(id(), closed, 2, 1_305_000L, R.parse_e8("3.45"),
             LocalDate.of(2017, 1, 20).toEpochDay(), LocalDate.of(2018, 1, 20).toEpochDay(),
             true, null, cnyCashId))
         graph.commands.execute(CloseTermDeposit(id(), closed, true, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), closed, 4, 51_200_000L, R.parse_e8("3.50"),
+        graph.commands.execute(EditTermDeposit(id(), closed, 4, 1_298_000L, R.parse_e8("3.50"),
             LocalDate.of(2017, 1, 18).toEpochDay(), LocalDate.of(2018, 1, 18).toEpochDay(),
             true, true, cnyCashId, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), closed, 5, 51_050_000L, R.parse_e8("3.55"),
+        graph.commands.execute(EditTermDeposit(id(), closed, 5, 1_292_000L, R.parse_e8("3.55"),
             LocalDate.of(2017, 1, 16).toEpochDay(), LocalDate.of(2018, 1, 16).toEpochDay(),
             true, true, cnyCashId, cnyCashId))
 
-        val open = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 38_000_000L,
+        val open = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 1_750_000L,
             R.parse_e8("2.60"), LocalDate.of(2024, 5, 6).toEpochDay(),
             LocalDate.of(2028, 5, 6).toEpochDay(), true, cnyCashId)).id
-        graph.commands.execute(EditTermDeposit(id(), open, 1, 40_000_000L, R.parse_e8("2.75"),
+        graph.commands.execute(EditTermDeposit(id(), open, 1, 1_820_000L, R.parse_e8("2.75"),
             LocalDate.of(2024, 5, 8).toEpochDay(), LocalDate.of(2028, 5, 8).toEpochDay(),
             true, null, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), open, 2, 39_500_000L, R.parse_e8("2.85"),
+        graph.commands.execute(EditTermDeposit(id(), open, 2, 1_850_000L, R.parse_e8("2.85"),
             LocalDate.of(2024, 5, 10).toEpochDay(), LocalDate.of(2028, 5, 10).toEpochDay(),
             true, null, cnyCashId))
     }
@@ -331,9 +396,9 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
 
     private fun demoQuantity(currency: String, index: Int, opening: Boolean): Long {
         val values = when (currency) {
-            "CNY" -> if (opening) listOf("30", "60", "100", "180", "260") else listOf("10", "20", "40", "60", "100")
-            "HKD" -> if (opening) listOf("50", "120", "250", "400", "800") else listOf("20", "50", "100", "160", "300")
-            else -> if (opening) listOf("2.5", "4", "7.25", "12", "18.5") else listOf("0.25", "0.5", "1", "2", "3.5")
+            "CNY" -> if (opening) listOf("2", "5", "8", "12", "20") else listOf("1", "2", "3", "5", "8")
+            "HKD" -> if (opening) listOf("5", "10", "18", "25", "40") else listOf("2", "5", "8", "12", "20")
+            else -> if (opening) listOf("0.2", "0.5", "0.8", "1.2", "2") else listOf("0.1", "0.2", "0.35", "0.5", "0.8")
         }
         return R.parse_e8(values[index.mod(values.size)])
     }

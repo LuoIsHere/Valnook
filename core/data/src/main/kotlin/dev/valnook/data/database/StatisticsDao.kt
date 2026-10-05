@@ -80,6 +80,9 @@ interface StatisticsDao {
     @Query("SELECT * FROM cash_accounts ORDER BY id")
     suspend fun currentCash(): List<CashEntity>
 
+    @Query("SELECT * FROM credit_account_profiles ORDER BY account_id")
+    suspend fun creditProfiles(): List<CreditAccountProfileEntity>
+
     @Query("SELECT * FROM term_deposits ORDER BY start_epoch_day,id")
     suspend fun deposits(): List<DepositEntity>
 

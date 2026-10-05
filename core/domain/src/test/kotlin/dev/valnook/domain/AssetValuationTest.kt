@@ -32,6 +32,16 @@ class AssetValuationTest {
         decimal("-2500", result.cash.amount); decimal("-2500", result.total.amount)
         decimal("-2500", result.accounts.first().cash.amount)
     }
+    @Test fun credit_balance_affects_total_but_not_available_cash_or_limit() {
+        val credit = CashAccount(1, cny, -300000, 1, 9, "Visa", creditProfile = CreditAccountProfile(
+            5_000_000, 12, CreditDueRule.AfterStatementDays(20), null))
+        val input = snapshot().copy(cash = listOf(CashBalance(1, cny, 1_000_000, 1), credit),
+            deposits = emptyList(), positions = emptyList())
+        val result = AssetValuation.calculate(input)
+        decimal("7000", result.total.amount)
+        decimal("10000", result.cash.amount)
+        decimal("-3000", result.creditBalance.amount)
+    }
     @Test fun deposit_maturity_does_not_add_interest_until_selected_cash_settlement() {
         val initial = snapshot()
         val noLink = AssetValuation.calculate(initial.copy(deposits = emptyList()))

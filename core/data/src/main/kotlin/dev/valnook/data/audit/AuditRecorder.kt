@@ -17,6 +17,8 @@ import java.util.UUID
 /** Writes one immutable event inside the caller's existing Room transaction. */
 class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     suspend fun captureBefore(command: FinancialCommand): String? {
+        if (command is SaveAccount) return command.accountId?.let(::accountAggregateJson)?.toString()
+        if (command is DeleteBalanceAccount) return balanceAccountJson(command.balanceAccountId)?.toString()
         val target = targetFor(command) ?: return null
         return rowJson(target.first, target.second)?.toString()
     }
@@ -28,7 +30,11 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         recordedAtMs: Long,
         source: CommandSource = CommandSource.MOBILE
     ) {
-        val after = rowJson(tableForResult(result.kind), result.id)
+        val after = when (command) {
+            is SaveAccount -> accountAggregateJson(result.id)
+            is DeleteBalanceAccount -> null
+            else -> rowJson(tableForResult(result.kind), result.id)
+        }
         val context = contextSnapshot(result)
         val eventId = UUID.randomUUID().toString()
         val afterJson = enrich(after ?: commandJson(command), context).toString()
@@ -104,6 +110,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     private fun targetFor(command: FinancialCommand): Pair<String, Long>? = when (command) {
         is SaveAssetType -> command.typeId?.let { "asset_types" to it }
         is SaveAccount -> command.accountId?.let { "savings_accounts" to it }
+        is DeleteBalanceAccount -> "cash_accounts" to command.balanceAccountId
         is SaveInstrument -> command.instrumentId?.let { "instruments" to it }
         is EditInstrumentPrice -> "instrument_price_history" to command.priceRecordId
         is CreateInvestmentPosition -> null
@@ -120,6 +127,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     private fun tableForResult(kind: String): String = when (kind) {
         "ASSET_TYPE" -> "asset_types"
         "ACCOUNT" -> "savings_accounts"
+        "BALANCE_ACCOUNT" -> "cash_accounts"
         "INSTRUMENT" -> "instruments"
         "INSTRUMENT_PRICE" -> "instrument_price_history"
         "INVESTMENT" -> "investments"
@@ -132,6 +140,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     private fun actionFor(command: FinancialCommand): String = when (command) {
         is SaveAssetType -> if (command.typeId == null) "CREATE" else "UPDATE"
         is SaveAccount -> if (command.accountId == null) "CREATE" else "UPDATE"
+        is DeleteBalanceAccount -> "DELETE"
         is SaveInstrument -> if (command.instrumentId == null) "CREATE" else "UPDATE"
         is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade -> "CREATE"
         is DeleteInvestmentTrade -> "DELETE"
@@ -157,6 +166,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         val accounts = linkedSetOf<Long>()
         when (command) {
             is SaveAccount -> command.accountId?.let(accounts::add)
+            is DeleteBalanceAccount -> accounts.add(command.accountId)
             is SetCashBalance -> accounts.add(command.account_id)
             is OpenTermDeposit -> accounts.add(command.account_id)
             is SaveInstrument -> accountsForInstrument(result.id).forEach(accounts::add)
@@ -203,6 +213,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
 
     private fun accountForResult(result: OperationResult): Long? = when (result.kind) {
         "ACCOUNT" -> result.id
+        "BALANCE_ACCOUNT" -> null
         "INVESTMENT" -> accountForPosition(result.id)
         "INVESTMENT_TRADE" -> accountForTrade(result.id)
         "CASH_ENTRY" -> accountForCashEntry(result.id)
@@ -259,6 +270,23 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
 
     private fun rowJson(table: String, id: Long): JSONObject? = queryObject(
         db.openHelper.readableDatabase, "SELECT * FROM $table WHERE id=?", arrayOf(id.toString()))
+
+    private fun accountAggregateJson(id: Long): JSONObject? {
+        val account = rowJson("savings_accounts", id) ?: return null
+        val rows = JSONArray()
+        db.openHelper.readableDatabase.query(
+            """SELECT c.*,p.credit_limit_minor,p.statement_day,p.due_rule_type,p.due_rule_value,
+                p.limit_source_account_id FROM cash_accounts c LEFT JOIN credit_account_profiles p
+                ON p.account_id=c.id WHERE c.savings_account_id=? ORDER BY c.id""",
+            arrayOf(id.toString())).use { cursor -> while (cursor.moveToNext()) rows.put(cursorObject(cursor)) }
+        account.put("balance_accounts", rows)
+        return account
+    }
+
+    private fun balanceAccountJson(id: Long): JSONObject? = queryObject(db.openHelper.readableDatabase,
+        """SELECT c.*,p.credit_limit_minor,p.statement_day,p.due_rule_type,p.due_rule_value,
+            p.limit_source_account_id FROM cash_accounts c LEFT JOIN credit_account_profiles p
+            ON p.account_id=c.id WHERE c.id=?""", arrayOf(id.toString()))
 
     private fun queryObject(database: SupportSQLiteDatabase, sql: String, args: Array<out Any?>): JSONObject? =
         database.query(sql, args).use { cursor -> if (cursor.moveToFirst()) cursorObject(cursor) else null }

@@ -159,18 +159,22 @@ class UiFlowTest {
         }
         val bitmap=requireNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
         try {
-            if(action!=null)assertTrue("Action overlaps system navigation",action.fetchSemanticsNode().boundsInWindow.bottom<=bitmap.height-nav_bottom)
             PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+            if(action!=null) {
+                val actionBottom=action.fetchSemanticsNode().boundsInWindow.bottom
+                assertTrue("Action overlaps system navigation: actionBottom=$actionBottom safeBottom=${bitmap.height-nav_bottom} navBottom=$nav_bottom",
+                    actionBottom<=bitmap.height-nav_bottom)
+            }
         }finally{bitmap.recycle()}
     }
     @Test fun account_navigation_cash_errors_and_rotation_restoration() {
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
         rule.onNodeWithTag("root-capsule").assertDoesNotExist()
-        listOf("现金", "定期", "投资").forEach { rule.onNodeWithText(it).assertExists() }
+        listOf("账户", "定期", "投资").forEach { rule.onNodeWithText(it).assertExists() }
         rule.onNodeWithText("编辑").performClick()
-        wait_text("现金账户")
-        rule.onNodeWithText("＋ 添加现金账户").performScrollTo().performClick()
+        wait_text("编辑账户")
+        rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
         rule.onNodeWithText("余额").performScrollTo().performTextInput("-1.00")
         rule.activityRule.scenario.recreate()
         wait_text("-1.00")
@@ -316,7 +320,7 @@ class UiFlowTest {
         rule.onNodeWithTag("account-total-$account_id").performClick()
         for ((code, amount) in listOf("USD" to "100.00", "JPY" to "100", "KWD" to "1.234")) {
             rule.onNodeWithText("编辑").performClick()
-            rule.onNodeWithText("＋ 添加现金账户").performScrollTo().performClick()
+            rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
             val choices = rule.onAllNodesWithContentDescription("币种:", substring = true)
             choices[choices.fetchSemanticsNodes().lastIndex].performScrollTo().performClick()
             rule.onNodeWithText("搜索代码或币种名称").performTextInput(if (code == "KWD") "科威特" else code)
@@ -433,7 +437,7 @@ class UiFlowTest {
             rule.onNodeWithTag("account-total-$account_id").performClick()
             rule.onNodeWithTag("root-capsule").assertDoesNotExist()
             rule.onNodeWithText("编辑").performClick()
-            wait_text("现金账户")
+            wait_text("编辑账户")
             rule.onNodeWithContentDescription("返回").performClick()
             rule.onNodeWithContentDescription("返回").performClick()
             wait_text("合成账户 B")
@@ -507,7 +511,7 @@ class UiFlowTest {
                     ValnookTheme(dark) {
                         Box(Modifier.fillMaxSize()) {
                             Box(Modifier.width(width.dp).height(height.dp).testTag("cash-cards")) {
-                                CashContent(balances,{})
+                                CashContent(balances,on_open={})
                             }
                         }
                     }
@@ -750,10 +754,44 @@ class UiFlowTest {
         rule.mainClock.advanceTimeBy(200); rule.waitForIdle()
         rule.onNodeWithTag("account-cash-$cashId").performScrollTo().assertIsDisplayed().assertTextContains("-123.45 CNY")
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
-        rule.onNodeWithTag("account-section-CASH").assertIsDisplayed()
+        rule.onNodeWithTag("account-section-ACCOUNTS").assertIsDisplayed()
         rule.onNodeWithTag("account-section-DEPOSITS").assertIsDisplayed()
         rule.onNodeWithTag("account-section-INVESTMENTS").assertIsDisplayed().performClick()
         rule.onNodeWithTag("account-section-INVESTMENTS").assertIsDisplayed()
+    }
+
+    @Test fun credit_account_form_and_account_detail_show_limit_billing_and_locked_type() {
+        wait_text("合成账户 A")
+        rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
+        rule.onNodeWithText("编辑").performClick()
+        wait_text("编辑账户")
+        rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
+        rule.onNodeWithTag("input-账户类型").performScrollTo().performClick()
+        rule.onNodeWithText("信用").performClick()
+        rule.onNodeWithText("账户名称").performScrollTo().performTextReplacement("Visa 测试卡")
+        rule.onNodeWithText("余额").performScrollTo().performTextReplacement("-52.00")
+        rule.onNodeWithText("信用额度").performScrollTo().performTextInput("50.00")
+        save()
+        wait_text("Visa 测试卡")
+        wait_text("信用账户")
+        wait_text("欠款")
+        wait_text("已超出信用额度 2.00 CNY")
+        rule.onNodeWithText("编辑").performClick()
+        wait_text("Visa 测试卡")
+        rule.onNodeWithContentDescription("账户类型: 信用").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText("删除账户").performScrollTo().assertIsDisplayed()
+        window_shot("credit-account-form", "保存")
+        rule.onNodeWithText("删除账户").performClick()
+        rule.onNodeWithText("删除这个账户？").assertIsDisplayed()
+        rule.onNodeWithTag("account-delete-confirm").performClick()
+        wait_text("该账户存在余额、历史记录或业务关联，无法删除。")
+        rule.onNodeWithContentDescription("返回").performClick()
+        runBlocking {
+            val credit = graph.overview.snapshot().cash.single { it.account_id == account_id && it.name == "Visa 测试卡" }
+            assertEquals(BalanceAccountType.CREDIT, credit.type)
+            assertEquals(-5_200L, credit.balance_minor)
+            assertEquals(5_000L, credit.creditProfile?.creditLimitMinor)
+        }
     }
 
     @Test fun library_menu_gates_instrument_creation_on_asset_types() {

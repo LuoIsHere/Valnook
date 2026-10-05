@@ -6,10 +6,14 @@ import androidx.lifecycle.viewModelScope
 import dev.valnook.domain.command.SubmissionPhase
 import dev.valnook.domain.command.SubmissionSession
 import dev.valnook.domain.model.Currency
+import dev.valnook.domain.model.BalanceAccountType
+import dev.valnook.domain.model.CreditAccountInput
+import dev.valnook.domain.model.CreditDueRule
 import dev.valnook.domain.model.DomainException
 import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.money.DecimalRules as R
 import dev.valnook.domain.repository.CashBalanceChange
+import dev.valnook.domain.repository.DeleteBalanceAccount
 import dev.valnook.domain.repository.FinancialCommands
 import dev.valnook.domain.repository.OverviewRepository
 import dev.valnook.domain.repository.SaveAccount
@@ -27,16 +31,25 @@ data class CashAccountRowDraft(
     val currency: Currency,
     val balanceInput: String,
     val savedBalanceMinor: Long? = null,
-    val expectedRevision: Long? = null
+    val expectedRevision: Long? = null,
+    val type: BalanceAccountType = BalanceAccountType.SAVINGS,
+    val creditLimitInput: String = "",
+    val statementDayInput: String = "12",
+    val dueRuleType: String = "AFTER_STATEMENT_DAYS",
+    val dueRuleValueInput: String = "20",
+    val limitSourceAccountId: Long? = null
 ) {
     val currencyLocked: Boolean get() = cashAccountId != null
 }
+
+data class CreditSourceOption(val id: Long, val label: String, val currency: Currency)
 
 data class AccountEditUiState(
     val name: String = "",
     val note: String = "",
     val rows: List<CashAccountRowDraft> = emptyList(),
     val expectedRevision: Long? = null,
+    val creditSources: List<CreditSourceOption> = emptyList(),
     val loaded: Boolean = false,
     val loadError: Boolean = false
 )
@@ -44,7 +57,7 @@ data class AccountEditUiState(
 class AccountEditViewModel(
     private val accountId: Long?,
     private val repository: OverviewRepository,
-    commands: FinancialCommands,
+    private val commands: FinancialCommands,
     private val saved: SavedStateHandle
 ) : ViewModel() {
     val operationId: String = saved.get<String>("operationId") ?: UUID.randomUUID().toString().also {
@@ -59,23 +72,28 @@ class AccountEditViewModel(
     val state = mutable.asStateFlow()
 
     init {
-        if (!state.value.loaded) reload()
+        if (!state.value.loaded) reload() else refreshCreditSources()
     }
 
     private fun restore(): AccountEditUiState {
         if (saved.get<Boolean>("loaded") != true) return AccountEditUiState()
         val keys = saved.get<ArrayList<String>>("rowKeys").orEmpty()
-        return AccountEditUiState(saved["name"] ?: "", saved["note"] ?: "", keys.map { key ->
+        return AccountEditUiState(name = saved["name"] ?: "", note = saved["note"] ?: "", rows = keys.map { key ->
             CashAccountRowDraft(key, saved["cashId-$key"], saved["cashName-$key"] ?: "",
                 saved["cashNote-$key"] ?: "", Currency.of(requireNotNull(saved["currency-$key"])),
-                saved["balance-$key"] ?: "", saved["before-$key"], saved["revision-$key"])
-        }, saved["accountRevision"], true)
+                saved["balance-$key"] ?: "", saved["before-$key"], saved["revision-$key"],
+                BalanceAccountType.valueOf(saved["type-$key"] ?: BalanceAccountType.SAVINGS.name),
+                saved["limit-$key"] ?: "", saved["statement-$key"] ?: "12",
+                saved["dueType-$key"] ?: "AFTER_STATEMENT_DAYS", saved["dueValue-$key"] ?: "20",
+                saved["source-$key"])
+        }, expectedRevision = saved["accountRevision"], loaded = true)
     }
 
     private fun persist(value: AccountEditUiState) {
         val activeKeys = value.rows.map { it.key }.toSet()
         state.value.rows.filter { it.key !in activeKeys }.forEach { row ->
-            listOf("cashId", "cashName", "cashNote", "currency", "balance", "before", "revision").forEach {
+            listOf("cashId", "cashName", "cashNote", "currency", "balance", "before", "revision", "type",
+                "limit", "statement", "dueType", "dueValue", "source").forEach {
                 prefix -> saved.remove<Any>("$prefix-${row.key}")
             }
         }
@@ -93,6 +111,12 @@ class AccountEditViewModel(
             saved["balance-${row.key}"] = row.balanceInput
             saved["before-${row.key}"] = row.savedBalanceMinor
             saved["revision-${row.key}"] = row.expectedRevision
+            saved["type-${row.key}"] = row.type.name
+            saved["limit-${row.key}"] = row.creditLimitInput
+            saved["statement-${row.key}"] = row.statementDayInput
+            saved["dueType-${row.key}"] = row.dueRuleType
+            saved["dueValue-${row.key}"] = row.dueRuleValueInput
+            saved["source-${row.key}"] = row.limitSourceAccountId
         }
     }
 
@@ -103,16 +127,46 @@ class AccountEditViewModel(
                 val account = accountId?.let { id ->
                     snapshot.accounts.firstOrNull { it.id == id } ?: throw DomainException(ErrorCode.NOT_FOUND)
                 }
+                val accountNames = snapshot.accounts.associate { it.id to it.name }
+                val sources = snapshot.cash.filter { it.account_id == accountId &&
+                    it.type == BalanceAccountType.CREDIT &&
+                    it.creditProfile?.limitSourceAccountId == null }.map {
+                    CreditSourceOption(it.id, "${accountNames[it.account_id].orEmpty()} · ${it.name}", it.currency)
+                }
                 persist(AccountEditUiState(account?.name.orEmpty(), account?.note.orEmpty(),
                     snapshot.cash.filter { it.account_id == accountId }.map { cash ->
+                        val profile = cash.creditProfile
                         CashAccountRowDraft(cash.id.toString(), cash.id, cash.name, cash.note, cash.currency,
                             R.format_units(cash.balance_minor, cash.currency.fraction_digits),
-                            cash.balance_minor, cash.revision)
-                    }, account?.revision, true))
+                            cash.balance_minor, cash.revision, cash.type,
+                            profile?.creditLimitMinor?.let { R.format_units(it, cash.currency.fraction_digits) }.orEmpty(),
+                            profile?.statementDay?.toString() ?: "12",
+                            if (profile?.dueRule is CreditDueRule.FixedDayOfMonth) "FIXED_DAY_OF_MONTH" else "AFTER_STATEMENT_DAYS",
+                            profile?.dueRule?.value?.toString() ?: "20", profile?.limitSourceAccountId)
+                    }, account?.revision, sources, true))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
                 mutable.value = state.value.copy(loadError = true)
+            }
+        }
+    }
+
+    private fun refreshCreditSources() {
+        viewModelScope.launch {
+            try {
+                val snapshot = repository.snapshot()
+                val accountNames = snapshot.accounts.associate { it.id to it.name }
+                val sources = snapshot.cash.filter { it.account_id == accountId &&
+                    it.type == BalanceAccountType.CREDIT &&
+                    it.creditProfile?.limitSourceAccountId == null }.map {
+                    CreditSourceOption(it.id, "${accountNames[it.account_id].orEmpty()} · ${it.name}", it.currency)
+                }
+                persist(state.value.copy(creditSources = sources))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // The restored draft remains editable; a normal Reload can retry the source list.
             }
         }
     }
@@ -130,7 +184,14 @@ class AccountEditViewModel(
         name: String? = null,
         note: String? = null,
         currency: Currency? = null,
-        balance: String? = null
+        balance: String? = null,
+        type: BalanceAccountType? = null,
+        creditLimit: String? = null,
+        statementDay: String? = null,
+        dueRuleType: String? = null,
+        dueRuleValue: String? = null,
+        limitSourceAccountId: Long? = null,
+        clearLimitSource: Boolean = false
     ) {
         if (!submission.value.editable) return
         persist(state.value.copy(rows = state.value.rows.map { row ->
@@ -141,8 +202,22 @@ class AccountEditViewModel(
                     currency != null && !row.currencyLocked && row.nameInput == row.currency.code -> nextCurrency.code
                     else -> row.nameInput
                 }
+                val nextSource = when {
+                    clearLimitSource -> null
+                    limitSourceAccountId != null -> limitSourceAccountId
+                    currency != null && state.value.creditSources.firstOrNull {
+                        it.id == row.limitSourceAccountId
+                    }?.currency != nextCurrency -> null
+                    else -> row.limitSourceAccountId
+                }
                 row.copy(nameInput = nextName, noteInput = note ?: row.noteInput,
-                    currency = nextCurrency, balanceInput = balance ?: row.balanceInput)
+                    currency = nextCurrency, balanceInput = balance ?: row.balanceInput,
+                    type = if (row.cashAccountId == null) type ?: row.type else row.type,
+                    creditLimitInput = creditLimit ?: row.creditLimitInput,
+                    statementDayInput = statementDay ?: row.statementDayInput,
+                    dueRuleType = dueRuleType ?: row.dueRuleType,
+                    dueRuleValueInput = dueRuleValue ?: row.dueRuleValueInput,
+                    limitSourceAccountId = nextSource)
             }
         }))
     }
@@ -160,12 +235,33 @@ class AccountEditViewModel(
         persist(state.value.copy(rows = state.value.rows.filter { it.key != key || it.cashAccountId != null }))
     }
 
+    fun deleteRow(key: String) = session.submit {
+        val parentId = accountId ?: throw DomainException(ErrorCode.NOT_FOUND)
+        val row = state.value.rows.firstOrNull { it.key == key }
+            ?: throw DomainException(ErrorCode.NOT_FOUND)
+        DeleteBalanceAccount(operationId, parentId,
+            row.cashAccountId ?: throw DomainException(ErrorCode.NOT_FOUND),
+            row.expectedRevision ?: throw DomainException(ErrorCode.STALE_BALANCE))
+    }
+
     fun submit() = session.submit {
         val input = state.value
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
         val changes = input.rows.map { row ->
+            val credit = if (row.type == BalanceAccountType.CREDIT) CreditAccountInput(
+                creditLimitMinor = if (row.limitSourceAccountId == null)
+                    R.parse_minor(row.creditLimitInput, row.currency, positive = true) else null,
+                statementDay = row.statementDayInput.toIntOrNull() ?: throw DomainException(ErrorCode.INVALID_STATEMENT_DAY),
+                dueRule = when (row.dueRuleType) {
+                    "FIXED_DAY_OF_MONTH" -> CreditDueRule.FixedDayOfMonth(
+                        row.dueRuleValueInput.toIntOrNull() ?: throw DomainException(ErrorCode.INVALID_DUE_RULE))
+                    else -> CreditDueRule.AfterStatementDays(
+                        row.dueRuleValueInput.toIntOrNull() ?: throw DomainException(ErrorCode.INVALID_DUE_RULE))
+                },
+                limitSourceAccountId = row.limitSourceAccountId
+            ) else null
             CashBalanceChange(row.currency.code, R.parse_signed_minor(row.balanceInput, row.currency),
-                row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput)
+                row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput, row.type, credit)
         }
         SaveAccount(operationId, accountId, input.expectedRevision, input.name, input.note, changes)
     }

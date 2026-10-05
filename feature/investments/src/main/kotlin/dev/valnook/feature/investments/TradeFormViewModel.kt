@@ -39,7 +39,9 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         saved["linked"] ?: false, saved["cashAccountId"], saved["name"] ?: "",
         saved["loaded"] ?: false, originalCashImpactMinor = saved["originalCashImpact"] ?: 0))
     val state = mutable.asStateFlow()
-    val cashAccounts = cashRepository.observe_cash(accountId)
+    val cashAccounts = cashRepository.observe_cash(accountId).map { rows ->
+        rows.filter { it.type == BalanceAccountType.SAVINGS }
+    }
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyList())
     init { if (!state.value.loaded) load() }

@@ -40,7 +40,11 @@ internal class CashWriter(
             if (requestedId != null) throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
             return null
         }
-        if (requestedId != null) return requireCashAccount(requestedId, accountId, currencyCode).id
+        if (requestedId != null) {
+            val account = requireCashAccount(requestedId, accountId, currencyCode)
+            if (db.credit().profile(account.id) != null) throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
+            return account.id
+        }
         val candidates = dao.cashCandidates(accountId, Currency.of(currencyCode).code)
         if (candidates.size != 1) throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
         return candidates.single().id

@@ -58,6 +58,16 @@ import java.util.Locale
         "DATE"->R.string.error_date
         "POSITIVE"->R.string.error_positive
         "STORAGE"->R.string.error_storage
+        "INVALID_ACCOUNT_TYPE"->R.string.error_account_type
+        "INVALID_CREDIT_LIMIT"->R.string.error_credit_limit
+        "INVALID_STATEMENT_DAY"->R.string.error_statement_day
+        "INVALID_DUE_RULE"->R.string.error_due_rule
+        "CREDIT_SOURCE_INVALID"->R.string.error_credit_source
+        "CREDIT_SOURCE_CURRENCY"->R.string.error_credit_source_currency
+        "CREDIT_SOURCE_PARENT"->R.string.error_credit_source_parent
+        "CREDIT_SOURCE_CHAIN", "CREDIT_SOURCE_CYCLE"->R.string.error_credit_source_chain
+        "CREDIT_LIMIT_IN_USE"->R.string.error_credit_limit_in_use
+        "BALANCE_ACCOUNT_IN_USE"->R.string.error_balance_account_in_use
         else->R.string.error_format
     }
     Text(stringResource(resource),color=MaterialTheme.colorScheme.error,

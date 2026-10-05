@@ -21,14 +21,8 @@ class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
     override fun observeCashAccountRevision(cashAccountId:Long)=dao.cashAccountRevision(cashAccountId)
     override suspend fun cashAccountPage(cashAccountId:Long,cursor:LedgerCursor?,size:Int)=
         dao.cashAccountLedgerPage(cashAccountId,cursor?.time,cursor?.id,size.coerceIn(1,100)).map{it.to_model()}
-    override fun observe_cash(account_id:Long)=dao.cash(account_id).map { rows->rows.map {
-        CashAccount(it.savings_account_id,Currency.of(it.currency_code),it.balance_minor,it.revision,
-            it.id,it.name,it.note,it.currency_locked)
-    } }
-    override fun observeCashAccount(cashAccountId:Long)=dao.observeCashAccount(cashAccountId).map { value -> value?.let {
-        CashAccount(it.savings_account_id,Currency.of(it.currency_code),it.balance_minor,it.revision,
-            it.id,it.name,it.note,it.currency_locked)
-    } }
+    override fun observe_cash(account_id:Long)=dao.cash(account_id).map { rows->rows.map { it.toModel() } }
+    override fun observeCashAccount(cashAccountId:Long)=dao.observeCashAccount(cashAccountId).map { it?.toModel() }
     override fun observeCashEntries(cashAccountId:Long,limit:Int)=
         dao.cashAccountEntries(cashAccountId,limit.coerceIn(1,10000)).map { rows->rows.map{it.to_model()} }
     override fun observeCashEntry(cashAccountId:Long,entryId:Long)=

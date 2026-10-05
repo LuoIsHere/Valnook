@@ -103,7 +103,7 @@ class RoomStatistics(
 
     private suspend fun readSource(header: Header): Source = db.withTransaction {
         val dao = db.statistics()
-        Source(header.state, dao.currentCash(), dao.cashEntries(), dao.deposits(), dao.positions(),
+        Source(header.state, dao.currentCash(), dao.creditProfiles(), dao.cashEntries(), dao.deposits(), dao.positions(),
             dao.trades(), dao.prices(), header.settings)
     }
 
@@ -134,10 +134,14 @@ class RoomStatistics(
         val pricesByInstrument = source.prices.groupBy { it.instrument_id }
         return dates.distinct().associateWith { date ->
             val cutoff = cutoff(date)
-            val cash = source.cash.fold(BigDecimal.ZERO) { total, account ->
+            val creditIds = source.creditProfiles.asSequence().map { it.account_id }.toHashSet()
+            var availableCash = BigDecimal.ZERO
+            val balanceAccounts = source.cash.fold(BigDecimal.ZERO) { total, account ->
                 val after = entriesByCash[account.id].orEmpty().asSequence()
                     .filter { it.occurred_at_ms > cutoff }.sumOf { it.delta_minor }
-                total + convertMinor(account.balance_minor - after, account.currency_code, source.settings)
+                val value = convertMinor(account.balance_minor - after, account.currency_code, source.settings)
+                if (account.id !in creditIds) availableCash += value
+                total + value
             }
             val deposits = source.deposits.asSequence().filter { deposit ->
                 deposit.start_epoch_day <= date.toEpochDay() &&
@@ -163,8 +167,8 @@ class RoomStatistics(
                     }
                 }
             }
-            if (investmentKnown) Values(cash + deposits + investment, cash, investment)
-            else Values(null, cash, null)
+            if (investmentKnown) Values(balanceAccounts + deposits + investment, availableCash, investment)
+            else Values(null, availableCash, null)
         }
     }
 
@@ -208,6 +212,7 @@ class RoomStatistics(
     private data class Source(
         val state: StatisticsStateEntity,
         val cash: List<CashEntity>,
+        val creditProfiles: List<CreditAccountProfileEntity>,
         val entries: List<CashEntryEntity>,
         val deposits: List<DepositEntity>,
         val positions: List<StatisticsPositionRow>,
