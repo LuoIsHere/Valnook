@@ -1,6 +1,12 @@
 package dev.valnook.feature.investments
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
@@ -75,7 +81,10 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                             Text(stringResource(R.string.investment_fx_summary), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-                        if (showFx) HintMessage(stringResource(R.string.investment_current_fx_hint))
+                        AnimatedVisibility(showFx, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
+                            exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
+                            HintMessage(stringResource(R.string.investment_current_fx_hint))
+                        }
                     }
                     }
                 }
@@ -88,12 +97,14 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                             val name: @Composable () -> Unit = {
                                 val expansion = stringResource(if (expanded) dev.valnook.core.designsystem.R.string.state_expanded
                                     else dev.valnook.core.designsystem.R.string.state_collapsed)
-                                Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
                                     .testTag("investment-account-toggle-${account.account.id}")
                                     .clickable(role = Role.Button) { expanded = !expanded }
-                                    .semantics { stateDescription = expansion }, contentAlignment = Alignment.CenterStart) {
-                                    Text(account.account.name + if (expanded) " ▴" else " ▾",
+                                    .semantics { stateDescription = expansion }, verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(account.account.name, Modifier.weight(1f, fill = false),
                                         style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    ExpansionChevron(expanded)
                                 }
                             }
                             val amount: @Composable () -> Unit = {
@@ -123,7 +134,8 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                         if (!account.investmentValue.complete || !account.floating.complete || !account.realized.complete)
                             Text(stringResource(R.string.investment_partial_summary), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error)
-                        if (expanded) {
+                        AnimatedVisibility(expanded, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
+                            exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
                             HoldingTable(groups[account.account.id].orEmpty()) {
                                 onPosition(account.account.id, it.id)
                             }

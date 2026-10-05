@@ -13,7 +13,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
 import dev.valnook.designsystem.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -26,8 +25,7 @@ internal fun ThemeSetting(mode: AppThemeMode, onChange: suspend (AppThemeMode) -
     val scope = rememberCoroutineScope()
     SettingEntry(stringResource(R.string.settings_theme), themeLabel(mode),
         { expanded = true; failed = false }, Modifier.testTag("settings-theme"))
-    if (expanded) Dialog(onDismissRequest = { if (!busy) expanded = false }) {
-        PopupBlurEffect()
+    AnimatedGlassDialog(expanded, onDismissRequest = { if (!busy) expanded = false }) {
         GlassCard(Modifier.testTag("theme-picker")) {
             Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleLarge)
@@ -35,7 +33,7 @@ internal fun ThemeSetting(mode: AppThemeMode, onChange: suspend (AppThemeMode) -
                     AppThemeMode.entries.forEach { choice ->
                         Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
                             .testTag("theme-option-${choice.name}").clip(RoundedCornerShape(12.dp))
-                            .selectable(selected = choice == mode, enabled = !busy, role = Role.RadioButton) {
+                            .selectable(selected = choice == mode, enabled = expanded && !busy, role = Role.RadioButton) {
                                 if (choice == mode) expanded = false else scope.launch {
                                     busy = true
                                     failed = false

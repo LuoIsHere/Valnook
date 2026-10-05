@@ -13,14 +13,36 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 object Space { val xs=4.dp; val sm=6.dp; val md=12.dp; val lg=20.dp; val xl=24.dp }
-private val light=lightColorScheme(primary=Color(0xFF486477),onPrimary=Color.White,
-    background=Color(0xFFF7F8FA),surface=Color(0xFFF7F8FA),surfaceContainer=Color(0xFFEDF0F3),
-    surfaceContainerLow=Color(0xFFF0F4F7),surfaceContainerHigh=Color(0xFFEAF0F4),surfaceContainerHighest=Color(0xFFE5EDF2),
-    onSurface=Color(0xFF20272E),onSurfaceVariant=Color(0xFF4D5862),outline=Color(0xFF77838D),outlineVariant=Color(0xFFD4DEE6))
-private val dark=darkColorScheme(primary=Color(0xFFA6C3D7),onPrimary=Color(0xFF153445),
-    background=Color(0xFF171A1E),surface=Color(0xFF171A1E),surfaceContainer=Color(0xFF262B30),
-    surfaceContainerLow=Color(0xFF20282F),surfaceContainerHigh=Color(0xFF29333C),surfaceContainerHighest=Color(0xFF303D48),
-    onSurface=Color(0xFFE0E5EB),onSurfaceVariant=Color(0xFFBBC5CE),outline=Color(0xFF84919C),outlineVariant=Color(0xFF45535E))
+private val light=lightColorScheme(
+    primary=Color(0xFF303034),onPrimary=Color.White,
+    primaryContainer=Color(0xFFE3E3E7),onPrimaryContainer=Color(0xFF202023),
+    secondary=Color(0xFF56565D),onSecondary=Color.White,
+    secondaryContainer=Color.White,onSecondaryContainer=Color(0xFF202023),
+    tertiary=Color(0xFF626269),onTertiary=Color.White,
+    tertiaryContainer=Color(0xFFE8E8EC),onTertiaryContainer=Color(0xFF202023),
+    background=Color(0xFFF2F2F4),onBackground=Color(0xFF202023),
+    surface=Color(0xFFF2F2F4),onSurface=Color(0xFF202023),
+    surfaceDim=Color(0xFFE0E0E4),surfaceBright=Color(0xFFFAFAFC),
+    surfaceContainerLowest=Color.White,surfaceContainerLow=Color(0xFFF8F8FA),
+    surfaceContainer=Color(0xFFE8E8EC),surfaceContainerHigh=Color(0xFFE2E2E7),surfaceContainerHighest=Color(0xFFDCDCE2),
+    surfaceVariant=Color(0xFFE8E8EC),onSurfaceVariant=Color(0xFF626269),
+    outline=Color(0xFF787880),outlineVariant=Color(0xFFD2D2D8),surfaceTint=Color(0xFF626269),
+    inverseSurface=Color(0xFF303034),inverseOnSurface=Color(0xFFF2F2F4),inversePrimary=Color(0xFFD9D9DF))
+private val dark=darkColorScheme(
+    primary=Color(0xFFE8E8ED),onPrimary=Color(0xFF202023),
+    primaryContainer=Color(0xFF3A3A40),onPrimaryContainer=Color(0xFFF2F2F4),
+    secondary=Color(0xFFC4C4CC),onSecondary=Color(0xFF202023),
+    secondaryContainer=Color(0xFF505057),onSecondaryContainer=Color(0xFFF7F7FA),
+    tertiary=Color(0xFFB8B8C0),onTertiary=Color(0xFF202023),
+    tertiaryContainer=Color(0xFF36363C),onTertiaryContainer=Color(0xFFF2F2F4),
+    background=Color(0xFF111113),onBackground=Color(0xFFF2F2F4),
+    surface=Color(0xFF111113),onSurface=Color(0xFFF2F2F4),
+    surfaceDim=Color(0xFF111113),surfaceBright=Color(0xFF39393F),
+    surfaceContainerLowest=Color(0xFF0D0D0F),surfaceContainerLow=Color(0xFF1C1C1F),
+    surfaceContainer=Color(0xFF262629),surfaceContainerHigh=Color(0xFF303035),surfaceContainerHighest=Color(0xFF3A3A40),
+    surfaceVariant=Color(0xFF3A3A40),onSurfaceVariant=Color(0xFFA6A6AE),
+    outline=Color(0xFF888890),outlineVariant=Color(0xFF44444B),surfaceTint=Color(0xFFB8B8C0),
+    inverseSurface=Color(0xFFE8E8ED),inverseOnSurface=Color(0xFF202023),inversePrimary=Color(0xFF56565D))
 private val typography=Typography(
     headlineMedium=TextStyle(fontFamily=FontFamily.SansSerif,fontWeight=FontWeight.SemiBold,fontSize=32.sp,lineHeight=40.sp),
     headlineSmall=TextStyle(fontFamily=FontFamily.SansSerif,fontWeight=FontWeight.SemiBold,fontSize=24.sp,lineHeight=32.sp),

@@ -31,7 +31,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.*
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import dev.valnook.core.designsystem.R
 import java.time.LocalDate
@@ -159,8 +158,7 @@ import java.util.Locale
     val pickerRates=LocalCurrencyPickerRates.current
     SelectorField(stringResource(R.string.currency),selected,
         {query="";expanded=true},enabled)
-    if(expanded) Dialog(onDismissRequest={expanded=false},properties=DialogProperties(decorFitsSystemWindows=false)) {
-        PopupBlurEffect()
+    AnimatedGlassDialog(expanded,onDismissRequest={expanded=false},properties=DialogProperties(decorFitsSystemWindows=false)) {
         Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(12.dp)) {
             GlassCard(prominent = true) {
                 Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.md),
@@ -176,7 +174,9 @@ import java.util.Locale
                         if(matches.isEmpty())item{EmptyState(stringResource(R.string.no_currency_match))}
                         items(matches,key={it.first}){(code,name)->
                             Row(Modifier.fillMaxWidth().heightIn(min=48.dp).clip(RoundedCornerShape(12.dp))
-                                .clickable(role=Role.Button) {on_change(code);expanded=false}.padding(vertical=8.dp),
+                                .clickable(enabled=expanded,role=Role.Button) {
+                                    if(expanded) {expanded=false;on_change(code)}
+                                }.padding(vertical=8.dp),
                                 verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.md)) {
                                 Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainer,
                                     modifier=Modifier.width(56.dp)) {

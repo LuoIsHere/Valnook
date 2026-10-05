@@ -109,8 +109,7 @@ import java.time.LocalDate
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Text(row.account.name, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(if (isExpanded) "▴" else "▾", style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ExpansionChevron(isExpanded)
                             }
                         }
                         val amount: @Composable () -> Unit = {
