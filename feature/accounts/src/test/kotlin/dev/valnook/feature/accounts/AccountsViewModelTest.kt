@@ -38,7 +38,7 @@ class AccountsViewModelTest {
         assertEquals(7L, request!!.accountId)
         assertEquals(3L, request!!.expectedRevision)
         assertEquals("旧备注", request!!.note)
-        assertEquals(listOf(CashBalanceChange("CNY", 100, 8, 11, "人民币现金", "")), request!!.cashChanges)
+        assertEquals(listOf(CashBalanceChange("CNY", 100, 8, 11, "人民币现金", "", displayOrder = 0)), request!!.cashChanges)
         assertTrue(vm.consumeSuccess())
         assertFalse(vm.consumeSuccess())
     }
@@ -71,7 +71,7 @@ class AccountsViewModelTest {
         assertEquals(listOf(
             CashBalanceChange("CNY", 200, 8, 11, "人民币现金", ""),
             CashBalanceChange("USD", 0, null, null, "美元现金", "")
-        ), requests.single().cashChanges)
+        ).mapIndexed { index, row -> row.copy(displayOrder = index.toLong()) }, requests.single().cashChanges)
     }
     @Test fun unknown_receipt_reconciles_original_operation_without_second_write() = runTest(dispatcher) {
         var writes = 0

@@ -5,9 +5,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 abstract class OverviewDao {
-    @Query("SELECT * FROM savings_accounts ORDER BY id")
+    @Query("SELECT * FROM savings_accounts ORDER BY display_order,id")
     abstract suspend fun allAccounts(): List<AccountEntity>
-    @Query("SELECT * FROM cash_accounts ORDER BY savings_account_id,name,id")
+    @Query("SELECT * FROM cash_accounts ORDER BY savings_account_id,display_order,id")
     abstract suspend fun allCash(): List<CashEntity>
     @Query("SELECT * FROM credit_account_profiles ORDER BY account_id")
     abstract suspend fun allCreditProfiles(): List<CreditAccountProfileEntity>

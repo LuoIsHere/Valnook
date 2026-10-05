@@ -56,6 +56,7 @@ import dev.valnook.designsystem.CurrencyPickerRates
 import dev.valnook.designsystem.LocalCurrencyPickerRates
 import dev.valnook.designsystem.LocalPageBottomSpace
 import dev.valnook.designsystem.MenuIcon
+import dev.valnook.designsystem.SortIcon
 import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.ValnookTheme
 import dev.valnook.domain.model.AppSettings
@@ -220,6 +221,7 @@ private fun SessionRoot(
         WebAdminKey -> stringResource(dev.valnook.feature.webadmin.R.string.webadmin_title)
         is AccountKey -> accountName(current.id)
         is AccountEditKey -> stringResource(R.string.title_edit_account)
+        AccountOrderKey -> stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
         is AccountInvestmentsKey -> stringResource(R.string.title_all_instruments)
         is InstrumentKey -> stringResource(R.string.title_instrument_detail)
@@ -241,6 +243,9 @@ private fun SessionRoot(
     var switchFailed by remember { mutableStateOf(false) }
     val addAccountDescription = stringResource(R.string.nav_add_account)
     val instrumentLibraryDescription = stringResource(R.string.nav_instrument_library)
+    val sortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
+    var editSortAction by remember(graph.sessionId) { mutableStateOf<(() -> Unit)?>(null) }
+    val updateEditSortAction = remember(graph.sessionId) { { action: (() -> Unit)? -> editSortAction = action } }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
@@ -256,14 +261,22 @@ private fun SessionRoot(
                 if (!current.isRoot()) BackButton(stringResource(R.string.nav_back), back)
             }, actions = {
                 when (current) {
-                    AccountsKey, HiddenAccountsKey -> IconButton({ open(AccountEditKey()) }, Modifier.semantics {
-                        contentDescription = addAccountDescription
-                    }) { Text("＋") }
+                    AccountsKey, HiddenAccountsKey -> {
+                        IconButton({ open(AccountOrderKey) }, Modifier.testTag("account-order-open").semantics {
+                            contentDescription = sortDescription
+                        }, enabled = accounts.size > 1) { SortIcon() }
+                        IconButton({ open(AccountEditKey()) }, Modifier.semantics {
+                            contentDescription = addAccountDescription
+                        }) { Text("＋") }
+                    }
                     InvestmentsKey, HiddenInvestmentsKey -> IconButton({ open(InstrumentLibraryKey) }, Modifier.semantics {
                         contentDescription = instrumentLibraryDescription
                     }) { MenuIcon() }
                     is AccountKey -> dev.valnook.designsystem.TopBarAction(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
+                    is AccountEditKey -> IconButton({ editSortAction?.invoke() },
+                        Modifier.testTag("subaccount-order-open").semantics { contentDescription = sortDescription },
+                        enabled = editSortAction != null) { SortIcon() }
                     else -> Unit
                 }
             })
@@ -277,7 +290,7 @@ private fun SessionRoot(
                         transitionSpec = { NavigationMotion.forward(offset) },
                         popTransitionSpec = { NavigationMotion.back(offset) },
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
-                            accountEntries(graph, open, back)
+                            accountEntries(graph, open, back, updateEditSortAction)
                             investmentEntries(graph, open, back, accountName)
                             ledgerEntries(graph, open, back, accountName)
                             entry<StatisticsKey> {

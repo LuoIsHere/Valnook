@@ -1,6 +1,5 @@
 package dev.valnook.feature.accounts
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -11,9 +10,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.Space
+import dev.valnook.designsystem.CapsuleChoiceRow
 import dev.valnook.domain.model.ConvertedTotal
 import java.math.RoundingMode
 
@@ -36,6 +37,7 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
                     it.account_id == accountId && it.holding_quantity_e8 > 0
                 }
                 var selected by rememberSaveable(accountId) { mutableStateOf(initialSection) }
+                val sectionStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 Column(Modifier.fillMaxSize()) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = Space.sm),
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -51,40 +53,54 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
                                 textAlign = TextAlign.End)
                         }
                     }
+                    val labels = mapOf(
+                        AccountDetailSection.ACCOUNTS to stringResource(R.string.accounts_accounts),
+                        AccountDetailSection.DEPOSITS to stringResource(R.string.account_tab_deposits),
+                        AccountDetailSection.INVESTMENTS to stringResource(R.string.accounts_investments))
+                    CapsuleChoiceRow(AccountDetailSection.entries, selected, { selected = it },
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                            .testTag("account-detail-tabs"),
+                        optionModifier = { Modifier.testTag("account-section-${it.name}") },
+                        controlHeight = 38.dp * LocalDensity.current.fontScale.coerceAtLeast(1f),
+                        optionWeight = { labels.getValue(it).length.coerceAtLeast(8).toFloat() }) { section ->
+                        Text(labels.getValue(section), style = MaterialTheme.typography.labelLarge,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    val count = when (selected) {
+                        AccountDetailSection.ACCOUNTS -> cashCount
+                        AccountDetailSection.DEPOSITS -> depositCount
+                        AccountDetailSection.INVESTMENTS -> investmentCount
+                    }
+                    val total = when (selected) {
+                        AccountDetailSection.ACCOUNTS -> ConvertedTotal(
+                            assets.cash.amount + assets.creditBalance.amount, assets.cash.currency,
+                            assets.cash.missing + assets.creditBalance.missing)
+                        AccountDetailSection.DEPOSITS -> assets.depositValue
+                        AccountDetailSection.INVESTMENTS -> assets.investmentValue
+                    }
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.account_section_count, count), Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(detailTotal(total), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                            color = detailAmountColor(total))
+                    }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                    AccountSectionHeader("ACCOUNTS", stringResource(R.string.accounts_accounts), cashCount,
-                        ConvertedTotal(assets.cash.amount + assets.creditBalance.amount, assets.cash.currency,
-                            assets.cash.missing + assets.creditBalance.missing),
-                        selected == AccountDetailSection.ACCOUNTS) { selected = AccountDetailSection.ACCOUNTS }
-                    if (selected == AccountDetailSection.ACCOUNTS) Box(Modifier.fillMaxWidth().weight(1f)) { cashContent() }
-                    AccountSectionHeader("DEPOSITS", stringResource(R.string.accounts_deposits), depositCount, assets.depositValue,
-                        selected == AccountDetailSection.DEPOSITS) { selected = AccountDetailSection.DEPOSITS }
-                    if (selected == AccountDetailSection.DEPOSITS) Box(Modifier.fillMaxWidth().weight(1f)) { depositContent() }
-                    AccountSectionHeader("INVESTMENTS", stringResource(R.string.accounts_investments), investmentCount, assets.investmentValue,
-                        selected == AccountDetailSection.INVESTMENTS) { selected = AccountDetailSection.INVESTMENTS }
-                    if (selected == AccountDetailSection.INVESTMENTS) Box(Modifier.fillMaxWidth().weight(1f)) { investmentContent() }
+                    // Keep every section's scroll state while displaying only the selected content.
+                    Box(Modifier.fillMaxWidth().weight(1f)) {
+                        sectionStates.SaveableStateProvider(selected.name) {
+                            when (selected) {
+                                AccountDetailSection.ACCOUNTS -> cashContent()
+                                AccountDetailSection.DEPOSITS -> depositContent()
+                                AccountDetailSection.INVESTMENTS -> investmentContent()
+                            }
+                        }
+                    }
                 }
             }
         }
     }
-}
-
-@Composable
-private fun AccountSectionHeader(tag: String, label: String, count: Int, total: ConvertedTotal, expanded: Boolean, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().testTag("account-section-$tag")
-        .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, style = MaterialTheme.typography.titleSmall)
-            Text(count.toString(), style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Text(detailTotal(total), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-            color = detailAmountColor(total), textAlign = TextAlign.End)
-        Text(if (expanded) "▴" else "▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 }
 
 @Composable private fun detailTotal(total: ConvertedTotal): String = total.currency?.let {

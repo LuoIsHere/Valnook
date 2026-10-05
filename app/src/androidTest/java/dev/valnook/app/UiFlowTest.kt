@@ -746,6 +746,8 @@ class UiFlowTest {
             graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(), account_id, "CNY", -12345, null,
                 name = "人民币现金", note = "可透支"))
             cashId = graph.cash.observe_cash(account_id).first().single().id
+            val settings = graph.overview.snapshot().settings
+            graph.settingsWriter.applyChange(SaveFinancialSettings(settings.revision, Currency.of("CNY"), emptyList()))
         }
         rule.onNodeWithTag("account-toggle-$account_id").assertIsDisplayed().performTouchInput {
             click(androidx.compose.ui.geometry.Offset(24f, 24f))
@@ -755,9 +757,219 @@ class UiFlowTest {
         rule.onNodeWithTag("account-cash-$cashId").performScrollTo().assertIsDisplayed().assertTextContains("-123.45 CNY")
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
         rule.onNodeWithTag("account-section-ACCOUNTS").assertIsDisplayed()
+        rule.onNodeWithTag("account-section-ACCOUNTS").assertIsSelected()
+        val tabsTop = rule.onNodeWithTag("account-detail-tabs").fetchSemanticsNode().boundsInRoot.top
         rule.onNodeWithTag("account-section-DEPOSITS").assertIsDisplayed()
         rule.onNodeWithTag("account-section-INVESTMENTS").assertIsDisplayed().performClick()
         rule.onNodeWithTag("account-section-INVESTMENTS").assertIsDisplayed()
+        rule.onNodeWithTag("account-section-INVESTMENTS").assertIsSelected()
+        assertEquals(tabsTop, rule.onNodeWithTag("account-detail-tabs").fetchSemanticsNode().boundsInRoot.top, 0.1f)
+        rule.onNodeWithTag("account-section-DEPOSITS").performClick().assertIsSelected()
+        rule.onNodeWithTag("account-section-ACCOUNTS").performClick().assertIsSelected()
+        wait_text("人民币现金")
+        shot("account-detail-capsule-tabs")
+    }
+
+    private fun drag_order_row(key: String, target: String) {
+        val from = rule.onNodeWithTag("sort-row-$key").fetchSemanticsNode().boundsInRoot
+        val to = rule.onNodeWithTag("sort-row-$target").fetchSemanticsNode().boundsInRoot
+        val distance = to.center.y - from.center.y
+        rule.onNodeWithTag("sort-handle-$key").performTouchInput {
+            swipe(center, center + androidx.compose.ui.geometry.Offset(0f, distance * 1.25f), durationMillis = 700)
+        }
+        rule.mainClock.advanceTimeBy(200)
+        rule.waitForIdle()
+    }
+
+    @Test fun main_account_sort_cancel_save_and_investment_order_are_consistent() {
+        val second = runBlocking { graph.overview.snapshot().accounts.single { it.id != account_id }.id }
+        runBlocking {
+            val type = createType("股票")
+            createInvestment(account_id, "平安银行", "000001.SZ", type, "CNY", 100000000, 1200000000, 1000000000)
+            createInvestment(second, "贵州茅台", "600519.SH", type, "CNY", 100000000, 140000000000, 130000000000)
+            val settings = graph.overview.snapshot().settings
+            graph.settingsWriter.applyChange(SaveFinancialSettings(settings.revision, Currency.of("CNY"), emptyList()))
+        }
+        wait_text("合成账户 A")
+        rule.onNodeWithTag("account-order-open").assertIsEnabled().performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-$account_id").fetchSemanticsNodes().isNotEmpty() }
+        drag_order_row(account_id.toString(), second.toString())
+        assertTrue(rule.onNodeWithTag("sort-row-$second").fetchSemanticsNode().boundsInRoot.top <
+            rule.onNodeWithTag("sort-row-$account_id").fetchSemanticsNode().boundsInRoot.top)
+        shot("main-account-sort-draft")
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
+        runBlocking { assertEquals(listOf(account_id, second), graph.overview.snapshot().accounts.map { it.id }) }
+        rule.onNodeWithTag("account-order-open").performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-$account_id").fetchSemanticsNodes().isNotEmpty() }
+        drag_order_row(account_id.toString(), second.toString())
+        rule.onNodeWithTag("account-order-save").performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("account-order-save").fetchSemanticsNodes().isEmpty() }
+        assertTrue(rule.onNodeWithTag("account-total-$second").fetchSemanticsNode().boundsInRoot.top <
+            rule.onNodeWithTag("account-total-$account_id").fetchSemanticsNode().boundsInRoot.top)
+        rule.onNode(hasText(localized(dev.valnook.app.R.string.nav_investments)) and hasClickAction()).performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("investment-account-toggle-$second").fetchSemanticsNodes().isNotEmpty() }
+        assertTrue(rule.onNodeWithTag("investment-account-toggle-$second").fetchSemanticsNode().boundsInRoot.top <
+            rule.onNodeWithTag("investment-account-toggle-$account_id").fetchSemanticsNode().boundsInRoot.top)
+        shot("investment-shared-account-order")
+        rule.activityRule.scenario.recreate()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("investment-account-toggle-$second").fetchSemanticsNodes().isNotEmpty() }
+        runBlocking { assertEquals(listOf(second, account_id), graph.overview.snapshot().accounts.map { it.id }) }
+    }
+
+    @Test fun subaccount_sort_only_persists_when_account_edit_is_saved() {
+        val ids = runBlocking {
+            val owner = graph.overview.snapshot().accounts.single { it.id == account_id }
+            graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), account_id, owner.revision,
+                owner.name, owner.note, listOf(
+                    BalanceAccountChange("CNY", 12345, null, name = "人民币现金"),
+                    BalanceAccountChange("USD", 456, null, name = "美元现金"),
+                    BalanceAccountChange("CNY", -123, null, name = "Visa 信用", type = BalanceAccountType.CREDIT,
+                        credit = CreditAccountInput(50000, 12, CreditDueRule.AfterStatementDays(20), null)))))
+            graph.overview.snapshot().cash.filter { it.account_id == account_id }.map { it.id }
+        }
+        wait_text("合成账户 A")
+        rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
+        rule.onNodeWithText(localized(dev.valnook.app.R.string.nav_edit)).performClick()
+        rule.waitUntil(5000) { rule.onAllNodes(hasTestTag("subaccount-order-open") and SemanticsMatcher.keyNotDefined(SemanticsProperties.Disabled)).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("subaccount-order-open").performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-${ids[0]}").fetchSemanticsNodes().isNotEmpty() }
+        drag_order_row(ids[0].toString(), ids[1].toString())
+        shot("subaccount-sort-sheet", "subaccount-sort-sheet")
+        rule.onNodeWithTag("subaccount-order-confirm").performClick()
+        runBlocking { assertEquals(ids, graph.overview.snapshot().cash.filter { it.account_id == account_id }.map { it.id }) }
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
+        rule.onNodeWithText(localized(dev.valnook.app.R.string.nav_edit)).performClick()
+        rule.waitUntil(5000) { rule.onAllNodes(hasTestTag("subaccount-order-open") and SemanticsMatcher.keyNotDefined(SemanticsProperties.Disabled)).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("subaccount-order-open").performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-${ids[0]}").fetchSemanticsNodes().isNotEmpty() }
+        drag_order_row(ids[0].toString(), ids[1].toString())
+        rule.onNodeWithTag("subaccount-order-confirm").performClick()
+        save(localized(dev.valnook.feature.accounts.R.string.account_save))
+        wait_text("美元现金")
+        runBlocking {
+            val rows = graph.overview.snapshot().cash.filter { it.account_id == account_id }
+            assertEquals(listOf(ids[1], ids[0], ids[2]), rows.map { it.id })
+            assertEquals(listOf(456L, 12345L, -123L), rows.map { it.balance_minor })
+        }
+        shot("subaccount-order-saved")
+    }
+
+    @Test fun demo_account_order_is_isolated_and_resets_from_prebuilt_asset() {
+        runBlocking {
+            val realOrder = graph.overview.snapshot().accounts.map { it.id }
+            sessions.enterDemo()
+            val demoOrder = graph.overview.snapshot().accounts.map { it.id }
+            assertEquals(12, demoOrder.size)
+            val writer = requireNotNull(graph.accountOrderWriter)
+            writer.saveOrder(demoOrder, demoOrder.reversed())
+            assertEquals(demoOrder.reversed(), graph.overview.snapshot().accounts.map { it.id })
+            sessions.exitDemo()
+            assertEquals(realOrder, graph.overview.snapshot().accounts.map { it.id })
+            try { writer.saveOrder(demoOrder.reversed(), demoOrder); fail("Expired demo writer") }
+            catch (error: DomainException) { assertEquals(ErrorCode.SESSION_EXPIRED, error.code) }
+            sessions.enterDemo()
+            assertEquals(demoOrder, graph.overview.snapshot().accounts.map { it.id })
+            sessions.exitDemo()
+        }
+        wait_text("合成账户 A")
+    }
+
+    @Test fun account_detail_tabs_fit_narrow_dark_layout_with_large_text() {
+        val vm = dev.valnook.feature.accounts.AccountsViewModel(graph.overview)
+        rule.runOnUiThread {
+            rule.activity.setContent {
+                ValnookTheme(dark_theme = true) {
+                    CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 1.3f)) {
+                        Box(Modifier.fillMaxSize()) {
+                        Box(Modifier.width(320.dp).fillMaxHeight().testTag("narrow-account-detail")) {
+                            dev.valnook.feature.accounts.AccountDetailScreen(vm, account_id,
+                                dev.valnook.feature.accounts.AccountDetailSection.ACCOUNTS,
+                                cashContent = { androidx.compose.material3.Text("Cash content") },
+                                depositContent = { androidx.compose.material3.Text("Deposit content") },
+                                investmentContent = { androidx.compose.material3.Text("Investment content") })
+                        }
+                        }
+                    }
+                }
+            }
+        }
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("account-detail-tabs").fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(320f * rule.activity.resources.displayMetrics.density,
+            rule.onNodeWithTag("narrow-account-detail").fetchSemanticsNode().boundsInRoot.width, 0.1f)
+        listOf("ACCOUNTS", "DEPOSITS", "INVESTMENTS").forEach {
+            rule.onNodeWithTag("account-section-$it").assertIsDisplayed().performClick().assertIsSelected()
+        }
+        shot("account-detail-narrow-dark-large-text", "narrow-account-detail")
+        val englishConfig = android.content.res.Configuration(rule.activity.resources.configuration).apply {
+            setLocale(java.util.Locale.ENGLISH)
+        }
+        val englishContext = rule.activity.createConfigurationContext(englishConfig)
+        rule.runOnUiThread {
+            rule.activity.setContent {
+                CompositionLocalProvider(androidx.compose.ui.platform.LocalContext provides englishContext,
+                    androidx.compose.ui.platform.LocalConfiguration provides englishConfig,
+                    LocalDensity provides Density(rule.activity.resources.displayMetrics.density, 1.3f)) {
+                    ValnookTheme(dark_theme = false) {
+                        Box(Modifier.fillMaxSize()) {
+                            Box(Modifier.width(320.dp).fillMaxHeight().testTag("english-account-detail")) {
+                                dev.valnook.feature.accounts.AccountDetailScreen(vm, account_id,
+                                    dev.valnook.feature.accounts.AccountDetailSection.ACCOUNTS,
+                                    cashContent = { androidx.compose.material3.Text("Cash content") },
+                                    depositContent = { androidx.compose.material3.Text("Deposit content") },
+                                    investmentContent = { androidx.compose.material3.Text("Investment content") })
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        listOf("Accounts", "Deposits", "Investments").forEach { label ->
+            val layouts = mutableListOf<TextLayoutResult>()
+            rule.onNodeWithText(label).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertFalse("Tab label should fit at 320dp: $label", layouts.single().isLineEllipsized(0))
+        }
+        rule.onNodeWithTag("account-section-DEPOSITS").performClick().assertIsSelected()
+        shot("account-detail-narrow-english-light-large-text", "english-account-detail")
+    }
+
+    @Test fun long_reorder_list_auto_scrolls_while_dragging_without_losing_items() {
+        val initial = (1..30).map { it.toString() }
+        val ordered = androidx.compose.runtime.mutableStateOf(initial)
+        var commits = 0
+        rule.runOnUiThread {
+            rule.activity.setContent {
+                ValnookTheme {
+                    Box(Modifier.fillMaxSize()) {
+                    Box(Modifier.width(320.dp).height(420.dp).padding(top = 40.dp)) {
+                        ReorderList(ordered.value.map { ReorderItem(it, "Account $it") }, { commits++; ordered.value = it },
+                            "Reorder", "Move up", "Move down", Modifier.fillMaxSize().testTag("long-sort-list"))
+                    }
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val from = rule.onNodeWithTag("sort-handle-1").fetchSemanticsNode().boundsInRoot.center
+        val bottom = rule.onNodeWithTag("long-sort-list").fetchSemanticsNode().boundsInRoot.bottom - 30f
+        rule.mainClock.autoAdvance = false
+        try {
+            rule.onNodeWithTag("sort-handle-1").performTouchInput {
+                down(center)
+                moveTo(center + androidx.compose.ui.geometry.Offset(0f, bottom - from.y))
+            }
+            repeat(180) {
+                rule.mainClock.advanceTimeByFrame()
+                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            }
+        } finally {
+            rule.onNodeWithTag("long-sort-list").performTouchInput { up() }
+            rule.mainClock.autoAdvance = true
+        }
+        rule.waitForIdle()
+        assertEquals(initial.toSet(), ordered.value.toSet())
+        assertEquals(initial.size, ordered.value.size)
+        shot("account-sort-long-list", "long-sort-list")
+        assertTrue("Dragged row should move beyond the initially visible rows (commits=$commits): ${ordered.value}", ordered.value.indexOf("1") > 7)
     }
 
     @Test fun credit_account_form_and_account_detail_show_limit_billing_and_locked_type() {

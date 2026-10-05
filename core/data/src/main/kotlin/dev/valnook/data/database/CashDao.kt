@@ -32,8 +32,17 @@ interface CashDao {
     @Query("""SELECT c.*,p.account_id AS profile_account_id,p.credit_limit_minor,p.statement_day,
         p.due_rule_type,p.due_rule_value,p.limit_source_account_id FROM cash_accounts c
         LEFT JOIN credit_account_profiles p ON p.account_id=c.id
-        WHERE c.savings_account_id=:accountId ORDER BY c.name,c.id""")
+        WHERE c.savings_account_id=:accountId ORDER BY c.display_order,c.id""")
     fun cash(accountId: Long): Flow<List<BalanceAccountRow>>
+
+    @Query("SELECT COALESCE(MAX(display_order),-1)+1 FROM cash_accounts WHERE savings_account_id=:accountId")
+    suspend fun nextDisplayOrder(accountId: Long): Long
+
+    @Query("SELECT id FROM cash_accounts WHERE savings_account_id=:accountId")
+    suspend fun accountIds(accountId: Long): List<Long>
+
+    @Query("UPDATE cash_accounts SET display_order=:order WHERE id=:id AND savings_account_id=:accountId")
+    suspend fun setDisplayOrder(accountId: Long, id: Long, order: Long): Int
 
     @Query("SELECT * FROM cash_accounts WHERE savings_account_id=:accountId AND currency_code=:code ORDER BY id LIMIT 1")
     suspend fun cash_one(accountId: Long, code: String): CashEntity?

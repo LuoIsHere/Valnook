@@ -268,7 +268,13 @@ class AppSessionManager @Inject internal constructor(
         cashPages = source.cashPages,
         depositPages = source.depositPages,
         portability = SessionPortability(sessionId, mode, source.portability),
-        cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator)
+        cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator),
+        accountOrderWriter = object : AccountOrderWriter {
+            override suspend fun saveOrder(expectedOrder: List<Long>, orderedIds: List<Long>) = writeMutex.withLock {
+                requireMobileWrite(sessionId)
+                dev.valnook.data.repository.RoomAccountOrderWriter(source.database).saveOrder(expectedOrder, orderedIds)
+            }
+        }
     )
 
     private inner class SessionCloudBackup(
@@ -522,7 +528,7 @@ class AppSessionManager @Inject internal constructor(
     )
 
     private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v11.db"
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v12.db"
         const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

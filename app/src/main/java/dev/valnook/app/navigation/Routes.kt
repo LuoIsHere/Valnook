@@ -7,6 +7,7 @@ import dev.valnook.feature.investments.TradeFormMode
 import dev.valnook.feature.deposits.DepositFormMode
 
 @Serializable data object AccountsKey : NavKey
+@Serializable data object AccountOrderKey : NavKey
 @Serializable data object InvestmentsKey : NavKey
 @Serializable data object StatisticsKey : NavKey
 @Serializable data object SettingsKey : NavKey

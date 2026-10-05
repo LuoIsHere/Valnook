@@ -167,6 +167,7 @@ internal class ArchiveReader(
             BackupContract.tablesFor(dataSchemaVersion).sortedBy { BackupContract.importOrder.indexOf(it.table) }.forEach { table ->
                 counts[table.path] = loadTable(db, root, table)
             }
+            if (dataSchemaVersion < 3) dev.valnook.data.database.initializeAccountDisplayOrder(db.openHelper.writableDatabase)
             counts["data/valuation_baselines.jsonl"] = loadValuationBaselines(db, root)
             counts["data/audit_metadata.json"] = loadAuditMetadata(db, root)
             counts.putAll(loadPreferences(db, root))
@@ -328,6 +329,10 @@ internal class ArchiveReader(
     ) {
         val sql = db.openHelper.readableDatabase
         sql.query("PRAGMA foreign_key_check").use { if (it.moveToFirst()) relationship() }
+        sql.query("SELECT 1 FROM savings_accounts WHERE display_order<0 LIMIT 1")
+            .use { if (it.moveToFirst()) invalid() }
+        sql.query("SELECT 1 FROM cash_accounts WHERE display_order<0 LIMIT 1")
+            .use { if (it.moveToFirst()) invalid() }
         validateCreditAccounts(sql)
         if (counts["data/accounts.jsonl"] != manifest.accountCount ||
             counts["data/cash_accounts.jsonl"] != manifest.cashAccountCount ||

@@ -26,12 +26,21 @@ internal class AccountCommandHandler(
             command.cashChanges.count { it.cashAccountId != null }) {
             throw DomainException(ErrorCode.OPERATION_CONFLICT)
         }
+        if (command.cashChanges.any { it.displayOrder != null } &&
+            command.cashChanges.map { it.displayOrder } != command.cashChanges.indices.map { it.toLong() }) {
+            throw DomainException(ErrorCode.OPERATION_CONFLICT)
+        }
         val oldAccount = command.accountId?.let {
             db.accounts().account(it) ?: throw DomainException(ErrorCode.NOT_FOUND)
         }
         if (oldAccount?.revision != command.expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
+        if (oldAccount != null && command.cashChanges.any { it.displayOrder != null } &&
+            command.cashChanges.mapNotNull { it.cashAccountId }.toSet() != db.cash().accountIds(oldAccount.id).toSet()) {
+            throw DomainException(ErrorCode.STALE_RECORD)
+        }
         val accountId = oldAccount?.id ?: db.accounts().insert_account(AccountEntity(name = accountName,
-            note = command.note, created_at_ms = now, updated_at_ms = now))
+            note = command.note, created_at_ms = now, updated_at_ms = now,
+            display_order = db.accounts().nextDisplayOrder()))
 
         val validated = command.cashChanges.map { row ->
             val currency = cash.currency(row.currencyCode)
@@ -61,11 +70,13 @@ internal class AccountCommandHandler(
             if (old == null) {
                 val created = cash.createAccount(command.operation_id, accountId, value.name, value.row.note,
                     value.currencyCode, value.row.balanceMinor, now)
+                value.row.displayOrder?.let { db.cash().setDisplayOrder(accountId, created.id, it) }
                 credit.save(credit.validateAndBuild(created.id, value.currencyCode, value.row.type,
                     value.row.credit, existingAccount = false))
                 cash.entry(command.operation_id, created.id, CashSource.CASH_SET.name, null,
                     value.row.balanceMinor, now, now)
             } else {
+                value.row.displayOrder?.let { db.cash().setDisplayOrder(accountId, old.id, it) }
                 val nextProfile = credit.validateAndBuild(old.id, value.currencyCode, value.row.type,
                     value.row.credit, existingAccount = true)
                 val metadataChanged = old.name != value.name || old.note != value.row.note

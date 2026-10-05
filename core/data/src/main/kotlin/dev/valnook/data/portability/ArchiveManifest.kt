@@ -101,6 +101,7 @@ data class ArchiveManifest(
             val features = root.list("requiredFeatures").map { it as? String ?: fail() }
             if (features.toSet().size != features.size) fail()
             if (dataSchemaVersion >= 2 && "credit-accounts-v1" !in features) incompatible()
+            if (dataSchemaVersion >= 3 && "account-order-v1" !in features) incompatible()
             val files = root.list("files").map { item ->
                 val value = item.asObject()
                 requireKeys(value, setOf("path", "recordCount", "uncompressedBytes", "sha256"))

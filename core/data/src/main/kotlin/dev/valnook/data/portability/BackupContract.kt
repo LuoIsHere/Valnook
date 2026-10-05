@@ -48,13 +48,13 @@ data class PortableTable(
 internal object BackupContract {
     const val FORMAT = "valnook-backup"
     const val FORMAT_VERSION = 1
-    const val DATA_SCHEMA_VERSION = 2
+    const val DATA_SCHEMA_VERSION = 3
     const val REPORT_FORMAT_VERSION = 2
     const val POSITION_COST_RULE = InvestmentProfitCalculator.ALGORITHM_VERSION
     const val DEPOSIT_INTEREST_RULE = 1
     const val HISTORICAL_VALUATION_RULE = STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -64,11 +64,11 @@ internal object BackupContract {
 
     val tables = listOf(
         PortableTable("data/accounts.jsonl", "savings_accounts", listOf(
-            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision")
+            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision"), long("display_order")
         ), "id"),
         PortableTable("data/cash_accounts.jsonl", "cash_accounts", listOf(
             long("savings_account_id"), text("currency_code"), long("balance_minor"), long("revision"),
-            long("updated_at_ms"), long("id"), text("name"), text("note"), bool("currency_locked"), long("created_at_ms")
+            long("updated_at_ms"), long("id"), text("name"), text("note"), bool("currency_locked"), long("created_at_ms"), long("display_order")
         ), "savings_account_id,id"),
         PortableTable("data/credit_account_profiles.jsonl", "credit_account_profiles", listOf(
             long("account_id"), long("credit_limit_minor", true), long("statement_day"),
@@ -148,8 +148,9 @@ internal object BackupContract {
     )
 
     fun tablesFor(dataSchemaVersion: Int): List<PortableTable> = when (dataSchemaVersion) {
-        1 -> tables.filterNot { it.table == "credit_account_profiles" }
-        2 -> tables
+        1, 2 -> tables.filterNot { dataSchemaVersion == 1 && it.table == "credit_account_profiles" }
+            .map { it.copy(columns = it.columns.filterNot { column -> column.name == "display_order" }) }
+        3 -> tables
         else -> emptyList()
     }
 

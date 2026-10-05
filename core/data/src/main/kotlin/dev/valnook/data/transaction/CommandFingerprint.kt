@@ -13,7 +13,11 @@ internal object CommandFingerprint {
                     .flatMap { listOf(it.cashAccountId, it.name.trim(), it.note, Currency.of(it.currencyCode).code,
                         it.balanceMinor, it.expectedRevision, it.type.name, it.credit?.creditLimitMinor,
                         it.credit?.statementDay, it.credit?.dueRule?.javaClass?.simpleName,
-                        it.credit?.dueRule?.value, it.credit?.limitSourceAccountId) }
+                        it.credit?.dueRule?.value, it.credit?.limitSourceAccountId) } +
+                // Preserve old fingerprints for commands that do not request presentation changes.
+                if (command.cashChanges.any { it.displayOrder != null })
+                    listOf("DISPLAY_ORDER") + command.cashChanges.flatMap { listOf(it.cashAccountId, it.name.trim(), it.displayOrder) }
+                else emptyList()
             is DeleteBalanceAccount -> listOf("BALANCE_ACCOUNT_DELETE", command.accountId,
                 command.balanceAccountId, command.expectedRevision)
             is SaveInstrument -> listOf("INSTRUMENT_SAVE", command.instrumentId, command.expectedRevision,

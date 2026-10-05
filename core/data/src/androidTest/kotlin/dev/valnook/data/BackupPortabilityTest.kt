@@ -214,7 +214,7 @@ class BackupPortabilityTest {
             listOf(CashBalanceChange("CNY", -12_345, null, name = "Legacy negative balance"))))
         val output = ByteArrayOutputStream()
         engine(source).createBackup(UUID.randomUUID().toString(), output) {}
-        val v1 = downgradeToDataSchemaV1(output.toByteArray())
+        val v1 = downgradeToLegacySchema(output.toByteArray())
         val target = database("v1-target")
         val targetEngine = engine(target)
         val staged = targetEngine.prepareRestore(ByteArrayInputStream(v1), "legacy-v1.val_backup") {}
@@ -226,6 +226,28 @@ class BackupPortabilityTest {
         assertEquals(-12_345, restored.balance_minor)
         assertEquals(BalanceAccountType.SAVINGS, restored.type)
         assertNull(restored.creditProfile)
+    }
+
+    @Test fun legacy_backup_schemas_restore_original_id_and_name_order() = runBlocking {
+        val source = database("legacy-order-source")
+        val commands = RoomFinancialCommands(source, clock)
+        val first = commands.execute(SaveAccount(testOperationId(), null, null, "First", "", listOf(
+            CashBalanceChange("CNY", -123, null, name = "Z"), CashBalanceChange("USD", 456, null, name = "A")))).id
+        val second = commands.execute(SaveAccount(testOperationId(), null, null, "Second", "", emptyList())).id
+        dev.valnook.data.repository.RoomAccountOrderWriter(source).saveOrder(listOf(first, second), listOf(second, first))
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        for (version in 1..2) {
+            val target = database("legacy-order-v$version")
+            val targetEngine = engine(target)
+            val staged = targetEngine.prepareRestore(ByteArrayInputStream(downgradeToLegacySchema(output.toByteArray(), version)),
+                "legacy-order-v$version.val_backup") {}
+            try { targetEngine.commitRestore(staged) {} } finally { targetEngine.close(staged) }
+            val snapshot = RoomOverview(target).snapshot()
+            assertEquals(listOf(first, second), snapshot.accounts.map { it.id })
+            assertEquals(listOf("A", "Z"), snapshot.cash.map { it.name })
+            assertEquals(listOf(456L, -123L), snapshot.cash.map { it.balance_minor })
+        }
     }
 
     @Test fun restore_faults_roll_back_the_complete_original_dataset() = runBlocking {
@@ -526,26 +548,31 @@ class BackupPortabilityTest {
         return result
     }
 
-    private fun downgradeToDataSchemaV1(bytes: ByteArray): ByteArray {
+    private fun downgradeToLegacySchema(bytes: ByteArray, version: Int = 1): ByteArray {
         val files = linkedMapOf<String, ByteArray>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> while (true) {
             val entry = zip.nextEntry ?: break
             files[entry.name] = zip.readBytes()
         } }
-        files.remove("data/credit_account_profiles.jsonl")
+        if (version == 1) files.remove("data/credit_account_profiles.jsonl")
+        listOf("data/accounts.jsonl", "data/cash_accounts.jsonl").forEach { path ->
+            files[path] = files.getValue(path).toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
+                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { remove("display_order") }.toString() }.toByteArray()
+        }
         val totals = JSONObject(files.getValue("verification/snapshot_totals.json").toString(Charsets.UTF_8))
-        totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
+        if (version == 1) totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
         files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
         val manifest = JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
-        manifest.put("dataSchemaVersion", 1)
-        manifest.put("requiredFeatures", JSONArray(listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1")))
+        manifest.put("dataSchemaVersion", version)
+        manifest.put("requiredFeatures", JSONArray(listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1") +
+            if (version == 2) listOf("credit-accounts-v1") else emptyList()))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->
             val row = fileRows.getJSONObject(index)
             val path = row.getString("path")
-            if (path != "data/credit_account_profiles.jsonl") {
-                if (path == "verification/snapshot_totals.json") {
+            if (version != 1 || path != "data/credit_account_profiles.jsonl") {
+                if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl")) {
                     val value = files.getValue(path)
                     row.put("uncompressedBytes", value.size)
                     row.put("sha256", MessageDigest.getInstance("SHA-256").digest(value)

@@ -62,7 +62,7 @@ internal class CashWriter(
         requireAccount(accountId)
         val code = currency(currencyCode).code
         val entity = CashEntity(accountId, code, balanceMinor, 1, now, name = name, note = note,
-            currency_locked = true, created_at_ms = now)
+            currency_locked = true, created_at_ms = now, display_order = dao.nextDisplayOrder(accountId))
         val id = dao.insert_cash(entity)
         dao.insert_movement(MovementEntity(operation_id = operationId, savings_account_id = accountId,
             currency_code = code, cash_account_id = id, reason = "CASH_SET", delta_minor = balanceMinor,

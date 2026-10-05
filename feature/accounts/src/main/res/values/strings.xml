@@ -53,4 +53,16 @@
     <string name="account_review_retry">Review and retry</string>
     <string name="account_save">Save</string>
     <string name="account_unknown_result">Check the result, then retry with the original operation</string>
+    <string name="account_section_count">Total: %1$d</string>
+    <string name="account_tab_deposits">Deposits</string>
+    <string name="account_order_title">Sort accounts</string>
+    <string name="account_order_children">Sort subaccounts</string>
+    <string name="account_order_hint">Drag the handle to reorder. Investment accounts use the same order.</string>
+    <string name="account_order_cancel">Cancel</string>
+    <string name="account_order_confirm">Apply to draft</string>
+    <string name="account_order_drag">Drag to reorder</string>
+    <string name="account_order_up">Move up</string>
+    <string name="account_order_down">Move down</string>
+    <string name="account_order_error">Unable to save. Reload the list and try again.</string>
+    <string name="account_order_reload">Reload</string>
 </resources>

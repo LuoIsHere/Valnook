@@ -36,7 +36,8 @@ class AppGraph(
     val depositPages: PagedDepositRepository,
     val portability: dev.valnook.domain.portability.DataPortability =
         dev.valnook.domain.portability.UnavailableDataPortability,
-    val cloudBackup: CloudBackupService = dev.valnook.domain.cloud.UnavailableCloudBackupService
+    val cloudBackup: CloudBackupService = dev.valnook.domain.cloud.UnavailableCloudBackupService,
+    val accountOrderWriter: AccountOrderWriter? = null
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -96,7 +97,7 @@ internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
     appVersionCode = dev.valnook.app.BuildConfig.VERSION_CODE.toLong(),
     internalBuildRevision = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
     internalBuildLabel = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
-    databaseSchemaVersion = 11
+    databaseSchemaVersion = 12
 )
 
 @Module

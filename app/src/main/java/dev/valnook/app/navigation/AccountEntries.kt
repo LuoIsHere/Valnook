@@ -8,7 +8,12 @@ import dev.valnook.feature.cash.*
 import dev.valnook.feature.deposits.*
 import dev.valnook.feature.investments.*
 
-internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit) {
+internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
+    onEditSortActionChanged: ((() -> Unit)?) -> Unit) {
+    entry<AccountOrderKey> {
+        val vm = pageViewModel { AccountOrderViewModel(graph.overview, requireNotNull(graph.accountOrderWriter), createSavedStateHandle()) }
+        AccountOrderScreen(vm, back)
+    }
     entry<AccountsKey> {
         val vm = pageViewModel { AccountsViewModel(graph.overview) }
         AccountsScreen(vm, { open(AccountKey(it)) },
@@ -25,7 +30,7 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
     }
     entry<AccountEditKey> { route ->
         val vm = pageViewModel { AccountEditViewModel(route.id, graph.overview, graph.commands, createSavedStateHandle()) }
-        AccountEditScreen(vm, back)
+        AccountEditScreen(vm, back, onEditSortActionChanged)
     }
     entry<AccountKey> { route ->
         val summaryVm = pageViewModel { AccountsViewModel(graph.overview) }

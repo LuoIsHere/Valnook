@@ -223,10 +223,24 @@ import java.time.LocalDate
         Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
-@Composable fun AccountEditScreen(vm: AccountEditViewModel, onBack: () -> Unit) {
+@Composable fun AccountEditScreen(vm: AccountEditViewModel, onBack: () -> Unit,
+    onSortActionChanged: ((() -> Unit)?) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     var pendingDeleteKey by rememberSaveable { mutableStateOf<String?>(null) }
+    var sorting by rememberSaveable { mutableStateOf(false) }
+    var sortKeys by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    val latestSortActionChanged by rememberUpdatedState(onSortActionChanged)
+    val latestRows by rememberUpdatedState(state.rows)
+    DisposableEffect(state.loaded, state.rows.size, submission.editable) {
+        latestSortActionChanged(if (state.loaded && state.rows.size > 1 && submission.editable) ({
+            sortKeys = latestRows.map { it.key }
+            sorting = true
+        }) else null)
+        onDispose { latestSortActionChanged(null) }
+    }
+    if (sorting) SubaccountOrderSheet(state.rows, sortKeys, { sortKeys = it },
+        { vm.reorderRows(sortKeys); sorting = false }, { sorting = false })
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
     if (!state.loaded) {
         if (state.loadError) TextButton(onClick = vm::reload) { Text(stringResource(R.string.account_edit_load_failed)) } else CircularProgressIndicator()
@@ -239,6 +253,7 @@ import java.time.LocalDate
         Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable)
         Text(stringResource(R.string.account_balance_accounts), style = MaterialTheme.typography.titleMedium)
         state.rows.forEach { row ->
+            key(row.key) {
             OutlinedCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 ChoiceField(stringResource(R.string.account_type), row.type.name, listOf(
@@ -287,6 +302,7 @@ import java.time.LocalDate
                     Text(stringResource(R.string.account_delete_balance_account), color = MaterialTheme.colorScheme.error)
                 }
                 }
+            }
             }
         }
         ActionButton(vm::addRow, enabled = submission.editable) { Text(stringResource(R.string.account_add_balance_account)) }

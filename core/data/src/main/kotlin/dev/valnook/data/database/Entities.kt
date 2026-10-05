@@ -5,7 +5,8 @@ import androidx.room.*
 @Entity(tableName = "savings_accounts")
 data class AccountEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String,
     val note: String, val created_at_ms: Long, val updated_at_ms: Long,
-    @ColumnInfo(defaultValue = "1") val revision: Long = 1)
+    @ColumnInfo(defaultValue = "1") val revision: Long = 1,
+    @ColumnInfo(defaultValue = "0") val display_order: Long = 0)
 
 @Entity(tableName = "currencies")
 data class CurrencyEntity(@PrimaryKey val code: String, val fraction_digits: Int)
@@ -22,7 +23,8 @@ data class OperationEntity(@PrimaryKey val operation_id: String, val kind: Strin
 data class CashEntity(val savings_account_id: Long, val currency_code: String, val balance_minor: Long,
     val revision: Long, val updated_at_ms: Long, @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String = currency_code, val note: String = "", val currency_locked: Boolean = true,
-    val created_at_ms: Long = updated_at_ms)
+    val created_at_ms: Long = updated_at_ms,
+    @ColumnInfo(defaultValue = "0") val display_order: Long = 0)
 
 @Entity(tableName = "credit_account_profiles",
     foreignKeys = [

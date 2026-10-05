@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 
 /** Compact single-choice control that follows the floating navigation capsule style. */
 @Composable
@@ -33,12 +34,14 @@ fun <T> CapsuleChoiceRow(
     onOptionSelected: (T) -> Unit,
     modifier: Modifier = Modifier,
     optionModifier: (T) -> Modifier = { Modifier },
+    controlHeight: Dp = 38.dp,
+    optionWeight: (T) -> Float = { 1f },
     label: @Composable RowScope.(T) -> Unit,
 ) {
     val capsuleShape = RoundedCornerShape(percent = 50)
-    Box(modifier = modifier.height(38.dp)) {
+    Box(modifier = modifier.height(controlHeight)) {
         Surface(
-            modifier = Modifier.fillMaxWidth().height(38.dp).align(Alignment.Center),
+            modifier = Modifier.fillMaxWidth().height(controlHeight).align(Alignment.Center),
             shape = capsuleShape,
             color = MaterialTheme.colorScheme.surfaceContainer,
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -61,7 +64,7 @@ fun <T> CapsuleChoiceRow(
                     label = "capsule-content",
                 )
                 Box(
-                    modifier = Modifier.weight(1f).fillMaxHeight()
+                    modifier = Modifier.weight(optionWeight(option)).fillMaxHeight()
                         .then(optionModifier(option))
                         .clip(capsuleShape)
                         .selectable(
@@ -72,7 +75,7 @@ fun <T> CapsuleChoiceRow(
                     contentAlignment = Alignment.Center,
                 ) {
                     Surface(
-                        modifier = Modifier.padding(horizontal = 3.dp).fillMaxWidth().height(32.dp),
+                        modifier = Modifier.padding(horizontal = 3.dp).fillMaxWidth().height(controlHeight - 6.dp),
                         shape = capsuleShape,
                         color = containerColor.value,
                         contentColor = contentColor.value,

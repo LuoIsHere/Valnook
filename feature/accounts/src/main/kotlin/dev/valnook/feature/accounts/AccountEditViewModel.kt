@@ -230,6 +230,14 @@ class AccountEditViewModel(
             noteInput = "", currency = currency, balanceInput = "0")))
     }
 
+    fun reorderRows(keys: List<String>) {
+        if (!submission.value.editable) return
+        val rows = state.value.rows
+        if (keys.size != rows.size || keys.toSet() != rows.map { it.key }.toSet()) return
+        val byKey = rows.associateBy { it.key }
+        persist(state.value.copy(rows = keys.map { byKey.getValue(it) }))
+    }
+
     fun removeRow(key: String) {
         if (!submission.value.editable) return
         persist(state.value.copy(rows = state.value.rows.filter { it.key != key || it.cashAccountId != null }))
@@ -247,7 +255,7 @@ class AccountEditViewModel(
     fun submit() = session.submit {
         val input = state.value
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
-        val changes = input.rows.map { row ->
+        val changes = input.rows.mapIndexed { index, row ->
             val credit = if (row.type == BalanceAccountType.CREDIT) CreditAccountInput(
                 creditLimitMinor = if (row.limitSourceAccountId == null)
                     R.parse_minor(row.creditLimitInput, row.currency, positive = true) else null,
@@ -261,7 +269,7 @@ class AccountEditViewModel(
                 limitSourceAccountId = row.limitSourceAccountId
             ) else null
             CashBalanceChange(row.currency.code, R.parse_signed_minor(row.balanceInput, row.currency),
-                row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput, row.type, credit)
+                row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput, row.type, credit, index.toLong())
         }
         SaveAccount(operationId, accountId, input.expectedRevision, input.name, input.note, changes)
     }

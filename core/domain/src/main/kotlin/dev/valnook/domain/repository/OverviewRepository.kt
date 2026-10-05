@@ -43,7 +43,7 @@ data class SaveNavigationConfiguration(override val expectedRevision: Long,
 data class BalanceAccountChange(val currencyCode: String, val balanceMinor: Long, val expectedRevision: Long?,
     val cashAccountId: Long? = null, val name: String = currencyCode, val note: String = "",
     val type: BalanceAccountType = BalanceAccountType.SAVINGS,
-    val credit: CreditAccountInput? = null)
+    val credit: CreditAccountInput? = null, val displayOrder: Long? = null)
 typealias CashBalanceChange = BalanceAccountChange
 data class SaveAccount(override val operation_id: String, val accountId: Long?, val expectedRevision: Long?,
     val name: String, val note: String, val cashChanges: List<BalanceAccountChange>) : FinancialCommand
