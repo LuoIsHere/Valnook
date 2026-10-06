@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Valnook — Soft Glass V</title>
+  <desc id="desc">Original hand-drawn folded ribbon. Pure paths and gradients; no embedded bitmap.</desc>
+  <defs>
+    <radialGradient id="backdrop" gradientUnits="userSpaceOnUse" cx="495" cy="438" r="750">
+      <stop offset="0" stop-color="#23252A" stop-opacity="1"/>
+      <stop offset="0.58" stop-color="#191A1E" stop-opacity="1"/>
+      <stop offset="1" stop-color="#101114" stop-opacity="1"/>
+    </radialGradient>
+    <linearGradient id="right-glass" gradientUnits="userSpaceOnUse" x1="646" y1="264" x2="786" y2="733">
+      <stop offset="0" stop-color="#E2E5E8" stop-opacity="0.91"/>
+      <stop offset="0.26" stop-color="#ADB3BC" stop-opacity="0.77"/>
+      <stop offset="0.62" stop-color="#666E79" stop-opacity="0.68"/>
+      <stop offset="1" stop-color="#C9CDD3" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="right-light" gradientUnits="userSpaceOnUse" x1="746" y1="390" x2="826" y2="411">
+      <stop offset="0" stop-color="#F5F6F7" stop-opacity="0"/>
+      <stop offset="0.7" stop-color="#F5F6F7" stop-opacity="0.03"/>
+      <stop offset="1" stop-color="#F5F6F7" stop-opacity="0.55"/>
+    </linearGradient>
+    <radialGradient id="right-shadow" gradientUnits="userSpaceOnUse" cx="590" cy="585" r="244">
+      <stop offset="0" stop-color="#20262E" stop-opacity="0.66"/>
+      <stop offset="0.7" stop-color="#20262E" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#20262E" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="left-glass" gradientUnits="userSpaceOnUse" x1="245" y1="338" x2="415" y2="632">
+      <stop offset="0" stop-color="#F8F9FA" stop-opacity="0.98"/>
+      <stop offset="0.24" stop-color="#D4D8DE" stop-opacity="0.91"/>
+      <stop offset="0.61" stop-color="#8B929C" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#BAC0C8" stop-opacity="0.85"/>
+    </linearGradient>
+    <radialGradient id="left-shadow" gradientUnits="userSpaceOnUse" cx="289" cy="464" r="170">
+      <stop offset="0" stop-color="#444C59" stop-opacity="0.4"/>
+      <stop offset="0.74" stop-color="#444C59" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#444C59" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="left-light" gradientUnits="userSpaceOnUse" x1="214" y1="434" x2="285" y2="418">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.7"/>
+      <stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.08"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="fold-glass" gradientUnits="userSpaceOnUse" x1="403" y1="590" x2="543" y2="802">
+      <stop offset="0" stop-color="#CBD0D7" stop-opacity="0.87"/>
+      <stop offset="0.25" stop-color="#959DA8" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#747D88" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#AFB6C0" stop-opacity="0.98"/>
+    </linearGradient>
+    <radialGradient id="fold-shadow" gradientUnits="userSpaceOnUse" cx="450" cy="711" r="190">
+      <stop offset="0" stop-color="#3C4552" stop-opacity="0.32"/>
+      <stop offset="0.72" stop-color="#3C4552" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#3C4552" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="fold-light" gradientUnits="userSpaceOnUse" x1="403" y1="698" x2="386" y2="804">
+      <stop offset="0" stop-color="#EEF0F3" stop-opacity="0"/>
+      <stop offset="0.65" stop-color="#EEF0F3" stop-opacity="0.09"/>
+      <stop offset="1" stop-color="#EEF0F3" stop-opacity="0.46"/>
+    </linearGradient>
+    <linearGradient id="rim" gradientUnits="userSpaceOnUse" x1="230" y1="320" x2="761" y2="777">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.83"/>
+      <stop offset="0.38" stop-color="#F9FAFC" stop-opacity="0.48"/>
+      <stop offset="0.72" stop-color="#E6EAF0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0.62"/>
+    </linearGradient>
+    <linearGradient id="crease" gradientUnits="userSpaceOnUse" x1="261" y1="536" x2="682" y2="725">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.62"/>
+      <stop offset="0.32" stop-color="#F1F3F6" stop-opacity="0.86"/>
+      <stop offset="0.68" stop-color="#E0E5EB" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#FBFCFD" stop-opacity="0.68"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#backdrop)"/>
+  <g id="value-nook">
+    <path d="M 505,619 C 534,566 563,481 590,408 C 608,358 625,322 662,293 C 693,268 741,241 784,222 C 817,207 839,227 830,271 C 813,354 789,468 763,561 C 742,638 717,688 682,725 C 661,748 635,735 607,710 C 570,675 538,641 505,619 Z" fill="url(#right-glass)"/>
+    <path d="M 505,619 C 534,566 563,481 590,408 C 608,358 625,322 662,293 C 693,268 741,241 784,222 C 817,207 839,227 830,271 C 813,354 789,468 763,561 C 742,638 717,688 682,725 C 661,748 635,735 607,710 C 570,675 538,641 505,619 Z" fill="url(#right-shadow)"/>
+    <path d="M 505,619 C 534,566 563,481 590,408 C 608,358 625,322 662,293 C 693,268 741,241 784,222 C 817,207 839,227 830,271 C 813,354 789,468 763,561 C 742,638 717,688 682,725 C 661,748 635,735 607,710 C 570,675 538,641 505,619 Z" fill="url(#right-light)"/>
+    <path d="M 240,338 C 215,327 198,340 204,369 C 214,420 231,481 249,535 C 265,582 301,620 342,641 L 468,601 C 445,548 424,489 398,444 C 377,405 350,380 314,366 C 287,355 261,346 240,338 Z" fill="url(#left-glass)"/>
+    <path d="M 240,338 C 215,327 198,340 204,369 C 214,420 231,481 249,535 C 265,582 301,620 342,641 L 468,601 C 445,548 424,489 398,444 C 377,405 350,380 314,366 C 287,355 261,346 240,338 Z" fill="url(#left-shadow)"/>
+    <path d="M 240,338 C 215,327 198,340 204,369 C 214,420 231,481 249,535 C 265,582 301,620 342,641 L 468,601 C 445,548 424,489 398,444 C 377,405 350,380 314,366 C 287,355 261,346 240,338 Z" fill="url(#left-light)"/>
+    <path d="M 249,535 C 263,576 319,582 383,588 C 444,594 484,601 516,626 C 549,651 577,682 605,706 C 632,730 658,743 682,725 C 643,772 586,798 519,802 C 447,808 391,788 349,746 C 304,701 272,624 249,535 Z" fill="url(#fold-glass)"/>
+    <path d="M 249,535 C 263,576 319,582 383,588 C 444,594 484,601 516,626 C 549,651 577,682 605,706 C 632,730 658,743 682,725 C 643,772 586,798 519,802 C 447,808 391,788 349,746 C 304,701 272,624 249,535 Z" fill="url(#fold-shadow)"/>
+    <path d="M 249,535 C 263,576 319,582 383,588 C 444,594 484,601 516,626 C 549,651 577,682 605,706 C 632,730 658,743 682,725 C 643,772 586,798 519,802 C 447,808 391,788 349,746 C 304,701 272,624 249,535 Z" fill="url(#fold-light)"/>
+    <path d="M 240,338 C 215,327 198,340 204,369 C 214,420 231,481 249,535" fill="none" stroke="url(#rim)" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M 662,293 C 693,268 741,241 784,222 C 817,207 839,227 830,271 C 813,354 789,468 763,561" fill="none" stroke="url(#rim)" stroke-width="1.6" stroke-linecap="round"/>
+    <path d="M 249,535 C 263,576 319,582 383,588 C 444,594 484,601 516,626 C 549,651 577,682 605,706 C 632,730 658,743 682,725" fill="none" stroke="url(#crease)" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M 682,725 C 643,772 586,798 519,802 C 447,808 391,788 349,746" fill="none" stroke="url(#rim)" stroke-width="1.2" stroke-linecap="round"/>
+  </g>
+</svg>

@@ -3,7 +3,7 @@
     <string name="webadmin_summary">Manage this device from a browser on the same LAN</string>
     <string name="webadmin_description">Start a temporary local web session to view and edit the real data on this device.</string>
     <string name="webadmin_description_demo">Start a temporary local web session to view and edit the disposable demo data. Changes do not affect your real data.</string>
-    <string name="webadmin_plaintext_warning">Use only on a trusted local network. v0.0.7 uses HTTP and WebSocket without transport encryption.</string>
+    <string name="webadmin_plaintext_warning">Use only on a trusted local network. This version uses HTTP and WebSocket without transport encryption.</string>
     <string name="webadmin_start">Start web administration</string>
     <string name="webadmin_stop">Close web administration</string>
     <string name="webadmin_end">End web administration</string>

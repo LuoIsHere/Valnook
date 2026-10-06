@@ -351,6 +351,7 @@ class AppWebAdminCoordinator @Inject constructor(
         val type = when {
             asset.endsWith(".html") -> "text/html; charset=utf-8"
             asset.endsWith(".js") -> "text/javascript; charset=utf-8"
+            asset.endsWith(".svg") -> "image/svg+xml"
             else -> "text/css; charset=utf-8"
         }
         val bytes = runCatching { context.assets.open(asset).use { it.readBytes() } }.getOrNull()
@@ -425,7 +426,7 @@ class AppWebAdminCoordinator @Inject constructor(
     private companion object {
         const val WEB_SOCKET_RECONNECT_GRACE_MS = 45_000L
         val CODE_PATTERN = Regex("[0-9]{6}")
-        val STATIC_PATHS = setOf("/app.js", "/styles.css", "/core.js", "/pages.js", "/session.js", "/icons.js", "/symbols.js")
+        val STATIC_PATHS = setOf("/app.js", "/styles.css", "/core.js", "/pages.js", "/session.js", "/icons.js", "/symbols.js", "/valnook.svg")
         val SECURITY_HEADERS = mapOf(
             "X-Frame-Options" to "DENY"
         )
