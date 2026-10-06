@@ -10,7 +10,7 @@ import dev.valnook.domain.model.OperationResult
 import kotlinx.coroutines.flow.StateFlow
 
 const val WEB_API_VERSION = 1
-const val WEB_ASSET_VERSION = 1
+const val WEB_ASSET_VERSION = 2
 
 enum class WebAdminPhase { CLOSED, WAITING, ACTIVE }
 
@@ -99,6 +99,7 @@ data class WebRecordFilter(
 data class WebRecordPage(val items: List<WebRecord>, val nextCursor: WebRecordCursor?)
 
 interface WebAdminReadRepository {
+    suspend fun accountIconImage(key: String): ByteArray? = null
     suspend fun generation(): Long
     suspend fun snapshot(): AssetSnapshot
     suspend fun assetTypes(): List<AssetType>

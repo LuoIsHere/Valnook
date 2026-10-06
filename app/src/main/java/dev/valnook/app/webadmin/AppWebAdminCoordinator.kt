@@ -62,7 +62,7 @@ class AppWebAdminCoordinator @Inject constructor(
             reservationId = reservation
             val started = server.start(address, this)
             binding = started
-            pairing.begin(clock.millis())
+            pairing.begin(sessionNow())
             publishWaiting()
             networkWatch = resolver.watch(address) { scope.launch { stop() } }
             timeoutJob = scope.launch { timeoutLoop() }
@@ -76,7 +76,16 @@ class AppWebAdminCoordinator @Inject constructor(
         }
     }
 
-    override suspend fun stop() {
+    // Use the coordinator scope: an Activity lifecycle job may be cancelled during destruction.
+    internal fun onPhoneBackgrounded() {
+        scope.launch {
+            if (state.value.phase != WebAdminPhase.CLOSED) stopWithReason("PHONE_BACKGROUND")
+        }
+    }
+
+    override suspend fun stop() = stopWithReason("PHONE_ENDED")
+
+    internal suspend fun stopWithReason(reason: String) {
         val caller = currentCoroutineContext()[Job]
         val shutdown = lifecycle.withLock {
             if ((binding == null && reservationId == null) || stopping) {
@@ -104,7 +113,7 @@ class AppWebAdminCoordinator @Inject constructor(
         shutdown.reconnectTimer?.cancel()
         shutdown.networkWatch?.close()
         shutdown.peer?.let { peer ->
-            withTimeoutOrNull(500) { runCatching { peer.sendText("{\"type\":\"serverClosing\"}") } }
+            withTimeoutOrNull(500) { runCatching { peer.sendText(buildJsonObject { put("type", "serverClosing"); put("reason", reason) }.toString()) } }
             withTimeoutOrNull(500) { runCatching { peer.close(1000, "closed by phone") } }
         }
         shutdown.webSessionId?.let { sessions.releaseWebWriteLease(it) }
@@ -130,7 +139,7 @@ class AppWebAdminCoordinator @Inject constructor(
         if (request.path == "/api/v1/pair/code" && request.method == "POST") return pair(request, qr = false)
         val sessionSecret = cookie(request.headers["cookie"]) ?: bearer(request.headers["authorization"])
         if (request.path == "/api/v1/session/resume" && request.method == "POST") {
-            val resumed = sessionSecret?.let { pairing.resume(it, clock.millis()) }
+            val resumed = sessionSecret?.let { pairing.resume(it, sessionNow()) }
                 ?: return error(401, "SESSION_EXPIRED", clearCookie = true)
             return json(200, buildJsonObject {
                 put("status", "resumable")
@@ -139,7 +148,7 @@ class AppWebAdminCoordinator @Inject constructor(
         }
 
         val csrf = request.headers["x-valnook-csrf"]
-        val sessionId = pairing.authenticate(sessionSecret, csrf, mutation, clock.millis())
+        val sessionId = pairing.authenticate(sessionSecret, csrf, mutation, sessionNow())
             ?: return error(401, "SESSION_EXPIRED", true, clearCookie = true)
         if (request.path == "/api/v1/session/end" && request.method == "POST") {
             disconnectToWaiting(sessionId)
@@ -153,7 +162,7 @@ class AppWebAdminCoordinator @Inject constructor(
         if (!validHost(request, currentBinding) || request.headers["origin"] != origin(currentBinding)) {
             return@withLock WebSocketAdmission(false, status = 403)
         }
-        val now = clock.millis()
+        val now = sessionNow()
         val sessionId = (cookie(request.headers["cookie"]) ?: socketTicket(request.query))
             ?.let { pairing.activate(it, now) }
             ?: return@withLock WebSocketAdmission(false, status = 409)
@@ -168,7 +177,7 @@ class AppWebAdminCoordinator @Inject constructor(
             socketSessions[connectionKey] = sessionId
             WebSocketAdmission(true, connectionKey)
         } catch (_: WebAdminException) {
-            pairing.revokeAndWait(clock.millis())
+            pairing.revokeAndWait(sessionNow())
             publishWaiting()
             WebSocketAdmission(false, status = 409)
         }
@@ -202,16 +211,25 @@ class AppWebAdminCoordinator @Inject constructor(
             return
         }
         previousPeer?.let { runCatching { it.close(1000, "replaced") } }
-        peer.sendText("{\"type\":\"ready\"}")
+        peer.sendText(buildJsonObject { put("type", "ready"); put("idleRemainingMs", pairing.idleRemaining(sessionNow())) }.toString())
     }
 
     override suspend fun webSocketMessage(connectionKey: String, text: String) {
-        if (text != "{\"type\":\"heartbeat\"}" && text != "heartbeat") return
+        val type = if (text == "heartbeat") "heartbeat" else runCatching {
+            Json.parseToJsonElement(text).jsonObject["type"]?.jsonPrimitive?.content
+        }.getOrNull()
+        if (type !in setOf("heartbeat", "activity")) return
         val sessionId = socketSessions[connectionKey] ?: return
-        if (activeConnectionKey != connectionKey || !pairing.heartbeat(sessionId, clock.millis())) return
+        if (activeConnectionKey != connectionKey) return
+        val now = sessionNow()
+        if (!pairing.heartbeat(sessionId, now)) return
+        if (type == "activity") pairing.activity(sessionId, now)
         val current = mutable.value
         val client = current.client ?: return
         mutable.value = current.copy(client = client.copy(lastSeenAtMs = clock.millis()))
+        activePeer?.sendText(buildJsonObject {
+            put("type", "idle"); put("idleRemainingMs", pairing.idleRemaining(now))
+        }.toString())
     }
 
     override suspend fun webSocketClosed(connectionKey: String) {
@@ -237,8 +255,8 @@ class AppWebAdminCoordinator @Inject constructor(
         if ((!qr && !CODE_PATTERN.matches(input)) || (qr && input.length !in 20..200)) {
             return@withLock error(400, "FORMAT")
         }
-        val result = if (qr) pairing.pairQr(input, request.remoteAddress, clock.millis())
-            else pairing.pairCode(input, request.remoteAddress, clock.millis())
+        val result = if (qr) pairing.pairQr(input, request.remoteAddress, sessionNow())
+            else pairing.pairCode(input, request.remoteAddress, sessionNow())
         when (result) {
             is PairingResult.Granted -> {
                 pendingClients[result.grant.sessionId] = ClientSeed(clientLabel(request.headers["user-agent"]),
@@ -277,7 +295,7 @@ class AppWebAdminCoordinator @Inject constructor(
             activeSessionId = null
             socketSessions.filterValues { it == sessionId }.keys.forEach { socketSessions.remove(it) }
             sessions.releaseWebWriteLease(sessionId)
-            pairing.revokeAndWait(clock.millis())
+            pairing.revokeAndWait(sessionNow())
             publishWaiting()
             true
         }
@@ -289,8 +307,12 @@ class AppWebAdminCoordinator @Inject constructor(
     private suspend fun timeoutLoop() {
         while (currentCoroutineContext().isActive) {
             delay(1_000)
-            val now = clock.millis()
+            val now = sessionNow()
             val current = mutable.value
+            if (current.phase == WebAdminPhase.ACTIVE && pairing.activeExpired(now)) {
+                stopWithReason("IDLE_TIMEOUT")
+                return
+            }
             if (current.phase == WebAdminPhase.WAITING) {
                 pairing.pendingExpired(now)
                 if (pairing.waitingExpired(now)) {
@@ -301,6 +323,8 @@ class AppWebAdminCoordinator @Inject constructor(
             }
         }
     }
+
+    private fun sessionNow(): Long = android.os.SystemClock.elapsedRealtime()
 
     private fun publishWaiting() {
         val currentBinding = binding ?: return
@@ -321,8 +345,7 @@ class AppWebAdminCoordinator @Inject constructor(
     private fun static(path: String, value: LocalWebServerBinding): WebHttpResponse {
         val asset = when (path) {
             "/" -> "webadmin/index.html"
-            "/app.js" -> "webadmin/app.js"
-            "/styles.css" -> "webadmin/styles.css"
+            in STATIC_PATHS -> "webadmin${path}"
             else -> return error(404, "NOT_FOUND")
         }
         val type = when {
@@ -334,7 +357,7 @@ class AppWebAdminCoordinator @Inject constructor(
             ?: return error(404, "NOT_FOUND")
         val webSocketOrigin = origin(value).replaceFirst("http://", "ws://")
         return WebHttpResponse(200, type, bytes, SECURITY_HEADERS + mapOf(
-            "Content-Security-Policy" to "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' $webSocketOrigin; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+            "Content-Security-Policy" to "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' $webSocketOrigin; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
         ))
     }
 
@@ -402,7 +425,7 @@ class AppWebAdminCoordinator @Inject constructor(
     private companion object {
         const val WEB_SOCKET_RECONNECT_GRACE_MS = 45_000L
         val CODE_PATTERN = Regex("[0-9]{6}")
-        val STATIC_PATHS = setOf("/app.js", "/styles.css")
+        val STATIC_PATHS = setOf("/app.js", "/styles.css", "/core.js", "/pages.js", "/session.js", "/icons.js", "/symbols.js")
         val SECURITY_HEADERS = mapOf(
             "X-Frame-Options" to "DENY"
         )

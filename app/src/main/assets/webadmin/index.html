@@ -30,26 +30,28 @@
       <div class="brand"><span class="brand-mark small">V</span><strong>Valnook</strong></div>
       <nav id="nav" aria-label="主导航"></nav>
       <div class="sidebar-foot">
-        <button id="theme-toggle" class="icon-button" type="button" aria-label="切换主题">◐</button>
         <div class="connection"><span class="dot"></span><span id="connected-label">已连接</span></div>
+        <p id="session-hint" class="subtle"></p>
       </div>
-      <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" tabindex="0"></div>
+
     </aside>
     <section class="content-shell">
       <header class="topbar">
         <div><p id="page-kicker" class="eyebrow"></p><h1 id="page-title"></h1></div>
-        <div class="top-actions"><span id="save-state" class="save-state" role="status"></span><button id="end-session" class="secondary danger" type="button">结束会话</button></div>
+        <div class="top-actions"><button id="refresh-page" class="icon-button" type="button" aria-label="刷新"></button><select id="theme-toggle" aria-label="主题"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select><span id="save-state" class="save-state" role="status"></span><button id="end-session" class="secondary danger" type="button">结束会话</button></div>
       </header>
+      <div id="connection-banner" class="connection-banner" role="status" hidden></div>
+      <div id="idle-warning" class="idle-warning" role="status" hidden><span id="idle-message"></span><button id="continue-session" class="primary" type="button">继续管理</button></div>
       <main id="content" class="content" tabindex="-1"></main>
     </section>
   </div>
 
   <div id="scrim" class="scrim" hidden></div>
-  <aside id="drawer" class="drawer" aria-modal="true" role="dialog" hidden>
+  <aside id="drawer" class="drawer" aria-modal="true" role="dialog" aria-labelledby="drawer-title" hidden>
     <header><div><p id="drawer-kicker" class="eyebrow"></p><h2 id="drawer-title"></h2></div><button id="drawer-close" class="icon-button" type="button" aria-label="关闭">×</button></header>
     <div id="drawer-content" class="drawer-content"></div>
   </aside>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <script src="/app.js" defer></script>
+  <script src="/app.js" type="module"></script>
 </body>
 </html>

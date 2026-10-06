@@ -6,6 +6,7 @@ import java.util.Base64
 import java.util.UUID
 
 const val WAITING_IDLE_TIMEOUT_MS = 5 * 60 * 1_000L
+const val ACTIVE_IDLE_TIMEOUT_MS = 5 * 60 * 1_000L
 const val PENDING_SOCKET_TIMEOUT_MS = 15_000L
 const val WEB_SESSION_COOKIE = "valnook_web_session"
 
@@ -90,10 +91,11 @@ class PairingCoordinator(
     @Synchronized
     fun activate(cookieSecret: String, nowMs: Long): String? {
         expire(nowMs)
+        if (activeExpired(nowMs)) return null
         pending?.let { value ->
             if (!hashEquals(value.cookieHash, cookieSecret)) return null
             pending = null
-            active = value.copy(pendingExpiresAtMs = null, lastSeenAtMs = nowMs)
+            active = value.copy(pendingExpiresAtMs = null, lastSeenAtMs = nowMs, lastActivityAtMs = nowMs)
             return value.sessionId
         }
         val value = active ?: return null
@@ -105,6 +107,7 @@ class PairingCoordinator(
     @Synchronized
     fun resume(cookieSecret: String, nowMs: Long): PairingResume? {
         expire(nowMs)
+        if (activeExpired(nowMs)) return null
         val value = listOfNotNull(pending, active).firstOrNull { hashEquals(it.cookieHash, cookieSecret) }
             ?: return null
         return PairingResume(value.sessionId, value.csrfToken)
@@ -114,6 +117,7 @@ class PairingCoordinator(
     fun authenticate(cookieSecret: String?, csrfToken: String? = null, mutation: Boolean = false,
         nowMs: Long): String? {
         expire(nowMs)
+        if (activeExpired(nowMs)) return null
         val value = active ?: return null
         if (cookieSecret == null || !hashEquals(value.cookieHash, cookieSecret)) return null
         if (mutation && (csrfToken == null || !constantEquals(value.csrfToken, csrfToken))) return null
@@ -122,6 +126,7 @@ class PairingCoordinator(
 
     @Synchronized
     fun heartbeat(sessionId: String, nowMs: Long): Boolean {
+        if (activeExpired(nowMs)) return false
         val value = active?.takeIf { it.sessionId == sessionId } ?: return false
         active = value.copy(lastSeenAtMs = nowMs)
         return true
@@ -129,6 +134,22 @@ class PairingCoordinator(
 
     @Synchronized
     fun lastSeen(sessionId: String): Long? = active?.takeIf { it.sessionId == sessionId }?.lastSeenAtMs
+
+    @Synchronized
+    fun activity(sessionId: String, nowMs: Long): Boolean {
+        if (activeExpired(nowMs)) return false
+        val value = active?.takeIf { it.sessionId == sessionId } ?: return false
+        active = value.copy(lastActivityAtMs = nowMs)
+        return true
+    }
+
+    @Synchronized
+    fun activeExpired(nowMs: Long): Boolean = active?.let { nowMs - it.lastActivityAtMs >= ACTIVE_IDLE_TIMEOUT_MS } == true
+
+    @Synchronized
+    fun idleRemaining(nowMs: Long): Long = active?.let {
+        (ACTIVE_IDLE_TIMEOUT_MS - (nowMs - it.lastActivityAtMs)).coerceIn(0, ACTIVE_IDLE_TIMEOUT_MS)
+    } ?: 0
 
     @Synchronized
     fun revokeAndWait(nowMs: Long): PairingPublicState {
@@ -216,6 +237,7 @@ class PairingCoordinator(
         val cookieHash: ByteArray,
         val csrfToken: String,
         val pendingExpiresAtMs: Long?,
-        val lastSeenAtMs: Long
+        val lastSeenAtMs: Long,
+        val lastActivityAtMs: Long = lastSeenAtMs
     )
 }

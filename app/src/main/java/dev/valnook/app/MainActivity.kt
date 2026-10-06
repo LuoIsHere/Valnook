@@ -15,6 +15,9 @@ import dev.valnook.app.appearance.configurationOverride
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.collectLatest
+import dev.valnook.domain.webadmin.WebAdminPhase
+import android.view.WindowManager
 @AndroidEntryPoint
 class MainActivity:ComponentActivity() {
     @Inject lateinit var sessions:AppSessionManager
@@ -29,6 +32,12 @@ class MainActivity:ComponentActivity() {
         enableEdgeToEdge()
         window.isNavigationBarContrastEnforced=false
         val appearance = ThemePreferences(this)
+        lifecycleScope.launch {
+            webAdmin.state.collectLatest { state ->
+                if (state.phase == WebAdminPhase.ACTIVE) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
         setContent {
             ValnookRoot(sessions, webAdmin, themeMode = appearance.read(), onThemeChange = { mode ->
                 val saved = appearance.save(mode)
@@ -46,5 +55,11 @@ class MainActivity:ComponentActivity() {
     override fun onStart() {
         super.onStart()
         lifecycleScope.launch { sessions.reconcileCloudSchedule() }
+    }
+    override fun onStop() {
+        super.onStop()
+        if (!isChangingConfigurations && webAdmin.state.value.phase != WebAdminPhase.CLOSED) {
+            webAdmin.onPhoneBackgrounded()
+        }
     }
 }

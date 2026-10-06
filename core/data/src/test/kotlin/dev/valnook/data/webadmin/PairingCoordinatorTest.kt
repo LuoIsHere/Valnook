@@ -120,4 +120,34 @@ class PairingCoordinatorTest {
         listOf("0.0.0.0", "127.0.0.1", "169.254.1.1", "172.15.255.255", "172.32.0.1", "8.8.8.8")
             .forEach { assertFalse(it, allowed(it)) }
     }
+    @Test fun heartbeats_reads_and_reconnects_do_not_extend_user_idle_deadline() {
+        val value = coordinator()
+        val grant = (value.pairQr(requireNotNull(value.begin(0).qrToken), "10.0.0.2", 1) as PairingResult.Granted).grant
+        value.activate(grant.cookieSecret, 2)
+        assertTrue(value.heartbeat(grant.sessionId, 200_000))
+        assertNotNull(value.authenticate(grant.cookieSecret, null, false, 250_000))
+        assertNotNull(value.resume(grant.cookieSecret, 280_000))
+        assertNotNull(value.activate(grant.cookieSecret, 290_000))
+        assertEquals(10_002L, value.idleRemaining(290_000))
+        assertTrue(value.activeExpired(300_002))
+        assertNull(value.authenticate(grant.cookieSecret, grant.csrfToken, true, 300_002))
+        assertNull(value.resume(grant.cookieSecret, 300_002))
+        assertNull(value.activate(grant.cookieSecret, 300_002))
+        assertFalse(value.heartbeat(grant.sessionId, 300_002))
+        assertFalse(value.activity(grant.sessionId, 300_002))
+    }
+
+    @Test fun real_activity_extends_deadline_but_unknown_sessions_cannot() {
+        val value = coordinator()
+        val grant = (value.pairQr(requireNotNull(value.begin(0).qrToken), "10.0.0.2", 1) as PairingResult.Granted).grant
+        value.activate(grant.cookieSecret, 2)
+        assertFalse(value.activity("other", 200_000))
+        assertEquals(100_002L, value.idleRemaining(200_000))
+        assertTrue(value.activity(grant.sessionId, 250_000))
+        assertEquals(300_000L, value.idleRemaining(250_000))
+        assertFalse(value.activeExpired(549_999))
+        assertTrue(value.activeExpired(550_000))
+        assertEquals(0L, value.idleRemaining(600_000))
+    }
+
 }

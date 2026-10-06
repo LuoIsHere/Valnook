@@ -13,7 +13,7 @@
     <string name="webadmin_timeout">五分钟内没有有效配对活动时将自动关闭。</string>
     <string name="webadmin_qr_description">网页端管理配对二维码</string>
     <string name="webadmin_lock_title">正在网页端管理</string>
-    <string name="webadmin_lock_message">为避免数据冲突，手机暂时锁定。结束会话后可继续使用应用。</string>
+    <string name="webadmin_lock_message">管理期间手机保持亮屏，手机端编辑暂时锁定。网页连续 5 分钟无操作将自动断开；切换到后台或手动锁屏也会结束会话。</string>
     <string name="webadmin_connected_at">连接时间 %1$s</string>
     <string name="webadmin_last_seen">最后活动 %1$s</string>
     <string name="webadmin_error_no_lan">请先连接私有 Wi-Fi 或以太网。</string>

@@ -46,6 +46,13 @@ internal class WebAdminApiRouter(
     private suspend fun route(sessionId: String, request: WebHttpRequest): WebHttpResponse {
         val path = request.path.removeSuffix("/").ifEmpty { "/" }
         val method = request.method
+        if (method == "GET" && path.startsWith("/api/v1/account-icons/")) {
+            val key = path.substringAfterLast('/')
+            if (!key.matches(Regex("[a-f0-9]{64}"))) return failure(404, "NOT_FOUND")
+            val bytes = reads.accountIconImage(key) ?: return failure(404, "NOT_FOUND")
+            val mime = if (bytes.firstOrNull() == 0x89.toByte()) "image/png" else "image/webp"
+            return WebHttpResponse(200, mime, bytes, mapOf("Cache-Control" to "no-store", "X-Content-Type-Options" to "nosniff"))
+        }
         if (method == "GET" && path == "/api/v1/session") return sessionState()
         if (method == "GET" && path == "/api/v1/accounts") return accounts()
         ACCOUNT.matchEntire(path)?.let { match ->
@@ -116,7 +123,7 @@ internal class WebAdminApiRouter(
             put("baseCurrency", snapshot.settings.baseCurrency?.code)
             put("items", buildJsonArray { overview.accounts.forEach { row -> add(buildJsonObject {
                 put("id", row.account.id); put("revision", row.account.revision)
-                put("name", row.account.name); put("note", row.account.note)
+                put("name", row.account.name); put("note", row.account.note); put("icon", icon(row.account.icon))
                 put("cash", decimal(row.cash.amount)); put("creditBalance", decimal(row.creditBalance.amount))
                 put("deposits", decimal(row.depositValue.amount))
                 put("investments", decimal(row.investmentValue.amount)); put("total", decimal(row.total.amount))
@@ -132,7 +139,7 @@ internal class WebAdminApiRouter(
         return success(buildJsonObject {
             put("dataGeneration", reads.generation())
             put("account", buildJsonObject {
-                put("id", account.id); put("revision", account.revision); put("name", account.name); put("note", account.note)
+                put("id", account.id); put("revision", account.revision); put("name", account.name); put("note", account.note); put("icon", icon(account.icon))
             })
             put("cash", buildJsonArray { snapshot.cash.filter { it.account_id == id }.forEach { add(cash(it, snapshot)) } })
             put("creditSourceCandidates", buildJsonArray {
@@ -173,7 +180,29 @@ internal class WebAdminApiRouter(
                 row.optionalText("name") ?: currency.code, row.optionalText("note").orEmpty(), type, credit)
         }.orEmpty()
         return save(sessionId, body, SaveAccount(body.operationId(), id, body.optionalLong("expectedRevision"),
-            body.text("name"), body.optionalText("note").orEmpty(), changes))
+            body.text("name"), body.optionalText("note").orEmpty(), changes, iconChange(body)))
+    }
+
+    private fun icon(value: AccountIcon) = buildJsonObject {
+        put("type", value.type.name); put("value", value.value)
+    }
+
+    private fun iconChange(body: JsonObject): AccountIconChange? {
+        val value = body["iconChange"]?.takeUnless { it == JsonNull }?.jsonObject ?: return null
+        return when (value.text("type")) {
+            "SYMBOL" -> AccountIconChange(AccountIcon(AccountIconType.SYMBOL, value.text("value")))
+            "IMAGE" -> {
+                val encoded = value["imageBase64"]?.jsonPrimitive?.takeIf { it.isString }?.content
+                    ?: throw IllegalArgumentException()
+                require(encoded.length <= ((AccountSymbols.MAX_IMAGE_BYTES + 2) / 3) * 4)
+                val bytes = java.util.Base64.getDecoder().decode(encoded)
+                require(bytes.size <= AccountSymbols.MAX_IMAGE_BYTES)
+                val key = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+                    .joinToString("") { "%02x".format(it) }
+                AccountIconChange(AccountIcon(AccountIconType.IMAGE, key), bytes)
+            }
+            else -> throw IllegalArgumentException()
+        }
     }
 
     private suspend fun deleteBalanceAccount(sessionId: String, id: Long, request: WebHttpRequest): WebHttpResponse {
@@ -513,7 +542,7 @@ internal class WebAdminApiRouter(
     private fun JsonObject.text(name: String): String = this[name]?.jsonPrimitive?.content
         ?.takeIf { it.length <= 500 } ?: throw IllegalArgumentException()
     private fun JsonObject.optionalText(name: String): String? = this[name]?.let {
-        if (it is JsonNull) null else it.jsonPrimitive.content.takeIf { value -> value.length <= 500 }
+        if (it is JsonNull) null else it.jsonPrimitive.content.takeIf { value -> value.length <= if (name == "note") 2000 else 500 }
             ?: throw IllegalArgumentException()
     }
     private fun JsonObject.long(name: String): Long = this[name]?.jsonPrimitive?.longOrNull ?: throw IllegalArgumentException()

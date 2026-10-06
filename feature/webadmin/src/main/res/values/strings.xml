@@ -13,7 +13,7 @@
     <string name="webadmin_timeout">Pairing closes after five minutes without valid activity.</string>
     <string name="webadmin_qr_description">Web administration pairing QR code</string>
     <string name="webadmin_lock_title">Web administration in progress</string>
-    <string name="webadmin_lock_message">The phone is temporarily locked to prevent conflicting changes. End the session to use the app again.</string>
+    <string name="webadmin_lock_message">The screen stays awake while web editing is active. The session ends after 5 minutes without browser activity, or when you lock or background the phone.</string>
     <string name="webadmin_connected_at">Connected %1$s</string>
     <string name="webadmin_last_seen">Last seen %1$s</string>
     <string name="webadmin_error_no_lan">Connect to a private Wi-Fi or Ethernet network first.</string>

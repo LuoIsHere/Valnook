@@ -1,6 +1,10 @@
 package dev.valnook.app.webadmin
 
 import android.util.Log
+import android.view.WindowManager
+import androidx.test.core.app.ActivityScenario
+import androidx.lifecycle.Lifecycle
+import dev.valnook.app.MainActivity
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.valnook.app.di.AppSessionManager
@@ -60,6 +64,12 @@ class WebAdminEndToEndTest {
         assertFalse(index.body.contains("https://"))
         assertEquals("DENY", index.headers["x-frame-options"])
         assertEquals("nosniff", index.headers["x-content-type-options"])
+        listOf("core", "session", "pages", "icons", "symbols").forEach {
+            val asset = http(endpoint, "GET", "/$it.js")
+            assertEquals(200, asset.status)
+            assertTrue(asset.headers["content-type"].orEmpty().contains("javascript"))
+        }
+        assertEquals(401, http(endpoint, "GET", "/api/v1/account-icons/" + "a".repeat(64)).status)
 
         assertEquals(401, http(endpoint, "GET", "/api/v1/accounts").status)
         assertEquals(401, http(endpoint, "POST", "/api/v1/accounts", origin = origin, body = "{}").status)
@@ -103,7 +113,8 @@ class WebAdminEndToEndTest {
         val operationId = UUID.randomUUID().toString()
         val createBody = JSONObject().put("operationId", operationId).put("dataGeneration", generation)
             .put("expectedRevision", JSONObject.NULL).put("name", "<script>alert(1)</script>")
-            .put("note", "<img src=x onerror=alert(1)>").put("cashChanges", org.json.JSONArray()).toString()
+            .put("note", "<img src=x onerror=alert(1)>").put("cashChanges", org.json.JSONArray())
+            .put("iconChange", JSONObject().put("type", "SYMBOL").put("value", "savings")).toString()
         assertEquals(401, http(endpoint, "POST", "/api/v1/accounts", origin = origin,
             cookie = cookie, body = createBody).status)
         val saved = http(endpoint, "POST", "/api/v1/accounts", origin = origin,
@@ -111,6 +122,8 @@ class WebAdminEndToEndTest {
         assertEquals(saved.body, 200, saved.status)
         assertEquals("WEB_ADMIN", database.audit().eventForOperation(operationId)?.source)
         val savedJson = JSONObject(saved.body)
+        val details = JSONObject(http(endpoint, "GET", "/api/v1/accounts/${savedJson.getLong("id")}", cookie = cookie).body)
+        assertEquals("savings", details.getJSONObject("account").getJSONObject("icon").getString("value"))
         assertEquals(200, http(endpoint, "GET", "/api/v1/operations/$operationId", cookie = cookie).status)
         val staleBody = JSONObject(createBody)
             .put("operationId", UUID.randomUUID().toString())
@@ -360,6 +373,100 @@ class WebAdminEndToEndTest {
             bearer = sessionToken, csrf = csrf, body = "{}").status)
         awaitPhase(WebAdminPhase.WAITING)
         resumed.close()
+    }
+
+    @Test fun backgrounding_while_waiting_stops_pairing_before_a_browser_can_activate() = runBlocking<Unit> {
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            web.start()
+            awaitPhase(WebAdminPhase.WAITING)
+            activity.moveToState(Lifecycle.State.CREATED)
+            awaitPhase(WebAdminPhase.CLOSED)
+        }
+    }
+
+    @Test fun account_photo_round_trip_preserves_existing_image_and_rejects_invalid_symbols() = runBlocking<Unit> {
+        web.start()
+        val waiting = web.state.value
+        val endpoint = URI(requireNotNull(waiting.url))
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
+            body = JSONObject().put("code", waiting.pairingCode).toString())
+        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf = JSONObject(paired.body).getString("csrfToken")
+        val socket = openWebSocket(endpoint, origin, cookie)
+        awaitPhase(WebAdminPhase.ACTIVE)
+        val bitmap = android.graphics.Bitmap.createBitmap(256, 256, android.graphics.Bitmap.Config.ARGB_8888)
+        bitmap.eraseColor(android.graphics.Color.GRAY)
+        val image = ByteArrayOutputStream().also { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        bitmap.recycle()
+        val generation = JSONObject(http(endpoint, "GET", "/api/v1/session", cookie = cookie).body).getLong("dataGeneration")
+        val create = JSONObject().put("operationId", UUID.randomUUID().toString()).put("dataGeneration", generation)
+            .put("name", "Photo account").put("cashChanges", org.json.JSONArray())
+            .put("iconChange", JSONObject().put("type", "IMAGE").put("imageBase64", Base64.getEncoder().encodeToString(image)))
+        val response = http(endpoint, "POST", "/api/v1/accounts", origin = origin, cookie = cookie, csrf = csrf, body = create.toString())
+        assertEquals(response.body, 200, response.status)
+        val receipt = JSONObject(response.body)
+        val id = receipt.getLong("id")
+        val detail = JSONObject(http(endpoint, "GET", "/api/v1/accounts/$id", cookie = cookie).body).getJSONObject("account")
+        val key = detail.getJSONObject("icon").getString("value")
+        assertEquals("IMAGE", detail.getJSONObject("icon").getString("type"))
+        val photo = http(endpoint, "GET", "/api/v1/account-icons/$key", cookie = cookie)
+        assertEquals(200, photo.status)
+        assertEquals("image/png", photo.headers["content-type"])
+        assertEquals(401, http(endpoint, "GET", "/api/v1/account-icons/$key").status)
+        val edit = JSONObject().put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", receipt.getLong("dataGeneration")).put("expectedRevision", detail.getLong("revision"))
+            .put("name", "Renamed photo account").put("cashChanges", org.json.JSONArray())
+        val edited = http(endpoint, "PUT", "/api/v1/accounts/$id", origin = origin, cookie = cookie, csrf = csrf, body = edit.toString())
+        assertEquals(200, edited.status)
+        val preserved = JSONObject(http(endpoint, "GET", "/api/v1/accounts/$id", cookie = cookie).body).getJSONObject("account")
+        assertEquals(key, preserved.getJSONObject("icon").getString("value"))
+        val invalid = JSONObject(edit.toString()).put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", JSONObject(edited.body).getLong("dataGeneration"))
+            .put("expectedRevision", preserved.getLong("revision"))
+            .put("iconChange", JSONObject().put("type", "SYMBOL").put("value", "../arbitrary"))
+        assertEquals(400, http(endpoint, "PUT", "/api/v1/accounts/$id", origin = origin, cookie = cookie, csrf = csrf, body = invalid.toString()).status)
+        socket.close()
+    }
+
+    @Test fun phone_stays_awake_until_idle_timeout_and_background_ends_session() = runBlocking<Unit> {
+        ActivityScenario.launch(MainActivity::class.java).use { activity ->
+            web.start()
+            val waiting = web.state.value
+            val endpoint = URI(requireNotNull(waiting.url))
+            val origin = "http://${endpoint.host}:${endpoint.port}"
+            val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
+                body = JSONObject().put("code", waiting.pairingCode).toString())
+            val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+            val socket = openWebSocket(endpoint, origin, cookie)
+            awaitPhase(WebAdminPhase.ACTIVE)
+            delay(1_000)
+            activity.onActivity { assertTrue(it.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0) }
+            activity.recreate()
+            delay(1_000)
+            assertEquals(WebAdminPhase.ACTIVE, web.state.value.phase)
+            activity.onActivity { assertTrue(it.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0) }
+            val responder = launch(Dispatchers.IO) { runCatching { respondToProtocolPings(socket) } }
+            // Exercise the production five-minute timer, with heartbeats but no user activity.
+            repeat(60) {
+                if (web.state.value.phase == WebAdminPhase.ACTIVE) runCatching { sendMaskedText(socket, "heartbeat") }
+                delay(5_000)
+            }
+            awaitPhase(WebAdminPhase.CLOSED)
+            activity.onActivity { assertEquals(0, it.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+            socket.close(); responder.cancelAndJoin()
+            web.start()
+            val next = web.state.value
+            val nextEndpoint = URI(requireNotNull(next.url))
+            val nextOrigin = "http://${nextEndpoint.host}:${nextEndpoint.port}"
+            val nextPair = http(nextEndpoint, "POST", "/api/v1/pair/code", origin = nextOrigin,
+                body = JSONObject().put("code", next.pairingCode).toString())
+            val nextSocket = openWebSocket(nextEndpoint, nextOrigin, nextPair.headers["set-cookie"].orEmpty().substringBefore(';'))
+            awaitPhase(WebAdminPhase.ACTIVE)
+            activity.moveToState(Lifecycle.State.CREATED)
+            awaitPhase(WebAdminPhase.CLOSED)
+            nextSocket.close()
+        }
     }
 
     private fun step(name: String) = Log.i("WebAdminE2E", "STEP $name")

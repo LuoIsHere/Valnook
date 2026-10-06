@@ -30,6 +30,8 @@ class RoomWebAdminReadRepository(
     private val deposits: DepositRepository,
     private val investments: InvestmentRepository
 ) : WebAdminReadRepository {
+    override suspend fun accountIconImage(key: String): ByteArray? = database.accounts().iconImage(key)
+
     override suspend fun generation(): Long = database.audit().generation()
 
     override suspend fun snapshot(): AssetSnapshot = overview.snapshot()
