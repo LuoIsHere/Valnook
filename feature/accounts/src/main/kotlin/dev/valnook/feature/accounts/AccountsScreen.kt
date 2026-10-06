@@ -107,8 +107,8 @@ import java.time.LocalDate
                                 .clickable(role = Role.Button) { expandedId = if (isExpanded) null else row.account.id }
                                 .semantics { stateDescription = expansion },
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                AccountAvatar(row.account.icon.symbol, row.account.icon.imageKey)
-                                AccountName(row.account.name, MaterialTheme.typography.titleLarge,
+                                AccountAvatar(row.account.icon.symbol, row.account.icon.imageKey, size = 32.dp)
+                                AccountName(row.account.name, MaterialTheme.typography.titleMedium,
                                     Modifier.weight(1f, fill = false))
                                 ExpansionChevron(isExpanded)
                             }
