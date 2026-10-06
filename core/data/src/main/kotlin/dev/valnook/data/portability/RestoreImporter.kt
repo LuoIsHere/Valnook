@@ -81,7 +81,7 @@ internal class RestoreImporter(
             "audit_event_accounts", "audit_events", "audit_metadata", "statistics_cache",
             "statistics_baseline_items", "statistics_state", "instrument_price_history", "demo_labels",
             "cash_entries", "cash_movements", "investment_trades", "term_deposits", "investments",
-            "instruments", "asset_types", "credit_account_profiles", "cash_accounts", "savings_accounts", "operations", "fx_rates",
+            "instruments", "asset_types", "credit_account_profiles", "cash_accounts", "savings_accounts", "account_icon_images", "operations", "fx_rates",
             "app_settings", "currencies"
         ).forEach { table -> db.execSQL("DELETE FROM $table") }
     }
@@ -129,7 +129,7 @@ internal class RestoreImporter(
             Cursor.FIELD_TYPE_INTEGER -> values.put(name, cursor.getLong(index))
             Cursor.FIELD_TYPE_STRING -> values.put(name, cursor.getString(index))
             Cursor.FIELD_TYPE_FLOAT -> values.put(name, cursor.getDouble(index))
-            Cursor.FIELD_TYPE_BLOB -> throw PortabilityException(PortabilityErrorCode.INVALID_DATA)
+            Cursor.FIELD_TYPE_BLOB -> values.put(name, cursor.getBlob(index))
         }
     }
 

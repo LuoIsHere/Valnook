@@ -30,7 +30,9 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
     }
     entry<AccountEditKey> { route ->
         val vm = pageViewModel { AccountEditViewModel(route.id, graph.overview, graph.commands, createSavedStateHandle()) }
-        AccountEditScreen(vm, back, onEditSortActionChanged)
+        dev.valnook.app.appearance.AccountPhotoPicker(vm::changeImage) { pickImage ->
+            AccountEditScreen(vm, back, onEditSortActionChanged, pickImage)
+        }
     }
     entry<AccountKey> { route ->
         val summaryVm = pageViewModel { AccountsViewModel(graph.overview) }

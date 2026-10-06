@@ -1,0 +1,13 @@
+<resources>
+    <string name="account_icon_change">更换图标</string>
+    <string name="account_icon_title">账户图标</string>
+    <string name="account_icon_photo">选择图片</string>
+    <string name="account_icon_reset">恢复默认</string>
+    <string name="account_icon_adjust">调整图片</string>
+    <string name="account_icon_gesture">拖动调整位置，双指或滑块缩放。</string>
+    <string name="account_icon_fit">完整显示图片</string>
+    <string name="account_icon_zoom">缩放</string>
+    <string name="account_icon_failed">无法使用这张图片，请换一张重试（最大 32 MB）。</string>
+    <string name="account_icon_use">使用图片</string>
+    <string name="account_icon_labels">银行|账户钱包|信用卡|储蓄|付款|钱包|增长|图表|投资|商务|住宅|公寓|商店|购物|工作|资金|换汇|全球|旅行|汽车|教育|家庭|喜爱|星标</string>
+</resources>

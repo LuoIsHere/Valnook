@@ -22,6 +22,7 @@ internal object PortableJson {
             } else when (column.kind) {
                 PortableKind.LONG -> json.put(column.name, cursor.getLong(index).toString())
                 PortableKind.TEXT -> json.put(column.name, cursor.getString(index))
+                PortableKind.BLOB -> json.put(column.name, android.util.Base64.encodeToString(cursor.getBlob(index), android.util.Base64.NO_WRAP))
                 PortableKind.BOOLEAN -> json.put(column.name, cursor.getInt(index) != 0)
                 PortableKind.LOCAL_DATE -> json.put(column.name, LocalDate.ofEpochDay(cursor.getLong(index)).toString())
             }
@@ -47,6 +48,15 @@ internal object PortableJson {
                         put(column.databaseName, raw.toLongOrNull() ?: fail())
                     }
                     PortableKind.TEXT -> put(column.databaseName, item as? String ?: fail())
+                    PortableKind.BLOB -> {
+                        val raw = item as? String ?: fail()
+                        if (raw.length > 175000) fail()
+                        val bytes = try { android.util.Base64.decode(raw, android.util.Base64.NO_WRAP) }
+                            catch (_: IllegalArgumentException) { fail() }
+                        if (bytes.size > dev.valnook.domain.model.AccountSymbols.MAX_IMAGE_BYTES ||
+                            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP) != raw) fail()
+                        put(column.databaseName, bytes)
+                    }
                     PortableKind.BOOLEAN -> put(column.databaseName, if (item as? Boolean ?: fail()) 1 else 0)
                     PortableKind.LOCAL_DATE -> {
                         val raw = item as? String ?: fail()

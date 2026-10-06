@@ -22,6 +22,7 @@ interface MaintenanceDao {
     @Query("DELETE FROM cash_accounts") suspend fun clearCashAccounts()
     @Query("DELETE FROM credit_account_profiles") suspend fun clearCreditProfiles()
     @Query("DELETE FROM savings_accounts") suspend fun clearAccounts()
+    @Query("DELETE FROM account_icon_images") suspend fun clearAccountIcons()
     @Query("DELETE FROM operations") suspend fun clearOperations()
     @Query("""UPDATE audit_metadata SET protocol_version=1,tracking_start_ms=:now,
         tracking_start_database_version=9,complete_since_start=1,legacy_history_before_start=0 WHERE id=1""")

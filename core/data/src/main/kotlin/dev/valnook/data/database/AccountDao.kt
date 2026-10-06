@@ -9,6 +9,12 @@ interface AccountDao {
     fun accounts(): Flow<List<AccountEntity>>
     @Query("SELECT * FROM savings_accounts WHERE id=:id")
     suspend fun account(id: Long): AccountEntity?
+    @Query("SELECT data FROM account_icon_images WHERE id=:id")
+    suspend fun iconImage(id: String): ByteArray?
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIconImage(image: AccountIconImageEntity)
+    @Query("UPDATE savings_accounts SET icon_type=:type,icon_value=:value WHERE id=:id")
+    suspend fun setIcon(id: Long, type: String, value: String)
     @Insert suspend fun insert_account(value: AccountEntity): Long
     @Query("SELECT COALESCE(MAX(display_order),-1)+1 FROM savings_accounts")
     suspend fun nextDisplayOrder(): Long

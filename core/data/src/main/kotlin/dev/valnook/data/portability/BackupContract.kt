@@ -23,7 +23,7 @@ data class BackupReadLimits(
     val maxEntries: Int = 64
 )
 
-enum class PortableKind { LONG, TEXT, BOOLEAN, LOCAL_DATE }
+enum class PortableKind { LONG, TEXT, BOOLEAN, LOCAL_DATE, BLOB }
 
 data class PortableColumn(
     val name: String,
@@ -48,13 +48,13 @@ data class PortableTable(
 internal object BackupContract {
     const val FORMAT = "valnook-backup"
     const val FORMAT_VERSION = 1
-    const val DATA_SCHEMA_VERSION = 3
+    const val DATA_SCHEMA_VERSION = 4
     const val REPORT_FORMAT_VERSION = 2
     const val POSITION_COST_RULE = InvestmentProfitCalculator.ALGORITHM_VERSION
     const val DEPOSIT_INTEREST_RULE = 1
     const val HISTORICAL_VALUATION_RULE = STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -63,8 +63,10 @@ internal object BackupContract {
         PortableColumn(name, PortableKind.LOCAL_DATE, databaseName = databaseName)
 
     val tables = listOf(
+        PortableTable("data/account_icon_images.jsonl", "account_icon_images", listOf(
+            text("id"), PortableColumn("data", PortableKind.BLOB)), "id"),
         PortableTable("data/accounts.jsonl", "savings_accounts", listOf(
-            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision"), long("display_order")
+            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision"), long("display_order"), text("icon_type"), text("icon_value")
         ), "id"),
         PortableTable("data/cash_accounts.jsonl", "cash_accounts", listOf(
             long("savings_account_id"), text("currency_code"), long("balance_minor"), long("revision"),
@@ -148,9 +150,11 @@ internal object BackupContract {
     )
 
     fun tablesFor(dataSchemaVersion: Int): List<PortableTable> = when (dataSchemaVersion) {
-        1, 2 -> tables.filterNot { dataSchemaVersion == 1 && it.table == "credit_account_profiles" }
-            .map { it.copy(columns = it.columns.filterNot { column -> column.name == "display_order" }) }
-        3 -> tables
+        1, 2, 3 -> tables.filterNot { it.table == "account_icon_images" ||
+            (dataSchemaVersion == 1 && it.table == "credit_account_profiles") }
+            .map { it.copy(columns = it.columns.filterNot { column ->
+                column.name in setOf("icon_type", "icon_value") || (dataSchemaVersion < 3 && column.name == "display_order") }) }
+        4 -> tables
         else -> emptyList()
     }
 
@@ -161,7 +165,7 @@ internal object BackupContract {
     val zipPaths: Set<String> = payloadPaths + "manifest.json"
 
     val importOrder = listOf(
-        "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "investments",
+        "account_icon_images", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "investments",
         "term_deposits", "investment_trades", "cash_entries", "cash_movements", "instrument_price_history",
         "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "audit_metadata",
         "audit_events", "audit_event_accounts"

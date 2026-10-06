@@ -43,7 +43,8 @@ fun SortIcon(modifier: Modifier = Modifier) {
 fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
     reorderLabel: String, moveUpLabel: String, moveDownLabel: String,
     modifier: Modifier = Modifier, enabled: Boolean = true,
-    contentPadding: PaddingValues = PaddingValues(0.dp)) {
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    leadingContent: (@Composable (ReorderItem) -> Unit)? = null) {
     val listState = rememberLazyListState()
     val latestItems by rememberUpdatedState(items)
     val latestReorder by rememberUpdatedState(onReorder)
@@ -109,6 +110,7 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                     Surface(color = if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface) {
                         Row(Modifier.fillMaxWidth().testTag("sort-row-$key").padding(start = 12.dp),
                             verticalAlignment = Alignment.CenterVertically) {
+                            if (leadingContent != null) { leadingContent(item); Spacer(Modifier.width(8.dp)) }
                             Column(Modifier.weight(1f).padding(vertical = 10.dp)) {
                                 Text(item.title, style = MaterialTheme.typography.bodyLarge,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)

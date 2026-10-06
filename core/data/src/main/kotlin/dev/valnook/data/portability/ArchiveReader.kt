@@ -333,6 +333,24 @@ internal class ArchiveReader(
             .use { if (it.moveToFirst()) invalid() }
         sql.query("SELECT 1 FROM cash_accounts WHERE display_order<0 LIMIT 1")
             .use { if (it.moveToFirst()) invalid() }
+        sql.query("SELECT id,data FROM account_icon_images").use { cursor ->
+            while (cursor.moveToNext()) {
+                if (!dev.valnook.data.transaction.AccountIconImages.valid(cursor.getString(0), cursor.getBlob(1))) invalid()
+            }
+        }
+        sql.query("SELECT icon_type,icon_value FROM savings_accounts").use { cursor ->
+            while (cursor.moveToNext()) {
+                val type = cursor.getString(0)
+                val value = cursor.getString(1)
+                when (type) {
+                    "SYMBOL" -> if (!Regex("[a-z][a-z0-9_]{0,63}").matches(value)) invalid()
+                    "IMAGE" -> sql.query("SELECT 1 FROM account_icon_images WHERE id=?", arrayOf(value)).use {
+                        if (!it.moveToFirst()) invalid()
+                    }
+                    else -> invalid()
+                }
+            }
+        }
         validateCreditAccounts(sql)
         if (counts["data/accounts.jsonl"] != manifest.accountCount ||
             counts["data/cash_accounts.jsonl"] != manifest.cashAccountCount ||

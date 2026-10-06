@@ -102,8 +102,9 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                                     .clickable(role = Role.Button) { expanded = !expanded }
                                     .semantics { stateDescription = expansion }, verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(account.account.name, Modifier.weight(1f, fill = false),
-                                        style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    AccountAvatar(account.account.icon.symbol, account.account.icon.imageKey, size = 32.dp)
+                                    AccountName(account.account.name, MaterialTheme.typography.titleMedium,
+                                        Modifier.weight(1f, fill = false))
                                     ExpansionChevron(expanded)
                                 }
                             }
@@ -121,8 +122,8 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                             if (maxWidth < 300.dp || LocalDensity.current.fontScale > 1.3f) {
                                 Column { name(); amount() }
                             } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.weight(1f)) { name() }
-                                Box(Modifier.weight(1.3f)) { amount() }
+                                Box(Modifier.weight(1.3f)) { name() }
+                                Box(Modifier.weight(1f)) { amount() }
                             }
                         }
                         AccountProfitRow(converted(account.realized),

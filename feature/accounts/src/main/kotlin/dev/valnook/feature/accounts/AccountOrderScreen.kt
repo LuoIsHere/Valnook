@@ -31,7 +31,10 @@ fun AccountOrderScreen(vm: AccountOrderViewModel, onBack: () -> Unit) {
             }
             ReorderList(state.accounts.map { ReorderItem(it.id.toString(), it.name, it.note) }, vm::reorder,
                 stringResource(R.string.account_order_drag), stringResource(R.string.account_order_up),
-                stringResource(R.string.account_order_down), Modifier.fillMaxWidth().weight(1f), !state.busy)
+                stringResource(R.string.account_order_down), Modifier.fillMaxWidth().weight(1f), !state.busy, leadingContent = { item ->
+                    val icon = state.accounts.first { it.id.toString() == item.key }.icon
+                    AccountAvatar(icon.symbol, icon.imageKey)
+                })
         }
     }
 }

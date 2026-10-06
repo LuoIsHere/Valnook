@@ -48,7 +48,9 @@ fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: (
                 .clickable(role = Role.Button) { onAccount(account.id) }
                 .padding(vertical = 6.dp).testTag("instrument-account-${account.id}"),
                 verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    AccountAvatar(account.icon.symbol, account.icon.imageKey, size = 32.dp)
                     Text(account.name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     position?.let {
                         Text(money(AssetValuation.marketValue(it), instrument.currency), Modifier.weight(1f),

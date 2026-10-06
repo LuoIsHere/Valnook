@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 interface OverviewRepository {
     fun observeSnapshot(): Flow<AssetSnapshot>
     suspend fun snapshot(): AssetSnapshot
+    suspend fun accountIconImage(id: String): ByteArray? = null
 }
 
 interface SettingsRepository {
@@ -46,7 +47,8 @@ data class BalanceAccountChange(val currencyCode: String, val balanceMinor: Long
     val credit: CreditAccountInput? = null, val displayOrder: Long? = null)
 typealias CashBalanceChange = BalanceAccountChange
 data class SaveAccount(override val operation_id: String, val accountId: Long?, val expectedRevision: Long?,
-    val name: String, val note: String, val cashChanges: List<BalanceAccountChange>) : FinancialCommand
+    val name: String, val note: String, val cashChanges: List<BalanceAccountChange>,
+    val iconChange: AccountIconChange? = null) : FinancialCommand
 
 data class DeleteBalanceAccount(override val operation_id: String, val accountId: Long,
     val balanceAccountId: Long, val expectedRevision: Long) : FinancialCommand

@@ -2,6 +2,8 @@ package dev.valnook.app.navigation
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
@@ -250,6 +252,7 @@ private fun SessionRoot(
     val offset = with(LocalDensity.current) { 16.dp.roundToPx() }
     val barHeight = (56f + 32f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp
     val backdrop = rememberGlassBackdrop()
+    val accountImages = remember(graph.sessionId) { dev.valnook.designsystem.AccountImageLoader(graph.overview::accountIconImage) }
     val glassTop = current.isRoot()
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
@@ -270,7 +273,15 @@ private fun SessionRoot(
             GlassSurface(Modifier.testTag("root-toolbar"), shape = RectangleShape, backdrop = if (glassTop) backdrop else null) {
             TopAppBar(title = {
                 Column {
-                    Text(title, maxLines = 2)
+                    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (current is AccountKey) accounts.firstOrNull { it.id == current.id }?.icon?.let { icon ->
+                            CompositionLocalProvider(dev.valnook.designsystem.LocalAccountImageLoader provides accountImages) {
+                                dev.valnook.designsystem.AccountAvatar(icon.symbol, icon.imageKey, size = 32.dp)
+                            }
+                        }
+                        Text(title, Modifier.weight(1f), maxLines = 2)
+                    }
                     if (active.mode == DataMode.DEMO) Text(
                         stringResource(dev.valnook.feature.settings.R.string.settings_demo_banner),
                         style = MaterialTheme.typography.bodySmall,
@@ -302,7 +313,8 @@ private fun SessionRoot(
             })
             }
         }) { padding ->
-            CompositionLocalProvider(LocalPageBottomSpace provides bottomSpace,
+            CompositionLocalProvider(dev.valnook.designsystem.LocalAccountImageLoader provides accountImages,
+                LocalPageBottomSpace provides bottomSpace,
                 LocalPageTopSpace provides if (glassTop) padding.calculateTopPadding() else 0.dp,
                 LocalPageTitle provides title,
                 LocalCurrencyPickerRates provides pickerRates) {

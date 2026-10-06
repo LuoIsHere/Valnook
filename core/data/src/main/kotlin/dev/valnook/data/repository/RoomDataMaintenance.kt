@@ -28,6 +28,7 @@ class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
             maintenance.clearCreditProfiles()
             maintenance.clearCashAccounts()
             maintenance.clearAccounts()
+            maintenance.clearAccountIcons()
             maintenance.clearOperations()
             db.overview().clearRates()
             db.overview().clearFinancialSettings()

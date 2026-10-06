@@ -5,6 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.valnook.domain.command.SubmissionPhase
 import dev.valnook.domain.command.SubmissionSession
+import dev.valnook.domain.model.AccountIcon
+import dev.valnook.domain.model.AccountIconChange
+import dev.valnook.domain.model.AccountIconType
+import dev.valnook.domain.model.AccountSymbols
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.model.BalanceAccountType
 import dev.valnook.domain.model.CreditAccountInput
@@ -51,7 +55,10 @@ data class AccountEditUiState(
     val expectedRevision: Long? = null,
     val creditSources: List<CreditSourceOption> = emptyList(),
     val loaded: Boolean = false,
-    val loadError: Boolean = false
+    val loadError: Boolean = false,
+    val icon: AccountIcon = AccountIcon(),
+    val iconImage: ByteArray? = null,
+    val iconChanged: Boolean = false
 )
 
 class AccountEditViewModel(
@@ -86,7 +93,9 @@ class AccountEditViewModel(
                 saved["limit-$key"] ?: "", saved["statement-$key"] ?: "12",
                 saved["dueType-$key"] ?: "AFTER_STATEMENT_DAYS", saved["dueValue-$key"] ?: "20",
                 saved["source-$key"])
-        }, expectedRevision = saved["accountRevision"], loaded = true)
+        }, expectedRevision = saved["accountRevision"], loaded = true,
+            icon = AccountIcon(AccountIconType.valueOf(saved["iconType"] ?: "SYMBOL"), saved["iconValue"] ?: "account_balance"),
+            iconImage = saved["iconImage"], iconChanged = saved["iconChanged"] ?: false)
     }
 
     private fun persist(value: AccountEditUiState) {
@@ -101,6 +110,10 @@ class AccountEditViewModel(
         saved["loaded"] = value.loaded
         saved["name"] = value.name
         saved["note"] = value.note
+        saved["iconType"] = value.icon.type.name
+        saved["iconValue"] = value.icon.value
+        saved["iconImage"] = value.iconImage
+        saved["iconChanged"] = value.iconChanged
         saved["accountRevision"] = value.expectedRevision
         saved["rowKeys"] = ArrayList(value.rows.map { it.key })
         value.rows.forEach { row ->
@@ -143,7 +156,7 @@ class AccountEditViewModel(
                             profile?.statementDay?.toString() ?: "12",
                             if (profile?.dueRule is CreditDueRule.FixedDayOfMonth) "FIXED_DAY_OF_MONTH" else "AFTER_STATEMENT_DAYS",
                             profile?.dueRule?.value?.toString() ?: "20", profile?.limitSourceAccountId)
-                    }, account?.revision, sources, true))
+                    }, account?.revision, sources, true, icon = account?.icon ?: AccountIcon()))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -169,6 +182,19 @@ class AccountEditViewModel(
                 // The restored draft remains editable; a normal Reload can retry the source list.
             }
         }
+    }
+
+    fun changeSymbol(key: String) {
+        if (submission.value.editable && key in AccountSymbols.keys)
+            persist(state.value.copy(icon = AccountIcon(value = key), iconImage = null, iconChanged = true))
+    }
+
+    fun changeImage(bytes: ByteArray) {
+        if (!submission.value.editable || bytes.size > AccountSymbols.MAX_IMAGE_BYTES) return
+        val digest = java.security.MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+        persist(state.value.copy(icon = AccountIcon(AccountIconType.IMAGE, digest),
+            iconImage = bytes.copyOf(), iconChanged = true))
     }
 
     fun changeName(value: String) {
@@ -271,7 +297,8 @@ class AccountEditViewModel(
             CashBalanceChange(row.currency.code, R.parse_signed_minor(row.balanceInput, row.currency),
                 row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput, row.type, credit, index.toLong())
         }
-        SaveAccount(operationId, accountId, input.expectedRevision, input.name, input.note, changes)
+        SaveAccount(operationId, accountId, input.expectedRevision, input.name, input.note, changes,
+            if (input.iconChanged) AccountIconChange(input.icon, input.iconImage) else null)
     }
 
     fun consumeSuccess(): Boolean {

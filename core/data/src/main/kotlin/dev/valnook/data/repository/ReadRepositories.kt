@@ -15,5 +15,5 @@ internal fun valid_name(name: String): String {
 }
 class RoomAccounts(private val db: ValnookDatabase) : AccountRepository {
     private val dao = db.accounts()
-    override fun observe_accounts() = dao.accounts().map { rows -> rows.map { SavingsAccount(it.id,it.name,it.note,it.revision) } }
+    override fun observe_accounts() = dao.accounts().map { rows -> rows.map { SavingsAccount(it.id,it.name,it.note,it.revision,AccountIcon(AccountIconType.valueOf(it.icon_type),it.icon_value)) } }
 }

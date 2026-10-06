@@ -42,9 +42,13 @@ fun ExpansionChevron(expanded: Boolean, modifier: Modifier = Modifier) {
 /** Retains the window and its blur through exit; closing content cannot be activated again. */
 @Composable
 fun AnimatedGlassDialog(visible: Boolean, onDismissRequest: () -> Unit,
-    properties: DialogProperties = DialogProperties(), content: @Composable () -> Unit) {
+    properties: DialogProperties = DialogProperties(), onClosed: (() -> Unit)? = null, content: @Composable () -> Unit) {
     val visibility = remember { MutableTransitionState(false) }
     visibility.targetState = visible
+    val closedCallback by rememberUpdatedState(onClosed)
+    LaunchedEffect(visible, visibility.currentState, visibility.isIdle) {
+        if (!visible && !visibility.currentState && visibility.isIdle) closedCallback?.invoke()
+    }
     if (visible || visibility.currentState || !visibility.isIdle) {
         Dialog(onDismissRequest = { if (visible) onDismissRequest() }, properties = properties) {
             PopupBlurEffect()

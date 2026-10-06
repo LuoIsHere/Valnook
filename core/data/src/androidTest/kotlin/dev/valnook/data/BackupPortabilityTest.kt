@@ -237,16 +237,17 @@ class BackupPortabilityTest {
         dev.valnook.data.repository.RoomAccountOrderWriter(source).saveOrder(listOf(first, second), listOf(second, first))
         val output = ByteArrayOutputStream()
         engine(source).createBackup(testOperationId(), output) {}
-        for (version in 1..2) {
+        for (version in 1..3) {
             val target = database("legacy-order-v$version")
             val targetEngine = engine(target)
             val staged = targetEngine.prepareRestore(ByteArrayInputStream(downgradeToLegacySchema(output.toByteArray(), version)),
                 "legacy-order-v$version.val_backup") {}
             try { targetEngine.commitRestore(staged) {} } finally { targetEngine.close(staged) }
             val snapshot = RoomOverview(target).snapshot()
-            assertEquals(listOf(first, second), snapshot.accounts.map { it.id })
-            assertEquals(listOf("A", "Z"), snapshot.cash.map { it.name })
-            assertEquals(listOf(456L, -123L), snapshot.cash.map { it.balance_minor })
+            assertEquals(if (version < 3) listOf(first, second) else listOf(second, first), snapshot.accounts.map { it.id })
+            assertTrue(snapshot.accounts.all { it.icon == dev.valnook.domain.model.AccountIcon() })
+            assertEquals(if (version < 3) listOf("A", "Z") else listOf("Z", "A"), snapshot.cash.map { it.name })
+            assertEquals(if (version < 3) listOf(456L, -123L) else listOf(-123L, 456L), snapshot.cash.map { it.balance_minor })
         }
     }
 
@@ -554,24 +555,27 @@ class BackupPortabilityTest {
             val entry = zip.nextEntry ?: break
             files[entry.name] = zip.readBytes()
         } }
+        files.remove("data/account_icon_images.jsonl")
         if (version == 1) files.remove("data/credit_account_profiles.jsonl")
         listOf("data/accounts.jsonl", "data/cash_accounts.jsonl").forEach { path ->
             files[path] = files.getValue(path).toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
-                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { remove("display_order") }.toString() }.toByteArray()
+                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 3) remove("display_order"); remove("icon_type"); remove("icon_value") }.toString() }.toByteArray()
         }
         val totals = JSONObject(files.getValue("verification/snapshot_totals.json").toString(Charsets.UTF_8))
+        totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")
         if (version == 1) totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
         files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
         val manifest = JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
         manifest.put("dataSchemaVersion", version)
         manifest.put("requiredFeatures", JSONArray(listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1") +
-            if (version == 2) listOf("credit-accounts-v1") else emptyList()))
+            (if (version >= 2) listOf("credit-accounts-v1") else emptyList()) +
+            (if (version >= 3) listOf("account-order-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->
             val row = fileRows.getJSONObject(index)
             val path = row.getString("path")
-            if (version != 1 || path != "data/credit_account_profiles.jsonl") {
+            if (path != "data/account_icon_images.jsonl" && (version != 1 || path != "data/credit_account_profiles.jsonl")) {
                 if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl")) {
                     val value = files.getValue(path)
                     row.put("uncompressedBytes", value.size)

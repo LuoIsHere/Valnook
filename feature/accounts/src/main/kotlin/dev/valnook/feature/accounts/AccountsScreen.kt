@@ -107,8 +107,9 @@ import java.time.LocalDate
                                 .clickable(role = Role.Button) { expandedId = if (isExpanded) null else row.account.id }
                                 .semantics { stateDescription = expansion },
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(row.account.name, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleLarge,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                AccountAvatar(row.account.icon.symbol, row.account.icon.imageKey)
+                                AccountName(row.account.name, MaterialTheme.typography.titleLarge,
+                                    Modifier.weight(1f, fill = false))
                                 ExpansionChevron(isExpanded)
                             }
                         }
@@ -126,9 +127,9 @@ import java.time.LocalDate
                                 name()
                                 amount()
                             }
-                        } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Box(Modifier.weight(1f)) { name() }
-                            Box(Modifier.weight(1.3f)) { amount() }
+                        } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1.3f)) { name() }
+                            Box(Modifier.weight(1f)) { amount() }
                         }
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -236,7 +237,7 @@ import java.time.LocalDate
     }
 }
 @Composable fun AccountEditScreen(vm: AccountEditViewModel, onBack: () -> Unit,
-    onSortActionChanged: ((() -> Unit)?) -> Unit = {}) {
+    onSortActionChanged: ((() -> Unit)?) -> Unit = {}, onPickImage: () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     var pendingDeleteKey by rememberSaveable { mutableStateOf<String?>(null) }
@@ -263,6 +264,7 @@ import java.time.LocalDate
         if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.account_review_retry) else stringResource(R.string.account_save)) {
         GlassCard {
             Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                AccountIconEditor(state, submission.editable, vm::changeSymbol, onPickImage)
                 Field(stringResource(R.string.account_name), state.name, vm::changeName, enabled = submission.editable)
                 Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable)
             }

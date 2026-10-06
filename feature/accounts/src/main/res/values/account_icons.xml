@@ -1,0 +1,13 @@
+<resources>
+    <string name="account_icon_change">Change icon</string>
+    <string name="account_icon_title">Account icon</string>
+    <string name="account_icon_photo">Choose image</string>
+    <string name="account_icon_reset">Use default</string>
+    <string name="account_icon_adjust">Adjust image</string>
+    <string name="account_icon_gesture">Drag to position. Pinch or use the slider to zoom.</string>
+    <string name="account_icon_fit">Show entire image</string>
+    <string name="account_icon_zoom">Zoom</string>
+    <string name="account_icon_failed">Could not use this image. Try another image (up to 32 MB).</string>
+    <string name="account_icon_use">Use image</string>
+    <string name="account_icon_labels">Bank|Account wallet|Credit card|Savings|Payments|Wallet|Growth|Chart|Investments|Business|Home|Apartment|Store|Shopping|Work|Money|Exchange|Global|Travel|Car|Education|Family|Favorite|Star</string>
+</resources>

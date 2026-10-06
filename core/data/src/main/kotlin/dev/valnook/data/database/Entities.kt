@@ -6,7 +6,12 @@ import androidx.room.*
 data class AccountEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String,
     val note: String, val created_at_ms: Long, val updated_at_ms: Long,
     @ColumnInfo(defaultValue = "1") val revision: Long = 1,
-    @ColumnInfo(defaultValue = "0") val display_order: Long = 0)
+    @ColumnInfo(defaultValue = "0") val display_order: Long = 0,
+    @ColumnInfo(defaultValue = "'SYMBOL'") val icon_type: String = "SYMBOL",
+    @ColumnInfo(defaultValue = "'account_balance'") val icon_value: String = "account_balance")
+
+@Entity(tableName = "account_icon_images")
+data class AccountIconImageEntity(@PrimaryKey val id: String, val data: ByteArray)
 
 @Entity(tableName = "currencies")
 data class CurrencyEntity(@PrimaryKey val code: String, val fraction_digits: Int)

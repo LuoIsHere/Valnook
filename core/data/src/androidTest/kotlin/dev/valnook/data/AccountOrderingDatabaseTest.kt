@@ -152,7 +152,7 @@ class AccountOrderingDatabaseTest {
         sourceEngine.createBackup(operation(), bytes) {}
         val staged = targetEngine.prepareRestore(ByteArrayInputStream(bytes.toByteArray()), "ordering.val_backup") {}
         try {
-            assertEquals(3, targetEngine.preview(staged).dataSchemaVersion)
+            assertEquals(4, targetEngine.preview(staged).dataSchemaVersion)
             targetEngine.commitRestore(staged) {}
         } finally { targetEngine.close(staged) }
         assertEquals(RoomOverview(source).snapshot().accounts, RoomOverview(target).snapshot().accounts)

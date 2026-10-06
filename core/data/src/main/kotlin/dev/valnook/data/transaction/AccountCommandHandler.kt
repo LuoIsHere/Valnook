@@ -63,6 +63,22 @@ internal class AccountCommandHandler(
                 throw DomainException(ErrorCode.STALE_RECORD)
             }
         }
+        command.iconChange?.let { change ->
+            val icon = change.icon
+            when (icon.type) {
+                dev.valnook.domain.model.AccountIconType.SYMBOL -> {
+                    if (icon.value !in dev.valnook.domain.model.AccountSymbols.keys || change.image != null)
+                        throw DomainException(ErrorCode.FORMAT)
+                }
+                dev.valnook.domain.model.AccountIconType.IMAGE -> {
+                    val bytes = change.image ?: db.accounts().iconImage(icon.value)
+                        ?: throw DomainException(ErrorCode.FORMAT)
+                    if (!AccountIconImages.valid(icon.value, bytes)) throw DomainException(ErrorCode.FORMAT)
+                    db.accounts().insertIconImage(dev.valnook.data.database.AccountIconImageEntity(icon.value, bytes))
+                }
+            }
+            db.accounts().setIcon(accountId, icon.type.name, icon.value)
+        }
         fault(TransactionPoint.AFTER_BUSINESS)
 
         validated.forEach { value ->
