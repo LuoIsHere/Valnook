@@ -25,43 +25,22 @@ internal fun ThemeSetting(mode: AppThemeMode, onChange: suspend (AppThemeMode) -
     val scope = rememberCoroutineScope()
     SettingEntry(stringResource(R.string.settings_theme), themeLabel(mode),
         { expanded = true; failed = false }, Modifier.testTag("settings-theme"))
-    AnimatedGlassDialog(expanded, onDismissRequest = { if (!busy) expanded = false }) {
-        GlassCard(Modifier.testTag("theme-picker")) {
-            Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleLarge)
-                Column(Modifier.selectableGroup()) {
-                    AppThemeMode.entries.forEach { choice ->
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                            .testTag("theme-option-${choice.name}").clip(RoundedCornerShape(12.dp))
-                            .selectable(selected = choice == mode, enabled = expanded && !busy, role = Role.RadioButton) {
-                                if (choice == mode) expanded = false else scope.launch {
-                                    busy = true
-                                    failed = false
-                                    try {
-                                        if (onChange(choice)) expanded = false else failed = true
-                                    } catch (cancelled: CancellationException) {
-                                        throw cancelled
-                                    } catch (error: Exception) {
-                                        android.util.Log.e("ThemeSettings", "Could not apply theme", error)
-                                        failed = true
-                                    } finally { busy = false }
-                                }
-                            }.padding(horizontal = Space.sm, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                            RadioButton(selected = choice == mode, onClick = null, enabled = !busy)
-                            Text(themeLabel(choice), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
-                }
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                if (failed) HintMessage(stringResource(R.string.settings_theme_save_failed), isError = true)
-                TextButton({ expanded = false }, Modifier.align(Alignment.End), enabled = !busy) {
-                    Text(stringResource(R.string.settings_cancel))
-                }
+    GlassChoiceDialog(expanded, stringResource(R.string.settings_theme), AppThemeMode.entries, mode,
+        label = { themeLabel(it) }, tag = "theme-picker", optionTag = { "theme-option-${it.name}" },
+        busy = busy, error = if (failed) stringResource(R.string.settings_theme_save_failed) else null,
+        onDismiss = { expanded = false }, onSelect = { choice ->
+            if (choice == mode) expanded = false else scope.launch {
+                busy = true
+                failed = false
+                try {
+                    if (onChange(choice)) expanded = false else failed = true
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    failed = true
+                } finally { busy = false }
             }
-        }
-    }
+        })
 }
 
 @Composable

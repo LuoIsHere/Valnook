@@ -1,5 +1,7 @@
 package dev.valnook.app.navigation
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -19,6 +21,8 @@ import androidx.compose.foundation.background
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
@@ -83,6 +87,8 @@ import dev.valnook.feature.settings.AppThemeMode
 import dev.valnook.feature.settings.SettingsViewModel
 import dev.valnook.feature.settings.NavigationSettingsScreen
 import dev.valnook.feature.settings.NavigationSettingsViewModel
+import dev.valnook.feature.settings.NavigationToolbarState
+import dev.valnook.feature.settings.NavigationSettingsActions
 import dev.valnook.feature.statistics.StatisticsScreen
 import dev.valnook.feature.statistics.StatisticsViewModel
 import kotlinx.coroutines.flow.map
@@ -254,6 +260,11 @@ private fun SessionRoot(
     val backdrop = rememberGlassBackdrop()
     val accountImages = remember(graph.sessionId) { dev.valnook.designsystem.AccountImageLoader(graph.overview::accountIconImage) }
     val glassTop = current.isRoot()
+    val toolbarScrollState = rememberToolbarScrollState(stack)
+    val toolbarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(toolbarScrollState)
+    val toolbarBackgroundAlpha by animateFloatAsState(
+        if (toolbarScrollState.contentOffset < -0.5f) 1f else 0f,
+        animationSpec = tween(120), label = "toolbar-background")
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
     val showCapsule = current.isRoot() && !keyboardOpen
@@ -267,10 +278,20 @@ private fun SessionRoot(
     val sortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
     var editSortAction by remember(graph.sessionId) { mutableStateOf<(() -> Unit)?>(null) }
     val updateEditSortAction = remember(graph.sessionId) { { action: (() -> Unit)? -> editSortAction = action } }
+    var navigationToolbar by remember(graph.sessionId) { mutableStateOf<NavigationToolbarState?>(null) }
+    val updateNavigationToolbar = remember(graph.sessionId) {
+        { value: NavigationToolbarState? -> navigationToolbar = value }
+    }
 
     Box(Modifier.fillMaxSize()) {
-        Scaffold(contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
-            GlassSurface(Modifier.testTag("root-toolbar"), shape = RectangleShape, backdrop = if (glassTop) backdrop else null) {
+        Scaffold(modifier = Modifier.nestedScroll(toolbarScrollBehavior.nestedScrollConnection),
+            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
+            Box(Modifier.testTag("root-toolbar")) {
+            if (toolbarBackgroundAlpha > 0f) GlassSurface(
+                Modifier.matchParentSize().graphicsLayer { alpha = toolbarBackgroundAlpha }
+                    .testTag("root-toolbar-background"),
+                shape = RectangleShape, backdrop = if (glassTop) backdrop else null
+            ) {}
             TopAppBar(title = {
                 Column {
                     Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -292,6 +313,7 @@ private fun SessionRoot(
                 if (!current.isRoot()) BackButton(stringResource(R.string.nav_back), back)
             }, actions = {
                 when (current) {
+                    NavigationSettingsKey -> NavigationSettingsActions(navigationToolbar)
                     AccountsKey, HiddenAccountsKey -> {
                         IconButton({ open(AccountOrderKey) }, Modifier.testTag("account-order-open").semantics {
                             contentDescription = sortDescription
@@ -310,7 +332,7 @@ private fun SessionRoot(
                         enabled = editSortAction != null) { SortIcon() }
                     else -> Unit
                 }
-            })
+            }, scrollBehavior = toolbarScrollBehavior)
             }
         }) { padding ->
             CompositionLocalProvider(dev.valnook.designsystem.LocalAccountImageLoader provides accountImages,
@@ -348,8 +370,7 @@ private fun SessionRoot(
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
                                 }
                                 SettingsHome(vm, active.mode == DataMode.DEMO, switching, switchFailed,
-                                    { open(FxSettingsKey) }, { if (active.mode != DataMode.DEMO) open(LanguageSettingsKey) },
-                                    { open(GainLossColorsKey) }, { enable ->
+                                    { open(FxSettingsKey) }, { enable ->
                                         if (!switching) scope.launch {
                                             switching = true
                                             switchFailed = false
@@ -380,7 +401,7 @@ private fun SessionRoot(
                                 NavigationSettingsScreen(pageViewModel {
                                     NavigationSettingsViewModel(graph.settings, graph.settingsWriter,
                                         createSavedStateHandle())
-                                })
+                                }, onToolbarChange = updateNavigationToolbar)
                             }
                             entry<FxSettingsKey> {
                                 FxSettingsScreen(pageViewModel {
@@ -390,12 +411,12 @@ private fun SessionRoot(
                             entry<LanguageSettingsKey> {
                                 LanguageSettingsScreen(pageViewModel {
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
-                                })
+                                }, onClose = back)
                             }
                             entry<GainLossColorsKey> {
                                 GainLossColorsScreen(pageViewModel {
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
-                                })
+                                }, onClose = back)
                             }
                             entry<ClearDataKey> {
                                 var challenge by remember(active.id) { mutableStateOf<String?>(null) }

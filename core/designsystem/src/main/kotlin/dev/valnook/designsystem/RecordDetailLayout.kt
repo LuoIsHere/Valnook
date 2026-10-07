@@ -13,7 +13,7 @@ import androidx.compose.ui.unit.dp
         item{Text(title,style=MaterialTheme.typography.titleLarge)}
         item {
             GlassCard {
-            Column(Modifier.fillMaxWidth().padding(horizontal = Space.md)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = Space.cardInset, vertical = Space.xs)) {
                 rows.forEachIndexed {index,(label,value)->
                     DetailRow(label,value)
                     if(index<rows.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)

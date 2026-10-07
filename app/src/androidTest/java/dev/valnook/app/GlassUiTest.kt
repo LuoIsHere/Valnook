@@ -70,6 +70,7 @@ class GlassUiTest {
             }
             rule.waitUntil(10_000) { rule.onAllNodesWithTag("accounts-summary").fetchSemanticsNodes().isNotEmpty() }
             val theme = if (dark) "dark" else "light"
+            rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
             save("root-$theme-accounts", rule.onRoot().captureToImage().asAndroidBitmap())
             val page = rule.onNodeWithTag("accounts-list").fetchSemanticsNode().boundsInWindow
             val toolbar = rule.onNodeWithTag("root-toolbar").fetchSemanticsNode().boundsInWindow
@@ -77,15 +78,53 @@ class GlassUiTest {
             assertTrue("Viewport must extend behind both overlays", page.top < toolbar.bottom && page.bottom > capsule.bottom)
             rule.onNodeWithTag("accounts-list").performTouchInput { swipeUp(durationMillis = 450) }
             rule.mainClock.advanceTimeBy(500)
+            rule.onNodeWithTag("root-toolbar-background").assertExists()
+            assertEquals(toolbar, rule.onNodeWithTag("root-toolbar").fetchSemanticsNode().boundsInWindow)
             save("root-$theme-scrolled", rule.onRoot().captureToImage().asAndroidBitmap())
             rule.onNodeWithTag("nav-investments").performClick()
             rule.waitUntil(10_000) { rule.onAllNodesWithTag("investment-summary").fetchSemanticsNodes().isNotEmpty() }
+            rule.mainClock.advanceTimeBy(200)
+            rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
             save("root-$theme-investments", rule.onRoot().captureToImage().asAndroidBitmap())
-            rule.onNodeWithTag("investment-fx-info").performClick()
-            rule.onNodeWithText(activity.getString(dev.valnook.feature.investments.R.string.investment_current_fx_hint)).assertIsDisplayed()
+            rule.onNodeWithTag("nav-accounts").performClick()
+            rule.mainClock.advanceTimeBy(200)
+            rule.onNodeWithTag("root-toolbar-background").assertExists()
+            repeat(4) { rule.onNodeWithTag("accounts-list").performTouchInput {
+                // The viewport extends behind the toolbar: start below its hit area.
+                swipe(Offset(center.x, height * .35f), Offset(center.x, height * .85f), 200)
+            } }
+            rule.mainClock.advanceTimeBy(500)
+            rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
             rule.onNodeWithTag("nav-settings").performClick()
             save("root-$theme-settings", rule.onRoot().captureToImage().asAndroidBitmap())
         }
+    }
+
+    @Test fun form_toolbar_background_follows_scroll_and_resets_when_reopened() {
+        val activity = rule.activity
+        scene { ValnookRoot(activity.sessions, activity.webAdmin) }
+        val addAccount = activity.getString(R.string.nav_add_account)
+        rule.waitUntil(10_000) { rule.onAllNodesWithContentDescription(addAccount).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription(addAccount).performClick()
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
+        // A new account with no balance accounts fits on screen; add an unsaved row to scroll.
+        rule.onNodeWithText(activity.getString(dev.valnook.feature.accounts.R.string.account_add_balance_account)).performClick()
+        val scroll = rule.onNode(hasScrollAction())
+        scroll.performTouchInput { swipeUp(durationMillis = 400) }
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("root-toolbar-background").assertExists()
+        save("toolbar-form-scrolled", rule.onRoot().captureToImage().asAndroidBitmap())
+        repeat(4) { scroll.performTouchInput { swipeDown(durationMillis = 150) } }
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
+        scroll.performTouchInput { swipeUp(durationMillis = 400) }
+        rule.onNodeWithContentDescription(activity.getString(R.string.nav_back)).performClick()
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
+        rule.onNodeWithContentDescription(addAccount).performClick()
+        rule.mainClock.advanceTimeBy(500)
+        rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
     }
 
     @Test fun glass_blurs_background_tracks_updates_and_keeps_foreground_sharp() {

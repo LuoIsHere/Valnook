@@ -26,6 +26,15 @@ import androidx.compose.ui.unit.dp
 import dev.valnook.core.designsystem.R
 import kotlin.math.ceil
 
+/** Dialogs use a denser material; fallback stays opaque when window blur is unavailable. */
+internal val LocalGlassDialogBlur = compositionLocalOf<Boolean?> { null }
+
+internal object GlassMaterial {
+    val blurRadius = 20.dp
+    const val panelAlpha = 0.92f
+    const val cardAlpha = 0.92f
+}
+
 /** One page drawing, shared by the two overlays; never includes either overlay. */
 @Stable
 class GlassBackdrop internal constructor(internal val layer: GraphicsLayer) {
@@ -50,15 +59,15 @@ fun Modifier.glassSource(backdrop: GlassBackdrop): Modifier =
 /** Blur the recorded background only. Text and interaction layers are drawn afterwards. */
 @Composable
 fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShape(20.dp),
-    backdrop: GlassBackdrop? = null, tintAlpha: Float = 0.80f,
+    backdrop: GlassBackdrop? = null, tintAlpha: Float = GlassMaterial.cardAlpha,
     content: @Composable BoxScope.() -> Unit) {
     val colors = MaterialTheme.colorScheme
-    val dark = colors.background.luminance() < 0.5f
-    val tint = colors.surfaceContainer.copy(alpha = tintAlpha)
-    val sheen = Color.White.copy(alpha = if (dark) 0.035f else 0.22f)
+    val dialogBlur = LocalGlassDialogBlur.current
+    val alpha = when (dialogBlur) { true -> GlassMaterial.panelAlpha; false -> 1f; null -> tintAlpha }
+    val tint = lerp(colors.surfaceContainerLow, Color.White, 0.02f).copy(alpha = alpha)
     val sample = if (backdrop != null) rememberGraphicsLayer() else null
     var origin by remember { mutableStateOf(Offset.Zero) }
-    val radius = with(LocalDensity.current) { 18.dp.toPx() }
+    val radius = with(LocalDensity.current) { GlassMaterial.blurRadius.toPx() }
     val blur = remember(radius, backdrop) { if (backdrop != null) BlurEffect(radius, radius, TileMode.Clamp) else null }
     Box(modifier.clip(shape).then(if (backdrop != null)
         Modifier.onGloballyPositioned { origin = it.positionInRoot() } else Modifier)
@@ -71,7 +80,7 @@ fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShap
                 val overscan = ceil(radius * 2).toInt()
                 val delta = backdrop.origin - origin
                 sample.renderEffect = blur
-                sample.alpha = 0.45f
+                sample.alpha = 0.28f
                 sample.record(size = IntSize(size.width.toInt() + overscan * 2,
                     size.height.toInt() + overscan * 2)) {
                     drawRect(colors.background)
@@ -79,7 +88,6 @@ fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShap
                 }
                 translate(-overscan.toFloat(), -overscan.toFloat()) { drawLayer(sample) }
             }
-            drawRect(Brush.verticalGradient(listOf(sheen, Color.Transparent)))
             drawContent()
         }, content = content)
 }

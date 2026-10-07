@@ -2,8 +2,7 @@ package dev.valnook.designsystem
 
 import android.view.ViewParent
 import android.view.WindowManager
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -12,9 +11,10 @@ import java.util.function.Consumer
 
 /** Window-level blur exists only while the popup is present; its foreground stays sharp. */
 @Composable
-fun PopupBlurEffect() {
+fun PopupBlurEffect(): Boolean {
     val view = LocalView.current
-    val radius = with(LocalDensity.current) { 16.dp.roundToPx() }
+    val radius = with(LocalDensity.current) { GlassMaterial.blurRadius.roundToPx() }
+    var blurEnabled by remember(view) { mutableStateOf(false) }
     DisposableEffect(view, radius) {
         var parent: ViewParent? = view.parent
         var provider: DialogWindowProvider? = view as? DialogWindowProvider
@@ -29,10 +29,11 @@ fun PopupBlurEffect() {
             val oldDim = window.attributes.dimAmount
             val hadFlag = window.attributes.flags and WindowManager.LayoutParams.FLAG_BLUR_BEHIND != 0
             val listener = Consumer<Boolean> { enabled ->
+                blurEnabled = enabled
                 window.addFlags(WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
                 window.attributes = window.attributes.apply {
                     setBlurBehindRadius(if (enabled) radius else 0)
-                    dimAmount = if (enabled) 0.12f else 0.38f
+                    dimAmount = if (enabled) 0.18f else 0.32f
                 }
             }
             manager.addCrossWindowBlurEnabledListener(listener)
@@ -47,4 +48,5 @@ fun PopupBlurEffect() {
             }
         }
     }
+    return blurEnabled
 }

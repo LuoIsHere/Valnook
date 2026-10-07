@@ -1208,21 +1208,17 @@ class UiFlowTest {
         val settingsLabel = localized(dev.valnook.app.R.string.nav_settings)
         val baseCurrencyLabel = localized(dev.valnook.feature.settings.R.string.settings_base_currency)
         val languageLabel = localized(dev.valnook.feature.settings.R.string.settings_language)
-        val systemLanguageLabel = localized(dev.valnook.feature.settings.R.string.settings_language_system)
-        val applyLabel = localized(dev.valnook.feature.settings.R.string.settings_apply)
         val initialLocaleTags = localeManager.applicationLocales.toLanguageTags()
         try {
             wait_text("合成账户 A")
             rule.onNode(hasText(settingsLabel) and hasClickAction()).performClick()
             wait_text(baseCurrencyLabel)
             rule.onNode(hasText(languageLabel) and hasClickAction()).performClick()
-            rule.onNodeWithContentDescription("$languageLabel: $systemLanguageLabel").performClick()
-            rule.onNodeWithText("English").performClick()
-            assertEquals(initialLocaleTags,localeManager.applicationLocales.toLanguageTags())
-            rule.onNodeWithText(applyLabel).performClick()
+            rule.onNodeWithTag("language-option-ENGLISH").performClick()
 
             rule.waitUntil(15_000) { localeManager.applicationLocales.toLanguageTags() == "en" }
             wait_text("Language")
+            rule.onNodeWithTag("language-picker").assertDoesNotExist()
             repeat(10) {
                 Thread.sleep(200)
                 assertEquals("en", localeManager.applicationLocales.toLanguageTags())
@@ -1234,7 +1230,7 @@ class UiFlowTest {
                     graph.settingsWriter.applyChange(SaveLanguage(current.revision,AppLanguage.SYSTEM))
                 }
             }
-            localeManager.applicationLocales = LocaleList.getEmptyLocaleList()
+            localeManager.applicationLocales = LocaleList.forLanguageTags(initialLocaleTags)
         }
     }
 }

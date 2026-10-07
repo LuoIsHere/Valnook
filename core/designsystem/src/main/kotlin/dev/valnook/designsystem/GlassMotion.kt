@@ -51,7 +51,7 @@ fun AnimatedGlassDialog(visible: Boolean, onDismissRequest: () -> Unit,
     }
     if (visible || visibility.currentState || !visibility.isIdle) {
         Dialog(onDismissRequest = { if (visible) onDismissRequest() }, properties = properties) {
-            PopupBlurEffect()
+            val blurEnabled = PopupBlurEffect()
             val view = LocalView.current
             DisposableEffect(view) {
                 var parent: android.view.ViewParent? = view.parent
@@ -73,7 +73,9 @@ fun AnimatedGlassDialog(visible: Boolean, onDismissRequest: () -> Unit,
                         awaitPointerEventScope {
                             while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
                         }
-                    }) { content() }
+                    }) {
+                    CompositionLocalProvider(LocalGlassDialogBlur provides blurEnabled) { content() }
+                }
             }
         }
     }

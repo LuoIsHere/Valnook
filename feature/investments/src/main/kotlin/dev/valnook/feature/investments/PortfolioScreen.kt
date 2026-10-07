@@ -75,16 +75,6 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                                 else TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized, colorByValue = true)
                             }
                         }
-                        var showFx by rememberSaveable { mutableStateOf(false) }
-                        TextButton(onClick = { showFx = !showFx }, contentPadding = PaddingValues(horizontal = 0.dp),
-                            modifier = Modifier.heightIn(min = 48.dp).testTag("investment-fx-info")) {
-                            Text(stringResource(R.string.investment_fx_summary), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        AnimatedVisibility(showFx, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
-                            exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
-                            HintMessage(stringResource(R.string.investment_current_fx_hint))
-                        }
                     }
                     }
                 }

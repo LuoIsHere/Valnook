@@ -66,6 +66,9 @@ import dev.valnook.designsystem.GlassCard
 import dev.valnook.designsystem.ChoiceField
 import dev.valnook.designsystem.CurrencyChoice
 import dev.valnook.designsystem.Field
+import dev.valnook.designsystem.GlassTextField
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.runtime.saveable.rememberSaveable
 import dev.valnook.designsystem.LocalGainLossPalette
 import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.pageContentPadding
@@ -83,8 +86,6 @@ fun SettingsHome(
     switching: Boolean,
     switchFailed: Boolean,
     onRates: () -> Unit,
-    onLanguage: () -> Unit,
-    onColors: () -> Unit,
     onDemoChange: (Boolean) -> Unit,
     onClear: () -> Unit,
     onNavigation: () -> Unit,
@@ -97,17 +98,20 @@ fun SettingsHome(
     onThemeChange: suspend (AppThemeMode) -> Boolean = { false }
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var appearancePicker by rememberSaveable { mutableStateOf<String?>(null) }
     if (!state.loaded) {
         if (state.loadFailed) Text(stringResource(R.string.settings_load_failed)) else CircularProgressIndicator()
         return
     }
+    AppearanceSettingsDialog(vm, language = true, visible = appearancePicker == "language", onClose = { appearancePicker = null })
+    AppearanceSettingsDialog(vm, language = false, visible = appearancePicker == "colors", onClose = { appearancePicker = null })
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item {
             GlassCard {
             SettingEntry(stringResource(R.string.settings_base_currency),
                 state.savedSettings.baseCurrency?.code ?: stringResource(R.string.settings_not_set), onRates)
-            HorizontalDivider(Modifier.padding(horizontal = Space.md))
+            HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             SettingEntry(stringResource(R.string.settings_exchange_rates),
                 stringResource(R.string.settings_fx_default), onRates)
             }
@@ -115,14 +119,16 @@ fun SettingsHome(
         item {
             GlassCard {
             ThemeSetting(themeMode, onThemeChange)
-            HorizontalDivider(Modifier.padding(horizontal = Space.md))
+            HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             if (!demoMode) {
-            SettingEntry(stringResource(R.string.settings_language), languageLabel(state.savedSettings.language), onLanguage)
-            HorizontalDivider(Modifier.padding(horizontal = Space.md))
+            SettingEntry(stringResource(R.string.settings_language), languageLabel(state.savedSettings.language),
+                { vm.discardAndReload(); appearancePicker = "language" }, Modifier.testTag("settings-language"))
+            HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             }
             SettingEntry(stringResource(R.string.settings_gain_loss_colors),
-                colorLabel(state.savedSettings.gainLossColors), onColors)
-            HorizontalDivider(Modifier.padding(horizontal = Space.md))
+                colorLabel(state.savedSettings.gainLossColors),
+                { vm.discardAndReload(); appearancePicker = "colors" }, Modifier.testTag("settings-colors"))
+            HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             SettingEntry(stringResource(R.string.settings_navigation),
                 stringResource(R.string.settings_navigation_summary), onNavigation)
             }
@@ -133,7 +139,7 @@ fun SettingsHome(
                 if (demoMode) stringResource(R.string.settings_backup_export_demo_summary)
                 else stringResource(R.string.settings_backup_export_summary), onBackupExport,
                 Modifier.testTag("settings-backup-export"))
-            HorizontalDivider(Modifier.padding(horizontal = Space.md))
+            HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             SettingEntry(stringResource(R.string.settings_webadmin),
                 stringResource(R.string.settings_webadmin_summary), onWebAdmin,
                 Modifier.testTag("settings-webadmin"))
@@ -144,13 +150,13 @@ fun SettingsHome(
                 GlassCard(Modifier.fillMaxWidth()) {
                     Column {
                         Text(stringResource(R.string.settings_hidden_pages),
-                            modifier = Modifier.padding(horizontal = Space.md, vertical = Space.sm),
+                            modifier = Modifier.padding(horizontal = Space.cardInset, vertical = Space.md),
                             style = MaterialTheme.typography.titleMedium)
-                        HorizontalDivider()
+                        HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
                         state.savedSettings.navigation.hiddenInOrder.forEachIndexed { index, item ->
                             SettingEntry(navigationLabel(item), stringResource(R.string.settings_hidden_page_summary),
                                 { onHiddenPage(item) })
-                            if (index < state.savedSettings.navigation.hiddenInOrder.lastIndex) HorizontalDivider()
+                            if (index < state.savedSettings.navigation.hiddenInOrder.lastIndex) HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
                         }
                     }
                 }
@@ -196,7 +202,8 @@ fun SettingsHome(
 }
 
 @Composable
-fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
+fun NavigationSettingsScreen(vm: NavigationSettingsViewModel,
+    onToolbarChange: (NavigationToolbarState?) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val moveUp = stringResource(R.string.settings_move_up)
     val moveDown = stringResource(R.string.settings_move_down)
@@ -212,6 +219,12 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
     var draggedItem by remember { mutableStateOf<NavigationItemId?>(null) }
     var dragStartOffset by remember { mutableFloatStateOf(0f) }
     var dragDistance by remember { mutableFloatStateOf(0f) }
+    val toolbar = remember(vm, state, draggedItem) {
+        NavigationToolbarState(state.editing, state.busy, draggedItem != null,
+            state.draft != state.saved, vm::edit, vm::cancel, vm::save)
+    }
+    androidx.compose.runtime.SideEffect { onToolbarChange(toolbar) }
+    DisposableEffect(onToolbarChange) { onDispose { onToolbarChange(null) } }
 
     LaunchedEffect(state.draft.order, draggedItem) {
         if (draggedItem == null && localOrder != state.draft.order) localOrder = state.draft.order
@@ -233,14 +246,6 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
 
     LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                if (state.editing) {
-                    TextButton(vm::cancel, enabled = !state.busy) { Text(stringResource(R.string.settings_cancel)) }
-                    Button(vm::save, enabled = !state.busy) { Text(stringResource(R.string.settings_save)) }
-                } else Button(vm::edit) { Text(stringResource(R.string.settings_edit)) }
-            }
-        }
         itemsIndexed(localOrder, key = { _, item -> item.name }) { index, item ->
             val dragging = draggedItem == item
             Column(Modifier.fillMaxWidth()
@@ -259,7 +264,7 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
                         .padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
                         Text(navigationLabel(item), Modifier.weight(1f).padding(horizontal = Space.md),
                             style = MaterialTheme.typography.titleMedium)
-                        IconButton({ vm.toggle(item) }, enabled = state.editing && item != NavigationItemId.SETTINGS,
+                        IconButton({ vm.toggle(item) }, enabled = state.editing && !state.busy && item != NavigationItemId.SETTINGS,
                             modifier = Modifier.testTag("navigation-visible-${item.name.lowercase()}")) {
                             val visible = item in state.draft.visible
                             Icon(if (visible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
@@ -268,22 +273,22 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
                             })
                         }
                         Icon(Icons.Outlined.DragHandle, contentDescription = null,
-                            tint = if (state.editing) MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (state.editing && !state.busy) MaterialTheme.colorScheme.onSurfaceVariant
                                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                             modifier = Modifier.size(48.dp)
                                 .testTag("navigation-reorder-${item.name.lowercase()}").semantics {
                         contentDescription = reorder
                         customActions = listOf(
                             CustomAccessibilityAction(moveUp) {
-                                if (state.editing && index > 0) vm.move(item, -1)
-                                state.editing && index > 0
+                                if (state.editing && !state.busy && index > 0) vm.move(item, -1)
+                                state.editing && !state.busy && index > 0
                             },
                             CustomAccessibilityAction(moveDown) {
-                                if (state.editing && index < state.draft.order.lastIndex) vm.move(item, 1)
-                                state.editing && index < state.draft.order.lastIndex
+                                if (state.editing && !state.busy && index < state.draft.order.lastIndex) vm.move(item, 1)
+                                state.editing && !state.busy && index < state.draft.order.lastIndex
                             })
-                            }.pointerInput(state.editing, item) {
-                                if (!state.editing) return@pointerInput
+                            }.pointerInput(state.editing, state.busy, item) {
+                                if (!state.editing || state.busy) return@pointerInput
                                 detectVerticalDragGestures(
                                     onDragStart = {
                                         val itemInfo = listState.layoutInfo.visibleItemsInfo
@@ -348,7 +353,8 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel) {
 @Composable
 internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
-        .clickable(role = Role.Button, onClick = onClick).padding(Space.md),
+        .clickable(role = Role.Button, onClick = onClick)
+        .padding(horizontal = Space.cardInset, vertical = Space.md),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
@@ -371,7 +377,7 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { Text(stringResource(R.string.settings_base_currency), style = MaterialTheme.typography.titleLarge) }
         item { CurrencyChoice(base?.code.orEmpty(), { vm.selectBase(Currency.of(it)) }, !state.busy,
-            Currency.supported.map { it.code to it.name }) }
+            Currency.supported.map { it.code to it.name }, glass = true) }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text(if (base == null) stringResource(R.string.settings_no_base) else
@@ -383,16 +389,16 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
         itemsIndexed(state.rows, key = { _, row -> row.sourceCurrency.code }) { index, row ->
             Column(Modifier.fillMaxWidth()) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xs),
-                    verticalAlignment = Alignment.Top) {
+                    verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(0.42f)) {
                         CurrencyChoice(row.sourceCurrency.code, { vm.updateRow(index, source = Currency.of(it)) },
                             !state.busy, Currency.supported.map { it.code to it.name },
                             state.rows.filterIndexed { i, _ -> i != index }.map { it.sourceCurrency.code }.toSet() +
-                                listOfNotNull(base?.code))
+                                listOfNotNull(base?.code), glass = true)
                     }
                     Box(Modifier.weight(0.58f)) {
-                        Field(stringResource(R.string.settings_rate), row.rateInput,
-                            { vm.updateRow(index, rate = it) }, numeric = true, enabled = !state.busy)
+                        GlassTextField(row.rateInput, { vm.updateRow(index, rate = it) },
+                            stringResource(R.string.settings_rate), enabled = !state.busy, keyboardType = KeyboardType.Decimal)
                     }
                     IconButton({ vm.removeRate(index) }, enabled = !state.busy,
                         modifier = Modifier.size(48.dp).testTag("remove-rate-$index")) {
@@ -420,67 +426,13 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
 }
 
 @Composable
-fun LanguageSettingsScreen(vm: SettingsViewModel) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    if (!state.loaded) return
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item {
-            ChoiceField(stringResource(R.string.settings_language), state.settings.language.name,
-                AppLanguage.entries.map { it.name to languageLabel(it) },
-                { vm.selectLanguage(AppLanguage.valueOf(it)) }, !state.busy)
-        }
-        item {
-            state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
-            if (state.saved) Text(stringResource(R.string.settings_saved))
-            Button(vm::saveLanguage, enabled = !state.busy && state.dirty,
-                modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.busy) stringResource(R.string.settings_saving)
-                    else stringResource(R.string.settings_apply))
-            }
-        }
-    }
+fun LanguageSettingsScreen(vm: SettingsViewModel, onClose: () -> Unit = {}) {
+    AppearanceSettingsDialog(vm, language = true, visible = true, onClose = onClose)
 }
 
 @Composable
-fun GainLossColorsScreen(vm: SettingsViewModel) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    if (!state.loaded) return
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        items(GainLossColorScheme.entries, key = { it.name }) { scheme ->
-            val savedColors = LocalGainLossPalette.current
-            val gainColor = if (scheme == state.savedSettings.gainLossColors) savedColors.gain else savedColors.loss
-            val lossColor = if (scheme == state.savedSettings.gainLossColors) savedColors.loss else savedColors.gain
-            Row(Modifier.fillMaxWidth()
-                .clickable(enabled = !state.busy) { vm.selectGainLossColors(scheme) }
-                .testTag("gain-loss-${scheme.name.lowercase()}")
-                .padding(horizontal = Space.sm, vertical = Space.sm),
-                verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                    Text(colorLabel(scheme), style = MaterialTheme.typography.titleMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(Space.md)) {
-                        Text(stringResource(R.string.settings_color_gain), color = gainColor,
-                            style = MaterialTheme.typography.bodySmall)
-                        Text(stringResource(R.string.settings_color_loss), color = lossColor,
-                            style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                Checkbox(checked = state.settings.gainLossColors == scheme,
-                    onCheckedChange = { vm.selectGainLossColors(scheme) }, enabled = !state.busy)
-            }
-            HorizontalDivider()
-        }
-        item {
-            state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
-            if (state.saved) Text(stringResource(R.string.settings_saved))
-            Button(vm::saveGainLossColors, enabled = !state.busy && state.dirty,
-                modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.busy) stringResource(R.string.settings_saving)
-                    else stringResource(R.string.settings_apply))
-            }
-        }
-    }
+fun GainLossColorsScreen(vm: SettingsViewModel, onClose: () -> Unit = {}) {
+    AppearanceSettingsDialog(vm, language = false, visible = true, onClose = onClose)
 }
 
 @Composable
@@ -511,7 +463,8 @@ fun ClearDataScreen(
         item { Text(stringResource(R.string.settings_clear_warning), color = MaterialTheme.colorScheme.error) }
         item { Text(stringResource(R.string.settings_clear_scope)) }
         item { Text(challenge, style = MaterialTheme.typography.headlineSmall) }
-        item { Field(stringResource(R.string.settings_clear_input), input, { input = it }, enabled = !busy) }
+        item { GlassTextField(input, { input = it }, stringResource(R.string.settings_clear_input),
+            Modifier.fillMaxWidth(), enabled = !busy, keyboardType = KeyboardType.Number) }
         if (failed) item { Text(stringResource(R.string.settings_clear_failed), color = MaterialTheme.colorScheme.error) }
         item {
             Button(onClick = {
@@ -528,14 +481,14 @@ fun ClearDataScreen(
 }
 
 @Composable
-private fun languageLabel(value: AppLanguage): String = stringResource(when (value) {
+internal fun languageLabel(value: AppLanguage): String = stringResource(when (value) {
     AppLanguage.SYSTEM -> R.string.settings_language_system
     AppLanguage.ZH_HANS -> R.string.settings_language_zh
     AppLanguage.ENGLISH -> R.string.settings_language_en
 })
 
 @Composable
-private fun colorLabel(value: GainLossColorScheme): String = stringResource(when (value) {
+internal fun colorLabel(value: GainLossColorScheme): String = stringResource(when (value) {
     GainLossColorScheme.GREEN_GAIN -> R.string.settings_green_gain
     GainLossColorScheme.RED_GAIN -> R.string.settings_red_gain
 })
@@ -549,7 +502,7 @@ private fun navigationLabel(value: NavigationItemId): String = stringResource(wh
 })
 
 @Composable
-private fun settingsErrorMessage(error: ErrorCode): String = stringResource(when (error) {
+internal fun settingsErrorMessage(error: ErrorCode): String = stringResource(when (error) {
     ErrorCode.CURRENCY -> R.string.settings_error_currency
     ErrorCode.FORMAT -> R.string.settings_error_format
     ErrorCode.PRECISION -> R.string.settings_error_precision

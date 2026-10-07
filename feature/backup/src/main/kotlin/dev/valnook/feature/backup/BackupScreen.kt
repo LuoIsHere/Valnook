@@ -31,6 +31,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.Space
+import dev.valnook.designsystem.GlassTextField
+import androidx.compose.ui.text.input.KeyboardType
 import dev.valnook.designsystem.HintMessage
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -143,8 +145,9 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                 }
                 item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    OutlinedTextField(state.intervalDraft, vm::updateIntervalDraft, Modifier.weight(1f),
-                        label = { Text(stringResource(R.string.cloud_interval_hours)) }, singleLine = true)
+                    GlassTextField(state.intervalDraft, vm::updateIntervalDraft,
+                        stringResource(R.string.cloud_interval_hours), Modifier.weight(1f),
+                        enabled = !state.cloudBusy, keyboardType = KeyboardType.Number)
                     Button(vm::saveInterval, enabled = !state.cloudBusy) {
                         Text(stringResource(R.string.cloud_save_interval))
                     }
@@ -213,8 +216,9 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         state.challenge?.let { challenge ->
             item { Text(stringResource(R.string.backup_confirmation_code, challenge.value),
                 style = MaterialTheme.typography.titleLarge) }
-            item { OutlinedTextField(state.confirmation, vm::updateConfirmation, Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.backup_confirmation_input)) }, singleLine = true) }
+            item { GlassTextField(state.confirmation, vm::updateConfirmation,
+                stringResource(R.string.backup_confirmation_input), Modifier.fillMaxWidth(),
+                enabled = !state.busy, keyboardType = KeyboardType.Number) }
             item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 TextButton(vm::cancelRestore) { Text(stringResource(R.string.backup_cancel)) }
                 Button(vm::commitRestore, enabled = !state.busy && state.confirmation.length == 6) {

@@ -119,13 +119,15 @@ import java.util.Locale
     }
 }
 /** Selection and numeric inputs share the same outline, label baseline and width. */
-@Composable fun SelectorField(label:String,value:String,on_select:()->Unit,enabled:Boolean=true) {
+@Composable fun SelectorField(label:String,value:String,on_select:()->Unit,enabled:Boolean=true,glass:Boolean=false) {
     val minimum_height=(64f+32f*(LocalDensity.current.fontScale.coerceAtLeast(1f)-1f)).dp
     val focus=LocalFocusManager.current
     val keyboard=LocalSoftwareKeyboardController.current
     val arrow_color=MaterialTheme.colorScheme.onSurfaceVariant
     val shape=RoundedCornerShape(12.dp)
     Box(Modifier.fillMaxWidth().testTag("input-$label")) {
+        if(glass) GlassTextField(value,{},label,Modifier.fillMaxWidth(),enabled=enabled,readOnly=true,
+            trailingIcon={ExpansionChevron(false)}) else
         OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},
             singleLine=true,textStyle=MaterialTheme.typography.bodyLarge,shape=shape,
             enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
@@ -152,22 +154,22 @@ import java.util.Locale
     }
 }
 @Composable fun CurrencyChoice(selected:String,on_change:(String)->Unit,enabled:Boolean=true,
-    options:List<Pair<String,String>>,excluded:Set<String> = emptySet()) {
+    options:List<Pair<String,String>>,excluded:Set<String> = emptySet(),glass:Boolean=false) {
     var expanded by rememberSaveable {mutableStateOf(false)}
     var query by rememberSaveable {mutableStateOf("")}
     val pickerRates=LocalCurrencyPickerRates.current
     SelectorField(stringResource(R.string.currency),selected,
-        {query="";expanded=true},enabled)
+        {query="";expanded=true},enabled,glass)
     AnimatedGlassDialog(expanded,onDismissRequest={expanded=false},properties=DialogProperties(decorFitsSystemWindows=false)) {
         Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(12.dp)) {
             GlassCard(prominent = true) {
-                Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.md),
+                Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.cardInset),
                     verticalArrangement=Arrangement.spacedBy(Space.md)) {
                     Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
                     Text(pickerRates.baseCode?.let { stringResource(R.string.currency_rate_to, it) }
                         ?: stringResource(R.string.currency_rate_no_base),
                         style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    Field(stringResource(R.string.search_currency),query,{query=it})
+                    GlassTextField(query,{query=it},stringResource(R.string.search_currency),Modifier.fillMaxWidth())
                     val matches=options.filter{it.first !in excluded &&
                         (it.first.contains(query.trim(),true)||it.second.contains(query.trim(),true))}
                     LazyColumn(Modifier.weight(1f,fill=false).fillMaxWidth().testTag("currency-list")) {

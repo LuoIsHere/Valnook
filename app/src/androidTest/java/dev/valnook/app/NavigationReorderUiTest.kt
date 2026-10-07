@@ -9,6 +9,11 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
+import org.junit.Assert.assertTrue
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.valnook.domain.model.NavigationItemId
@@ -27,8 +32,8 @@ class NavigationReorderUiTest {
         val navigationSettings = rule.activity.getString(dev.valnook.feature.settings.R.string.settings_navigation)
         rule.onNodeWithText(navigationSettings).performScrollTo().performClick()
         rule.onNodeWithTag("navigation-row-statistics").assertExists()
-        rule.onNodeWithText(rule.activity.getString(dev.valnook.feature.settings.R.string.settings_edit))
-            .performClick()
+        rule.onNodeWithTag("navigation-edit").performClick()
+        rule.onNodeWithTag("navigation-save").assertIsNotEnabled()
 
         val initialOrder = rowsInVisualOrder()
         val dragged = initialOrder[0]
@@ -45,6 +50,22 @@ class NavigationReorderUiTest {
             this[1] = dragged
         }
         assertEquals(expected, rowsInVisualOrder())
+        val toolbar = rule.onNodeWithTag("root-toolbar").fetchSemanticsNode().boundsInRoot
+        val save = rule.onNodeWithTag("navigation-save").assertIsEnabled()
+        assertTrue(toolbar.contains(save.fetchSemanticsNode().boundsInRoot.center))
+        save.performClick()
+        rule.onNodeWithTag("navigation-edit").assertExists()
+        assertEquals(expected, runBlocking {
+            rule.activity.sessions.session.value.graph.settings.observeSettings().first().navigation.order
+        })
+        rule.onNodeWithTag("navigation-edit").performClick()
+        val item = expected.first { it != NavigationItemId.SETTINGS }
+        rule.onNodeWithTag("navigation-visible-${item.name.lowercase()}").performClick()
+        rule.onNodeWithTag("navigation-cancel").performClick()
+        rule.onNodeWithTag("navigation-edit").assertExists()
+        assertTrue(runBlocking {
+            item in rule.activity.sessions.session.value.graph.settings.observeSettings().first().navigation.visible
+        })
     }
 
     private fun rowsInVisualOrder(): List<NavigationItemId> = NavigationItemId.entries.sortedBy(::rowCenterY)
