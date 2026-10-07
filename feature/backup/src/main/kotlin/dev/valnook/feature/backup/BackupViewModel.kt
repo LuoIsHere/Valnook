@@ -2,8 +2,7 @@ package dev.valnook.feature.backup
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import android.content.Intent
-import android.content.IntentSender
+import android.app.Activity
 import dev.valnook.domain.cloud.*
 import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.portability.*
@@ -48,7 +47,7 @@ class BackupViewModel(
     private val settings: SettingsRepository,
     private val demo: Boolean,
     private val cloudBackup: CloudBackupService = UnavailableCloudBackupService,
-    private val authorization: GoogleDriveAuthorization = UnavailableGoogleDriveAuthorization
+    private val authorization: CloudAuthorization = UnavailableCloudAuthorization
 ) : ViewModel() {
     private val mutable = MutableStateFlow(BackupUiState())
     val state = mutable.asStateFlow()
@@ -71,27 +70,15 @@ class BackupViewModel(
     fun workbookRequest(): OutputRequest = request(if (demo) "Valnook_Demo" else "Valnook", ".xlsx")
     fun cloudDownloadRequest(value: CloudBackupDescriptor) = CloudDownloadRequest(value.fileId, value.fileName)
 
-    fun beginGoogleConnection(onResolution: (IntentSender) -> Unit) = runCloudJob {
-        handleAuthorization(authorization.begin(), onResolution)
-    }
-
-    fun completeGoogleConnection(data: Intent?, onResolution: (IntentSender) -> Unit = {}) = runCloudJob {
-        handleAuthorization(authorization.complete(data), onResolution)
-    }
-
-    private suspend fun handleAuthorization(
-        outcome: GoogleAuthorizationOutcome,
-        onResolution: (IntentSender) -> Unit
-    ) {
-        when (outcome) {
-            is GoogleAuthorizationOutcome.Granted -> cloudBackup.connect(outcome.grant)
-            is GoogleAuthorizationOutcome.RequiresUserAction -> onResolution(outcome.intentSender)
-            GoogleAuthorizationOutcome.Cancelled -> Unit
-            is GoogleAuthorizationOutcome.Failed -> throw CloudBackupException(outcome.error)
+    fun connect(activity: Activity) = runCloudJob {
+        when (val result = authorization.connect(activity)) {
+            is CloudAuthorizationOutcome.Granted -> cloudBackup.connect(result.grant)
+            CloudAuthorizationOutcome.Cancelled -> Unit
+            is CloudAuthorizationOutcome.Failed -> throw CloudBackupException(result.error)
         }
     }
 
-    fun backupToGoogleDrive() = runCloudJob { cloudBackup.manualBackup() }
+    fun backupToCloud() = runCloudJob { cloudBackup.manualBackup() }
     fun refreshCloudBackups() = runCloudJob { cloudBackup.refresh() }
     fun setAutomatic(enabled: Boolean) = runCloudJob { cloudBackup.setAutomatic(enabled) }
     fun updateIntervalDraft(value: String) {
@@ -103,13 +90,11 @@ class BackupViewModel(
         cloudBackup.setIntervalHours(hours)
     }
     fun resumeAutomatic() = runCloudJob { cloudBackup.resumeAfterRestore() }
-    fun disconnect(revoke: Boolean) = runCloudJob {
-        val account = state.value.cloud.accountReference
+    fun disconnect() = runCloudJob {
         cloudBackup.disconnect()
-        if (revoke && account != null && !authorization.revoke(account)) {
-            throw CloudBackupException(CloudBackupError.AUTH_FAILED)
-        }
+        if (!authorization.disconnect()) throw CloudBackupException(CloudBackupError.AUTH_FAILED)
     }
+    fun manageAuthorization(open: (String) -> Unit) = runCloudJob { open(authorization.managementUrl()) }
     fun toggleCloudBackup(fileId: String) {
         val current = state.value
         mutable.value = current.copy(

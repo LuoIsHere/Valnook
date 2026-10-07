@@ -9,6 +9,8 @@ const val MAX_BACKUP_INTERVAL_HOURS = 720
 const val CLOUD_BACKUP_FOLDER_NAME = "Valnook_backup"
 const val CLOUD_BACKUP_RETENTION_COUNT = 5
 
+enum class CloudProvider { ONEDRIVE, GOOGLE_DRIVE }
+
 enum class BackupPauseReason { NONE, AFTER_RESTORE }
 
 enum class BackupAttemptState {
@@ -31,6 +33,9 @@ enum class CloudBackupError {
     NETWORK_TIME_UNAVAILABLE,
     AUTH_REQUIRED,
     AUTH_FAILED,
+    AUTH_NOT_CONFIGURED,
+    CLOUD_QUOTA,
+    RATE_LIMITED,
     DRIVE_PERMISSION,
     DRIVE_FOLDER_NOT_FOUND,
     UPLOAD_FAILED,
@@ -54,16 +59,22 @@ class CloudBackupException(
 ) : IllegalStateException(error.name, cause)
 
 data class CloudAuthorizationGrant(
-    val accessToken: String
-)
+    val accessToken: String,
+    val provider: CloudProvider = CloudProvider.GOOGLE_DRIVE,
+    val accountReference: String? = null
+) {
+    override fun toString() = "CloudAuthorizationGrant(provider=$provider)"
+}
 
 sealed interface CloudAccessResult {
-    data class Granted(val accessToken: String) : CloudAccessResult
+    data class Granted(val accessToken: String) : CloudAccessResult {
+        override fun toString() = "Granted([redacted])"
+    }
     data object AuthorizationRequired : CloudAccessResult
     data object Unavailable : CloudAccessResult
 }
 
-/** Obtains a short-lived token in memory. Implementations must never persist or log it. */
+/** Obtains a short-lived token in memory. Business code must never persist or log it; the authentication SDK owns its secure cache. */
 fun interface CloudAccessProvider {
     suspend fun access(accountReference: String): CloudAccessResult
 }

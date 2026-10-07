@@ -82,7 +82,7 @@ class CloudBackupCoordinatorTest {
         coordinator.manualBackup()
 
         val active = drive.files.filterNot { it.trashed }
-            .filter { it.appProperties["verificationState"] == "verified" }
+            .filter { it.properties["verificationState"] == "verified" }
         assertEquals(5, active.size)
         assertTrue(drive.trashedIds.contains("old-1"))
         assertFalse(drive.permanentDeleteCalled)
@@ -97,7 +97,7 @@ class CloudBackupCoordinatorTest {
 
         coordinator.manualBackup()
 
-        assertEquals(5, drive.files.count { !it.trashed && it.appProperties["verificationState"] == "verified" })
+        assertEquals(5, drive.files.count { !it.trashed && it.properties["verificationState"] == "verified" })
         assertTrue(drive.trashedIds.isEmpty())
         assertEquals(BackupAttemptState.FAILED, coordinator.observeState().first().attemptState)
         assertEquals(CloudBackupError.VERIFY_FAILED, coordinator.observeState().first().latestError)
@@ -177,7 +177,7 @@ class CloudBackupCoordinatorTest {
         val reconciled = database.cloudBackup().latestAttempt()!!
         assertEquals(BackupAttemptState.SUCCEEDED.name, reconciled.state)
         assertEquals(1, drive.uploadCalls)
-        assertEquals("verified", drive.files.single().appProperties["verificationState"])
+        assertEquals("verified", drive.files.single().properties["verificationState"])
         assertFalse(File(unknown.local_archive_path).exists())
     }
 
@@ -245,7 +245,7 @@ class CloudBackupCoordinatorTest {
     @Test fun gd2_cloud_download_stages_the_original_portable_archive() = runBlocking {
         connect()
         coordinator.manualBackup()
-        val uploaded = drive.files.single { it.appProperties["verificationState"] == "verified" }
+        val uploaded = drive.files.single { it.properties["verificationState"] == "verified" }
 
         val staged = coordinator.stageForRestore(uploaded.id)
         val signature = coordinator.openStagedRestore(staged.localId).use { it.readNBytes(4) }
@@ -292,7 +292,7 @@ class CloudBackupCoordinatorTest {
         val state = coordinator.observeState().first()
         assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
         assertTrue(state.cleanupIncomplete)
-        assertEquals(6, drive.files.count { !it.trashed && it.appProperties["verificationState"] == "verified" })
+        assertEquals(6, drive.files.count { !it.trashed && it.properties["verificationState"] == "verified" })
         assertTrue(drive.trashedIds.isEmpty())
     }
 
@@ -313,7 +313,7 @@ class CloudBackupCoordinatorTest {
             repeat(2) { second.manualBackup() }
             coordinator.manualBackup()
 
-            val active = drive.files.filter { !it.trashed && it.appProperties["verificationState"] == "verified" }
+            val active = drive.files.filter { !it.trashed && it.properties["verificationState"] == "verified" }
             assertEquals(5, active.size)
             assertEquals(6, drive.uploadCalls)
             assertEquals(listOf("new-1"), drive.trashedIds)
@@ -346,7 +346,7 @@ class CloudBackupCoordinatorTest {
     }
 
     private class FakeDrive : CloudDriveApi {
-        val files = mutableListOf<DriveFile>()
+        val files = mutableListOf<RemoteBackupFile>()
         val contents = mutableMapOf<String, ByteArray>()
         val trashedIds = mutableListOf<String>()
         var permanentDeleteCalled = false
@@ -360,21 +360,21 @@ class CloudBackupCoordinatorTest {
         var failUpload: DriveRequestException? = null
         var failTrash = false
         var afterFirstUploadGate: (suspend () -> Unit)? = null
-        private val folder = DriveFolder("managed-folder", "Valnook_backup")
+        private val folder = RemoteBackupFolder("managed-folder", "Valnook_backup")
 
         override suspend fun serverUtcMs(accessToken: String): Long {
             serverUtcCalls++
             return Instant.parse("2026-10-03T06:00:00Z").toEpochMilli()
         }
 
-        override suspend fun currentUser(accessToken: String): DriveUser {
+        override suspend fun currentUser(accessToken: String): RemoteBackupUser {
             currentUserCalls++
-            return DriveUser("synthetic-account", "Test account")
+            return RemoteBackupUser("synthetic-account", "Test account")
         }
         override suspend fun resolveOrCreateFolder(accessToken: String) = folder
         override suspend fun upload(accessToken: String, folderId: String, localFile: File,
             fileName: String, appProperties: Map<String, String>,
-            beforeRemoteSideEffect: suspend () -> Unit): DriveFile {
+            beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile {
             beforeRemoteSideEffect(); uploadCalls++; uploadedBytes = localFile.length()
             afterFirstUploadGate?.invoke()
             beforeRemoteSideEffect()
@@ -382,7 +382,7 @@ class CloudBackupCoordinatorTest {
             val md5 = digest(localFile, "MD5").let { if (corruptUploadChecksum) "0".repeat(32) else it }
             val id = "new-$uploadCalls"
             contents[id] = localFile.readBytes()
-            val result = DriveFile(id, fileName, "2026-10-03T06:00:00Z", localFile.length(), md5,
+            val result = RemoteBackupFile(id, fileName, "2026-10-03T06:00:00Z", localFile.length(), md5,
                 listOf(folderId), appProperties, false).also(files::add)
             if (failAfterUploadWithUnknownOutcome) throw DriveRequestException(null, true)
             return result
@@ -390,19 +390,19 @@ class CloudBackupCoordinatorTest {
         override suspend fun metadata(accessToken: String, fileId: String) = files.first { it.id == fileId }
         override suspend fun markVerified(accessToken: String, fileId: String,
             appProperties: Map<String, String>,
-            beforeRemoteSideEffect: suspend () -> Unit): DriveFile {
+            beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile {
             beforeRemoteSideEffect()
             val index = files.indexOfFirst { it.id == fileId }
-            val value = files[index].copy(appProperties = appProperties)
+            val value = files[index].copy(properties = appProperties)
             files[index] = value
             return value
         }
-        override suspend fun listPage(accessToken: String, folderId: String, pageToken: String?): DrivePage {
+        override suspend fun listPage(accessToken: String, folderId: String, pageToken: String?): RemoteBackupPage {
             listCalls++
             val offset = pageToken?.toInt() ?: 0
             val page = files.filter { folderId in it.parents && !it.trashed }.drop(offset).take(2)
             val next = (offset + page.size).takeIf { it < files.count { file -> folderId in file.parents && !file.trashed } }
-            return DrivePage(page, next?.toString())
+            return RemoteBackupPage(page, next?.toString())
         }
         override suspend fun trash(accessToken: String, fileId: String,
             beforeRemoteSideEffect: suspend () -> Unit) {
@@ -416,7 +416,7 @@ class CloudBackupCoordinatorTest {
             output.write(contents[fileId] ?: byteArrayOf(1, 2, 3))
         }
         fun seedVerified(order: Int, databaseSchema: Int = 10) {
-            files += DriveFile("old-$order", "Valnook_old_$order.val_backup",
+            files += RemoteBackupFile("old-$order", "Valnook_old_$order.val_backup",
                 "2026-09-${order.toString().padStart(2, '0')}T00:00:00Z", 100, "0".repeat(32),
                 listOf(folder.id), mapOf(
                     "app" to "valnook", "role" to "backup", "verificationState" to "verified",

@@ -97,7 +97,7 @@ internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
     appVersionCode = dev.valnook.app.BuildConfig.VERSION_CODE.toLong(),
     internalBuildRevision = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
     internalBuildLabel = dev.valnook.app.BuildConfig.INTERNAL_BUILD_ID,
-    databaseSchemaVersion = 13
+    databaseSchemaVersion = dev.valnook.data.database.DATABASE_SCHEMA_VERSION
 )
 
 @Module
@@ -121,12 +121,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun cloudAccessProvider(gateway: dev.valnook.app.cloud.GoogleAuthorizationGateway): CloudAccessProvider = gateway
+    fun cloudAccessProvider(gateway: dev.valnook.app.cloud.MicrosoftAuthorizationGateway): CloudAccessProvider = gateway
 
     @Provides
     @Singleton
-    fun googleDriveAuthorization(gateway: dev.valnook.app.cloud.GoogleAuthorizationGateway):
-        dev.valnook.feature.backup.GoogleDriveAuthorization = gateway
+    fun cloudAuthorization(gateway: dev.valnook.app.cloud.MicrosoftAuthorizationGateway):
+        dev.valnook.feature.backup.CloudAuthorization = gateway
 
     @Provides
     @Singleton

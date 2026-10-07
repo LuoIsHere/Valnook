@@ -38,8 +38,8 @@ class AppSessionManager @Inject internal constructor(
     private val clock: Clock,
     private val cloudCoordinator: dev.valnook.domain.cloud.CloudBackupService =
         dev.valnook.domain.cloud.UnavailableCloudBackupService,
-    val googleAuthorization: dev.valnook.feature.backup.GoogleDriveAuthorization =
-        dev.valnook.feature.backup.UnavailableGoogleDriveAuthorization
+    val cloudAuthorization: dev.valnook.feature.backup.CloudAuthorization =
+        dev.valnook.feature.backup.UnavailableCloudAuthorization
 ) {
     /** Single non-reentrant boundary for writes, switches, and destructive maintenance. */
     private val writeMutex = Mutex()

@@ -1,5 +1,6 @@
 package dev.valnook.data.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -26,7 +27,8 @@ data class CloudBackupStateEntity(
     val pending_banner_event_id: String?,
     val pending_banner_error: String?,
     val observed_restore_attempt_id: String?,
-    val updated_at_ms: Long
+    val updated_at_ms: Long,
+    @ColumnInfo(defaultValue = "'GOOGLE_DRIVE'") val provider: String = "GOOGLE_DRIVE"
 )
 
 @Entity(
@@ -50,5 +52,6 @@ data class CloudBackupAttemptEntity(
     val started_at_utc_ms: Long,
     val finished_at_utc_ms: Long?,
     val state: String,
-    val error: String?
+    val error: String?,
+    @ColumnInfo(defaultValue = "'GOOGLE_DRIVE'") val provider: String = "GOOGLE_DRIVE"
 )

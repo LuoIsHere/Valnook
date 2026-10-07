@@ -29,7 +29,7 @@ internal class GoogleDriveRestApi : CloudDriveApi {
         }
     }
 
-    override suspend fun currentUser(accessToken: String): DriveUser {
+    override suspend fun currentUser(accessToken: String): RemoteBackupUser {
         val response = JSONObject(requestJson(
             "GET",
             "$ABOUT?fields=${encode("user(displayName,emailAddress)")}",
@@ -38,7 +38,7 @@ internal class GoogleDriveRestApi : CloudDriveApi {
         val user = response.optJSONObject("user") ?: JSONObject()
         val email = user.optString("emailAddress").trim()
         val displayName = user.optString("displayName").trim()
-        return DriveUser(
+        return RemoteBackupUser(
             accountReference = email,
             accountDisplay = when {
                 email.isNotBlank() && displayName.isNotBlank() -> "$displayName · $email"
@@ -48,25 +48,25 @@ internal class GoogleDriveRestApi : CloudDriveApi {
         )
     }
 
-    override suspend fun resolveOrCreateFolder(accessToken: String): DriveFolder {
+    override suspend fun resolveOrCreateFolder(accessToken: String): RemoteBackupFolder {
         val query = "trashed=false and mimeType='application/vnd.google-apps.folder' and " +
             "appProperties has { key='app' and value='valnook' } and " +
             "appProperties has { key='role' and value='backup-root' }"
-        val folders = mutableListOf<DriveFile>()
+        val folders = mutableListOf<RemoteBackupFile>()
         var pageToken: String? = null
         do {
             val page = listRaw(accessToken, query, pageToken)
             folders += page.files
             pageToken = page.nextPageToken
         } while (pageToken != null)
-        val valid = folders.sortedWith(compareBy<DriveFile> { it.createdTime }.thenBy { it.id })
-        if (valid.isNotEmpty()) return DriveFolder(valid.first().id, valid.first().name)
+        val valid = folders.sortedWith(compareBy<RemoteBackupFile> { it.createdTime }.thenBy { it.id })
+        if (valid.isNotEmpty()) return RemoteBackupFolder(valid.first().id, valid.first().name)
         val body = JSONObject()
             .put("name", "Valnook_backup")
             .put("mimeType", "application/vnd.google-apps.folder")
             .put("appProperties", JSONObject(mapOf("app" to "valnook", "role" to "backup-root")))
         val response = requestJson("POST", "$FILES?fields=$FILE_FIELDS", accessToken, body.toString())
-        return parseFile(response).let { DriveFolder(it.id, it.name) }
+        return parseFile(response).let { RemoteBackupFolder(it.id, it.name) }
     }
 
     override suspend fun upload(
@@ -76,7 +76,7 @@ internal class GoogleDriveRestApi : CloudDriveApi {
         fileName: String,
         appProperties: Map<String, String>,
         beforeRemoteSideEffect: suspend () -> Unit
-    ): DriveFile = withContext(Dispatchers.IO) {
+    ): RemoteBackupFile = withContext(Dispatchers.IO) {
         beforeRemoteSideEffect()
         val metadata = JSONObject()
             .put("name", fileName)
@@ -140,19 +140,19 @@ internal class GoogleDriveRestApi : CloudDriveApi {
         }
     }
 
-    override suspend fun metadata(accessToken: String, fileId: String): DriveFile =
+    override suspend fun metadata(accessToken: String, fileId: String): RemoteBackupFile =
         parseFile(requestJson("GET", "$FILES/${encode(fileId)}?fields=$FILE_FIELDS", accessToken))
 
     override suspend fun markVerified(accessToken: String, fileId: String,
         appProperties: Map<String, String>,
-        beforeRemoteSideEffect: suspend () -> Unit): DriveFile {
+        beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile {
         beforeRemoteSideEffect()
         val body = JSONObject().put("appProperties", JSONObject(appProperties))
         return parseFile(requestJson("PATCH", "$FILES/${encode(fileId)}?fields=$FILE_FIELDS",
             accessToken, body.toString()))
     }
 
-    override suspend fun listPage(accessToken: String, folderId: String, pageToken: String?): DrivePage =
+    override suspend fun listPage(accessToken: String, folderId: String, pageToken: String?): RemoteBackupPage =
         listRaw(accessToken, "trashed=false and '${escapeQuery(folderId)}' in parents", pageToken)
 
     override suspend fun trash(accessToken: String, fileId: String,
@@ -178,7 +178,7 @@ internal class GoogleDriveRestApi : CloudDriveApi {
             }
         }
 
-    private suspend fun listRaw(accessToken: String, query: String, pageToken: String?): DrivePage {
+    private suspend fun listRaw(accessToken: String, query: String, pageToken: String?): RemoteBackupPage {
         val url = buildString {
             append(FILES).append("?q=").append(encode(query))
             append("&spaces=drive&pageSize=100&orderBy=createdTime,name")
@@ -187,7 +187,7 @@ internal class GoogleDriveRestApi : CloudDriveApi {
         }
         val value = JSONObject(requestJson("GET", url, accessToken))
         val files = value.optJSONArray("files") ?: JSONArray()
-        return DrivePage((0 until files.length()).map { parseFile(files.getJSONObject(it)) },
+        return RemoteBackupPage((0 until files.length()).map { parseFile(files.getJSONObject(it)) },
             value.optString("nextPageToken").takeIf { it.isNotBlank() })
     }
 
@@ -229,18 +229,18 @@ internal class GoogleDriveRestApi : CloudDriveApi {
     private fun readBody(connection: HttpURLConnection): String =
         connection.inputStream.bufferedReader(StandardCharsets.UTF_8).use { it.readText() }
 
-    private fun parseFile(raw: String): DriveFile = parseFile(JSONObject(raw))
-    private fun parseFile(value: JSONObject): DriveFile {
+    private fun parseFile(raw: String): RemoteBackupFile = parseFile(JSONObject(raw))
+    private fun parseFile(value: JSONObject): RemoteBackupFile {
         val properties = value.optJSONObject("appProperties") ?: JSONObject()
         val parents = value.optJSONArray("parents") ?: JSONArray()
-        return DriveFile(
+        return RemoteBackupFile(
             id = value.getString("id"),
             name = value.optString("name"),
             createdTime = value.optString("createdTime"),
             size = value.optString("size", "0").toLongOrNull() ?: 0L,
             md5Checksum = value.optString("md5Checksum").takeIf(String::isNotBlank),
             parents = (0 until parents.length()).map { parents.getString(it) },
-            appProperties = properties.keys().asSequence().associateWith { properties.getString(it) },
+            properties = properties.keys().asSequence().associateWith { properties.getString(it) },
             trashed = value.optBoolean("trashed", false)
         )
     }

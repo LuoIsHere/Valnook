@@ -368,7 +368,7 @@ private fun SessionRoot(
                                 dev.valnook.feature.backup.BackupScreen(pageViewModel {
                                     dev.valnook.feature.backup.BackupViewModel(
                                         graph.portability, graph.settings, active.mode == DataMode.DEMO,
-                                        graph.cloudBackup, sessions.googleAuthorization)
+                                        graph.cloudBackup, sessions.cloudAuthorization)
                                 }, active.mode == DataMode.DEMO)
                             }
                             entry<WebAdminKey> {

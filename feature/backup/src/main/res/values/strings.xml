@@ -36,8 +36,8 @@
     <string name="backup_error_limit">The file exceeds a supported safety or spreadsheet limit.</string>
     <string name="backup_error_space">There is not enough private storage to validate this file safely.</string>
     <string name="backup_error_generic">The file operation could not be completed. Current records were not changed.</string>
-    <string name="cloud_title">Google Drive</string>
-    <string name="cloud_connect">Connect Google Drive</string>
+    <string name="cloud_title">OneDrive</string>
+    <string name="cloud_connect">Connect OneDrive</string>
     <string name="cloud_backup_now">Back up now</string>
     <string name="cloud_refresh">Refresh</string>
     <string name="cloud_automatic">Automatic backup</string>
@@ -64,8 +64,8 @@
     <string name="cloud_download">Download original</string>
     <string name="cloud_restore">Restore</string>
     <string name="cloud_disconnect">Disconnect from this device</string>
-    <string name="cloud_revoke">Disconnect and revoke Google authorization</string>
-    <string name="cloud_working">Working with Google Drive…</string>
+    <string name="cloud_revoke">Manage Microsoft authorization</string>
+    <string name="cloud_working">Working with OneDrive…</string>
     <string name="cloud_status_idle">Idle</string>
     <string name="cloud_status_preparing">Preparing backup</string>
     <string name="cloud_status_waiting_network">Waiting for network</string>
@@ -79,11 +79,14 @@
     <string name="cloud_status_cancelled">Cancelled</string>
     <string name="cloud_error_no_network">No validated network is available. The due backup will wait.</string>
     <string name="cloud_error_network_time">Trusted network UTC is temporarily unavailable.</string>
-    <string name="cloud_error_auth_required">Google authorization is required again.</string>
-    <string name="cloud_error_auth_failed">Google authorization could not be completed. Verify the OAuth client for this app build and try again.</string>
-    <string name="cloud_error_drive_permission">Google Drive denied access. Confirm that the Drive API is enabled, then authorize again.</string>
+    <string name="cloud_error_auth_required">Microsoft authorization is required again.</string>
+    <string name="cloud_error_auth_failed">Microsoft sign-in could not be completed. Check your connection and app registration.</string>
+    <string name="cloud_error_drive_permission">OneDrive denied access. Check app folder permissions or your organization policy.</string>
     <string name="cloud_error_drive_missing">The cloud backup folder or file is no longer available. Refresh or reconnect.</string>
     <string name="cloud_error_interval">Enter a whole number from 1 to 720 hours.</string>
-    <string name="cloud_error_generic">The Google Drive operation could not be completed.</string>
-    <string name="cloud_google_attribution">Google Drive and the Google logo are trademarks of Google LLC.</string>
+    <string name="cloud_error_generic">The OneDrive operation could not be completed.</string>
+    <string name="cloud_microsoft_attribution">Microsoft, OneDrive and their logos are trademarks of Microsoft Corporation.</string>
+    <string name="cloud_error_config">Microsoft sign-in is not configured for this build.</string>
+    <string name="cloud_error_quota">OneDrive storage is full. Free some space and try again.</string>
+    <string name="cloud_error_rate">OneDrive is busy. Try again later.</string>
 </resources>

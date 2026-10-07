@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
 
 class WorkManagerBackupScheduler(context: Context) : BackupScheduler {
     private val work = WorkManager.getInstance(context.applicationContext)
+    init { work.cancelUniqueWork("valnook-cloud-backup") }
     override suspend fun replace(nextDueAtUtcMs: Long, referenceUtcMs: Long, cycleId: String, dataGeneration: Long,
         connectionGeneration: Long, scheduleGeneration: Long) {
         val input = Data.Builder()
@@ -34,7 +35,7 @@ class WorkManagerBackupScheduler(context: Context) : BackupScheduler {
     override suspend fun cancel() { work.cancelUniqueWork(WORK_NAME) }
 
     companion object {
-        const val WORK_NAME = "valnook-cloud-backup"
+        const val WORK_NAME = "valnook-onedrive-backup"
         const val KEY_CYCLE = "cycle_id"
         const val KEY_DATA_GENERATION = "data_generation"
         const val KEY_CONNECTION_GENERATION = "connection_generation"

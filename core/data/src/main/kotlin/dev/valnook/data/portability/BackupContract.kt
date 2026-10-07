@@ -48,7 +48,7 @@ data class PortableTable(
 internal object BackupContract {
     const val FORMAT = "valnook-backup"
     const val FORMAT_VERSION = 1
-    const val DATA_SCHEMA_VERSION = 4
+    const val DATA_SCHEMA_VERSION = dev.valnook.domain.portability.BACKUP_DATA_SCHEMA_VERSION
     const val REPORT_FORMAT_VERSION = 2
     const val POSITION_COST_RULE = InvestmentProfitCalculator.ALGORITHM_VERSION
     const val DEPOSIT_INTEREST_RULE = 1

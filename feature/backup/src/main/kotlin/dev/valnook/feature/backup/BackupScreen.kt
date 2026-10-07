@@ -3,7 +3,6 @@ package dev.valnook.feature.backup
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -46,12 +45,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
     var backupRequest by remember { mutableStateOf<OutputRequest?>(null) }
     var workbookRequest by remember { mutableStateOf<OutputRequest?>(null) }
     var cloudDownload by remember { mutableStateOf<CloudDownloadRequest?>(null) }
-    val authLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
-        vm.completeGoogleConnection(result.data)
-    }
-    val launchAuthorization: (android.content.IntentSender) -> Unit = { sender ->
-        authLauncher.launch(IntentSenderRequest.Builder(sender).build())
-    }
+    val activity = LocalContext.current.findActivity()
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         backupRequest?.let { request ->
             if (uri != null) vm.createBackup(request,
@@ -105,25 +99,26 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    Image(painterResource(R.drawable.ic_google_g), contentDescription = null,
+                    Image(painterResource(R.drawable.ic_onedrive), contentDescription = null,
                         modifier = Modifier.size(24.dp).testTag("cloud-title-icon"))
                     Text(stringResource(R.string.cloud_title), style = MaterialTheme.typography.titleLarge)
                 }
             }
             if (!state.cloud.connected) {
-                item { Button({ vm.beginGoogleConnection(launchAuthorization) },
+                item { Button({ activity?.let(vm::connect) },
                     enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth().testTag("cloud-connect")) {
                     Text(stringResource(R.string.cloud_connect))
                 } }
             } else {
                 item { Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(state.cloud.accountDisplay.orEmpty(), style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        modifier = Modifier.fillMaxWidth().testTag("cloud-account-display"),
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(state.cloud.folderName.orEmpty(), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 } }
                 item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    Button(vm::backupToGoogleDrive, enabled = !state.cloudBusy,
+                    Button(vm::backupToCloud, enabled = !state.cloudBusy,
                         modifier = Modifier.weight(1f).testTag("cloud-backup-now")) {
                         Text(stringResource(R.string.cloud_backup_now))
                     }
@@ -154,6 +149,11 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                         Text(stringResource(R.string.cloud_save_interval))
                     }
                 } }
+                if (state.cloud.latestError == CloudBackupError.AUTH_REQUIRED || state.cloudError == CloudBackupError.AUTH_REQUIRED) item {
+                    Button({ activity?.let(vm::connect) }, enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.cloud_connect))
+                    }
+                }
                 item { CloudStatus(state.cloud.attemptState, state.cloud.lastSuccessAtUtc,
                     state.cloud.nextDueAtUtc, state.cloud.cleanupIncomplete) }
                 item { HorizontalDivider() }
@@ -177,9 +177,9 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                         onRestore = { vm.prepareCloudRestore(value) }
                     )
                 }
-                item { TextButton({ vm.disconnect(false) }, enabled = !state.cloudBusy,
-                    modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.cloud_disconnect)) } }
-                item { TextButton({ vm.disconnect(true) }, enabled = !state.cloudBusy,
+                item { TextButton({ vm.disconnect() }, enabled = !state.cloudBusy,
+                    modifier = Modifier.fillMaxWidth().testTag("cloud-disconnect")) { Text(stringResource(R.string.cloud_disconnect)) } }
+                item { TextButton({ vm.manageAuthorization { url -> context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }, enabled = !state.cloudBusy,
                     modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.cloud_revoke)) } }
             }
         }
@@ -227,8 +227,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         state.error?.let { item { HintMessage(errorLabel(it), isError = true) } }
         state.cloudError?.let { item { HintMessage(cloudErrorLabel(it), isError = true) } }
         if (!demoMode) item {
-            Text(stringResource(R.string.cloud_google_attribution),
-                modifier = Modifier.fillMaxWidth().padding(top = Space.lg).testTag("cloud-google-attribution"),
+            Text(stringResource(R.string.cloud_microsoft_attribution),
+                modifier = Modifier.fillMaxWidth().padding(top = Space.lg).testTag("cloud-microsoft-attribution"),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -351,6 +351,9 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
     CloudBackupError.NO_NETWORK -> stringResource(R.string.cloud_error_no_network)
     CloudBackupError.NETWORK_TIME_UNAVAILABLE -> stringResource(R.string.cloud_error_network_time)
     CloudBackupError.AUTH_REQUIRED -> stringResource(R.string.cloud_error_auth_required)
+    CloudBackupError.AUTH_NOT_CONFIGURED -> stringResource(R.string.cloud_error_config)
+    CloudBackupError.CLOUD_QUOTA -> stringResource(R.string.cloud_error_quota)
+    CloudBackupError.RATE_LIMITED -> stringResource(R.string.cloud_error_rate)
     CloudBackupError.AUTH_FAILED -> stringResource(R.string.cloud_error_auth_failed)
     CloudBackupError.DRIVE_PERMISSION -> stringResource(R.string.cloud_error_drive_permission)
     CloudBackupError.DRIVE_FOLDER_NOT_FOUND -> stringResource(R.string.cloud_error_drive_missing)
@@ -366,3 +369,9 @@ private fun displayName(context: android.content.Context, uri: Uri): String = ru
         if (cursor.moveToFirst()) cursor.getString(0) else null
     }
 }.getOrNull() ?: uri.lastPathSegment.orEmpty()
+
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}

@@ -56,7 +56,7 @@
     <string name="settings_navigation">导航栏</string>
     <string name="settings_navigation_summary">设置页面顺序和显示状态</string>
     <string name="settings_backup_export">备份与导出</string>
-    <string name="settings_backup_export_summary">本地与 Google Drive 备份、恢复和 Excel 导出</string>
+    <string name="settings_backup_export_summary">本地与 OneDrive 备份、恢复和 Excel 导出</string>
     <string name="settings_backup_export_demo_summary">导出合成演示数据工作簿</string>
     <string name="settings_webadmin">网页端管理</string>
     <string name="settings_webadmin_summary">通过同一局域网中的浏览器管理此设备</string>

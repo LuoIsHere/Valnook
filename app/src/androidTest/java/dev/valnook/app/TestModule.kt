@@ -20,8 +20,8 @@ import dev.valnook.domain.cloud.CloudAccessProvider
 import dev.valnook.domain.cloud.CloudAccessResult
 import dev.valnook.domain.cloud.CloudBackupService
 import dev.valnook.domain.cloud.BackupScheduler
-import dev.valnook.feature.backup.GoogleDriveAuthorization
-import dev.valnook.feature.backup.UnavailableGoogleDriveAuthorization
+import dev.valnook.feature.backup.CloudAuthorization
+import dev.valnook.feature.backup.UnavailableCloudAuthorization
 
 @Module
 @TestInstallIn(components = [SingletonComponent::class], replaces = [AppModule::class])
@@ -57,5 +57,5 @@ object TestModule {
         dev.valnook.data.cloud.createCloudBackupCoordinator(context, database, graph.portability, access, scheduler)
     @Provides @Singleton fun cloudBackupService(
         coordinator: dev.valnook.data.cloud.CloudBackupCoordinator): CloudBackupService = coordinator
-    @Provides @Singleton fun googleDriveAuthorization(): GoogleDriveAuthorization = UnavailableGoogleDriveAuthorization
+    @Provides @Singleton fun cloudAuthorization(): CloudAuthorization = UnavailableCloudAuthorization
 }

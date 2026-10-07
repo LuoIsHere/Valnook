@@ -48,7 +48,7 @@ class CloudBackupCoordinator internal constructor(
     override suspend fun reconcileSchedule() {
         reconcileRestorePause()
         val state = store.state()
-        if (!state.automatic_enabled || state.pause_reason != BackupPauseReason.NONE.name ||
+        if (state.provider != drive.provider.name || !state.automatic_enabled || state.pause_reason != BackupPauseReason.NONE.name ||
             state.folder_id == null || state.next_due_at_utc_ms == null) {
             scheduler.cancel()
             return
@@ -74,9 +74,10 @@ class CloudBackupCoordinator internal constructor(
     suspend fun initialize() = reconcileSchedule()
 
     override suspend fun connect(grant: CloudAuthorizationGrant) {
-        if (grant.accessToken.isBlank()) {
+        if (grant.provider != drive.provider || grant.accessToken.isBlank()) {
             throw CloudBackupException(CloudBackupError.AUTH_FAILED)
         }
+        val before = store.state()
         val (account, folder) = try {
             drive.currentUser(grant.accessToken) to drive.resolveOrCreateFolder(grant.accessToken)
         } catch (error: DriveRequestException) {
@@ -87,20 +88,28 @@ class CloudBackupCoordinator internal constructor(
         }
         val now = try { trustedNow(grant.accessToken) } catch (_: Exception) { null }
             ?: System.currentTimeMillis()
-        store.update { current -> current.copy(
-            account_reference = account.accountReference,
+        store.update { current ->
+            if (current.connection_generation != before.connection_generation) stale()
+            current.copy(
+            provider = drive.provider.name,
+            account_reference = grant.accountReference ?: account.accountReference,
             account_display = account.accountDisplay,
             folder_id = folder.id,
             connection_generation = current.connection_generation + 1,
             schedule_generation = current.schedule_generation + 1,
             next_due_at_utc_ms = null,
             scheduled_cycle_id = null,
+            automatic_enabled = false,
+            last_success_at_utc_ms = null,
+            last_attempt_at_utc_ms = null,
+            cleanup_incomplete = false,
             attempt_state = BackupAttemptState.IDLE.name,
             latest_error = null,
             pending_banner_event_id = null,
             pending_banner_error = null,
             updated_at_ms = now
         ) }
+        remote.value = emptyList()
         scheduler.cancel()
         refreshWithToken(grant.accessToken)
     }
@@ -136,6 +145,9 @@ class CloudBackupCoordinator internal constructor(
         connectionGeneration: Long,
         scheduleGeneration: Long
     ): Boolean {
+        val before = store.state()
+        if (before.provider != drive.provider.name || before.connection_generation != connectionGeneration ||
+            before.schedule_generation != scheduleGeneration) return false
         executeCycle(cycleId, automatic = true,
             expected = Generation(dataGeneration, connectionGeneration, scheduleGeneration))
         val state = store.state()
@@ -147,7 +159,14 @@ class CloudBackupCoordinator internal constructor(
     override suspend fun refresh() {
         val state = requireConnection()
         val token = requireAccess(state.account_reference!!)
+        val account = try { drive.currentUser(token) } catch (error: DriveRequestException) {
+            throw mapDrive(error, CloudBackupError.AUTH_FAILED)
+        }
         refreshWithToken(token)
+        store.update { current ->
+            if (current.connection_generation != state.connection_generation) stale()
+            current.copy(account_display = account.accountDisplay.takeIf { it.isNotBlank() } ?: current.account_display)
+        }
     }
 
     override suspend fun setAutomatic(enabled: Boolean) {
@@ -238,6 +257,8 @@ class CloudBackupCoordinator internal constructor(
         val file = File(directory, "candidate.val_backup")
         try {
             FileOutputStream(file).use { drive.download(token, fileId, it) }
+            if (file.length() != metadata.size || digest(file, "SHA-256") != metadata.properties["archiveSha256"]) verifyFailed()
+            if (store.state().connection_generation != state.connection_generation) stale()
             return CloudRestoreDownload(localId, metadata.name)
         } catch (error: Exception) {
             directory.deleteRecursively()
@@ -323,7 +344,7 @@ class CloudBackupCoordinator internal constructor(
                 schedule_generation = actual.schedule, folder_id = state.folder_id!!,
                 planned_drive_file_id = null, drive_file_id = null,
                 local_archive_path = archiveFile.absolutePath, archive_sha256 = result.sha256,
-                archive_md5 = md5, archive_size = archiveFile.length(), started_at_utc_ms = now,
+                provider = drive.provider.name, archive_md5 = md5, archive_size = archiveFile.length(), started_at_utc_ms = now,
                 finished_at_utc_ms = null, state = BackupAttemptState.UPLOADING.name, error = null)
             if (!store.claim(attempt)) return
             assertGeneration(actual, cycleId, automatic)
@@ -346,13 +367,14 @@ class CloudBackupCoordinator internal constructor(
             store.update { it.copy(attempt_state = BackupAttemptState.VERIFYING.name, updated_at_ms = now) }
             val verified = try {
                 assertRemote(uploaded, attempt)
+                drive.verify(token, uploaded, attempt.archive_sha256, attempt.archive_size)
                 val marked = drive.markVerified(token, uploaded.id,
-                    uploaded.appProperties + ("verificationState" to "verified")) {
+                    uploaded.properties + ("verificationState" to "verified")) {
                     assertGeneration(actual, cycleId, automatic)
                 }
                 val confirmed = drive.metadata(token, marked.id)
                 assertRemote(confirmed, attempt)
-                if (confirmed.appProperties["verificationState"] != "verified") verifyFailed()
+                if (confirmed.properties["verificationState"] != "verified") verifyFailed()
                 confirmed
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -406,9 +428,11 @@ class CloudBackupCoordinator internal constructor(
         val cloudError = when {
             error is CloudBackupException -> error.error
             unknown -> CloudBackupError.UPLOAD_UNKNOWN
-            verify -> CloudBackupError.VERIFY_FAILED
             error is DriveRequestException && error.statusCode == 401 -> CloudBackupError.AUTH_REQUIRED
             error is DriveRequestException && error.statusCode == 403 -> CloudBackupError.DRIVE_PERMISSION
+            error is DriveRequestException && error.statusCode == 429 -> CloudBackupError.RATE_LIMITED
+            error is DriveRequestException && error.statusCode == 507 -> CloudBackupError.CLOUD_QUOTA
+            verify -> CloudBackupError.VERIFY_FAILED
             else -> CloudBackupError.UPLOAD_FAILED
         }
         val state = if (unknown) BackupAttemptState.UNKNOWN_RESULT else BackupAttemptState.FAILED
@@ -486,7 +510,9 @@ class CloudBackupCoordinator internal constructor(
             state = BackupAttemptState.SUCCEEDED.name, error = null)
         store.saveAttempt(finished)
         try {
-            remote.value = listManaged(token, folderId).map { it.toDescriptor(portability.buildInfo()) }
+            val values = listManaged(token, folderId).map { it.toDescriptor(portability.buildInfo()) }
+            assertGeneration(generation, cycleId, automatic)
+            remote.value = values
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -500,8 +526,8 @@ class CloudBackupCoordinator internal constructor(
     private suspend fun rotate(token: String, folderId: String, generation: Generation,
         cycleId: String, automatic: Boolean) {
         val valid = listManaged(token, folderId).filter {
-            it.appProperties["verificationState"] == "verified"
-        }.sortedWith(compareByDescending<DriveFile> { it.createdTime }.thenByDescending { it.id })
+            it.properties["verificationState"] == "verified"
+        }.sortedWith(compareByDescending<RemoteBackupFile> { it.createdTime }.thenByDescending { it.id })
         valid.drop(CLOUD_BACKUP_RETENTION_COUNT).forEach { old ->
             assertGeneration(generation, cycleId, automatic)
             drive.trash(token, old.id) { assertGeneration(generation, cycleId, automatic) }
@@ -511,17 +537,20 @@ class CloudBackupCoordinator internal constructor(
     private suspend fun reconcileUnknown(token: String, folderId: String, generation: Generation,
         cycleId: String, automatic: Boolean): CloudBackupAttemptEntity? {
         val attempt = store.latestAttempt()?.takeIf {
-            it.state == BackupAttemptState.UNKNOWN_RESULT.name && it.folder_id == folderId
+            it.provider == drive.provider.name && it.state == BackupAttemptState.UNKNOWN_RESULT.name && it.folder_id == folderId
         } ?: return null
         val found = listManaged(token, folderId).firstOrNull {
-            it.id == attempt.drive_file_id || it.appProperties["attemptId"] == attempt.attempt_id
+            it.id == attempt.drive_file_id || it.properties["attemptId"] == attempt.attempt_id
         } ?: return null
         if (runCatching { assertRemote(found, attempt) }.isFailure) return null
-        val verified = when (found.appProperties["verificationState"]) {
+        try { drive.verify(token, found, attempt.archive_sha256, attempt.archive_size) }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { return null }
+        val verified = when (found.properties["verificationState"]) {
             "verified" -> found
             "uploaded-unverified" -> try {
                 drive.markVerified(token, found.id,
-                    found.appProperties + ("verificationState" to "verified")) {
+                    found.properties + ("verificationState" to "verified")) {
                     assertGeneration(generation, cycleId, automatic)
                 }
             } catch (_: Exception) {
@@ -531,28 +560,32 @@ class CloudBackupCoordinator internal constructor(
         }
         val confirmed = try { drive.metadata(token, verified.id) } catch (_: Exception) { return null }
         if (runCatching { assertRemote(confirmed, attempt) }.isFailure ||
-            confirmed.appProperties["verificationState"] != "verified") return null
+            confirmed.properties["verificationState"] != "verified") return null
         return attempt.copy(drive_file_id = confirmed.id, state = BackupAttemptState.VERIFYING.name,
             error = null)
     }
 
     private suspend fun refreshWithToken(token: String) {
         val state = requireConnection()
-        remote.value = listManaged(token, state.folder_id!!).map { it.toDescriptor(portability.buildInfo()) }
+        val values = listManaged(token, state.folder_id!!).map { it.toDescriptor(portability.buildInfo()) }
+        if (store.state().connection_generation != state.connection_generation) stale()
+        remote.value = values
     }
 
-    private suspend fun listManaged(token: String, folderId: String): List<DriveFile> {
-        val result = mutableListOf<DriveFile>()
+    private suspend fun listManaged(token: String, folderId: String): List<RemoteBackupFile> {
+        val result = mutableListOf<RemoteBackupFile>()
         var page: String? = null
+        val seen = mutableSetOf<String>()
         do {
+            if (page != null && (!seen.add(page) || seen.size > 1000)) throw CloudBackupException(CloudBackupError.DOWNLOAD_FAILED)
             val response = drive.listPage(token, folderId, page)
             result += response.files.filter { it.isManagedBackup(folderId) }
             page = response.nextPageToken
         } while (page != null)
-        return result.sortedWith(compareByDescending<DriveFile> { it.createdTime }.thenByDescending { it.id })
+        return result.sortedWith(compareByDescending<RemoteBackupFile> { it.createdTime }.thenByDescending { it.id })
     }
 
-    private suspend fun requireManagedFile(token: String, folderId: String, fileId: String): DriveFile {
+    private suspend fun requireManagedFile(token: String, folderId: String, fileId: String): RemoteBackupFile {
         val value = try { drive.metadata(token, fileId) } catch (error: DriveRequestException) {
             throw mapDrive(error, CloudBackupError.DOWNLOAD_FAILED)
         }
@@ -587,7 +620,7 @@ class CloudBackupCoordinator internal constructor(
     }
 
     private suspend fun requireConnection(): CloudBackupStateEntity = store.state().also {
-        if (it.folder_id == null || it.account_reference == null) throw CloudBackupException(CloudBackupError.AUTH_REQUIRED)
+        if (it.provider != drive.provider.name || it.folder_id == null || it.account_reference == null) throw CloudBackupException(CloudBackupError.AUTH_REQUIRED)
     }
 
     private suspend fun assertGeneration(expected: Generation, cycleId: String, automatic: Boolean) {
@@ -599,7 +632,7 @@ class CloudBackupCoordinator internal constructor(
         val current = store.state()
         val data = database.audit().generation()
         val validCycle = !automatic || current.scheduled_cycle_id == cycleId
-        return data == expected.data && current.connection_generation == expected.connection &&
+        return current.provider == drive.provider.name && data == expected.data && current.connection_generation == expected.connection &&
             current.schedule_generation == expected.schedule && validCycle && current.folder_id != null &&
             (!automatic || current.pause_reason != BackupPauseReason.AFTER_RESTORE.name)
     }
@@ -650,33 +683,33 @@ class CloudBackupCoordinator internal constructor(
         )
     }
 
-    private fun assertRemote(file: DriveFile, attempt: CloudBackupAttemptEntity) {
+    private fun assertRemote(file: RemoteBackupFile, attempt: CloudBackupAttemptEntity) {
         if (file.trashed || attempt.folder_id !in file.parents || file.size != attempt.archive_size ||
-            !file.md5Checksum.equals(attempt.archive_md5, ignoreCase = true) ||
-            file.appProperties["app"] != "valnook" || file.appProperties["role"] != "backup" ||
-            file.appProperties["backupId"] != attempt.backup_id ||
-            file.appProperties["attemptId"] != attempt.attempt_id ||
-            file.appProperties["archiveSha256"] != attempt.archive_sha256) verifyFailed()
+            (file.md5Checksum != null && !file.md5Checksum.equals(attempt.archive_md5, ignoreCase = true)) ||
+            file.properties["app"] != "valnook" || file.properties["role"] != "backup" ||
+            file.properties["backupId"] != attempt.backup_id ||
+            file.properties["attemptId"] != attempt.attempt_id ||
+            file.properties["archiveSha256"] != attempt.archive_sha256) verifyFailed()
     }
 
     private fun verifyFailed(): Nothing = throw CloudBackupException(CloudBackupError.VERIFY_FAILED)
     private fun stale(): Nothing = throw CloudBackupException(CloudBackupError.SESSION_EXPIRED)
 
-    private fun DriveFile.isManagedBackup(folderId: String): Boolean = !trashed && folderId in parents &&
-        name.endsWith(".val_backup") && appProperties["app"] == "valnook" && appProperties["role"] == "backup"
+    private fun RemoteBackupFile.isManagedBackup(folderId: String): Boolean = !trashed && folderId in parents &&
+        name.endsWith(".val_backup") && properties["app"] == "valnook" && properties["role"] == "backup"
 
-    private fun DriveFile.toDescriptor(info: dev.valnook.data.portability.AppBuildInfo): CloudBackupDescriptor {
-        val format = appProperties["formatVersion"]?.toIntOrNull() ?: -1
-        val schema = appProperties["dataSchemaVersion"]?.toIntOrNull() ?: -1
-        val db = appProperties["databaseSchemaVersion"]?.toIntOrNull() ?: -1
-        return CloudBackupDescriptor(id, name, appProperties["snapshotCreatedAtUtc"].orEmpty(), createdTime, size,
-            appProperties["appVersion"].orEmpty(), appProperties["internalBuildRevision"].orEmpty(), db,
-            format, schema, appProperties["verificationState"].orEmpty(),
-            appProperties["verificationState"] == "verified" && format == BackupContract.FORMAT_VERSION &&
+    private fun RemoteBackupFile.toDescriptor(info: dev.valnook.data.portability.AppBuildInfo): CloudBackupDescriptor {
+        val format = properties["formatVersion"]?.toIntOrNull() ?: -1
+        val schema = properties["dataSchemaVersion"]?.toIntOrNull() ?: -1
+        val db = properties["databaseSchemaVersion"]?.toIntOrNull() ?: -1
+        return CloudBackupDescriptor(id, name, properties["snapshotCreatedAtUtc"].orEmpty(), createdTime, size,
+            properties["appVersion"].orEmpty(), properties["internalBuildRevision"].orEmpty(), db,
+            format, schema, properties["verificationState"].orEmpty(),
+            properties["verificationState"] == "verified" && format == BackupContract.FORMAT_VERSION &&
                 schema <= BackupContract.DATA_SCHEMA_VERSION && db <= info.databaseSchemaVersion)
     }
 
-    private fun CloudBackupStateEntity.toDomain(backups: List<CloudBackupDescriptor>) = CloudBackupRuntimeState(
+    private fun CloudBackupStateEntity.toDomain(backups: List<CloudBackupDescriptor>) = if (provider != drive.provider.name) CloudBackupRuntimeState() else CloudBackupRuntimeState(
         connected = folder_id != null && account_reference != null,
         accountReference = account_reference,
         accountDisplay = account_display,
@@ -700,6 +733,8 @@ class CloudBackupCoordinator internal constructor(
             401 -> CloudBackupError.AUTH_REQUIRED
             403 -> CloudBackupError.DRIVE_PERMISSION
             404 -> CloudBackupError.DRIVE_FOLDER_NOT_FOUND
+            429 -> CloudBackupError.RATE_LIMITED
+            507 -> CloudBackupError.CLOUD_QUOTA
             else -> fallback
         }, error)
 
@@ -754,7 +789,7 @@ fun createCloudBackupCoordinator(
     database = database,
     portability = portability,
     accessProvider = accessProvider,
-    drive = GoogleDriveRestApi(),
+    drive = OneDriveRestApi(),
     scheduler = scheduler,
     networkClock = networkUtcClock,
     network = AndroidNetworkAvailability(context)

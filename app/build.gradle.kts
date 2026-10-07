@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,6 +7,15 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
 }
+
+val releaseVersion = Properties().apply {
+    rootProject.file("version.properties").inputStream().use { load(it) }
+}
+
+// Public application registration values; no client secret belongs in an Android client.
+val microsoftClientId = providers.gradleProperty("valnook.microsoft.clientId")
+    .orElse("397cfb5c-e171-4b47-a3a2-fc0f6513a447")
+val microsoftReleaseHash = providers.gradleProperty("valnook.microsoft.releaseSignatureHash").orElse("")
 
 android {
     namespace = "dev.valnook.app"
@@ -16,16 +27,23 @@ android {
         applicationId = "dev.valnook.app"
         minSdk = 36
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.0.8"
-        buildConfigField("String", "INTERNAL_BUILD_ID", "\"20261005.2\"")
+        versionCode = releaseVersion.getProperty("version.code").toInt()
+        versionName = releaseVersion.getProperty("version.name")
+        buildConfigField("String", "INTERNAL_BUILD_ID", "\"${releaseVersion.getProperty("build.id")}\"")
 
+        buildConfigField("String", "MICROSOFT_CLIENT_ID", "\"${microsoftClientId.get()}\"")
         testInstrumentationRunner = "dev.valnook.app.HiltTestRunner"
     }
 
     buildTypes {
-        debug { applicationIdSuffix = ".debug" }
+        debug {
+            applicationIdSuffix = ".debug"
+            buildConfigField("String", "MICROSOFT_SIGNATURE_HASH", "\"K4M9AB4sa40+0618D66aZRIAYZU=\"")
+            manifestPlaceholders["msalSignaturePath"] = "/K4M9AB4sa40+0618D66aZRIAYZU="
+        }
         release {
+            buildConfigField("String", "MICROSOFT_SIGNATURE_HASH", "\"${microsoftReleaseHash.get()}\"")
+            manifestPlaceholders["msalSignaturePath"] = "/${microsoftReleaseHash.get().ifBlank { "not-configured" }}"
             optimization {
                 enable = false
             }
@@ -71,7 +89,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.play.services.auth)
+    implementation(libs.play.services.auth) // Legacy adapter retained, not injected.
+    implementation(libs.msal)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
