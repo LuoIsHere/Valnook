@@ -233,6 +233,8 @@ private fun SessionRoot(
         InvestmentsKey -> stringResource(R.string.nav_investments)
         StatisticsKey -> stringResource(R.string.nav_statistics)
         SettingsKey -> stringResource(R.string.nav_settings)
+        AboutKey -> stringResource(dev.valnook.feature.settings.R.string.settings_about)
+        PrivacyPolicyKey -> stringResource(dev.valnook.feature.settings.R.string.settings_privacy_policy)
         HiddenAccountsKey -> stringResource(R.string.nav_accounts)
         HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
         HiddenStatisticsKey -> stringResource(R.string.nav_statistics)
@@ -383,7 +385,13 @@ private fun SessionRoot(
                                     }, { open(ClearDataKey) }, { open(NavigationSettingsKey) }, { open(BackupKey) },
                                     { open(WebAdminKey) },
                                     { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID,
-                                    themeMode, onThemeChange)
+                                    themeMode, onThemeChange, onAbout = { open(AboutKey) })
+                            }
+                            entry<AboutKey> {
+                                dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME) { open(PrivacyPolicyKey) }
+                            }
+                            entry<PrivacyPolicyKey> {
+                                dev.valnook.feature.settings.PrivacyPolicyScreen()
                             }
                             entry<BackupKey> {
                                 dev.valnook.feature.backup.BackupScreen(pageViewModel {

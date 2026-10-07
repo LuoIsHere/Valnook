@@ -76,4 +76,11 @@
     <string name="settings_footer_copyright" translatable="false">Copyright © 2026 luoishere.</string>
     <string name="settings_footer_version" translatable="false">Version %1$s</string>
     <string name="settings_footer_internal" translatable="false">Internal build: %1$s</string>
+    <string name="settings_about">About Valnook</string>
+    <string name="settings_about_summary">App information and privacy policy</string>
+    <string name="settings_privacy_policy">Privacy policy</string>
+    <string name="settings_privacy_policy_summary">Read the privacy policy and disclaimer offline</string>
+    <string name="settings_repository">GitHub repository</string>
+    <string name="settings_github_attribution">The GitHub name and related marks are trademarks of GitHub, Inc.</string>
+    <string name="settings_repository_url" translatable="false">https://github.com/LuoIsHere/Valnook</string>
 </resources>

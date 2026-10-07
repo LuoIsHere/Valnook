@@ -95,7 +95,8 @@ fun SettingsHome(
     versionName: String,
     internalBuildId: String,
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
-    onThemeChange: suspend (AppThemeMode) -> Boolean = { false }
+    onThemeChange: suspend (AppThemeMode) -> Boolean = { false },
+    onAbout: () -> Unit = {}
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var appearancePicker by rememberSaveable { mutableStateOf<String?>(null) }
@@ -178,6 +179,12 @@ fun SettingsHome(
                 }
                 Switch(demoMode, { onDemoChange(it) }, enabled = !switching,
                     modifier = Modifier.testTag("settings-demo-switch"))
+            }
+        }
+        item {
+            GlassCard {
+                SettingEntry(stringResource(R.string.settings_about),
+                    stringResource(R.string.settings_about_summary), onAbout, Modifier.testTag("settings-about"))
             }
         }
         if (!demoMode) {
@@ -351,11 +358,13 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel,
 }
 
 @Composable
-internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null) {
     Row(modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
         .clickable(role = Role.Button, onClick = onClick)
         .padding(horizontal = Space.cardInset, vertical = Space.md),
         verticalAlignment = Alignment.CenterVertically) {
+        if (leadingIcon != null) Box(Modifier.padding(end = Space.md)) { leadingIcon() }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(title, style = MaterialTheme.typography.titleMedium)
             Text(summary, style = MaterialTheme.typography.bodySmall,

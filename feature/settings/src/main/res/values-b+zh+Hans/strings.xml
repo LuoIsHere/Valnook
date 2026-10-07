@@ -73,4 +73,10 @@
     <string name="settings_reorder">拖动排序</string>
     <string name="settings_visible">显示</string>
     <string name="settings_hidden">隐藏</string>
+    <string name="settings_about">关于 Valnook</string>
+    <string name="settings_about_summary">应用信息与隐私政策</string>
+    <string name="settings_privacy_policy">隐私政策</string>
+    <string name="settings_privacy_policy_summary">离线查看隐私政策与免责声明</string>
+    <string name="settings_repository">GitHub 仓库</string>
+    <string name="settings_github_attribution">GitHub 名称及相关标志的商标权归 GitHub, Inc. 所有</string>
 </resources>
