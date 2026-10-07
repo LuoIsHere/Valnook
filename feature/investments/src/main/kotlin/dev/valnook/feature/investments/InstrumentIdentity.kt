@@ -27,8 +27,8 @@ internal fun InstrumentCodeLine(symbol: String, currency: String, modifier: Modi
 }
 
 @Composable
-internal fun InstrumentIdentity(instrument: Instrument) {
-    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+internal fun InstrumentIdentity(instrument: Instrument, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             Text(instrument.name, Modifier.weight(1f, fill = false).alignByBaseline().testTag("instrument-name-${instrument.id}"),
                 style = MaterialTheme.typography.titleLarge,

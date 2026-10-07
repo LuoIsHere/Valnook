@@ -47,11 +47,13 @@ fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, on
             Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
                 .clickable(role = Role.Button) { onOpen(instrument.id) }.padding(vertical = 6.dp),
                 verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                InstrumentIdentity(instrument)
-                Text(stringResource(R.string.instrument_price_per_unit,
-                    BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString(),
-                    instrument.currency.code), style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.fillMaxWidth())
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    InstrumentIdentity(instrument, Modifier.weight(1f).alignByBaseline())
+                    Text(stringResource(R.string.instrument_price_per_unit,
+                        BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString(),
+                        instrument.currency.code), style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.alignByBaseline())
+                }
                 AccountProfitRow(money(summary.realized, instrument.currency),
                     money(summary.floating, instrument.currency),
                     summary.realized?.signum() ?: 0, summary.floating?.signum() ?: 0)
