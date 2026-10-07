@@ -54,6 +54,14 @@ import kotlin.math.roundToInt
 @Composable
 fun StatisticsScreen(vm: StatisticsViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
+    var showLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(state.loading) {
+        showLoading = false
+        if (state.loading) {
+            delay(300)
+            showLoading = true
+        }
+    }
     val owner = LocalLifecycleOwner.current
     DisposableEffect(owner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) vm.refresh() }
@@ -70,18 +78,18 @@ fun StatisticsScreen(vm: StatisticsViewModel) {
         Box(Modifier.fillMaxSize().padding(Space.md)) { Text(stringResource(R.string.statistics_load_failed)) }
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
+    LazyColumn(Modifier.fillMaxSize().testTag("statistics-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.lg)) {
         item { MonthlyChange(state.current?.monthlyChange) }
         StatisticsMetric.entries.forEach { metric ->
             item(metric.name) {
                 state.charts[metric]?.let { chart ->
                     StatisticChart(chart, state.today, { vm.setGranularity(metric, it) }, { vm.previous(metric) },
-                        { vm.next(metric) })
+                        { vm.next(metric) },
+                        loading = state.loading && showLoading && chart.series?.period != chart.period)
                 }
             }
         }
-        if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
     }
 }
 
@@ -111,7 +119,8 @@ private fun StatisticChart(
     today: LocalDate,
     onGranularity: (StatisticsGranularity) -> Unit,
     previous: () -> Unit,
-    next: () -> Unit
+    next: () -> Unit,
+    loading: Boolean
 ) {
     val title = metricTitle(chart.metric)
     val canGoNext = chart.period.year < today.year ||
@@ -154,7 +163,17 @@ private fun StatisticChart(
                 }
             }
         }
-        Text(periodLabel(chart.period), style = MaterialTheme.typography.labelLarge)
+        Row(Modifier.fillMaxWidth().heightIn(min = 24.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(periodLabel(chart.period), style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f))
+            // Keep the slot even when idle: loading must not change the card or list height.
+            Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+                if (loading) CircularProgressIndicator(
+                    modifier = Modifier.fillMaxSize().testTag("statistics-loading-${chart.metric.name.lowercase()}"),
+                    strokeWidth = 2.dp,
+                )
+            }
+        }
         chart.series?.let { InteractiveChart(it, today, title) }
     }
     }
