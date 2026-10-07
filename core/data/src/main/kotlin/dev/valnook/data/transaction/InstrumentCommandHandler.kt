@@ -45,6 +45,28 @@ internal class InstrumentCommandHandler(private val db: ValnookDatabase, private
         return OperationResult("INSTRUMENT", id)
     }
 
+    suspend fun updatePrices(command: UpdateInstrumentPrices, now: Long): OperationResult {
+        if (command.changes.isEmpty() ||
+            command.changes.map { it.instrumentId }.distinct().size != command.changes.size) {
+            throw DomainException(ErrorCode.FORMAT)
+        }
+        val rows = command.changes.map { change ->
+            val old = db.instruments().instrument(change.instrumentId) ?: throw DomainException(ErrorCode.NOT_FOUND)
+            if (old.revision != change.expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
+            R.check_nonnegative(change.priceE5)
+            R.exact_long(java.math.BigDecimal.valueOf(change.priceE5).multiply(java.math.BigDecimal("1000")))
+            change to old
+        }
+        rows.forEach { (change, old) ->
+            if (old.current_price_e5 != change.priceE5) {
+                // Reuse price-history and revision rules without accepting metadata from the client.
+                save(SaveInstrument(command.operation_id, old.id, old.revision, old.name, old.symbol,
+                    old.asset_type_id, old.currency_code, change.priceE5), now)
+            }
+        }
+        return OperationResult("INSTRUMENT_PRICES", 0)
+    }
+
     suspend fun editPrice(command: EditInstrumentPrice, now: Long): OperationResult {
         val old = db.statistics().price(command.priceRecordId) ?: throw DomainException(ErrorCode.NOT_FOUND)
         if (old.is_deleted || old.revision != command.expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)

@@ -17,6 +17,7 @@ import java.util.UUID
 /** Writes one immutable event inside the caller's existing Room transaction. */
 class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     suspend fun captureBefore(command: FinancialCommand): String? {
+        if (command is UpdateInstrumentPrices) return priceBatchJson(command).toString()
         if (command is SaveAccount) return command.accountId?.let(::accountAggregateJson)?.toString()
         if (command is DeleteBalanceAccount) return balanceAccountJson(command.balanceAccountId)?.toString()
         val target = targetFor(command) ?: return null
@@ -31,6 +32,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         source: CommandSource = CommandSource.MOBILE
     ) {
         val after = when (command) {
+            is UpdateInstrumentPrices -> priceBatchJson(command)
             is SaveAccount -> accountAggregateJson(result.id)
             is DeleteBalanceAccount -> null
             else -> rowJson(tableForResult(result.kind), result.id)
@@ -112,6 +114,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is SaveAccount -> command.accountId?.let { "savings_accounts" to it }
         is DeleteBalanceAccount -> "cash_accounts" to command.balanceAccountId
         is SaveInstrument -> command.instrumentId?.let { "instruments" to it }
+        is UpdateInstrumentPrices -> null
         is EditInstrumentPrice -> "instrument_price_history" to command.priceRecordId
         is CreateInvestmentPosition -> null
         is SetCashBalance -> null
@@ -170,6 +173,9 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is SetCashBalance -> accounts.add(command.account_id)
             is OpenTermDeposit -> accounts.add(command.account_id)
             is SaveInstrument -> accountsForInstrument(result.id).forEach(accounts::add)
+            is UpdateInstrumentPrices -> command.changes.forEach {
+                accountsForInstrument(it.instrumentId).forEach(accounts::add)
+            }
             is EditInstrumentPrice -> accountsForPrice(result.id).forEach(accounts::add)
             is SaveAssetType -> accountsForType(result.id).forEach(accounts::add)
             is CreateInvestmentPosition -> accounts.add(command.accountId)
@@ -267,6 +273,11 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         ).use { cursor -> while (cursor.moveToNext()) array.put(cursorObject(cursor)) }
         return array.toString()
     }
+
+    private fun priceBatchJson(command: UpdateInstrumentPrices): JSONObject = JSONObject().put(
+        "instruments", JSONArray().apply {
+            command.changes.sortedBy { it.instrumentId }.forEach { put(rowJson("instruments", it.instrumentId)) }
+        })
 
     private fun rowJson(table: String, id: Long): JSONObject? = queryObject(
         db.openHelper.readableDatabase, "SELECT * FROM $table WHERE id=?", arrayOf(id.toString()))

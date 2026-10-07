@@ -1,4 +1,5 @@
 "use strict";
+import { decimalText } from "./decimal.js";
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const SESSION_TOKEN_KEY = "valnook-session-token";
@@ -9,6 +10,7 @@ const state = {
   csrf: null, sessionToken: null, socket: null, heartbeat: null, session: null, page: "accounts",
   connecting: null, reconnecting: null, allowReconnect: false,
   accounts: [], instruments: [], assetTypes: [], positions: [], investmentTab: "instruments",
+  expandedInvestmentAccounts: new Set(),
   recordsCursor: null, recordsHistory: [], locale: navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en", generation: null
 };
 const copy = {
@@ -96,12 +98,12 @@ function el(tag, attrs = {}, ...children) {
 }
 function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 function fmt(value, currency = "") {
-  if (value === null || value === undefined || value === "") return "—";
-  const match = String(value).match(/^(-?)(\d+)(?:\.(\d+))?$/);
-  if (!match) return String(value);
-  const integer = new Intl.NumberFormat(state.locale, { maximumFractionDigits: 0 }).format(BigInt(match[2]));
-  const fraction = (match[3] || "").replace(/0+$/, "");
-  return `${match[1]}${integer}${fraction ? "." + fraction : ""}${currency ? " " + currency : ""}`;
+  const number = decimalText(value, state.locale);
+  return number + (currency && number !== "—" ? " " + currency : "");
+}
+function fmtPrice(value, currency = "") {
+  const number = decimalText(value, state.locale, 5, true);
+  return number + (currency && number !== "—" ? " " + currency : "");
 }
 
 function when(ms) { return ms ? new Intl.DateTimeFormat(state.locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ms)) : "—"; }
@@ -210,4 +212,16 @@ const domainMessages = {
 };
 Object.entries(domainMessages).forEach(([key, [zh, en]]) => { copy["zh-CN"][key] = zh; copy.en[key] = en; });
 
-export { el, clear, fmt, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t };
+Object.assign(copy["zh-CN"], {
+  updatePrices: "更新价格", priceSearch: "搜索名称或代码", priceChanges: "已修改 {n} 项",
+  saveAll: "保存全部", priceInvalid: "请输入非负价格，最多 5 位小数，且不超过支持范围。",
+  priceConflict: "此标的已更新或不存在，请刷新后核对价格。", cleared: "未持有／已清仓",
+  nameCode: "名称／代码", marketQuantity: "市值／数量", priceCost: "现价／成本"
+});
+Object.assign(copy.en, {
+  updatePrices: "Update prices", priceSearch: "Search name or symbol", priceChanges: "{n} changed",
+  saveAll: "Save all", priceInvalid: "Enter a nonnegative price with up to 5 decimal places within the supported range.",
+  priceConflict: "This instrument changed or no longer exists. Refresh and review the price.", cleared: "No holdings / Closed positions",
+  nameCode: "Name / Symbol", marketQuantity: "Market value / Quantity", priceCost: "Price / Cost"
+});
+export { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t };

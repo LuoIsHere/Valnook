@@ -11,6 +11,10 @@ import dev.valnook.app.di.AppSessionManager
 import dev.valnook.app.di.DataMode
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.data.repository.RoomOverview
+import dev.valnook.data.transaction.RoomFinancialCommands
+import dev.valnook.data.transaction.TransactionPoint
+import dev.valnook.domain.repository.*
+import dev.valnook.domain.model.*
 import dev.valnook.domain.webadmin.WebAdminPhase
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +51,121 @@ class WebAdminEndToEndTest {
         step("cleanup")
         web.stop()
         if (sessions.session.value.mode == DataMode.DEMO) sessions.exitDemo()
+    }
+
+    @Test fun batch_price_transaction_rolls_back_and_retries_without_changing_costs() = runBlocking<Unit> {
+        val clock = java.time.Clock.systemUTC()
+        val commands = RoomFinancialCommands(database, clock)
+        fun id() = UUID.randomUUID().toString()
+        val type = commands.execute(SaveAssetType(id(), null, "Stocks")).id
+        val a = commands.execute(SaveInstrument(id(), null, null, "Apple", "AAPL", type, "USD", 10_000_000)).id
+        val b = commands.execute(SaveInstrument(id(), null, null, "Tencent", "00700", type, "HKD", 40_000_000)).id
+        repeat(2) { index ->
+            val account = commands.execute(SaveAccount(id(), null, null, "Synthetic $index", "", emptyList())).id
+            val position = commands.execute(CreateInvestmentPosition(id(), account, a)).id
+            commands.execute(RecordInvestmentTrade(id(), position, Direction.BUY, 200_000_000, 10_000_000_000,
+                clock.millis(), false, fee_minor = 150))
+        }
+        val before = RoomOverview(database).snapshot()
+        val generation = database.audit().generation()
+        fun historyCount() = database.openHelper.readableDatabase.query("SELECT COUNT(*) FROM instrument_price_history").use {
+            it.moveToFirst(); it.getLong(0)
+        }
+        val pricesBefore = historyCount()
+        val update = UpdateInstrumentPrices(id(), listOf(InstrumentPriceChange(a, 1, 11_123_456), InstrumentPriceChange(b, 1, 0)))
+        val faulty = RoomFinancialCommands(database, clock) { if (it == TransactionPoint.AFTER_BUSINESS) error("Injected failure") }
+        assertTrue(runCatching { faulty.execute(update) }.isFailure)
+        assertEquals(before.instruments, RoomOverview(database).snapshot().instruments)
+        assertEquals(generation, database.audit().generation())
+        assertEquals(pricesBefore, historyCount())
+        assertEquals(null, commands.operationResult(update.operation_id))
+        suspend fun rejected(command: UpdateInstrumentPrices, code: ErrorCode) {
+            val error = runCatching { commands.execute(command) }.exceptionOrNull()
+            assertTrue(error is DomainException)
+            assertEquals(code, (error as DomainException).code)
+            assertEquals(generation, database.audit().generation())
+            assertEquals(pricesBefore, historyCount())
+        }
+        rejected(update.copy(operation_id = id(), changes = update.changes.map {
+            if (it.instrumentId == b) it.copy(expectedRevision = 99) else it }), ErrorCode.STALE_RECORD)
+        rejected(update.copy(operation_id = id(), changes = listOf(update.changes[0], update.changes[0])), ErrorCode.FORMAT)
+        rejected(update.copy(operation_id = id(), changes = emptyList()), ErrorCode.FORMAT)
+        rejected(update.copy(operation_id = id(), changes = listOf(InstrumentPriceChange(a, 1, -1))), ErrorCode.POSITIVE)
+        rejected(update.copy(operation_id = id(), changes = listOf(InstrumentPriceChange(a, 1, Long.MAX_VALUE))), ErrorCode.OVERFLOW)
+        rejected(update.copy(operation_id = id(), changes = listOf(InstrumentPriceChange(Long.MAX_VALUE, 1, 0))), ErrorCode.NOT_FOUND)
+        val receipt = commands.execute(update, CommandSource.WEB_ADMIN)
+        assertEquals(receipt, commands.execute(update.copy(changes = update.changes.reversed()), CommandSource.WEB_ADMIN))
+        assertEquals(generation + 1, database.audit().generation())
+        assertEquals(pricesBefore + 2, historyCount())
+        val after = RoomOverview(database).snapshot()
+        assertEquals(11_123_456L, after.instruments.single { it.id == a }.currentPriceE5)
+        assertEquals(0L, after.instruments.single { it.id == b }.currentPriceE5)
+        assertEquals(before.cash, after.cash)
+        after.positions.forEach { position ->
+            val old = before.positions.single { it.id == position.id }
+            val oldProfit = dev.valnook.domain.calculation.InvestmentProfitCalculator.fromReadModel(old)
+            val profit = dev.valnook.domain.calculation.InvestmentProfitCalculator.fromReadModel(position)
+            assertEquals(oldProfit.average_cost, profit.average_cost)
+            assertEquals(oldProfit.realized, profit.realized)
+            assertNotEquals(oldProfit.unrealized, profit.unrealized)
+        }
+        val audit = requireNotNull(database.audit().eventForOperation(update.operation_id))
+        assertEquals("WEB_ADMIN", audit.source)
+        assertTrue(audit.before_json!!.contains("10000000"))
+        assertTrue(audit.after_json!!.contains("11123456"))
+        val conflict = runCatching { commands.execute(update.copy(changes = listOf(InstrumentPriceChange(a, 2, 1)))) }.exceptionOrNull()
+        assertEquals(ErrorCode.OPERATION_CONFLICT, (conflict as DomainException).code)
+        commands.execute(UpdateInstrumentPrices(id(), listOf(InstrumentPriceChange(a, 2, 11_123_456))))
+        assertEquals(pricesBefore + 2, historyCount())
+        assertEquals(2L, RoomOverview(database).snapshot().instruments.single { it.id == a }.revision)
+    }
+
+    @Test fun batch_price_endpoint_validates_and_exposes_recoverable_receipt() = runBlocking<Unit> {
+        val commands = RoomFinancialCommands(database, java.time.Clock.systemUTC())
+        val type = commands.execute(SaveAssetType(UUID.randomUUID().toString(), null, "Stocks")).id
+        val ids = listOf("Apple", "Tencent").map {
+            commands.execute(SaveInstrument(UUID.randomUUID().toString(), null, null, it, it, type, "USD", 1_000_000)).id
+        }
+        web.start()
+        val endpoint = URI(requireNotNull(web.state.value.url))
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
+            body = JSONObject().put("code", web.state.value.pairingCode).toString())
+        assertEquals(200, paired.status)
+        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf = JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint, origin, cookie).use { socket ->
+            awaitPhase(WebAdminPhase.ACTIVE)
+            listOf("decimal", "price-editor", "investment-groups").forEach {
+                assertEquals(200, http(endpoint, "GET", "/$it.js").status)
+            }
+            val generation = database.audit().generation()
+            fun payload(price: String, revision: Long = 1) = JSONObject()
+                .put("operationId", UUID.randomUUID().toString()).put("dataGeneration", generation)
+                .put("changes", org.json.JSONArray(ids.mapIndexed { index, id ->
+                    JSONObject().put("instrumentId", id).put("expectedRevision", if (index == 0) 1 else revision)
+                        .put("price", if (index == 0) "20.12345" else price)
+                }))
+            fun send(body: JSONObject) = http(endpoint, "PUT", "/api/v1/instrument-prices",
+                origin = origin, cookie = cookie, csrf = csrf, body = body.toString())
+            assertEquals(401, http(endpoint, "PUT", "/api/v1/instrument-prices", origin = origin, body = "{}").status)
+            val invalid = send(payload("1.123456"))
+            assertEquals(400, invalid.status)
+            assertTrue(invalid.body.contains("PRECISION"))
+            assertEquals(409, send(payload("2", 99)).status)
+            assertEquals(generation, database.audit().generation())
+            val body = payload("0")
+            val saved = send(body)
+            assertEquals(saved.body, 200, saved.status)
+            val committed = database.audit().generation()
+            sendMaskedText(socket, "{\"type\":\"heartbeat\"}")
+            // A repeated HTTP write may hit the generation gate: the operation lookup resolves it.
+            assertEquals(409, send(body).status)
+            val receipt = http(endpoint, "GET", "/api/v1/operations/${body.getString("operationId")}", cookie = cookie)
+            assertEquals(receipt.body, 200, receipt.status)
+            assertEquals(committed, database.audit().generation())
+            assertEquals(listOf(20_12345L, 0L), RoomOverview(database).snapshot().instruments.map { it.currentPriceE5 })
+        }
     }
 
     @Test fun pairing_security_websocket_write_and_revocation_work_over_real_server() = runBlocking<Unit> {

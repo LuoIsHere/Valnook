@@ -16,3 +16,18 @@
 .connection-banner{padding:12px 24px;text-align:center;background:var(--soft);color:var(--muted);font-size:13px}
 #refresh-page{display:grid;place-items:center;flex-shrink:0}#refresh-page .symbol{width:18px;height:18px}
 @media(max-width:640px){.accounts-table th:nth-child(n+2):nth-child(-n+5),.accounts-table td:nth-child(n+2):nth-child(-n+5),.accounts-table th:last-child,.accounts-table td:last-child{display:none}.accounts-table td:first-child{min-width:0;width:58%}.accounts-table .account-cell{min-width:0;max-width:none;gap:10px}.accounts-table .avatar{width:32px;height:32px;flex-basis:32px}.accounts-table .numeric{font-size:12px;white-space:normal}.accounts-table .subtle{font-size:11px}.topbar .eyebrow{letter-spacing:.07em;font-size:9px}}
+/* Investment lists and the batch price editor share compact, bounded interaction surfaces. */
+.investment-group{padding:12px 0;border-bottom:1px solid var(--line)}
+.investment-account-toggle{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;padding:10px 12px;border:0;border-radius:14px;background:transparent;color:var(--text);text-align:left}
+.investment-account-toggle:hover{background:var(--soft)}
+.investment-account-toggle .account-cell{min-width:0;flex:1}.investment-account-toggle .account-cell strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.investment-account-toggle>.numeric{flex-shrink:0}.expansion-chevron{transition:transform .14s ease}.investment-account-toggle[aria-expanded=true] .expansion-chevron{transform:rotate(180deg)}
+.investment-account-profit{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:0 12px 10px;font-size:13px;color:var(--muted)}
+.investment-group-body:not([hidden]){animation:appear .14s ease-out}.investment-group-body .table-wrap{border-radius:16px}.investment-group-body table{min-width:640px}
+.closed-positions{margin-top:12px}.closed-positions summary{cursor:pointer;padding:10px 12px;border-radius:12px}.closed-positions summary:hover{background:var(--soft)}
+.drawer:has(.price-editor){width:min(880px,calc(100vw - 32px))}.price-editor{display:grid;gap:12px}.price-search{position:sticky;top:0;background:var(--solid);z-index:1;border-radius:12px}
+.price-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,180px);align-items:center;gap:18px;padding:10px 0;border-bottom:1px solid var(--line)}
+.price-identity{min-width:0}.price-identity label{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.price-identity .subtle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.price-row input{text-align:right;font-variant-numeric:tabular-nums}.price-row input[aria-invalid=true]{border-color:var(--danger)}.price-error{color:var(--danger);font-size:12px}.price-error:empty{display:none}.price-changed{margin-right:6px;color:var(--text)}
+@media(max-width:640px){.price-row{grid-template-columns:minmax(0,1fr) minmax(110px,42%);gap:10px}.price-identity label{font-size:13px}.price-identity .subtle{font-size:11px}.investment-account-toggle{gap:8px;padding-inline:0}.investment-account-toggle .avatar{width:28px;height:28px;flex-basis:28px}.investment-account-toggle>.numeric{font-size:13px}.investment-account-profit{font-size:11px;padding-inline:0}}
+@media(prefers-reduced-motion:reduce){.investment-group-body{animation:none!important}.expansion-chevron{transition:none!important}}

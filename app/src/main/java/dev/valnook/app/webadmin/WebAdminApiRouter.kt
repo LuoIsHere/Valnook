@@ -71,6 +71,7 @@ internal class WebAdminApiRouter(
         ASSET_TYPE.matchEntire(path)?.let { if (method == "PUT")
             return saveAssetType(sessionId, it.groupValues[1].toLong(), request) }
         if (method == "GET" && path == "/api/v1/instruments") return instruments()
+        if (method == "PUT" && path == "/api/v1/instrument-prices") return updateInstrumentPrices(sessionId, request)
         if (method == "POST" && path == "/api/v1/instruments") return saveInstrument(sessionId, null, request)
         INSTRUMENT.matchEntire(path)?.let { match ->
             if (method == "PUT") return saveInstrument(sessionId, match.groupValues[1].toLong(), request)
@@ -127,6 +128,8 @@ internal class WebAdminApiRouter(
                 put("cash", decimal(row.cash.amount)); put("creditBalance", decimal(row.creditBalance.amount))
                 put("deposits", decimal(row.depositValue.amount))
                 put("investments", decimal(row.investmentValue.amount)); put("total", decimal(row.total.amount))
+                put("realized", decimal(row.realized.amount)); put("unrealized", decimal(row.floating.amount))
+                put("investmentComplete", row.investmentValue.complete && row.realized.complete && row.floating.complete)
                 put("complete", row.total.complete)
             }) } })
         })
@@ -267,6 +270,16 @@ internal class WebAdminApiRouter(
             body.text("name"), body.text("symbol"), body.long("typeId"), body.text("currencyCode"),
             DecimalRules.parse_units(body.text("currentPrice"), 5), body.optionalBoolean("currencyPriceConfirmed") ?: false)
         return save(sessionId, body, command)
+    }
+
+    private suspend fun updateInstrumentPrices(sessionId: String, request: WebHttpRequest): WebHttpResponse {
+        val body = body(request)
+        val changes = (body["changes"]?.jsonArray ?: throw IllegalArgumentException()).map {
+            val row = it.jsonObject
+            InstrumentPriceChange(row.long("instrumentId"), row.long("expectedRevision"),
+                DecimalRules.parse_units(row.text("price"), 5))
+        }
+        return save(sessionId, body, UpdateInstrumentPrices(body.operationId(), changes))
     }
 
     private suspend fun positions(): WebHttpResponse {

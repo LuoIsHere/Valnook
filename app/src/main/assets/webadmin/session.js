@@ -174,6 +174,7 @@ function expireSession(reason) {
   if (state.heartbeat) clearInterval(state.heartbeat);
   state.viewEpoch++; closeDrawer(true);
   state.socket?.close(); state.session = null; state.accounts = []; state.instruments = []; state.positions = []; state.recordFilters = {};
+  state.expandedInvestmentAccounts.clear();
   clear($("#content")); $("#idle-warning").hidden = true;
   $("#toast").hidden = true; $("#connection-banner").hidden = true;
   $("#workspace").hidden = true; $("#pairing").hidden = false;

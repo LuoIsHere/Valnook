@@ -60,6 +60,10 @@ data class SaveInstrument(override val operation_id: String, val instrumentId: L
 data class EditInstrumentPrice(override val operation_id: String, val priceRecordId: Long,
     val expectedRevision: Long, val priceE5: Long, val effectiveAtMs: Long) : FinancialCommand
 
+data class InstrumentPriceChange(val instrumentId: Long, val expectedRevision: Long, val priceE5: Long)
+data class UpdateInstrumentPrices(override val operation_id: String,
+    val changes: List<InstrumentPriceChange>) : FinancialCommand
+
 data class CreateInvestmentPosition(override val operation_id: String, val accountId: Long,
     val instrumentId: Long) : FinancialCommand
 

@@ -46,6 +46,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is SaveAccount -> accounts.save(command, now)
                 is DeleteBalanceAccount -> accounts.delete(command)
                 is SaveInstrument -> instruments.save(command, now)
+                is UpdateInstrumentPrices -> instruments.updatePrices(command, now)
                 is EditInstrumentPrice -> instruments.editPrice(command, now)
                 is CreateInvestmentPosition -> positions.create(command, now)
                 is SetCashBalance -> accounts.setBalance(command, now)
@@ -70,6 +71,9 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             .atZone(clock.zone).toLocalDate().toEpochDay()
         val baseline = db.statistics().state()?.baseline_at_ms?.let(::day) ?: day(now)
         return when (command) {
+            is UpdateInstrumentPrices -> if (command.changes.any {
+                db.instruments().instrument(it.instrumentId)?.current_price_e5 != it.priceE5
+            }) day(now) else null
             is SaveAssetType, is CreateInvestmentPosition -> null
             is SaveInstrument -> {
                 val old = command.instrumentId?.let { db.instruments().instrument(it) }

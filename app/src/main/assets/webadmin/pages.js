@@ -1,5 +1,7 @@
-import { el, clear, fmt, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t } from "./core.js";
+import { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t } from "./core.js";
 import { symbol, avatar, iconPicker } from "./icons.js";
+import { openPriceEditor } from "./price-editor.js";
+import { investmentGroups } from "./investment-groups.js";
 async function preload() {
   const [accounts, instruments, types, positions] = await Promise.all([
     api("/api/v1/accounts"), api("/api/v1/instruments"), api("/api/v1/asset-types"), api("/api/v1/positions")
@@ -96,7 +98,7 @@ async function accountDetail(id) {
     el("td", { class: "numeric", text: `${fmt(v.annualRatePercent)}%` }), el("td", { text: v.closed ? t("settled") : t("holding") })));
   const positionRows = data.positions.map(v => el("tr", { "data-clickable": "true", onclick: () => positionDetail(v.id) },
     el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
-    el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmt(v.currentPrice, v.currencyCode) }),
+    el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmtPrice(v.currentPrice, v.currencyCode) }),
     el("td", { class: "numeric", text: fmt(v.marketValue, v.currencyCode) }),
     el("td", { class: `numeric ${gainClass(v.unrealized)}`, text: fmt(v.unrealized, v.currencyCode) })));
   const content = el("div", {},
@@ -236,22 +238,17 @@ async function renderInvestments() {
   const tabs = el("div", { class: "tabs" }, ...[["instruments", t("instruments")], ["positions", t("positions")]].map(([key, label]) => el("button", { type: "button", class: `tab ${state.investmentTab === key ? "active" : ""}`, text: label, onclick: () => { state.investmentTab = key; renderInvestments(); } })));
   root.append(tabs);
   if (state.investmentTab === "instruments") {
-    root.append(toolbar(button(t("assetTypes"), assetTypeForm), el("div", { class: "spacer" }), button(t("newInstrument"), () => instrumentForm(null), "primary")));
+    const prices = button(t("updatePrices"), () => openPriceEditor({ actions, saveForm, openDrawer }));
+    prices.disabled = !state.instruments.length;
+    root.append(toolbar(button(t("assetTypes"), assetTypeForm), el("div", { class: "spacer" }), prices, button(t("newInstrument"), () => instrumentForm(null), "primary")));
     const rows = state.instruments.map(v => el("tr", { "data-clickable": "true", onclick: () => instrumentForm(v) },
       el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
       el("td", { text: v.typeName }), el("td", { text: v.currencyCode }),
-      el("td", { class: "numeric", text: fmt(v.currentPrice, v.currencyCode) }), el("td", { text: when(v.priceUpdatedAtMs) })));
+      el("td", { class: "numeric", text: fmtPrice(v.currentPrice, v.currencyCode) }), el("td", { text: when(v.priceUpdatedAtMs) })));
     root.append(table([t("nameCode"), t("assetType"), t("currency"), t("price"), t("priceUpdated")], rows));
   } else {
     root.append(toolbar(el("div", { class: "spacer" }), button(t("newPosition"), positionForm, "primary")));
-    const rows = state.positions.map(v => el("tr", { "data-clickable": "true", onclick: () => positionDetail(v.id) },
-      el("td", { text: accountName(v.accountId) }),
-      el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: `${v.symbol} · ${v.currencyCode}` })),
-      el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmt(v.averageCost, v.currencyCode) }),
-      el("td", { class: "numeric", text: fmt(v.remainingCost, v.currencyCode) }), el("td", { class: "numeric", text: fmt(v.marketValue, v.currencyCode) }),
-      el("td", { class: `numeric ${gainClass(v.realized)}`, text: fmt(v.realized, v.currencyCode) }),
-      el("td", { class: `numeric ${gainClass(v.unrealized)}`, text: fmt(v.unrealized, v.currencyCode) })));
-    root.append(table([t("account"), t("nameCode"), t("quantity"), t("averageCost"), t("holdingCost"), t("marketValue"), t("realized"), t("unrealized")], rows));
+    root.append(investmentGroups({ table, positionDetail }));
   }
 }
 function assetTypeForm() {
@@ -286,6 +283,8 @@ async function positionDetail(id) {
   const account = await api(`/api/v1/accounts/${p.accountId}`);
   const cash = account.cash.filter(v => v.type === "SAVINGS" && v.currencyCode === p.currencyCode);
   const summary = el("div", { class: "cards" }, metric(t("quantity"), fmt(p.quantity)), metric(t("marketValue"), fmt(p.marketValue, p.currencyCode)), metric(t("realized"), fmt(p.realized, p.currencyCode), gainClass(p.realized)), metric(t("unrealized"), fmt(p.unrealized, p.currencyCode), gainClass(p.unrealized)));
+  summary.append(metric(t("currentPrice"), fmtPrice(p.currentPrice, p.currencyCode)),
+    metric(t("averageCost"), fmt(p.averageCost, p.currencyCode)), metric(t("holdingCost"), fmt(p.remainingCost, p.currencyCode)));
   const tradeRows = data.trades.map(v => el("tr", { "data-clickable": "true", onclick: () => tradeForm(p, v, cash) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: v.action === "BUY" ? "gain" : "loss", text: v.action === "BUY" ? t("buy") : t("sell") }), el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmt(v.unitPrice, p.currencyCode) }), el("td", { class: "numeric", text: fmt(v.fee, p.currencyCode) }), el("td", { text: v.cashLinked ? "✓" : "—" })));
   const content = el("div", {}, summary, toolbar(el("div", { class: "spacer" }), button(t("newTrade"), () => tradeForm(p, null, cash), "primary")), table([t("time"), t("direction"), t("quantity"), t("executionPrice"), t("fee"), t("cashLink")], tradeRows));
   openDrawer(`${p.name} · ${p.symbol}`, accountName(p.accountId), content);
@@ -423,6 +422,7 @@ async function saveForm(buttonNode, errorNode, path, method, body) {
       Array.from(form.elements).forEach(v => { if (!v.closest("[hidden]")) v.disabled = false; });
     }
   }
+  form.dispatchEvent(new Event("save-settled"));
   if ($("#drawer").hidden && !document.body.dataset.ended) await refreshCurrent();
 }
 function errorMessage(error) {
@@ -441,8 +441,12 @@ function openDrawer(title, kicker, content) {
   document.body.classList.add("modal-open");
   const form = content.matches("form") ? content : $("form", content);
   if (form) {
-    form.addEventListener("input", () => form.dataset.dirty = "true");
-    form.addEventListener("change", () => form.dataset.dirty = "true");
+    const markDirty = () => {
+      if (!form.isDirty || form.isDirty()) form.dataset.dirty = "true";
+      else delete form.dataset.dirty;
+    };
+    form.addEventListener("input", markDirty);
+    form.addEventListener("change", markDirty);
     form.addEventListener("submit", event => { event.preventDefault(); $("[data-save]", form)?.click(); });
   }
   $("#drawer-close").focus();
