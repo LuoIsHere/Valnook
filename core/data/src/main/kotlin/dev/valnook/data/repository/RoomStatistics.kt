@@ -140,7 +140,7 @@ class RoomStatistics(
                 val after = entriesByCash[account.id].orEmpty().asSequence()
                     .filter { it.occurred_at_ms > cutoff }.sumOf { it.delta_minor }
                 val value = convertMinor(account.balance_minor - after, account.currency_code, source.settings)
-                if (account.id !in creditIds) availableCash += value
+                if (account.id !in creditIds && account.include_in_available_cash) availableCash += value
                 total + value
             }
             val deposits = source.deposits.asSequence().filter { deposit ->

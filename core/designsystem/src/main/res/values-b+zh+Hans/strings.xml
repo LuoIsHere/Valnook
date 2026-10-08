@@ -118,7 +118,7 @@
     <string name="error_positive">输入必须非负，本金、成交价与成交份额须大于零。</string>
     <string name="error_storage">保存结果待确认。请重试，不会重复记账；确认前暂时无法修改输入。</string>
     <string name="error_account_type">账户类型创建后不能直接修改。</string>
-    <string name="error_credit_limit">独立额度必须大于零；也可以选择一个额度来源。</string>
+    <string name="error_credit_limit">独立额度必须大于或等于零；也可以选择一个额度来源。</string>
     <string name="error_statement_day">账单日必须为 1 至 31 日。</string>
     <string name="error_due_rule">请检查最后还款日规则和日期数值。</string>
     <string name="error_credit_source">所选额度来源已不可用，请刷新后重新选择。</string>

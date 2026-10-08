@@ -53,6 +53,57 @@ class WebAdminEndToEndTest {
         if (sessions.session.value.mode == DataMode.DEMO) sessions.exitDemo()
     }
 
+    @Test fun account_preferences_and_direct_first_trade_round_trip_over_http() = runBlocking<Unit> {
+        val commands=RoomFinancialCommands(database,java.time.Clock.systemUTC())
+        fun id()=UUID.randomUUID().toString()
+        val type=commands.execute(SaveAssetType(id(),null,"Stocks")).id
+        val instrument=commands.execute(SaveInstrument(id(),null,null,"Apple","AAPL",type,"USD",1000000)).id
+        web.start()
+        val endpoint=URI(requireNotNull(web.state.value.url))
+        val origin="http://${endpoint.host}:${endpoint.port}"
+        val paired=http(endpoint,"POST","/api/v1/pair/code",origin=origin,body=JSONObject().put("code",web.state.value.pairingCode).toString())
+        val cookie=paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf=JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint,origin,cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            var generation=database.audit().generation()
+            fun save(path:String,body:JSONObject,method:String="POST"):JSONObject {
+                body.put("operationId",id()).put("dataGeneration",generation)
+                val response=http(endpoint,method,path,origin=origin,cookie=cookie,csrf=csrf,body=body.toString())
+                assertEquals(response.body,200,response.status)
+                return JSONObject(response.body).also { generation=it.getLong("dataGeneration") }
+            }
+            val row=JSONObject().put("currencyCode","USD").put("balance","100").put("name","Reserve")
+                .put("includeInAvailableCash",false).put("showOnAccountsPage",false)
+            val account=save("/api/v1/accounts",JSONObject().put("name","Broker").put("showDepositSummary",false)
+                .put("cashChanges",org.json.JSONArray().put(row))).getLong("id")
+            var detail=JSONObject(http(endpoint,"GET","/api/v1/accounts/$account",cookie=cookie).body)
+            val cashId=detail.getJSONArray("cash").getJSONObject(0).getLong("id")
+            assertFalse(detail.getJSONObject("account").getBoolean("showDepositSummary"))
+            assertFalse(detail.getJSONArray("cash").getJSONObject(0).getBoolean("includeInAvailableCash"))
+            assertFalse(detail.getJSONArray("cash").getJSONObject(0).getBoolean("showOnAccountsPage"))
+            save("/api/v1/accounts/$account",JSONObject().put("name","Renamed").put("expectedRevision",detail.getJSONObject("account").getLong("revision")),"PUT")
+            detail=JSONObject(http(endpoint,"GET","/api/v1/accounts/$account",cookie=cookie).body)
+            assertFalse(detail.getJSONObject("account").getBoolean("showDepositSummary"))
+            val credit=JSONObject().put("currencyCode","USD").put("balance","0").put("name","Card").put("type","CREDIT")
+                .put("credit",JSONObject().put("creditLimit","0").put("statementDay",12)
+                    .put("dueRule",JSONObject().put("type","AFTER_STATEMENT_DAYS").put("value",20)))
+            save("/api/v1/accounts/$account",JSONObject().put("name","Renamed").put("expectedRevision",detail.getJSONObject("account").getLong("revision"))
+                .put("cashChanges",org.json.JSONArray().put(credit)),"PUT")
+            val trade=JSONObject().put("accountId",account).put("instrumentId",instrument).put("currencyCode","USD")
+                .put("direction","BUY").put("quantity","2").put("executionPrice","10").put("fee","0.5")
+                .put("occurredAtMs",System.currentTimeMillis()).put("cashLinked",true).put("cashAccountId",cashId)
+            save("/api/v1/trades",trade)
+            val retry=http(endpoint,"POST","/api/v1/trades",origin=origin,cookie=cookie,csrf=csrf,body=trade.toString())
+            assertEquals(409,retry.status) // A stale generation is reconciled through the existing receipt endpoint.
+            assertEquals(200,http(endpoint,"GET","/api/v1/operations/${trade.getString("operationId")}",cookie=cookie).status)
+            val snapshot=RoomOverview(database).snapshot()
+            assertEquals(1,snapshot.positions.size)
+            assertEquals(200000000L,snapshot.positions.single().holding_quantity_e8)
+            assertEquals(7950L,snapshot.cash.first { it.id==cashId }.balance_minor)
+        }
+    }
+
     @Test fun batch_price_transaction_rolls_back_and_retries_without_changing_costs() = runBlocking<Unit> {
         val clock = java.time.Clock.systemUTC()
         val commands = RoomFinancialCommands(database, clock)

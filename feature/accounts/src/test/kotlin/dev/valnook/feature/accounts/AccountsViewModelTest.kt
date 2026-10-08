@@ -22,6 +22,29 @@ class AccountsViewModelTest {
     }
     @Before fun prepare() { Dispatchers.setMain(dispatcher) }
     @After fun close() { Dispatchers.resetMain() }
+    @Test fun zero_limit_and_preferences_survive_draft_restore_and_invalid_fields_keep_row_identity() = runTest(dispatcher) {
+        var request:SaveAccount?=null
+        val commands=object:FinancialCommands { override suspend fun execute(command:FinancialCommand):OperationResult {
+            request=command as SaveAccount;return OperationResult("ACCOUNT",8)
+        }}
+        val saved=SavedStateHandle()
+        val vm=AccountEditViewModel(null,repository,commands,saved)
+        runCurrent();vm.changeName("Bank");vm.addRow()
+        val key=vm.state.value.rows.single().key
+        vm.changeRow(key,type=BalanceAccountType.CREDIT,creditLimit="-1",statementDay="32")
+        vm.submit();runCurrent()
+        assertNull(request)
+        assertTrue(vm.state.value.fieldErrors.keys.containsAll(listOf("$key:name","$key:limit","$key:statement")))
+        vm.changeRow(key,name="Card",creditLimit="0",statementDay="12",showOnAccountsPage=false,includeInAvailableCash=false)
+        vm.changeVisibility(deposits=false,investments=false)
+        val restored=AccountEditViewModel(null,repository,commands,SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
+        runCurrent();restored.submit();runCurrent()
+        assertEquals(0L,request!!.cashChanges.single().credit!!.creditLimitMinor)
+        assertEquals(false,request!!.cashChanges.single().showOnAccountsPage)
+        assertEquals(false,request!!.cashChanges.single().includeInAvailableCash)
+        assertEquals(false,request!!.showDepositSummary)
+        assertEquals(false,request!!.showInvestmentSummary)
+    }
     @Test fun atomic_account_command_keeps_stable_cash_identity() = runTest(dispatcher) {
         var request: SaveAccount? = null
         val commands = object : FinancialCommands {
@@ -38,7 +61,7 @@ class AccountsViewModelTest {
         assertEquals(7L, request!!.accountId)
         assertEquals(3L, request!!.expectedRevision)
         assertEquals("旧备注", request!!.note)
-        assertEquals(listOf(CashBalanceChange("CNY", 100, 8, 11, "人民币现金", "", displayOrder = 0)), request!!.cashChanges)
+        assertEquals(listOf(CashBalanceChange("CNY", 100, 8, 11, "人民币现金", "", displayOrder = 0, includeInAvailableCash = true, showOnAccountsPage = true)), request!!.cashChanges)
         assertTrue(vm.consumeSuccess())
         assertFalse(vm.consumeSuccess())
     }
@@ -57,9 +80,9 @@ class AccountsViewModelTest {
         assertEquals("CNY", vm.state.value.rows.first().currency.code)
         vm.addRow()
         val new = vm.state.value.rows.last()
-        assertEquals("CNY", new.nameInput)
+        assertEquals("", new.nameInput)
         vm.changeRow(new.key, currency = Currency.of("USD"))
-        assertEquals("USD", vm.state.value.rows.last().nameInput)
+        assertEquals("", vm.state.value.rows.last().nameInput)
         vm.changeRow(new.key, name = "美元现金", balance = "0")
         val restored = AccountEditViewModel(7, repository, commands, SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
         runCurrent()
@@ -71,7 +94,7 @@ class AccountsViewModelTest {
         assertEquals(listOf(
             CashBalanceChange("CNY", 200, 8, 11, "人民币现金", ""),
             CashBalanceChange("USD", 0, null, null, "美元现金", "")
-        ).mapIndexed { index, row -> row.copy(displayOrder = index.toLong()) }, requests.single().cashChanges)
+        ).mapIndexed { index, row -> row.copy(displayOrder = index.toLong(), includeInAvailableCash = true, showOnAccountsPage = true) }, requests.single().cashChanges)
     }
     @Test fun unknown_receipt_reconciles_original_operation_without_second_write() = runTest(dispatcher) {
         var writes = 0

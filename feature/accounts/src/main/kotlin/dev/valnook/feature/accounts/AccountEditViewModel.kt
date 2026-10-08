@@ -41,7 +41,8 @@ data class CashAccountRowDraft(
     val statementDayInput: String = "12",
     val dueRuleType: String = "AFTER_STATEMENT_DAYS",
     val dueRuleValueInput: String = "20",
-    val limitSourceAccountId: Long? = null
+    val limitSourceAccountId: Long? = null,
+    val includeInAvailableCash: Boolean = true, val showOnAccountsPage: Boolean = true
 ) {
     val currencyLocked: Boolean get() = cashAccountId != null
 }
@@ -58,7 +59,9 @@ data class AccountEditUiState(
     val loadError: Boolean = false,
     val icon: AccountIcon = AccountIcon(),
     val iconImage: ByteArray? = null,
-    val iconChanged: Boolean = false
+    val iconChanged: Boolean = false,
+    val showDepositSummary: Boolean = true, val showInvestmentSummary: Boolean = true,
+    val fieldErrors: Map<String, ErrorCode> = emptyMap()
 )
 
 class AccountEditViewModel(
@@ -92,24 +95,27 @@ class AccountEditViewModel(
                 BalanceAccountType.valueOf(saved["type-$key"] ?: BalanceAccountType.SAVINGS.name),
                 saved["limit-$key"] ?: "", saved["statement-$key"] ?: "12",
                 saved["dueType-$key"] ?: "AFTER_STATEMENT_DAYS", saved["dueValue-$key"] ?: "20",
-                saved["source-$key"])
+                saved["source-$key"], saved["available-$key"] ?: true, saved["visible-$key"] ?: true)
         }, expectedRevision = saved["accountRevision"], loaded = true,
             icon = AccountIcon(AccountIconType.valueOf(saved["iconType"] ?: "SYMBOL"), saved["iconValue"] ?: "account_balance"),
-            iconImage = saved["iconImage"], iconChanged = saved["iconChanged"] ?: false)
+            iconImage = saved["iconImage"], iconChanged = saved["iconChanged"] ?: false,
+            showDepositSummary = saved["showDeposits"] ?: true, showInvestmentSummary = saved["showInvestments"] ?: true)
     }
 
     private fun persist(value: AccountEditUiState) {
         val activeKeys = value.rows.map { it.key }.toSet()
         state.value.rows.filter { it.key !in activeKeys }.forEach { row ->
             listOf("cashId", "cashName", "cashNote", "currency", "balance", "before", "revision", "type",
-                "limit", "statement", "dueType", "dueValue", "source").forEach {
+                "limit", "statement", "dueType", "dueValue", "source", "available", "visible").forEach {
                 prefix -> saved.remove<Any>("$prefix-${row.key}")
             }
         }
-        mutable.value = value
+        mutable.value = if (saved.get<Boolean>("validate") == true) value.copy(fieldErrors = validateAccountForm(value)) else value
         saved["loaded"] = value.loaded
         saved["name"] = value.name
         saved["note"] = value.note
+        saved["showDeposits"] = value.showDepositSummary
+        saved["showInvestments"] = value.showInvestmentSummary
         saved["iconType"] = value.icon.type.name
         saved["iconValue"] = value.icon.value
         saved["iconImage"] = value.iconImage
@@ -130,6 +136,8 @@ class AccountEditViewModel(
             saved["dueType-${row.key}"] = row.dueRuleType
             saved["dueValue-${row.key}"] = row.dueRuleValueInput
             saved["source-${row.key}"] = row.limitSourceAccountId
+            saved["available-${row.key}"] = row.includeInAvailableCash
+            saved["visible-${row.key}"] = row.showOnAccountsPage
         }
     }
 
@@ -155,8 +163,10 @@ class AccountEditViewModel(
                             profile?.creditLimitMinor?.let { R.format_units(it, cash.currency.fraction_digits) }.orEmpty(),
                             profile?.statementDay?.toString() ?: "12",
                             if (profile?.dueRule is CreditDueRule.FixedDayOfMonth) "FIXED_DAY_OF_MONTH" else "AFTER_STATEMENT_DAYS",
-                            profile?.dueRule?.value?.toString() ?: "20", profile?.limitSourceAccountId)
-                    }, account?.revision, sources, true, icon = account?.icon ?: AccountIcon()))
+                            profile?.dueRule?.value?.toString() ?: "20", profile?.limitSourceAccountId,
+                            cash.includeInAvailableCash, cash.showOnAccountsPage)
+                    }, account?.revision, sources, true, icon = account?.icon ?: AccountIcon(),
+                    showDepositSummary = account?.showDepositSummary ?: true, showInvestmentSummary = account?.showInvestmentSummary ?: true))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
@@ -205,6 +215,12 @@ class AccountEditViewModel(
         if (submission.value.editable) persist(state.value.copy(note = value))
     }
 
+    fun changeVisibility(deposits: Boolean? = null, investments: Boolean? = null) {
+        if (submission.value.editable) persist(state.value.copy(
+            showDepositSummary = deposits ?: state.value.showDepositSummary,
+            showInvestmentSummary = investments ?: state.value.showInvestmentSummary))
+    }
+
     fun changeRow(
         key: String,
         name: String? = null,
@@ -217,7 +233,8 @@ class AccountEditViewModel(
         dueRuleType: String? = null,
         dueRuleValue: String? = null,
         limitSourceAccountId: Long? = null,
-        clearLimitSource: Boolean = false
+        clearLimitSource: Boolean = false,
+        includeInAvailableCash: Boolean? = null, showOnAccountsPage: Boolean? = null
     ) {
         if (!submission.value.editable) return
         persist(state.value.copy(rows = state.value.rows.map { row ->
@@ -225,7 +242,6 @@ class AccountEditViewModel(
                 val nextCurrency = if (row.currencyLocked) row.currency else currency ?: row.currency
                 val nextName = when {
                     name != null -> name
-                    currency != null && !row.currencyLocked && row.nameInput == row.currency.code -> nextCurrency.code
                     else -> row.nameInput
                 }
                 val nextSource = when {
@@ -243,7 +259,9 @@ class AccountEditViewModel(
                     statementDayInput = statementDay ?: row.statementDayInput,
                     dueRuleType = dueRuleType ?: row.dueRuleType,
                     dueRuleValueInput = dueRuleValue ?: row.dueRuleValueInput,
-                    limitSourceAccountId = nextSource)
+                    limitSourceAccountId = nextSource,
+                    includeInAvailableCash = includeInAvailableCash ?: row.includeInAvailableCash,
+                    showOnAccountsPage = showOnAccountsPage ?: row.showOnAccountsPage)
             }
         }))
     }
@@ -252,7 +270,7 @@ class AccountEditViewModel(
         if (!submission.value.editable) return
         val currency = Currency.supported.first()
         persist(state.value.copy(rows = state.value.rows + CashAccountRowDraft(
-            key = UUID.randomUUID().toString(), cashAccountId = null, nameInput = currency.code,
+            key = UUID.randomUUID().toString(), cashAccountId = null, nameInput = "",
             noteInput = "", currency = currency, balanceInput = "0")))
     }
 
@@ -279,12 +297,15 @@ class AccountEditViewModel(
     }
 
     fun submit() = session.submit {
+        saved["validate"] = true
+        persist(state.value)
         val input = state.value
+        input.fieldErrors.values.firstOrNull()?.let { throw DomainException(it) }
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
         val changes = input.rows.mapIndexed { index, row ->
             val credit = if (row.type == BalanceAccountType.CREDIT) CreditAccountInput(
                 creditLimitMinor = if (row.limitSourceAccountId == null)
-                    R.parse_minor(row.creditLimitInput, row.currency, positive = true) else null,
+                    R.parse_minor(row.creditLimitInput, row.currency, positive = false) else null,
                 statementDay = row.statementDayInput.toIntOrNull() ?: throw DomainException(ErrorCode.INVALID_STATEMENT_DAY),
                 dueRule = when (row.dueRuleType) {
                     "FIXED_DAY_OF_MONTH" -> CreditDueRule.FixedDayOfMonth(
@@ -295,10 +316,12 @@ class AccountEditViewModel(
                 limitSourceAccountId = row.limitSourceAccountId
             ) else null
             CashBalanceChange(row.currency.code, R.parse_signed_minor(row.balanceInput, row.currency),
-                row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput, row.type, credit, index.toLong())
+                row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput, row.type, credit, index.toLong(),
+                row.includeInAvailableCash, row.showOnAccountsPage)
         }
         SaveAccount(operationId, accountId, input.expectedRevision, input.name, input.note, changes,
-            if (input.iconChanged) AccountIconChange(input.icon, input.iconImage) else null)
+            if (input.iconChanged) AccountIconChange(input.icon, input.iconImage) else null,
+            input.showDepositSummary, input.showInvestmentSummary)
     }
 
     fun consumeSuccess(): Boolean {

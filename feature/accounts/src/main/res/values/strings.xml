@@ -65,4 +65,8 @@
     <string name="account_order_down">Move down</string>
     <string name="account_order_error">Unable to save. Reload the list and try again.</string>
     <string name="account_order_reload">Reload</string>
+    <string name="account_show_deposits">Show deposit summary</string>
+    <string name="account_show_investments">Show investment summary</string>
+    <string name="account_show_cash">Show on Accounts page</string>
+    <string name="account_include_available">Include in available cash</string>
 </resources>

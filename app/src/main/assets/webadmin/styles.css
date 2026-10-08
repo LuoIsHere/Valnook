@@ -31,3 +31,5 @@
 .price-row input{text-align:right;font-variant-numeric:tabular-nums}.price-row input[aria-invalid=true]{border-color:var(--danger)}.price-error{color:var(--danger);font-size:12px}.price-error:empty{display:none}.price-changed{margin-right:6px;color:var(--text)}
 @media(max-width:640px){.price-row{grid-template-columns:minmax(0,1fr) minmax(110px,42%);gap:10px}.price-identity label{font-size:13px}.price-identity .subtle{font-size:11px}.investment-account-toggle{gap:8px;padding-inline:0}.investment-account-toggle .avatar{width:28px;height:28px;flex-basis:28px}.investment-account-toggle>.numeric{font-size:13px}.investment-account-profit{font-size:11px;padding-inline:0}}
 @media(prefers-reduced-motion:reduce){.investment-group-body{animation:none!important}.expansion-chevron{transition:none!important}}
+
+.form-grid input[aria-invalid="true"],.form-grid input:user-invalid { border-color:var(--danger); }

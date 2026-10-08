@@ -20,6 +20,27 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 class MigrationTest {
     @get:Rule val helper=MigrationTestHelper(InstrumentationRegistry.getInstrumentation(),
         ValnookDatabase::class.java,emptyList(),FrameworkSQLiteOpenHelperFactory())
+    @Test fun v14_account_preferences_default_to_existing_behavior() {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name="migration-v14-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name,14).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms) VALUES (1,'Bank','',0,0)")
+                execSQL("INSERT INTO cash_accounts(id,savings_account_id,currency_code,balance_minor,revision,updated_at_ms,name,note,currency_locked,created_at_ms) VALUES (1,1,'CNY',-123,1,0,'Cash','',1,0)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name,15,true,MIGRATION_14_15).apply {
+                query("SELECT show_deposit_summary,show_investment_summary FROM savings_accounts").use {
+                    assertTrue(it.moveToFirst());assertEquals(1,it.getInt(0));assertEquals(1,it.getInt(1))
+                }
+                query("SELECT include_in_available_cash,show_on_accounts_page,balance_minor FROM cash_accounts").use {
+                    assertTrue(it.moveToFirst());assertEquals(1,it.getInt(0));assertEquals(1,it.getInt(1));assertEquals(-123,it.getInt(2))
+                }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
     @Test fun v3_shared_catalog_cost_cache_and_irreversible_locks_preserve_history(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val name = "migration-v3-${UUID.randomUUID()}.db"

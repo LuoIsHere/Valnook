@@ -6,7 +6,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import dev.valnook.designsystem.ActionButton
+import dev.valnook.designsystem.CreditLimitProgress
+import dev.valnook.designsystem.CompactEditButton
+import androidx.compose.ui.Alignment
 import dev.valnook.designsystem.Space
 import dev.valnook.domain.model.CashAccount
 import dev.valnook.domain.money.DecimalRules
@@ -24,21 +26,19 @@ import java.time.LocalDate
     creditSourceLabels:Map<Long,String> = emptyMap()) {
     Column(modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(Space.sm)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(account.name.ifBlank { account.currency.code },style=MaterialTheme.typography.titleMedium,
                 color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text(if(account.type==BalanceAccountType.CREDIT) stringResource(R.string.cash_credit_account)
                 else stringResource(R.string.cash_savings_account),style=MaterialTheme.typography.labelMedium,
                 color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text(DecimalRules.format_display(account.balance_minor,account.currency.fraction_digits)+" "+account.currency.code,
                 style=MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings="tnum"),modifier=Modifier.weight(1f),
                 color=if(account.type==BalanceAccountType.SAVINGS && account.balance_minor<0)
                     MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-            if(on_edit!=null) ActionButton(onClick=on_edit) {
-                Text(stringResource(R.string.cash_edit_balance))
-            }
+            if(on_edit!=null) CompactEditButton(stringResource(R.string.cash_edit_balance), on_edit)
         }
         if(account.note.isNotBlank()) Text(account.note,style=MaterialTheme.typography.bodySmall)
         if(account.type==BalanceAccountType.CREDIT) {
@@ -50,8 +50,7 @@ import java.time.LocalDate
             val summary=runCatching { CreditLimitCalculator.calculate(account.id,
                 if(allAccounts.any{it.id==account.id}) allAccounts else listOf(account)) }.getOrNull()
             if(summary!=null) {
-                LinearProgressIndicator(progress={ summary.usedLimitMinor.divide(summary.totalLimitMinor,4,
-                    RoundingMode.HALF_UP).toFloat().coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
+                CreditLimitProgress(summary.usedLimitMinor.toDouble(), summary.totalLimitMinor.toDouble())
                 val scale=account.currency.fraction_digits
                 Text(stringResource(R.string.cash_limit_summary,
                     DecimalRules.format_display(summary.usedLimitMinor.longValueExact(),scale),

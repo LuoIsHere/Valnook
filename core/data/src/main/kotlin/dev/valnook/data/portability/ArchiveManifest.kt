@@ -102,6 +102,7 @@ data class ArchiveManifest(
             if (features.toSet().size != features.size) fail()
             if (dataSchemaVersion >= 2 && "credit-accounts-v1" !in features) incompatible()
             if (dataSchemaVersion >= 3 && "account-order-v1" !in features) incompatible()
+            if (dataSchemaVersion >= 5 && "account-presentation-v1" !in features) incompatible()
             if (dataSchemaVersion >= 4 && "account-icons-v1" !in features) incompatible()
             val files = root.list("files").map { item ->
                 val value = item.asObject()

@@ -56,7 +56,7 @@ data class EditTermDeposit(override val operation_id: String, val deposit_id: Lo
 data class RecordInvestmentTrade(override val operation_id: String, val investment_id: Long,
     val direction: Direction, val quantity_e8: Long, val execution_price_e8: Long,
     val occurred_at_ms: Long, val cash_linked: Boolean, val cashAccountId: Long? = null,
-    val fee_minor: Long = 0) : FinancialCommand
+    val fee_minor: Long = 0, val accountId: Long? = null, val instrumentId: Long? = null) : FinancialCommand
 
 data class EditInvestmentTrade(override val operation_id: String, val trade_id: Long,
     val expected_revision: Long, val direction: Direction, val quantity_e8: Long,

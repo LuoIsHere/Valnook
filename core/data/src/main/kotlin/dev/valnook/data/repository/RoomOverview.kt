@@ -20,9 +20,9 @@ class RoomOverview(private val db: ValnookDatabase) : OverviewRepository {
     override suspend fun snapshot(): AssetSnapshot {
         val rows = db.overview().snapshot()
         val profiles = rows.creditProfiles.associateBy { it.account_id }
-        return AssetSnapshot(rows.accounts.map { SavingsAccount(it.id, it.name, it.note, it.revision, AccountIcon(AccountIconType.valueOf(it.icon_type), it.icon_value)) },
+        return AssetSnapshot(rows.accounts.map { SavingsAccount(it.id, it.name, it.note, it.revision, AccountIcon(AccountIconType.valueOf(it.icon_type), it.icon_value), it.show_deposit_summary, it.show_investment_summary) },
             rows.cash.map { CashAccount(it.savings_account_id, Currency.of(it.currency_code), it.balance_minor, it.revision,
-                it.id, it.name, it.note, it.currency_locked, profiles[it.id]?.toModel()) },
+                it.id, it.name, it.note, it.currency_locked, profiles[it.id]?.toModel(), it.include_in_available_cash, it.show_on_accounts_page) },
             rows.deposits.map { it.toModel() }, rows.positions.map { it.toModel() },
             rows.instruments.map { it.toModel() }, settingsModel(rows.settings, rows.rates))
     }

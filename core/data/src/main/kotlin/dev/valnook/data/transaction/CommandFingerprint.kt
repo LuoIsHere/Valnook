@@ -19,7 +19,12 @@ internal object CommandFingerprint {
                     listOf("DISPLAY_ORDER") + command.cashChanges.flatMap { listOf(it.cashAccountId, it.name.trim(), it.displayOrder) }
                 else emptyList()) + (command.iconChange?.let {
                     listOf("ACCOUNT_ICON", it.icon.type.name, it.icon.value, it.image?.let(AccountIconImages::digest))
-                } ?: emptyList())
+                } ?: emptyList()) + (if (command.showDepositSummary != null || command.showInvestmentSummary != null ||
+                    command.cashChanges.any { it.includeInAvailableCash != null || it.showOnAccountsPage != null })
+                    listOf("ACCOUNT_PRESENTATION", command.showDepositSummary, command.showInvestmentSummary) +
+                        command.cashChanges.sortedBy { it.cashAccountId ?: Long.MAX_VALUE }.flatMap {
+                            listOf(it.cashAccountId, it.name.trim(), it.includeInAvailableCash, it.showOnAccountsPage)
+                        } else emptyList())
             is DeleteBalanceAccount -> listOf("BALANCE_ACCOUNT_DELETE", command.accountId,
                 command.balanceAccountId, command.expectedRevision)
             is SaveInstrument -> listOf("INSTRUMENT_SAVE", command.instrumentId, command.expectedRevision,
@@ -41,7 +46,7 @@ internal object CommandFingerprint {
                 command.close_cash_linked,command.openCashAccountId,command.closeCashAccountId)
             is RecordInvestmentTrade -> listOf(command.direction.name,command.investment_id,command.quantity_e8,
                 command.execution_price_e8,command.occurred_at_ms,command.cash_linked,command.cashAccountId,
-                command.fee_minor)
+                command.fee_minor) + (if (command.investment_id == 0L) listOf(command.accountId, command.instrumentId) else emptyList())
             is EditInvestmentTrade -> listOf("TRADE_EDIT",command.trade_id,command.expected_revision,command.direction,
                 command.quantity_e8,command.execution_price_e8,command.occurred_at_ms,command.cash_linked,
                 command.cashAccountId,command.fee_minor)

@@ -118,7 +118,7 @@
     <string name="error_positive">Values must be nonnegative; principal, price, and quantity must be positive.</string>
     <string name="error_storage">Save result not yet confirmed. Retry safely without creating a duplicate. Inputs stay locked until confirmed.</string>
     <string name="error_account_type">The account type cannot be changed after creation.</string>
-    <string name="error_credit_limit">Enter a positive credit limit for an independent account, or choose a limit source.</string>
+    <string name="error_credit_limit">Enter a credit limit of zero or more for an independent account, or choose a limit source.</string>
     <string name="error_statement_day">Statement day must be between 1 and 31.</string>
     <string name="error_due_rule">Check the payment due rule and its day value.</string>
     <string name="error_credit_source">The selected credit-limit source is no longer available. Refresh and choose again.</string>

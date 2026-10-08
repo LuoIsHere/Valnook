@@ -18,7 +18,7 @@ object CreditLimitCalculator {
         if (rootProfile.limitSourceAccountId != null) throw DomainException(ErrorCode.CREDIT_SOURCE_CHAIN)
         if (root.account_id != account.account_id) throw DomainException(ErrorCode.CREDIT_SOURCE_PARENT)
         if (root.currency != account.currency) throw DomainException(ErrorCode.CREDIT_SOURCE_CURRENCY)
-        val total = rootProfile.creditLimitMinor?.takeIf { it > 0 }?.let(BigDecimal::valueOf)
+        val total = rootProfile.creditLimitMinor?.takeIf { it >= 0 }?.let(BigDecimal::valueOf)
             ?: throw DomainException(ErrorCode.INVALID_CREDIT_LIMIT)
         val members = accounts.filter { candidate ->
             candidate.id == rootId || candidate.creditProfile?.limitSourceAccountId == rootId

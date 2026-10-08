@@ -73,7 +73,7 @@ async function renderAccounts() {
   root.append(toolbar(el("div", { class: "spacer" }), button(t("newAccount"), () => accountForm(null), "primary")));
   const rows = data.items.map(item => el("tr", { "data-clickable": "true", onclick: () => accountDetail(item.id) },
     el("td", {}, el("div", { class: "account-cell" }, avatar(item.icon), el("div", {}, el("strong", { text: item.name }), el("div", { class: "subtle", text: item.note || "—" })) )),
-    el("td", { class: "numeric", text: fmt(item.cash, data.baseCurrency) }),
+    el("td", { class: "numeric", text: fmt(item.availableCash ?? item.cash, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.creditBalance, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.deposits, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.investments, data.baseCurrency) }),
@@ -118,7 +118,11 @@ function accountForm(account) {
   const form = el("form", { class: "form-grid" });
   form.append(picker.element);
   form.append(field(t("name"), "name", account?.name || "", true), field(t("note"), "note", account?.note || "", false, "text", true));
+  form.append(checkField(t("showDeposits"), "showDepositSummary", account?.showDepositSummary ?? true),
+    checkField(t("showInvestments"), "showInvestmentSummary", account?.showInvestmentSummary ?? true));
   cash.forEach((v, index) => {
+    form.append(checkField(`${t("showOnAccounts")} · ${v.name}`, `visible-${index}`, v.showOnAccountsPage ?? true));
+    if (v.type === "SAVINGS") form.append(checkField(`${t("includeAvailable")} · ${v.name}`, `available-${index}`, v.includeInAvailableCash ?? true));
     form.append(field(`${v.currencyCode} · ${v.name}`, `cash-${index}`, v.balance, true));
     if (v.type === "CREDIT") form.append(selectField(`${t("limitSource")} · ${v.name}`, `source-${index}`,
       [{ value: "", label: t("independentLimit") }, ...(account?.creditSourceCandidates || []).filter(s => s.accountId === account.id && s.id !== v.id && s.currencyCode === v.currencyCode)
@@ -140,11 +144,11 @@ function accountForm(account) {
   form.append(error, actions(async submit => {
     const fd = new FormData(form);
     const body = { operationId: uuid(), dataGeneration: state.generation, expectedRevision: account?.revision ?? null,
-      name: fd.get("name"), note: fd.get("note") || "", cashChanges: cash.map((v, i) => ({ cashAccountId: v.id, expectedRevision: v.revision, currencyCode: v.currencyCode, balance: fd.get(`cash-${i}`), name: v.name, note: v.note, type: v.type,
+      name: fd.get("name"), note: fd.get("note") || "", showDepositSummary: fd.get("showDepositSummary") === "on", showInvestmentSummary: fd.get("showInvestmentSummary") === "on", cashChanges: cash.map((v, i) => ({ cashAccountId: v.id, expectedRevision: v.revision, currencyCode: v.currencyCode, balance: fd.get(`cash-${i}`), name: v.name, note: v.note, type: v.type, showOnAccountsPage: fd.get(`visible-${i}`) === "on", includeInAvailableCash: v.type === "SAVINGS" ? fd.get(`available-${i}`) === "on" : v.includeInAvailableCash,
         credit: v.type === "CREDIT" ? { limitSourceAccountId: fd.get(`source-${i}`) ? Number(fd.get(`source-${i}`)) : null, creditLimit: fd.get(`limit-${i}`) || v.credit?.creditLimit || "", statementDay: Number(fd.get(`statement-${i}`)), dueRule: { type: fd.get(`dueType-${i}`), value: Number(fd.get(`dueValue-${i}`)) } } : null })) };
     if (String(fd.get("newCashCurrency") || "").trim()) body.cashChanges.push({ cashAccountId: null, expectedRevision: null,
       currencyCode: String(fd.get("newCashCurrency")).trim().toUpperCase(), balance: fd.get("newCashBalance") || "0",
-      name: fd.get("newCashName") || String(fd.get("newCashCurrency")).trim().toUpperCase(), note: "", type: fd.get("newCashType"),
+      name: fd.get("newCashName") || "", note: "", type: fd.get("newCashType"),
       credit: fd.get("newCashType") === "CREDIT" ? { limitSourceAccountId: fd.get("newLimitSource") ? Number(fd.get("newLimitSource")) : null, creditLimit: fd.get("newCreditLimit"), statementDay: Number(fd.get("newStatementDay")), dueRule: { type: fd.get("newDueType"), value: Number(fd.get("newDueValue")) } } : null });
     body.iconChange = await picker.value();
     await saveForm(submit, error, account ? `/api/v1/accounts/${account.id}` : "/api/v1/accounts", account ? "PUT" : "POST", body);
@@ -155,6 +159,7 @@ function accountForm(account) {
       const input = form.elements[name]; input.disabled = !credit; input.closest(".field").hidden = !credit;
     });
     const currency = form.elements.newCashCurrency.value.trim().toUpperCase();
+    form.elements.newCashName.required = !!currency;
     Array.from(form.elements.newLimitSource.options).slice(1).forEach(option => {
       const candidate = account?.creditSourceCandidates?.find(v => String(v.id) === option.value);
       option.disabled = candidate?.currencyCode !== currency;
@@ -163,6 +168,41 @@ function accountForm(account) {
   };
   form.elements.newCashType.addEventListener("change", updateCredit);
   form.elements.newCashCurrency.addEventListener("input", updateCredit); updateCredit();
+  form.validateInputs = () => {
+    const check = (name, valid) => {
+      const input = form.elements[name];
+      if (!input || input.disabled) return;
+      input.setCustomValidity(valid ? "" : t("invalidFormat"));
+      input.setAttribute("aria-invalid", String(!valid));
+    };
+    const decimal = (name, signed, code) => {
+      const value = String(form.elements[name]?.value || "").trim();
+      const scale = state.session.currencies?.find(v => v.code === code)?.fractionDigits ?? (code === "JPY" || code === "KRW" || code === "VND" ? 0 : ["KWD","BHD","OMR","TND"].includes(code) ? 3 : 2);
+      check(name, (signed ? /^-?\d+(?:\.\d+)?$/ : /^\d+(?:\.\d+)?$/).test(value) && (value.split(".")[1]?.replace(/0+$/, "").length || 0) <= scale);
+    };
+    cash.forEach((v,i) => {
+      decimal(`cash-${i}`,true,v.currencyCode);
+      if (v.type === "CREDIT") {
+        check(`limit-${i}`,true);
+        if (!form.elements[`source-${i}`].value) decimal(`limit-${i}`,false,v.currencyCode);
+        check(`statement-${i}`,/^(?:[1-9]|[12]\d|3[01])$/.test(form.elements[`statement-${i}`].value));
+        const due=Number(form.elements[`dueValue-${i}`].value);
+        check(`dueValue-${i}`,Number.isInteger(due) && due>=1 && due<=(form.elements[`dueType-${i}`].value === "FIXED_DAY_OF_MONTH" ? 31 : 365));
+      }
+    });
+    const currency=form.elements.newCashCurrency.value.trim().toUpperCase();
+    if (currency) {
+      decimal("newCashBalance",true,currency);
+      if (form.elements.newCashType.value === "CREDIT") {
+        check("newCreditLimit",true);
+        if (!form.elements.newLimitSource.value) decimal("newCreditLimit",false,currency);
+        check("newStatementDay",/^(?:[1-9]|[12]\d|3[01])$/.test(form.elements.newStatementDay.value));
+        const due=Number(form.elements.newDueValue.value);
+        check("newDueValue",Number.isInteger(due) && due>=1 && due<=(form.elements.newDueType.value === "FIXED_DAY_OF_MONTH" ? 31 : 365));
+      }
+    }
+  };
+  form.addEventListener("input", event => { event.target.setCustomValidity?.(""); event.target.removeAttribute?.("aria-invalid"); });
   openDrawer(account ? t("editAccount") : t("newAccount"), "ACCOUNT", form);
 }
 
@@ -260,10 +300,22 @@ function assetTypeForm() {
 function positionForm() {
   const form = el("form", { class: "form-grid" });
   form.append(selectField(t("account"), "accountId", state.accounts.map(v => ({ value: v.id, label: v.name }))),
-    selectField(t("instrument"), "instrumentId", state.instruments.map(v => ({ value: v.id, label: `${v.name} · ${v.symbol}` }))));
-  const error = el("p", { class: "drawer-error" }); form.append(error, actions(async submit => {
-    const fd = new FormData(form); await saveForm(submit, error, "/api/v1/positions", "POST", { operationId: uuid(), dataGeneration: state.generation, accountId: Number(fd.get("accountId")), instrumentId: Number(fd.get("instrumentId")) });
-  })); openDrawer(t("newPosition"), "INVESTMENT", form);
+    field(t("searchInstrument"), "search", ""));
+  const list = el("div", { class: "field full" }); form.append(list);
+  const render = () => {
+    const query = form.elements.search.value.trim().toLowerCase();
+    list.replaceChildren(...state.instruments.filter(v => `${v.name} ${v.symbol} ${v.currencyCode}`.toLowerCase().includes(query)).map(v =>
+      button(`${v.name} · ${v.symbol} · ${v.currencyCode}`, async () => {
+        const accountId = Number(form.elements.accountId.value);
+        const existing = state.positions.find(p => p.accountId === accountId && p.instrumentId === v.id);
+        if (existing) return positionDetail(existing.id);
+        const account = await api(`/api/v1/accounts/${accountId}`);
+        tradeForm({ id: 0, accountId, instrumentId: v.id, name: v.name, currencyCode: v.currencyCode }, null,
+          account.cash.filter(c => c.type === "SAVINGS" && c.currencyCode === v.currencyCode));
+      })));
+  };
+  form.elements.search.addEventListener("input", render); render();
+  openDrawer(t("newPosition"), "INVESTMENT", form);
 }
 function instrumentForm(item) {
   const form = el("form", { class: "form-grid" });
@@ -291,12 +343,12 @@ async function positionDetail(id) {
 }
 function tradeForm(position, trade, cashAccounts) {
   const form = el("form", { class: "form-grid" });
-  form.append(selectField(t("direction"), "direction", [{ value: "BUY", label: t("buy") }, { value: "SELL", label: t("sell") }], trade?.action), field(t("quantity"), "quantity", trade?.quantity || "", true), field(t("executionPrice"), "executionPrice", trade?.unitPrice || "", true), field(t("fee"), "fee", trade?.fee || "0", true), field(t("time"), "occurred", trade ? toLocalDateTime(trade.businessAtMs) : toLocalDateTime(Date.now()), true, "datetime-local"), checkField(t("cashLink"), "cashLinked", trade?.cashLinked),
+  form.append(selectField(t("direction"), "direction", [{ value: "BUY", label: t("buy") }, { value: "SELL", label: t("sell") }], trade?.action), field(t("quantity"), "quantity", trade?.quantity || "", true), field(t("executionPrice"), "executionPrice", trade?.unitPrice || state.instruments.find(v => v.id === position.instrumentId)?.currentPrice || "", true), field(t("fee"), "fee", trade?.fee || "0", true), field(t("time"), "occurred", trade ? toLocalDateTime(trade.businessAtMs) : toLocalDateTime(Date.now()), true, "datetime-local"), checkField(t("cashLink"), "cashLinked", trade?.cashLinked),
     selectField(t("cashAccount"), "cashAccountId", [{ value: "", label: t("none") }, ...cashAccounts.map(v => ({ value: v.id, label: `${v.name} · ${v.currencyCode}` }))], trade?.linkedCashAccountId));
   const error = el("p", { class: "drawer-error" });
   const actionBar = actions(async submit => {
-    const fd = new FormData(form); await saveForm(submit, error, trade ? `/api/v1/trades/${trade.id}` : `/api/v1/positions/${position.id}/trades`, trade ? "PUT" : "POST", {
-      operationId: uuid(), dataGeneration: state.generation, expectedRevision: trade?.revision ?? null, direction: fd.get("direction"), quantity: fd.get("quantity"), executionPrice: fd.get("executionPrice"), fee: fd.get("fee") || "0", occurredAtMs: new Date(fd.get("occurred")).getTime(), currencyCode: position.currencyCode, cashLinked: fd.get("cashLinked") === "on", cashAccountId: fd.get("cashLinked") === "on" && fd.get("cashAccountId") ? Number(fd.get("cashAccountId")) : null
+    const fd = new FormData(form); await saveForm(submit, error, trade ? `/api/v1/trades/${trade.id}` : position.id ? `/api/v1/positions/${position.id}/trades` : "/api/v1/trades", trade ? "PUT" : "POST", {
+      operationId: uuid(), dataGeneration: state.generation, expectedRevision: trade?.revision ?? null, accountId: position.accountId, instrumentId: position.instrumentId, direction: fd.get("direction"), quantity: fd.get("quantity"), executionPrice: fd.get("executionPrice"), fee: fd.get("fee") || "0", occurredAtMs: new Date(fd.get("occurred")).getTime(), currencyCode: position.currencyCode, cashLinked: fd.get("cashLinked") === "on", cashAccountId: fd.get("cashLinked") === "on" && fd.get("cashAccountId") ? Number(fd.get("cashAccountId")) : null
     });
   });
   if (trade) actionBar.prepend(button(t("delete"), async event => {
@@ -375,6 +427,7 @@ function actions(saveHandler) {
     const form = saveButton.closest("form") || $("#drawer-content form");
     if (state.saving) return;
     if (form?.pendingSubmission) return saveForm(saveButton, $(".drawer-error", form), ...form.pendingSubmission);
+    form?.validateInputs?.();
     if (form && !form.reportValidity()) return;
     try { await saveHandler(saveButton); } catch (error) { $(".drawer-error", form).textContent = errorMessage(error); }
   }, "primary");

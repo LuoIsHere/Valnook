@@ -400,12 +400,12 @@ internal class ArchiveReader(
                OR p.due_rule_type NOT IN ('AFTER_STATEMENT_DAYS','FIXED_DAY_OF_MONTH')
                OR (p.due_rule_type='AFTER_STATEMENT_DAYS' AND p.due_rule_value NOT BETWEEN 1 AND 365)
                OR (p.due_rule_type='FIXED_DAY_OF_MONTH' AND p.due_rule_value NOT BETWEEN 1 AND 31)
-               OR (p.limit_source_account_id IS NULL AND (p.credit_limit_minor IS NULL OR p.credit_limit_minor<=0))
+               OR (p.limit_source_account_id IS NULL AND (p.credit_limit_minor IS NULL OR p.credit_limit_minor<0))
                OR (p.limit_source_account_id IS NOT NULL AND p.credit_limit_minor IS NOT NULL)
                OR p.limit_source_account_id=p.account_id
                OR (p.limit_source_account_id IS NOT NULL AND source.account_id IS NULL)
                OR (p.limit_source_account_id IS NOT NULL AND source.limit_source_account_id IS NOT NULL)
-               OR (p.limit_source_account_id IS NOT NULL AND (source.credit_limit_minor IS NULL OR source.credit_limit_minor<=0))
+               OR (p.limit_source_account_id IS NOT NULL AND (source.credit_limit_minor IS NULL OR source.credit_limit_minor<0))
                OR (p.limit_source_account_id IS NOT NULL AND source_account.savings_account_id!=a.savings_account_id)
                OR (p.limit_source_account_id IS NOT NULL AND source_account.currency_code!=a.currency_code)
             LIMIT 1""").use { if (it.moveToFirst()) relationship() }

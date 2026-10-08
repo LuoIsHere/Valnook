@@ -65,4 +65,8 @@
     <string name="account_order_down">下移</string>
     <string name="account_order_error">保存失败，请重新加载列表后重试。</string>
     <string name="account_order_reload">重新加载</string>
+    <string name="account_show_deposits">显示定期汇总</string>
+    <string name="account_show_investments">显示投资汇总</string>
+    <string name="account_show_cash">在账户页显示</string>
+    <string name="account_include_available">计入可用现金</string>
 </resources>

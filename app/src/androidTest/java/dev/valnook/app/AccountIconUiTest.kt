@@ -64,7 +64,10 @@ class AccountIconUiTest {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalAccountImageLoader provides remember { AccountImageLoader(graph.overview::accountIconImage) },
                 LocalDensity provides Density(density.density, if (large) 2f else density.fontScale)) {
-                ValnookTheme(dark_theme = dark) { AccountEditScreen(vm, {}) }
+                ValnookTheme(dark_theme = dark) {
+                    var toolbar by remember { mutableStateOf<AccountEditToolbarState?>(null) }
+                    Column { AccountEditSaveAction(toolbar); AccountEditScreen(vm, {}, onSaveActionChanged = { toolbar = it }) }
+                }
             }
         }
     }
@@ -83,7 +86,7 @@ class AccountIconUiTest {
         assertEquals(vm.state.value.icon, restored.state.value.icon)
         edit(restored, dark = false)
         save("account-icon-editor-light")
-        rule.onNodeWithText(rule.activity.getString(dev.valnook.feature.accounts.R.string.account_save)).performScrollTo().performClick()
+        rule.onNodeWithTag("account-edit-save").performClick()
         rule.waitUntil(10_000) { restored.submission.value.phase == dev.valnook.domain.command.SubmissionPhase.SUCCEEDED }
         assertEquals("credit_card", runBlocking { graph.overview.snapshot() }.accounts.single().icon.symbol)
         scene { ValnookRoot(rule.activity.sessions, rule.activity.webAdmin) }

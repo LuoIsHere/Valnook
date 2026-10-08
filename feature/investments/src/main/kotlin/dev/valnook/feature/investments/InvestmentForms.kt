@@ -3,6 +3,9 @@ package dev.valnook.feature.investments
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -11,22 +14,20 @@ import dev.valnook.domain.command.SubmissionPhase
 import dev.valnook.domain.model.*
 import java.time.*
 
-@Composable fun PositionCreateForm(vm: PositionCreateViewModel, onBack: () -> Unit) {
-    val submission by vm.submission.collectAsStateWithLifecycle()
+@Composable fun PositionCreateForm(vm: PositionCreateViewModel, onSelect: (Long) -> Unit, onLibrary: () -> Unit) {
     val instruments by vm.available.collectAsStateWithLifecycle()
-    val selectedInstrumentId by vm.selectedInstrumentId.collectAsStateWithLifecycle()
-    LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
-    FormLayout(stringResource(R.string.investment_add_to_account),
-        submission.phase == SubmissionPhase.WORKING,
-        submission.phase != SubmissionPhase.SUCCEEDED && selectedInstrumentId != null,
-        vm::submit) {
-        if (instruments.isEmpty()) Text(stringResource(R.string.investment_no_available_instruments))
-        else ChoiceField(stringResource(R.string.investment_instrument),
-            selectedInstrumentId?.toString().orEmpty(),
-            instruments.map { it.id.toString() to (it.name + " · " + it.symbol) },
-            { id -> instruments.firstOrNull { it.id.toString() == id }?.let(vm::select) }, submission.editable)
-        ErrorMessage(submission.error?.name)
-        if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
+    val query by vm.query.collectAsStateWithLifecycle()
+    androidx.compose.foundation.lazy.LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
+        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        item { Field(stringResource(R.string.investment_search), query, vm::search) }
+        item { TextButton(onClick = onLibrary) { Text(stringResource(R.string.investment_catalogue)) } }
+        if (instruments.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_available_instruments)) }
+        items(instruments.size, key = { instruments[it].id }) { index ->
+            val instrument = instruments[index]
+            androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth()
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+                .clickable { onSelect(instrument.id) }.padding(Space.sm)) { InstrumentIdentity(instrument) }
+        }
     }
 }
 
@@ -77,7 +78,7 @@ import java.time.*
                     val candidates = cashAccounts.filter { it.currency == state.currency }
                     if (candidates.isEmpty()) Text(stringResource(R.string.investment_cash_missing), color = MaterialTheme.colorScheme.error)
                     else ChoiceField(stringResource(R.string.investment_cash_account), state.cashAccountId?.toString().orEmpty(),
-                        candidates.map { it.id.toString() to (it.name + " · " + it.currency.code + " · " +
+                        candidates.map { it.id.toString() to (it.name + " 路 " + it.currency.code + " 路 " +
                             dev.valnook.domain.money.DecimalRules.format_display(it.balance_minor, it.currency.fraction_digits)) },
                         { vm.selectCashAccount(it.toLong()) }, submission.editable)
                 }
@@ -139,7 +140,7 @@ import java.time.*
     FormLayout(stringResource(R.string.instrument_price_edit_title),
         submission.phase == SubmissionPhase.WORKING,
         submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
-        Text(listOf(state.name, state.symbol, state.currency.code).filter { it.isNotBlank() }.joinToString(" · "),
+        Text(listOf(state.name, state.symbol, state.currency.code).filter { it.isNotBlank() }.joinToString(" 路 "),
             style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.instrument_price_shared_hint),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

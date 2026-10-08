@@ -134,20 +134,33 @@ class InvestmentsViewModelTest {
         assertEquals(requests.first(),requests.last())
         assertFalse(requests.first().cash_linked)
     }
-    @Test fun adding_instrument_creates_an_empty_position_without_a_trade()=runTest(dispatcher) {
-        val requests=mutableListOf<FinancialCommand>()
-        val emptyPositions=object:InvestmentRepository by repo {
-            override fun observe_investments(account_id:Long,limit:Int,section:InvestmentSection)=
-                flowOf(emptyList<Investment>())
-        }
-        val commands=object:FinancialCommands {override suspend fun execute(command:FinancialCommand):OperationResult {
-            requests+=command
-            return OperationResult("INVESTMENT_POSITION",7)
-        }}
-        val vm=PositionCreateViewModel(1,1,instruments,emptyPositions,commands,SavedStateHandle())
-        vm.submit()
+    @Test fun catalogue_search_includes_existing_instruments_and_restores_query()=runTest(dispatcher) {
+        val saved = SavedStateHandle()
+        val vm = PositionCreateViewModel(instruments, saved)
+        val job = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.available.collect {} }
         runCurrent()
-        val command=requests.single() as CreateInvestmentPosition
+        assertEquals(listOf(instrument), vm.available.value)
+        vm.search("qqq"); runCurrent()
+        assertEquals(listOf(instrument), vm.available.value)
+        vm.search("missing"); runCurrent()
+        assertTrue(vm.available.value.isEmpty())
+        val restored = PositionCreateViewModel(instruments, saved)
+        assertEquals("missing", restored.query.value)
+        job.cancel()
+    }
+    @Test fun first_trade_uses_selected_account_and_instrument_without_prior_position()=runTest(dispatcher) {
+        val requests=mutableListOf<RecordInvestmentTrade>()
+        val commands=object:FinancialCommands { override suspend fun execute(command:FinancialCommand):OperationResult {
+            requests += command as RecordInvestmentTrade
+            return OperationResult("INVESTMENT_TRADE",1)
+        }}
+        val vm=TradeFormViewModel(1,TradeFormMode.CREATE,1,null,null,Direction.BUY,repo,instruments,cash,commands,clock,SavedStateHandle())
+        runCurrent()
+        assertTrue(requests.isEmpty())
+        vm.update { it.copy(quantityInput="2",executionPriceInput="90",feeInput="3.50") }
+        vm.submit();runCurrent()
+        val command=requests.single()
+        assertEquals(0L,command.investment_id)
         assertEquals(1L,command.accountId)
         assertEquals(1L,command.instrumentId)
     }

@@ -67,7 +67,8 @@ class BackupPortabilityTest {
         val sourceCommands = RoomFinancialCommands(source, clock)
         val accountId = sourceCommands.execute(SaveAccount(testOperationId(), null, null,
             "=安全名称", "Unicode 备注 中文", listOf(CashBalanceChange("CNY", -12345, null,
-                name = "现金账户", note = "允许负余额")))).id
+                name = "现金账户", note = "允许负余额", includeInAvailableCash = false, showOnAccountsPage = false)),
+            showDepositSummary = false, showInvestmentSummary = false)).id
         val secondAccountId = sourceCommands.execute(SaveAccount(testOperationId(), null, null,
             "Schwab", "+formula-looking note", listOf(
                 CashBalanceChange("USD", 0, null, name = "Brokerage cash"),
@@ -79,7 +80,7 @@ class BackupPortabilityTest {
         val firstOwner = requireNotNull(source.accounts().account(accountId))
         sourceCommands.execute(SaveAccount(testOperationId(), accountId, firstOwner.revision, firstOwner.name, firstOwner.note,
             listOf(BalanceAccountChange("CNY", -63_284, null, name = "Visa 主卡", type = BalanceAccountType.CREDIT,
-                credit = CreditAccountInput(2_000_000, 12, CreditDueRule.AfterStatementDays(20), null)))))
+                credit = CreditAccountInput(0, 12, CreditDueRule.AfterStatementDays(20), null)))))
         val creditRoot = RoomOverview(source).snapshot().cash.single { it.name == "Visa 主卡" }.id
         val refreshedFirstOwner = requireNotNull(source.accounts().account(accountId))
         sourceCommands.execute(SaveAccount(testOperationId(), accountId, refreshedFirstOwner.revision,
@@ -148,6 +149,11 @@ class BackupPortabilityTest {
             -12345L,
             restored.cash.single { it.account_id == accountId && it.name == "现金账户" }.balance_minor,
         )
+        assertFalse(restored.accounts.first { it.id == accountId }.showDepositSummary)
+        assertFalse(restored.accounts.first { it.id == accountId }.showInvestmentSummary)
+        assertFalse(restored.cash.single { it.name == "现金账户" }.includeInAvailableCash)
+        assertFalse(restored.cash.single { it.name == "现金账户" }.showOnAccountsPage)
+        assertEquals(0L, restored.cash.first { it.id == creditRoot }.creditProfile!!.creditLimitMinor)
         assertEquals(6, restored.cash.size)
         assertEquals(2, restored.cash.count { it.type == BalanceAccountType.CREDIT })
         val restoredChild = restored.cash.single { it.name == "Visa 附属卡" }
@@ -559,7 +565,7 @@ class BackupPortabilityTest {
         if (version == 1) files.remove("data/credit_account_profiles.jsonl")
         listOf("data/accounts.jsonl", "data/cash_accounts.jsonl").forEach { path ->
             files[path] = files.getValue(path).toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
-                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 3) remove("display_order"); remove("icon_type"); remove("icon_value") }.toString() }.toByteArray()
+                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 3) remove("display_order"); remove("icon_type"); remove("icon_value"); listOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page").forEach { remove(it) } }.toString() }.toByteArray()
         }
         val totals = JSONObject(files.getValue("verification/snapshot_totals.json").toString(Charsets.UTF_8))
         totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")

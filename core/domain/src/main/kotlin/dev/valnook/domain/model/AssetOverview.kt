@@ -42,10 +42,10 @@ data class ConvertedTotal(val amount: BigDecimal, val currency: Currency?, val m
 }
 data class AccountAssets(val account: SavingsAccount, val total: ConvertedTotal, val cash: ConvertedTotal,
     val creditBalance: ConvertedTotal, val depositValue: ConvertedTotal, val investmentValue: ConvertedTotal,
-    val floating: ConvertedTotal, val realized: ConvertedTotal)
+    val floating: ConvertedTotal, val realized: ConvertedTotal, val availableCash: ConvertedTotal = cash)
 data class AssetOverview(val accounts: List<AccountAssets>, val total: ConvertedTotal, val cash: ConvertedTotal,
     val creditBalance: ConvertedTotal, val depositValue: ConvertedTotal, val investmentValue: ConvertedTotal,
-    val floating: ConvertedTotal, val realized: ConvertedTotal)
+    val floating: ConvertedTotal, val realized: ConvertedTotal, val availableCash: ConvertedTotal = cash)
 
 data class InstrumentAssets(val instrument: Instrument, val marketValue: BigDecimal,
     val floating: BigDecimal?, val realized: BigDecimal?)

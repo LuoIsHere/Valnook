@@ -179,7 +179,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is EditInstrumentPrice -> accountsForPrice(result.id).forEach(accounts::add)
             is SaveAssetType -> accountsForType(result.id).forEach(accounts::add)
             is CreateInvestmentPosition -> accounts.add(command.accountId)
-            is RecordInvestmentTrade -> accountForPosition(command.investment_id)?.let(accounts::add)
+            is RecordInvestmentTrade -> accountForTrade(result.id)?.let(accounts::add)
             is EditInvestmentTrade -> accountForTrade(command.trade_id)?.let(accounts::add)
             is DeleteInvestmentTrade -> accountForTrade(command.trade_id)?.let(accounts::add)
             is EditCashEntry -> accountForCashEntry(command.entry_id)?.let(accounts::add)

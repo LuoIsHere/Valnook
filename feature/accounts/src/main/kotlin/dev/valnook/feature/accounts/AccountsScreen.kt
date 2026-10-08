@@ -75,7 +75,7 @@ import java.time.LocalDate
                 Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
                     color = amountColor(overview.total))
                 val metrics = buildList {
-                    add(stringResource(R.string.accounts_cash) to overview.cash)
+                    add(stringResource(R.string.accounts_cash) to overview.availableCash)
                     add(stringResource(R.string.accounts_investments) to overview.investmentValue)
                     add(stringResource(R.string.accounts_deposits) to overview.depositValue)
                     if (overview.creditBalance.amount.signum() != 0 ||
@@ -136,7 +136,7 @@ import java.time.LocalDate
                         verticalAlignment = Alignment.CenterVertically) {
                         Text(row.account.note, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(stringResource(R.string.accounts_available_cash, totalText(row.cash)), Modifier.weight(1.3f),
+                        Text(stringResource(R.string.accounts_available_cash, totalText(row.availableCash)), Modifier.weight(1.3f),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
@@ -145,7 +145,7 @@ import java.time.LocalDate
                 AnimatedVisibility(isExpanded, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
                     exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
                     Column(Modifier.fillMaxWidth().padding(start = Space.sm), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                        cashRows.forEach { cash ->
+                        cashRows.filter { it.showOnAccountsPage }.forEach { cash ->
                             BalanceAccountNativeRow(cash, snapshot?.cash.orEmpty(), "account-cash-${cash.id}") {
                                 onOpenCash(row.account.id, cash.id)
                             }
@@ -153,16 +153,15 @@ import java.time.LocalDate
                         if (cashRows.isEmpty()) Text(stringResource(R.string.accounts_no_cash),
                             Modifier.padding(vertical = Space.sm), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        AccountSummaryRow(stringResource(R.string.accounts_deposit_count, depositCount), row.depositValue) {
+                        if (row.account.showDepositSummary) AccountSummaryRow(stringResource(R.string.accounts_deposit_count, depositCount), row.depositValue) {
                             onOpenDeposits(row.account.id)
                         }
-                        AccountSummaryRow(stringResource(R.string.accounts_investment_count, investmentCount), row.investmentValue) {
+                        if (row.account.showInvestmentSummary) AccountSummaryRow(stringResource(R.string.accounts_investment_count, investmentCount), row.investmentValue) {
                             onOpenInvestments(row.account.id)
                         }
                     }
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
@@ -204,10 +203,7 @@ import java.time.LocalDate
             }
             if (summary != null) {
                 val scale = account.currency.fraction_digits
-                LinearProgressIndicator(
-                    progress = { if (summary.totalLimitMinor.signum() == 0) 0f else
-                        summary.usedLimitMinor.divide(summary.totalLimitMinor, 4, RoundingMode.HALF_UP).toFloat().coerceIn(0f, 1f) },
-                    modifier = Modifier.fillMaxWidth())
+                CreditLimitProgress(summary.usedLimitMinor.toDouble(), summary.totalLimitMinor.toDouble())
                 val used = DecimalRules.format_display(summary.usedLimitMinor.longValueExact(), scale)
                 val limit = DecimalRules.format_display(summary.totalLimitMinor.longValueExact(), scale)
                 Text(stringResource(R.string.account_credit_usage, used, limit, account.currency.code),
@@ -237,7 +233,8 @@ import java.time.LocalDate
     }
 }
 @Composable fun AccountEditScreen(vm: AccountEditViewModel, onBack: () -> Unit,
-    onSortActionChanged: ((() -> Unit)?) -> Unit = {}, onPickImage: () -> Unit = {}) {
+    onSortActionChanged: ((() -> Unit)?) -> Unit = {}, onPickImage: () -> Unit = {},
+    onSaveActionChanged: (AccountEditToolbarState?) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     var pendingDeleteKey by rememberSaveable { mutableStateOf<String?>(null) }
@@ -245,6 +242,12 @@ import java.time.LocalDate
     var sortKeys by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     val latestSortActionChanged by rememberUpdatedState(onSortActionChanged)
     val latestRows by rememberUpdatedState(state.rows)
+    val latestSaveChanged by rememberUpdatedState(onSaveActionChanged)
+    DisposableEffect(state.loaded, submission.phase) {
+        latestSaveChanged(if (state.loaded) AccountEditToolbarState(submission.phase == SubmissionPhase.WORKING,
+            submission.phase != SubmissionPhase.SUCCEEDED && submission.phase != SubmissionPhase.WORKING, vm::submit) else null)
+        onDispose { latestSaveChanged(null) }
+    }
     DisposableEffect(state.loaded, state.rows.size, submission.editable) {
         latestSortActionChanged(if (state.loaded && state.rows.size > 1 && submission.editable) ({
             sortKeys = latestRows.map { it.key }
@@ -261,12 +264,18 @@ import java.time.LocalDate
     }
     FormLayout(stringResource(R.string.account_edit_title), submission.phase == SubmissionPhase.WORKING,
         submission.phase != SubmissionPhase.SUCCEEDED, vm::submit,
-        if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.account_review_retry) else stringResource(R.string.account_save)) {
+        if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.account_review_retry) else stringResource(R.string.account_save), showSaveButton = false) {
         GlassCard {
             Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 AccountIconEditor(state, submission.editable, vm::changeSymbol, onPickImage)
-                Field(stringResource(R.string.account_name), state.name, vm::changeName, enabled = submission.editable)
-                Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable)
+                Field(stringResource(R.string.account_name), state.name, vm::changeName, enabled = submission.editable,
+                    error = state.fieldErrors["name"]?.name, requestAttention = state.fieldErrors.keys.firstOrNull() == "name")
+                Field(stringResource(R.string.account_note), state.note, vm::changeNote, enabled = submission.editable,
+                    error = state.fieldErrors["note"]?.name, requestAttention = state.fieldErrors.keys.firstOrNull() == "note")
+                CheckboxRow(stringResource(R.string.account_show_deposits), state.showDepositSummary,
+                    { vm.changeVisibility(deposits = it) }, enabled = submission.editable)
+                CheckboxRow(stringResource(R.string.account_show_investments), state.showInvestmentSummary,
+                    { vm.changeVisibility(investments = it) }, enabled = submission.editable)
             }
         }
         Text(stringResource(R.string.account_balance_accounts), style = MaterialTheme.typography.titleMedium)
@@ -279,16 +288,23 @@ import java.time.LocalDate
                     BalanceAccountType.CREDIT.name to stringResource(R.string.account_type_credit)),
                     { vm.changeRow(row.key, type = BalanceAccountType.valueOf(it)) },
                     submission.editable && row.cashAccountId == null)
-                Field(stringResource(R.string.account_balance_name), row.nameInput, { vm.changeRow(row.key, name = it) }, enabled = submission.editable)
-                Field(stringResource(R.string.account_note), row.noteInput, { vm.changeRow(row.key, note = it) }, enabled = submission.editable)
+                Field(stringResource(R.string.account_balance_name), row.nameInput, { vm.changeRow(row.key, name = it) }, enabled = submission.editable, error = state.fieldErrors["${row.key}:name"]?.name,
+                        requestAttention = state.fieldErrors.keys.firstOrNull() == "${row.key}:name")
+                Field(stringResource(R.string.account_note), row.noteInput, { vm.changeRow(row.key, note = it) }, enabled = submission.editable, error = state.fieldErrors["${row.key}:note"]?.name,
+                        requestAttention = state.fieldErrors.keys.firstOrNull() == "${row.key}:note")
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
                         CurrencyChoice(row.currency.code, { vm.changeRow(row.key, currency = Currency.of(it)) },
                             submission.editable && !row.currencyLocked, Currency.supported.map { it.code to it.name })
                     }
                     Box(Modifier.weight(1.3f)) { Field(stringResource(R.string.account_balance), row.balanceInput,
-                        { vm.changeRow(row.key, balance = it) }, true, submission.editable, signed = true) }
+                        { vm.changeRow(row.key, balance = it) }, true, submission.editable, signed = true, error = state.fieldErrors["${row.key}:balance"]?.name,
+                        requestAttention = state.fieldErrors.keys.firstOrNull() == "${row.key}:balance") }
                 }
+                CheckboxRow(stringResource(R.string.account_show_cash), row.showOnAccountsPage,
+                    { vm.changeRow(row.key, showOnAccountsPage = it) }, enabled = submission.editable)
+                if (row.type == BalanceAccountType.SAVINGS) CheckboxRow(stringResource(R.string.account_include_available),
+                    row.includeInAvailableCash, { vm.changeRow(row.key, includeInAvailableCash = it) }, enabled = submission.editable)
                 if (row.type == BalanceAccountType.CREDIT) {
                     val sourceOptions = listOf("" to stringResource(R.string.account_independent_limit)) + state.creditSources
                         .filter { it.id != row.cashAccountId && it.currency == row.currency }
@@ -297,10 +313,12 @@ import java.time.LocalDate
                         sourceOptions, { selected -> vm.changeRow(row.key,
                             limitSourceAccountId = selected.toLongOrNull(), clearLimitSource = selected.isEmpty()) }, submission.editable)
                     if (row.limitSourceAccountId == null) Field(stringResource(R.string.account_credit_limit), row.creditLimitInput,
-                        { vm.changeRow(row.key, creditLimit = it) }, numeric = true, enabled = submission.editable)
+                        { vm.changeRow(row.key, creditLimit = it) }, numeric = true, enabled = submission.editable, error = state.fieldErrors["${row.key}:limit"]?.name,
+                        requestAttention = state.fieldErrors.keys.firstOrNull() == "${row.key}:limit")
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) { Field(stringResource(R.string.account_statement_day), row.statementDayInput,
-                            { vm.changeRow(row.key, statementDay = it) }, numeric = true, enabled = submission.editable) }
+                            { vm.changeRow(row.key, statementDay = it) }, numeric = true, enabled = submission.editable, error = state.fieldErrors["${row.key}:statement"]?.name,
+                        requestAttention = state.fieldErrors.keys.firstOrNull() == "${row.key}:statement") }
                         Box(Modifier.weight(1.4f)) { ChoiceField(stringResource(R.string.account_due_rule), row.dueRuleType,
                             listOf("AFTER_STATEMENT_DAYS" to stringResource(R.string.account_due_after),
                                 "FIXED_DAY_OF_MONTH" to stringResource(R.string.account_due_fixed)),
@@ -308,7 +326,8 @@ import java.time.LocalDate
                     }
                     Field(if (row.dueRuleType == "FIXED_DAY_OF_MONTH") stringResource(R.string.account_due_day)
                         else stringResource(R.string.account_due_days_after), row.dueRuleValueInput,
-                        { vm.changeRow(row.key, dueRuleValue = it) }, numeric = true, enabled = submission.editable)
+                        { vm.changeRow(row.key, dueRuleValue = it) }, numeric = true, enabled = submission.editable, error = state.fieldErrors["${row.key}:due"]?.name,
+                        requestAttention = state.fieldErrors.keys.firstOrNull() == "${row.key}:due")
                 }
                 if (!row.currencyLocked) TextButton(onClick = { vm.removeRow(row.key) }, enabled = submission.editable) {
                     Text(stringResource(R.string.account_cancel_balance_account))

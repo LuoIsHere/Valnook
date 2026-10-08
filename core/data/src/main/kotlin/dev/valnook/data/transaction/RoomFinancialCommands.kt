@@ -85,7 +85,9 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                     ?: throw DomainException(ErrorCode.NOT_FOUND)
                 minOf(day(old.effective_at_ms), day(command.effectiveAtMs)).coerceAtLeast(baseline)
             }
-            is SaveAccount -> if (cashBalanceChanges(command)) day(now) else null
+            is SaveAccount -> if (command.cashChanges.any { row ->
+                row.includeInAvailableCash != null && row.cashAccountId?.let { db.cash().cashAccount(it)?.include_in_available_cash } != row.includeInAvailableCash
+            }) baseline else if (cashBalanceChanges(command)) day(now) else null
             is DeleteBalanceAccount -> null
             is RecordInvestmentTrade -> day(command.occurred_at_ms).coerceAtLeast(baseline)
             is EditInvestmentTrade -> {

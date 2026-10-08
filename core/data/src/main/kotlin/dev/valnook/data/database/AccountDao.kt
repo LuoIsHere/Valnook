@@ -15,6 +15,9 @@ interface AccountDao {
     suspend fun insertIconImage(image: AccountIconImageEntity)
     @Query("UPDATE savings_accounts SET icon_type=:type,icon_value=:value WHERE id=:id")
     suspend fun setIcon(id: Long, type: String, value: String)
+    @Query("UPDATE savings_accounts SET show_deposit_summary=:deposits, show_investment_summary=:investments WHERE id=:id")
+    suspend fun setVisibility(id: Long, deposits: Boolean, investments: Boolean)
+
     @Insert suspend fun insert_account(value: AccountEntity): Long
     @Query("SELECT COALESCE(MAX(display_order),-1)+1 FROM savings_accounts")
     suspend fun nextDisplayOrder(): Long

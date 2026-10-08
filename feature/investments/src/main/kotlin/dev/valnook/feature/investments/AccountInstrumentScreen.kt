@@ -25,7 +25,7 @@ fun AccountInstrumentScreen(vm: AccountInstrumentViewModel, showPosition: @Compo
                 item { InstrumentIdentity(current.instrument) }
                 item { Text(stringResource(R.string.investment_trade_history), style = MaterialTheme.typography.titleLarge) }
                 item { EmptyState(stringResource(R.string.investment_no_trades)) }
-                item { ActionButton(onAdd, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_add_to_account)) } }
+                item { ActionButton(onAdd, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_buy)) } }
             }
         }
     }

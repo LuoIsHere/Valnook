@@ -22,7 +22,7 @@
     <string name="investment_current_holdings">当前持仓</string>
     <string name="investment_no_associations">尚未关联标的</string>
     <string name="investment_no_holdings">暂无持仓</string>
-    <string name="investment_add_to_account">添加投资品到账户</string>
+    <string name="investment_add_to_account">选择投资品</string>
     <string name="investment_no_available_instruments">标的库中的投资品均已添加到此账户</string>
     <string name="investment_name_symbol">名称 / 代码</string>
     <string name="investment_value_quantity">市值 / 数量</string>
@@ -98,4 +98,6 @@
     <string name="instrument_add_type">新增类型</string>
     <string name="instrument_edit_type">%1$s · 编辑</string>
     <string name="investment_fx_summary">按当前设置汇率折算 ⓘ</string>
+    <string name="investment_search">搜索名称、代码或币种</string>
+    <string name="investment_catalogue">管理投资品</string>
 </resources>

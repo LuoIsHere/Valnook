@@ -132,6 +132,9 @@ interface CashDao {
     @Query("DELETE FROM cash_accounts WHERE id=:cashAccountId AND revision=:expectedRevision AND balance_minor=0")
     suspend fun deleteEmptyCashAccount(cashAccountId: Long, expectedRevision: Long): Int
 
+    @Query("UPDATE cash_accounts SET include_in_available_cash=:available, show_on_accounts_page=:visible WHERE id=:id")
+    suspend fun setPresentation(id: Long, available: Boolean, visible: Boolean)
+
     @Insert
     suspend fun insert_entry(value: CashEntryEntity): Long
 

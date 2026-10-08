@@ -22,7 +22,7 @@
     <string name="investment_current_holdings">Current holdings</string>
     <string name="investment_no_associations">No instruments associated with this account</string>
     <string name="investment_no_holdings">No current holdings</string>
-    <string name="investment_add_to_account">Add instrument to account</string>
+    <string name="investment_add_to_account">Select instrument</string>
     <string name="investment_no_available_instruments">Every catalog instrument is already in this account</string>
     <string name="investment_name_symbol">Name / Symbol</string>
     <string name="investment_value_quantity">Value / Quantity</string>
@@ -98,4 +98,6 @@
     <string name="instrument_add_type">Add asset class</string>
     <string name="instrument_edit_type">%1$s · Edit</string>
     <string name="investment_fx_summary">Converted at configured rates ⓘ</string>
+    <string name="investment_search">Search name, symbol or currency</string>
+    <string name="investment_catalogue">Manage instruments</string>
 </resources>

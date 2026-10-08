@@ -52,7 +52,10 @@ object AssetValuation {
             AccountAssets(account, convert(savingsAmounts + creditAmounts + deposits + values, snapshot.settings),
                 convert(savingsAmounts, snapshot.settings), convert(creditAmounts, snapshot.settings), convert(deposits, snapshot.settings),
                 convert(values, snapshot.settings),
-                convert(floating, snapshot.settings, floatingMissing), convert(realized, snapshot.settings, realizedMissing))
+                convert(floating, snapshot.settings, floatingMissing), convert(realized, snapshot.settings, realizedMissing),
+                convert(balanceAccounts.filter { it.type == BalanceAccountType.SAVINGS && it.includeInAvailableCash }.map {
+                    it.currency to BigDecimal.valueOf(it.balance_minor, it.currency.fraction_digits)
+                }, snapshot.settings))
         }
         fun total(select: (AccountAssets) -> ConvertedTotal): ConvertedTotal = ConvertedTotal(
             accounts.fold(BigDecimal.ZERO) { result, account -> result.add(select(account).amount) },
@@ -60,7 +63,7 @@ object AssetValuation {
             accounts.flatMap { select(it).missing }.toSet() +
                 if (snapshot.settings.baseCurrency == null) setOf(MissingAmount(MissingKind.BASE_CURRENCY)) else emptySet())
         return AssetOverview(accounts, total { it.total }, total { it.cash }, total { it.creditBalance }, total { it.depositValue }, total { it.investmentValue },
-            total { it.floating }, total { it.realized })
+            total { it.floating }, total { it.realized }, total { it.availableCash })
     }
 
     fun marketValue(position: Investment): BigDecimal = BigDecimal.valueOf(position.holding_quantity_e8, 8)

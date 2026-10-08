@@ -120,7 +120,7 @@ internal class SpreadsheetWriter(
             sheet.blank()
             sheet.row(section(label(english, "当前汇总（主币种）", "Current totals (base currency)")))
             sheet.row(header(label(english, "类别", "Category")), header(label(english, "金额", "Amount")), header(label(english, "币种", "Currency")))
-            sheet.row(text(label(english, "可用现金", "Available cash")), decimal(valuation.cash.amount), text(base))
+            sheet.row(text(label(english, "可用现金", "Available cash")), decimal(valuation.availableCash.amount), text(base))
             sheet.row(text(label(english, "信用账户余额", "Credit account balance")), decimal(valuation.creditBalance.amount), text(base))
             sheet.row(text(label(english, "未结束存单本金", "Open deposit principal")), decimal(valuation.depositValue.amount), text(base))
             sheet.row(text(label(english, "当前投资市值", "Current investment value")), decimal(valuation.investmentValue.amount), text(base))

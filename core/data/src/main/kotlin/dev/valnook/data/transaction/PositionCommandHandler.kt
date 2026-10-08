@@ -29,7 +29,18 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
     }
 
     suspend fun record(command: RecordInvestmentTrade, now: Long): OperationResult {
-        val position = positions.investment(command.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        val position = if (command.investment_id != 0L) {
+            positions.investment(command.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        } else {
+            val accountId = command.accountId ?: throw DomainException(ErrorCode.NOT_FOUND)
+            val instrumentId = command.instrumentId ?: throw DomainException(ErrorCode.NOT_FOUND)
+            cash.requireAccount(accountId)
+            positions.position(accountId, instrumentId) ?: run {
+                if (command.direction != Direction.BUY) throw DomainException(ErrorCode.INSUFFICIENT_HOLDING)
+                val result = create(CreateInvestmentPosition(command.operation_id, accountId, instrumentId), now)
+                requireNotNull(positions.investment(result.id))
+            }
+        }
         val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val amount = R.amount(command.quantity_e8, command.execution_price_e8, cash.currency(instrument.currency_code), true)
         R.check_nonnegative(command.fee_minor)

@@ -54,7 +54,7 @@ internal object BackupContract {
     const val DEPOSIT_INTEREST_RULE = 1
     const val HISTORICAL_VALUATION_RULE = STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -66,11 +66,11 @@ internal object BackupContract {
         PortableTable("data/account_icon_images.jsonl", "account_icon_images", listOf(
             text("id"), PortableColumn("data", PortableKind.BLOB)), "id"),
         PortableTable("data/accounts.jsonl", "savings_accounts", listOf(
-            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision"), long("display_order"), text("icon_type"), text("icon_value")
+            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision"), long("display_order"), text("icon_type"), text("icon_value"), bool("show_deposit_summary"), bool("show_investment_summary")
         ), "id"),
         PortableTable("data/cash_accounts.jsonl", "cash_accounts", listOf(
             long("savings_account_id"), text("currency_code"), long("balance_minor"), long("revision"),
-            long("updated_at_ms"), long("id"), text("name"), text("note"), bool("currency_locked"), long("created_at_ms"), long("display_order")
+            long("updated_at_ms"), long("id"), text("name"), text("note"), bool("currency_locked"), long("created_at_ms"), long("display_order"), bool("include_in_available_cash"), bool("show_on_accounts_page")
         ), "savings_account_id,id"),
         PortableTable("data/credit_account_profiles.jsonl", "credit_account_profiles", listOf(
             long("account_id"), long("credit_limit_minor", true), long("statement_day"),
@@ -149,14 +149,16 @@ internal object BackupContract {
         "verification/snapshot_totals.json"
     )
 
-    fun tablesFor(dataSchemaVersion: Int): List<PortableTable> = when (dataSchemaVersion) {
+    fun tablesFor(dataSchemaVersion: Int): List<PortableTable> = (when (dataSchemaVersion) {
         1, 2, 3 -> tables.filterNot { it.table == "account_icon_images" ||
             (dataSchemaVersion == 1 && it.table == "credit_account_profiles") }
             .map { it.copy(columns = it.columns.filterNot { column ->
                 column.name in setOf("icon_type", "icon_value") || (dataSchemaVersion < 3 && column.name == "display_order") }) }
-        4 -> tables
+        4, 5 -> tables
         else -> emptyList()
-    }
+    }).map { table -> if (dataSchemaVersion >= 5) table else table.copy(columns = table.columns.filterNot {
+        it.name in setOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page")
+    }) }
 
     fun payloadPathsFor(dataSchemaVersion: Int): Set<String> =
         tablesFor(dataSchemaVersion).mapTo(linkedSetOf()) { it.path } + specialPaths

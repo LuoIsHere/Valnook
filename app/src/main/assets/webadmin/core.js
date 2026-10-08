@@ -17,7 +17,8 @@ const copy = {
   "zh-CN": {
     accounts: "账户", records: "记录", investments: "投资", statistics: "统计", connected: "已连接", demoMode: "演示模式",
     sessionEnded: "会话已结束", sessionLost: "连接已失效，请回到手机重新配对。", reconnecting: "连接暂时中断，正在恢复…", loading: "正在加载…",
-    empty: "暂无数据", save: "保存", cancel: "取消", saved: "✓ 已保存", newAccount: "新增账户",
+    empty: "暂无数据", save: "保存", cancel: "取消", saved: "✓ 已保存", showDeposits: "显示定期汇总", showInvestments: "显示投资汇总", showOnAccounts: "在账户页显示", includeAvailable: "计入可用现金", searchInstrument: "搜索投资品",
+    newAccount: "新增账户",
     newInstrument: "新增投资标的", instruments: "投资标的", positions: "持仓", refresh: "刷新",
     details: "详情", edit: "编辑", trade: "交易", end: "结束会话", loadMore: "加载更多",
     pairTitle: "连接到手机", pairCopy: "请在手机上打开网页端管理，并输入手机显示的 6 位配对码。", pairCode: "配对码", connect: "连接",
@@ -49,6 +50,7 @@ const copy = {
     accounts: "Accounts", records: "Records", investments: "Investments", statistics: "Statistics", demoMode: "Demo mode",
     connected: "Connected", sessionEnded: "Session ended", sessionLost: "Session expired. Pair again from your phone.", reconnecting: "Connection interrupted. Reconnecting…",
     loading: "Loading…", empty: "No data", save: "Save", cancel: "Cancel", saved: "✓ Saved",
+    showDeposits: "Show deposit summary", showInvestments: "Show investment summary", showOnAccounts: "Show on Accounts page", includeAvailable: "Include in available cash", searchInstrument: "Search instruments",
     newAccount: "New account", newInstrument: "New instrument", instruments: "Instruments", positions: "Positions",
     refresh: "Refresh", details: "Details", edit: "Edit", trade: "Trade", end: "End session", loadMore: "Load more",
     pairTitle: "Connect to phone", pairCopy: "Open Web administration on your phone and enter its 6-digit pairing code.", pairCode: "Pairing code", connect: "Connect",

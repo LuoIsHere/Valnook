@@ -51,8 +51,13 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
     var order by remember { mutableStateOf(items.map { it.key }) }
     var dragged by remember { mutableStateOf<String?>(null) }
     var pressedKey by remember { mutableStateOf<String?>(null) }
+    var pressedY by remember { mutableFloatStateOf(0f) }
     var startOffset by remember { mutableFloatStateOf(0f) }
     var distance by remember { mutableFloatStateOf(0f) }
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val threshold = with(density) { 4.dp.toPx() }
+    val edgeMargin = with(density) { 48.dp.toPx() }
+    val scrollSpeed = with(density) { 240.dp.toPx() }
     val byKey = items.associateBy { it.key }
 
     LaunchedEffect(items.map { it.key }, dragged) {
@@ -62,16 +67,20 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
         val key = dragged ?: return
         val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: return
         val from = order.indexOf(key)
-        if (from < 0) return
+        if (from < 0 || info.index != from) return // Wait for the preceding swap to be measured.
         val center = startOffset + distance + info.size / 2f
         val previous = order.getOrNull(from - 1)?.let { id -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } }
         val next = order.getOrNull(from + 1)?.let { id -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } }
         val target = when {
-            previous != null && center < previous.offset + previous.size / 2f -> from - 1
-            next != null && center > next.offset + next.size / 2f -> from + 1
+            previous != null && center < previous.offset + previous.size / 2f - threshold -> from - 1
+            next != null && center > next.offset + next.size / 2f + threshold -> from + 1
             else -> from
         }
-        if (target != from) order = order.toMutableList().apply { add(target, removeAt(from)) }
+        if (target != from) {
+            // Keep the viewport fixed: retaining the first visible key would scroll with a dragged first row.
+            listState.requestScrollToItem(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+            order = order.toMutableList().apply { add(target, removeAt(from)) }
+        }
     }
     fun finish(commit: Boolean) {
         if (commit && dragged != null) latestReorder(order)
@@ -81,15 +90,18 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
     }
     LaunchedEffect(dragged) {
         if (dragged == null) return@LaunchedEffect
+        var previousFrame = withFrameNanos { it }
         while (dragged != null) {
-            withFrameNanos { }
+            val frame = withFrameNanos { it }
+            val seconds = ((frame - previousFrame) / 1_000_000_000f).coerceIn(0f, .05f)
+            previousFrame = frame
             val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == dragged } ?: continue
             val layout = listState.layoutInfo
             val center = startOffset + distance + info.size / 2f
-            val margin = info.size.coerceAtMost(100).toFloat()
+            val margin = edgeMargin.coerceAtMost(info.size.toFloat())
             val delta = when {
-                center < layout.viewportStartOffset + margin -> -12f
-                center > layout.viewportEndOffset - margin -> 12f
+                center < layout.viewportStartOffset + margin -> -scrollSpeed * seconds
+                center > layout.viewportEndOffset - margin -> scrollSpeed * seconds
                 else -> 0f
             }
             if (abs(delta) > 0 && listState.scrollBy(delta) != 0f) reorderAtPointer()
@@ -150,6 +162,7 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
             if (!enabled) return@pointerInput
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                pressedY = down.position.y
                 pressedKey = listState.layoutInfo.visibleItemsInfo.firstOrNull {
                     down.position.y >= it.offset && down.position.y < it.offset + it.size
                 }?.key as? String
@@ -160,12 +173,12 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                 listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == pressedKey }?.let { info ->
                     dragged = pressedKey
                     startOffset = info.offset.toFloat()
-                    distance = 0f
+                    distance = it.y - pressedY
                 }
             }, onDragEnd = { finish(true) }, onDragCancel = { finish(false) },
-                onVerticalDrag = { change, amount ->
+                onVerticalDrag = { change, _ ->
                     change.consume()
-                    if (dragged != null) { distance += amount; reorderAtPointer() }
+                    if (dragged != null) { distance = change.position.y - pressedY; reorderAtPointer() }
                 })
         })
     }

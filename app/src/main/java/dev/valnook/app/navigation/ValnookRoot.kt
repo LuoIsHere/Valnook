@@ -280,6 +280,8 @@ private fun SessionRoot(
     val addAccountDescription = stringResource(R.string.nav_add_account)
     val instrumentLibraryDescription = stringResource(R.string.nav_instrument_library)
     val sortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
+    var accountEditSave by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountEditToolbarState?>(null) }
+    val updateEditSave = remember(graph.sessionId) { { value: dev.valnook.feature.accounts.AccountEditToolbarState? -> accountEditSave = value } }
     var editSortAction by remember(graph.sessionId) { mutableStateOf<(() -> Unit)?>(null) }
     val updateEditSortAction = remember(graph.sessionId) { { action: (() -> Unit)? -> editSortAction = action } }
     var navigationToolbar by remember(graph.sessionId) { mutableStateOf<NavigationToolbarState?>(null) }
@@ -331,9 +333,11 @@ private fun SessionRoot(
                     }) { MenuIcon() }
                     is AccountKey -> dev.valnook.designsystem.TopBarAction(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
-                    is AccountEditKey -> IconButton({ editSortAction?.invoke() },
+                    is AccountEditKey -> { IconButton({ editSortAction?.invoke() },
                         Modifier.testTag("subaccount-order-open").semantics { contentDescription = sortDescription },
                         enabled = editSortAction != null) { SortIcon() }
+                        dev.valnook.feature.accounts.AccountEditSaveAction(accountEditSave)
+                    }
                     else -> Unit
                 }
             }, scrollBehavior = toolbarScrollBehavior)
@@ -356,7 +360,7 @@ private fun SessionRoot(
                         transitionSpec = { NavigationMotion.forward(offset) },
                         popTransitionSpec = { NavigationMotion.back(offset) },
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
-                            accountEntries(graph, open, back, updateEditSortAction)
+                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave)
                             investmentEntries(graph, open, back, accountName)
                             ledgerEntries(graph, open, back, accountName)
                             entry<StatisticsKey> {

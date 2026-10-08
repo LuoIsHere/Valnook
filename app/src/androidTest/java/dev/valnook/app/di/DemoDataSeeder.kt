@@ -69,7 +69,9 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
             }
         suspend fun createAccounts(specs: List<DemoAccount>) = specs.map { spec ->
             graph.commands.execute(SaveAccount(id(), null, null, spec.name, spec.note, spec.cash.map { cash ->
-                CashBalanceChange(cash.currency, cash.balanceMinor, null, name = cash.name)
+                CashBalanceChange(cash.currency, cash.balanceMinor, null, name = cash.name,
+                    includeInAvailableCash = spec.name != "中国建设银行",
+                    showOnAccountsPage = !(spec.name == "中国银行" && cash.currency == "HKD"))
             })).id
         }
         val bankAccounts = createAccounts(bankSpecs)
@@ -231,7 +233,7 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         create(accounts[3], "建设银行 Visa", -323_000L, 300_000L, 18, CreditDueRule.AfterStatementDays(15))
         create(accounts[4], "交通银行银联信用卡", -168_652L, 3_000_000L, 25, CreditDueRule.AfterStatementDays(20))
         create(accounts[5], "汇丰银行 Mastercard", -82_900L, 2_500_000L, 12, CreditDueRule.FixedDayOfMonth(5))
-        create(accounts[2], "中国银行信用卡", 0L, 800_000L, 28, CreditDueRule.AfterStatementDays(18))
+        create(accounts[2], "中国银行信用卡", 0L, 0L, 28, CreditDueRule.AfterStatementDays(18))
     }
 
     private suspend fun seedLifecycleExamples(

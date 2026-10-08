@@ -121,10 +121,10 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
         val occurredAtMs = input.occurredAt.atZone(clock.zone).toInstant().toEpochMilli()
         when (input.mode) {
-            TradeFormMode.CREATE -> RecordInvestmentTrade(operationId, requireNotNull(input.positionId),
+            TradeFormMode.CREATE -> RecordInvestmentTrade(operationId, input.positionId ?: 0L,
                 input.direction, R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), occurredAtMs,
                 input.cashLinked, if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null,
-                R.parse_units(input.feeInput, requireNotNull(input.currency).fraction_digits))
+                R.parse_units(input.feeInput, requireNotNull(input.currency).fraction_digits), accountId, input.instrumentId)
             TradeFormMode.EDIT -> EditInvestmentTrade(operationId, requireNotNull(input.tradeId), requireNotNull(input.expectedRevision),
                 input.direction, R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), occurredAtMs,
                 input.cashLinked, if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null,

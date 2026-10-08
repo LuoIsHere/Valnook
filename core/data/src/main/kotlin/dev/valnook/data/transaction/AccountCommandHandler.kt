@@ -42,6 +42,8 @@ internal class AccountCommandHandler(
             note = command.note, created_at_ms = now, updated_at_ms = now,
             display_order = db.accounts().nextDisplayOrder()))
 
+        db.accounts().setVisibility(accountId, command.showDepositSummary ?: oldAccount?.show_deposit_summary ?: true,
+            command.showInvestmentSummary ?: oldAccount?.show_investment_summary ?: true)
         val validated = command.cashChanges.map { row ->
             val currency = cash.currency(row.currencyCode)
             val name = valid_name(row.name)
@@ -87,6 +89,7 @@ internal class AccountCommandHandler(
                 val created = cash.createAccount(command.operation_id, accountId, value.name, value.row.note,
                     value.currencyCode, value.row.balanceMinor, now)
                 value.row.displayOrder?.let { db.cash().setDisplayOrder(accountId, created.id, it) }
+                db.cash().setPresentation(created.id, value.row.includeInAvailableCash ?: true, value.row.showOnAccountsPage ?: true)
                 credit.save(credit.validateAndBuild(created.id, value.currencyCode, value.row.type,
                     value.row.credit, existingAccount = false))
                 cash.entry(command.operation_id, created.id, CashSource.CASH_SET.name, null,
@@ -95,12 +98,16 @@ internal class AccountCommandHandler(
                 value.row.displayOrder?.let { db.cash().setDisplayOrder(accountId, old.id, it) }
                 val nextProfile = credit.validateAndBuild(old.id, value.currencyCode, value.row.type,
                     value.row.credit, existingAccount = true)
-                val metadataChanged = old.name != value.name || old.note != value.row.note
+                val metadataChanged = old.name != value.name || old.note != value.row.note ||
+                    (value.row.includeInAvailableCash != null && value.row.includeInAvailableCash != old.include_in_available_cash) ||
+                    (value.row.showOnAccountsPage != null && value.row.showOnAccountsPage != old.show_on_accounts_page)
                 val balanceChanged = old.balance_minor != value.row.balanceMinor
                 val profileChanged = value.profile != nextProfile
                 if (metadataChanged || balanceChanged || profileChanged) {
                     if (db.cash().updateCashAccount(old.id, old.revision, value.name, value.row.note,
                             value.row.balanceMinor, now) != 1) throw DomainException(ErrorCode.STALE_BALANCE)
+                    db.cash().setPresentation(old.id, value.row.includeInAvailableCash ?: old.include_in_available_cash,
+                        value.row.showOnAccountsPage ?: old.show_on_accounts_page)
                     credit.save(nextProfile)
                     if (balanceChanged) {
                         val delta = R.replace_contribution(value.row.balanceMinor, old.balance_minor, 0)

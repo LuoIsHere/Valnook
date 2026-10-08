@@ -8,7 +8,9 @@ data class AccountEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val 
     @ColumnInfo(defaultValue = "1") val revision: Long = 1,
     @ColumnInfo(defaultValue = "0") val display_order: Long = 0,
     @ColumnInfo(defaultValue = "'SYMBOL'") val icon_type: String = "SYMBOL",
-    @ColumnInfo(defaultValue = "'account_balance'") val icon_value: String = "account_balance")
+    @ColumnInfo(defaultValue = "'account_balance'") val icon_value: String = "account_balance",
+    @ColumnInfo(defaultValue = "1") val show_deposit_summary: Boolean = true,
+    @ColumnInfo(defaultValue = "1") val show_investment_summary: Boolean = true)
 
 @Entity(tableName = "account_icon_images")
 data class AccountIconImageEntity(@PrimaryKey val id: String, val data: ByteArray)
@@ -29,7 +31,9 @@ data class CashEntity(val savings_account_id: Long, val currency_code: String, v
     val revision: Long, val updated_at_ms: Long, @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String = currency_code, val note: String = "", val currency_locked: Boolean = true,
     val created_at_ms: Long = updated_at_ms,
-    @ColumnInfo(defaultValue = "0") val display_order: Long = 0)
+    @ColumnInfo(defaultValue = "0") val display_order: Long = 0,
+    @ColumnInfo(defaultValue = "1") val include_in_available_cash: Boolean = true,
+    @ColumnInfo(defaultValue = "1") val show_on_accounts_page: Boolean = true)
 
 @Entity(tableName = "credit_account_profiles",
     foreignKeys = [

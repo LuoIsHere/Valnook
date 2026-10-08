@@ -35,7 +35,7 @@ internal class CreditAccountWriter(private val db: ValnookDatabase) {
         val sourceId = credit.limitSourceAccountId
         val localLimit = credit.creditLimitMinor
         if (sourceId == null) {
-            if (localLimit == null || localLimit <= 0) {
+            if (localLimit == null || localLimit < 0) {
                 throw DomainException(ErrorCode.INVALID_CREDIT_LIMIT)
             }
         } else {
@@ -49,7 +49,7 @@ internal class CreditAccountWriter(private val db: ValnookDatabase) {
             val source = db.credit().profile(sourceId)
                 ?: throw DomainException(ErrorCode.CREDIT_SOURCE_INVALID)
             if (source.limit_source_account_id != null) throw DomainException(ErrorCode.CREDIT_SOURCE_CHAIN)
-            if (source.credit_limit_minor == null || source.credit_limit_minor <= 0) {
+            if (source.credit_limit_minor == null || source.credit_limit_minor < 0) {
                 throw DomainException(ErrorCode.CREDIT_SOURCE_INVALID)
             }
             if (sourceAccount.savings_account_id != targetAccount.savings_account_id) {

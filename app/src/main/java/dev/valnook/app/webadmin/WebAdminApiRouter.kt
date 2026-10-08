@@ -77,6 +77,7 @@ internal class WebAdminApiRouter(
             if (method == "PUT") return saveInstrument(sessionId, match.groupValues[1].toLong(), request)
         }
         if (method == "GET" && path == "/api/v1/positions") return positions()
+        if (method == "POST" && path == "/api/v1/trades") return recordTrade(sessionId, 0L, request)
         if (method == "POST" && path == "/api/v1/positions") return createPosition(sessionId, request)
         POSITION.matchEntire(path)?.let { match ->
             if (method == "GET") return position(match.groupValues[1].toLong())
@@ -125,7 +126,7 @@ internal class WebAdminApiRouter(
             put("items", buildJsonArray { overview.accounts.forEach { row -> add(buildJsonObject {
                 put("id", row.account.id); put("revision", row.account.revision)
                 put("name", row.account.name); put("note", row.account.note); put("icon", icon(row.account.icon))
-                put("cash", decimal(row.cash.amount)); put("creditBalance", decimal(row.creditBalance.amount))
+                put("cash", decimal(row.cash.amount)); put("availableCash", decimal(row.availableCash.amount)); put("creditBalance", decimal(row.creditBalance.amount))
                 put("deposits", decimal(row.depositValue.amount))
                 put("investments", decimal(row.investmentValue.amount)); put("total", decimal(row.total.amount))
                 put("realized", decimal(row.realized.amount)); put("unrealized", decimal(row.floating.amount))
@@ -142,7 +143,7 @@ internal class WebAdminApiRouter(
         return success(buildJsonObject {
             put("dataGeneration", reads.generation())
             put("account", buildJsonObject {
-                put("id", account.id); put("revision", account.revision); put("name", account.name); put("note", account.note); put("icon", icon(account.icon))
+                put("id", account.id); put("revision", account.revision); put("name", account.name); put("note", account.note); put("icon", icon(account.icon)); put("showDepositSummary", account.showDepositSummary); put("showInvestmentSummary", account.showInvestmentSummary)
             })
             put("cash", buildJsonArray { snapshot.cash.filter { it.account_id == id }.forEach { add(cash(it, snapshot)) } })
             put("creditSourceCandidates", buildJsonArray {
@@ -170,7 +171,7 @@ internal class WebAdminApiRouter(
                 val source = value.optionalLong("limitSourceAccountId")
                 val due = value["dueRule"]?.jsonObject ?: throw IllegalArgumentException()
                 CreditAccountInput(
-                    if (source == null) DecimalRules.parse_minor(value.text("creditLimit"), currency, positive = true) else null,
+                    if (source == null) DecimalRules.parse_minor(value.text("creditLimit"), currency) else null,
                     value.long("statementDay").toInt(),
                     when (due.text("type")) {
                         "AFTER_STATEMENT_DAYS" -> CreditDueRule.AfterStatementDays(due.long("value").toInt())
@@ -180,10 +181,12 @@ internal class WebAdminApiRouter(
             } else null
             CashBalanceChange(currency.code, DecimalRules.parse_signed_minor(row.text("balance"), currency),
                 row.optionalLong("expectedRevision"), row.optionalLong("cashAccountId"),
-                row.optionalText("name") ?: currency.code, row.optionalText("note").orEmpty(), type, credit)
+                row.optionalText("name") ?: currency.code, row.optionalText("note").orEmpty(), type, credit,
+                includeInAvailableCash = row.optionalBoolean("includeInAvailableCash"), showOnAccountsPage = row.optionalBoolean("showOnAccountsPage"))
         }.orEmpty()
         return save(sessionId, body, SaveAccount(body.operationId(), id, body.optionalLong("expectedRevision"),
-            body.text("name"), body.optionalText("note").orEmpty(), changes, iconChange(body)))
+            body.text("name"), body.optionalText("note").orEmpty(), changes, iconChange(body),
+            body.optionalBoolean("showDepositSummary"), body.optionalBoolean("showInvestmentSummary")))
     }
 
     private fun icon(value: AccountIcon) = buildJsonObject {
@@ -331,7 +334,8 @@ internal class WebAdminApiRouter(
             Direction.valueOf(body.text("direction").uppercase()), DecimalRules.parse_e8(body.text("quantity"), true),
             DecimalRules.parse_e8(body.text("executionPrice"), true), body.long("occurredAtMs"),
             body.optionalBoolean("cashLinked") ?: false, body.optionalLong("cashAccountId"),
-            DecimalRules.parse_minor(body.optionalText("fee") ?: "0", currency)))
+            DecimalRules.parse_minor(body.optionalText("fee") ?: "0", currency),
+            body.optionalLong("accountId"), body.optionalLong("instrumentId")))
     }
 
     private suspend fun editTrade(sessionId: String, id: Long, request: WebHttpRequest): WebHttpResponse {
@@ -455,6 +459,7 @@ internal class WebAdminApiRouter(
     }
 
     private fun cash(value: CashAccount, snapshot: AssetSnapshot) = buildJsonObject {
+        put("includeInAvailableCash", value.includeInAvailableCash); put("showOnAccountsPage", value.showOnAccountsPage)
         put("id", value.id); put("accountId", value.account_id); put("revision", value.revision)
         put("name", value.name); put("note", value.note); put("currencyCode", value.currency.code)
         put("balance", DecimalRules.format_units(value.balance_minor, value.currency.fraction_digits))

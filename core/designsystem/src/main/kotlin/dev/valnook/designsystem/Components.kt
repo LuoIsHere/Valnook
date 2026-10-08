@@ -6,6 +6,7 @@ import android.content.DialogInterface
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.rememberScrollState
@@ -93,13 +94,16 @@ import java.util.Locale
         contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp),content=content)
 }
 @Composable fun Field(label:String,value:String,on_change:(String)->Unit,numeric:Boolean=false,enabled:Boolean=true,
-    signed:Boolean=false) {
+    signed:Boolean=false, error:String?=null, requestAttention:Boolean=false) {
     val minimum_height=(64f+32f*(LocalDensity.current.fontScale.coerceAtLeast(1f)-1f)).dp
     val focus=LocalFocusManager.current
     val keyboard=LocalSoftwareKeyboardController.current
     val toggle_sign_description=if(numeric&&signed) stringResource(R.string.toggle_sign) else ""
-    Box(Modifier.fillMaxWidth().testTag("input-$label")) {
+    val bringIntoView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    LaunchedEffect(requestAttention) { if(requestAttention) { kotlinx.coroutines.delay(100); bringIntoView.bringIntoView() } }
+    Box(Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoView).testTag("input-$label")) {
     OutlinedTextField(value=value,onValueChange=on_change,label={Text(label)},singleLine=true,
+        isError=error!=null, supportingText=if(error!=null) {{ ErrorMessage(error) }} else null,
         textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(12.dp),
         enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
         trailingIcon=if(numeric&&signed) {{

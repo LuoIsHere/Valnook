@@ -32,7 +32,7 @@ internal fun BalanceAccountRow.toModel(): CashAccount {
             requireNotNull(due_rule_type), requireNotNull(due_rule_value), limit_source_account_id).toModel()
     }
     return CashAccount(value.savings_account_id, Currency.of(value.currency_code), value.balance_minor,
-        value.revision, value.id, value.name, value.note, value.currency_locked, profile)
+        value.revision, value.id, value.name, value.note, value.currency_locked, profile, value.include_in_available_cash, value.show_on_accounts_page)
 }
 
 internal fun InstrumentWithType.toModel(): Instrument {
