@@ -28,6 +28,13 @@ import dev.valnook.feature.backup.UnavailableCloudAuthorization
 object TestModule {
     @Provides
     @Singleton
+    fun onboarding(@ApplicationContext context: Context): dev.valnook.app.onboarding.OnboardingStorage =
+        dev.valnook.app.onboarding.OnboardingPreferences(context.getSharedPreferences("onboarding-session-fixture", 0)).apply {
+            save(dev.valnook.app.onboarding.OnboardingDraft(step = dev.valnook.app.onboarding.OnboardingStep.LEGACY))
+        }
+
+    @Provides
+    @Singleton
     fun database(@ApplicationContext context: Context): ValnookDatabase =
         Room.inMemoryDatabaseBuilder(context, ValnookDatabase::class.java)
             .addCallback(ValnookDatabase.seed)

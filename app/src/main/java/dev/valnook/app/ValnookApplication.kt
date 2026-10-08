@@ -10,6 +10,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 @HiltAndroidApp
 class ValnookApplication : Application(), CloudBackupWorkerOwner {
+    override fun attachBaseContext(base: android.content.Context) {
+        super.attachBaseContext(base)
+        dev.valnook.app.onboarding.OnboardingPreferences(base)
+            .initialize(base.getDatabasePath("valnook.db").exists())
+    }
     @Inject override lateinit var cloudBackupCoordinator: CloudBackupCoordinator
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     override fun onCreate() {

@@ -39,7 +39,9 @@ class AppSessionManager @Inject internal constructor(
     private val cloudCoordinator: dev.valnook.domain.cloud.CloudBackupService =
         dev.valnook.domain.cloud.UnavailableCloudBackupService,
     val cloudAuthorization: dev.valnook.feature.backup.CloudAuthorization =
-        dev.valnook.feature.backup.UnavailableCloudAuthorization
+        dev.valnook.feature.backup.UnavailableCloudAuthorization,
+    val onboarding: dev.valnook.app.onboarding.OnboardingStorage =
+        dev.valnook.app.onboarding.OnboardingPreferences(context)
 ) {
     /** Single non-reentrant boundary for writes, switches, and destructive maintenance. */
     private val writeMutex = Mutex()
@@ -156,7 +158,12 @@ class AppSessionManager @Inject internal constructor(
         cancelPendingRestoreLocked()
         // Always revoke the old generation before the mutex is released, including cancellation paths.
         try {
-            realDatabaseGraph.maintenance.clearBusinessData()
+            withContext(NonCancellable) {
+                realDatabaseGraph.maintenance.clearBusinessData()
+                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    onboarding.save(dev.valnook.app.onboarding.OnboardingDraft())
+                }
+            }
         } finally {
             publishRealSession()
         }

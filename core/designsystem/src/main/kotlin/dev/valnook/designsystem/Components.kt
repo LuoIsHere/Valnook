@@ -154,12 +154,13 @@ import java.util.Locale
     }
 }
 @Composable fun CurrencyChoice(selected:String,on_change:(String)->Unit,enabled:Boolean=true,
-    options:List<Pair<String,String>>,excluded:Set<String> = emptySet(),glass:Boolean=false) {
+    options:List<Pair<String,String>>,excluded:Set<String> = emptySet(),glass:Boolean=false,
+    field:(@Composable (onOpen:()->Unit)->Unit)?=null) {
     var expanded by rememberSaveable {mutableStateOf(false)}
     var query by rememberSaveable {mutableStateOf("")}
     val pickerRates=LocalCurrencyPickerRates.current
-    SelectorField(stringResource(R.string.currency),selected,
-        {query="";expanded=true},enabled,glass)
+    val open = { if(enabled) {query="";expanded=true}; Unit }
+    if(field!=null) field(open) else SelectorField(stringResource(R.string.currency),selected,open,enabled,glass)
     AnimatedGlassDialog(expanded,onDismissRequest={expanded=false},properties=DialogProperties(decorFitsSystemWindows=false)) {
         Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(12.dp)) {
             GlassCard(prominent = true) {

@@ -153,19 +153,7 @@ class SettingsViewModel(
         if (current.busy) return
         val change = try {
             val base = current.settings.baseCurrency ?: throw DomainException(ErrorCode.CURRENCY)
-            if (current.rows.map { it.sourceCurrency.code }.distinct().size != current.rows.size) {
-                throw DomainException(ErrorCode.DUPLICATE_CURRENCY)
-            }
-            val rates = current.rows.map { row ->
-                if (!Regex("[0-9]+(?:\\.[0-9]+)?").matches(row.rateInput) || row.rateInput.length > 64) {
-                    throw DomainException(ErrorCode.FORMAT)
-                }
-                val value = BigDecimal(row.rateInput)
-                if (value.signum() <= 0) throw DomainException(ErrorCode.POSITIVE)
-                if (value.stripTrailingZeros().scale() > 12) throw DomainException(ErrorCode.PRECISION)
-                if (value.precision() > 40) throw DomainException(ErrorCode.OVERFLOW)
-                FxRate(row.sourceCurrency, base, value.stripTrailingZeros())
-            }
+            val rates = validateFxRates(base, current.rows)
             SaveFinancialSettings(current.baselineRevision, base,
                 current.settings.rates.filter { it.targetCurrency != base } + rates)
         } catch (error: DomainException) {

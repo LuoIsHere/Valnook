@@ -105,6 +105,11 @@ internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
 object AppModule {
     @Provides
     @Singleton
+    fun onboarding(@ApplicationContext context: Context): dev.valnook.app.onboarding.OnboardingStorage =
+        dev.valnook.app.onboarding.OnboardingPreferences(context)
+
+    @Provides
+    @Singleton
     fun database(@ApplicationContext context: Context): ValnookDatabase = ValnookDatabase.open(context)
 
     @Provides

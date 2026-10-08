@@ -1,6 +1,6 @@
 <resources>
     <style name="Theme.Valnook" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">#181D22</item>
+        <item name="android:windowBackground">#111113</item>
         <item name="android:colorAccent">#A6C3D7</item>
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:enforceNavigationBarContrast">false</item>

@@ -384,43 +384,10 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
     val base = state.settings.baseCurrency
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        item { Text(stringResource(R.string.settings_base_currency), style = MaterialTheme.typography.titleLarge) }
-        item { CurrencyChoice(base?.code.orEmpty(), { vm.selectBase(Currency.of(it)) }, !state.busy,
-            Currency.supported.map { it.code to it.name }, glass = true) }
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                Text(if (base == null) stringResource(R.string.settings_no_base) else
-                    stringResource(R.string.settings_fx_direction, base.code))
-                Text(stringResource(R.string.settings_rate_precision), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            FxRateEditor(base, state.rows, state.busy, vm::selectBase, vm::addRate,
+                vm::updateRow, vm::removeRate)
         }
-        itemsIndexed(state.rows, key = { _, row -> row.sourceCurrency.code }) { index, row ->
-            Column(Modifier.fillMaxWidth()) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xs),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(0.42f)) {
-                        CurrencyChoice(row.sourceCurrency.code, { vm.updateRow(index, source = Currency.of(it)) },
-                            !state.busy, Currency.supported.map { it.code to it.name },
-                            state.rows.filterIndexed { i, _ -> i != index }.map { it.sourceCurrency.code }.toSet() +
-                                listOfNotNull(base?.code), glass = true)
-                    }
-                    Box(Modifier.weight(0.58f)) {
-                        GlassTextField(row.rateInput, { vm.updateRow(index, rate = it) },
-                            stringResource(R.string.settings_rate), enabled = !state.busy, keyboardType = KeyboardType.Decimal)
-                    }
-                    IconButton({ vm.removeRate(index) }, enabled = !state.busy,
-                        modifier = Modifier.size(48.dp).testTag("remove-rate-$index")) {
-                        Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.settings_remove_rate))
-                    }
-                }
-                HorizontalDivider(Modifier.padding(top = Space.xs))
-            }
-        }
-        item { ActionButton(vm::addRate, enabled = !state.busy && base != null) {
-            Text(stringResource(R.string.settings_add_rate))
-        } }
-        item { Text(stringResource(R.string.settings_fx_default)) }
         item {
             state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
             if (state.error == ErrorCode.STALE_RECORD) TextButton(vm::discardAndReload) {
@@ -490,7 +457,7 @@ fun ClearDataScreen(
 }
 
 @Composable
-internal fun languageLabel(value: AppLanguage): String = stringResource(when (value) {
+fun languageLabel(value: AppLanguage): String = stringResource(when (value) {
     AppLanguage.SYSTEM -> R.string.settings_language_system
     AppLanguage.ZH_HANS -> R.string.settings_language_zh
     AppLanguage.ENGLISH -> R.string.settings_language_en
@@ -511,7 +478,7 @@ private fun navigationLabel(value: NavigationItemId): String = stringResource(wh
 })
 
 @Composable
-internal fun settingsErrorMessage(error: ErrorCode): String = stringResource(when (error) {
+fun settingsErrorMessage(error: ErrorCode): String = stringResource(when (error) {
     ErrorCode.CURRENCY -> R.string.settings_error_currency
     ErrorCode.FORMAT -> R.string.settings_error_format
     ErrorCode.PRECISION -> R.string.settings_error_precision

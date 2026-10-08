@@ -70,7 +70,9 @@ class AppSessionConcurrencyTest {
         val commands=CountingCommands()
         val maintenance=BlockingMaintenance()
         val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()).copy(
-            commands=commands,maintenance=maintenance),database,clock)
+            commands=commands,maintenance=maintenance),database,clock,
+            onboarding=dev.valnook.app.onboarding.OnboardingPreferences(
+                context.getSharedPreferences("onboarding-concurrency-fixture",0)))
         val original=manager.session.value
         val challenge=manager.issueClearChallenge()
         val clearing=async { manager.clearRealData(challenge,challenge) }

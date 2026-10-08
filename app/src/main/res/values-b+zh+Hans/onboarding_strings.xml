@@ -1,0 +1,17 @@
+<resources>
+    <string name="onboarding_start">开始使用</string>
+    <string name="onboarding_ready">设置完成</string>
+    <string name="onboarding_demo_hint">可在设置中开启演示模式，尝试各项功能。</string>
+    <string name="onboarding_agree">我已阅读并同意</string>
+    <string name="onboarding_back">返回</string>
+    <string name="onboarding_finance">设置主币种</string>
+    <string name="onboarding_finance_hint">请选择用于汇总资产的主币种。汇率可以不设置，之后可在设置中修改。</string>
+    <string name="onboarding_finish">完成设置</string>
+    <string name="onboarding_saving">正在保存…</string>
+    <string name="onboarding_save_error">无法保存初始化设置，请重试。</string>
+    <string name="onboarding_retry">重试</string>
+    <string name="onboarding_change_base">更换主币种？</string>
+    <string name="onboarding_change_base_hint">更换后汇率的目标币种将改变，因此会清除当前填写的汇率。</string>
+    <string name="onboarding_cancel">取消</string>
+    <string name="onboarding_confirm">更换币种</string>
+</resources>

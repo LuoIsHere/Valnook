@@ -123,8 +123,10 @@ fun ValnookRoot(
                     webScope.launch { webAdmin.stop() }
                 }
             } else Box(Modifier.fillMaxSize()) {
-                SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
-                CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
+                dev.valnook.app.onboarding.OnboardingGate(active.graph.settings, active.graph.settingsWriter, sessions.onboarding) {
+                    SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
+                    CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
+                }
             }
         }
     }
