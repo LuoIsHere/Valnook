@@ -20,6 +20,10 @@ interface DepositRepository {
     fun observe_deposits(account_id: Long, limit: Int, closed: Boolean = false): Flow<List<TermDeposit>>
 }
 interface InvestmentRepository {
+    suspend fun tradeMonthPage(positionId: Long, month: LedgerMonth, cursor: TradeCursor?, size: Int): List<Trade> =
+        readMonthPage(month, cursor, size, { it: Trade -> it.occurred_at_ms },
+            { TradeCursor(it.occurred_at_ms, it.id) }) { next, limit -> trade_page(positionId, next, limit) }
+
     suspend fun get_trade(id: Long): Trade?
     fun observe_trade(account_id: Long, id: Long): Flow<Trade?>
     fun observe_investment(id: Long): Flow<Investment?>
@@ -31,6 +35,10 @@ interface InvestmentRepository {
 }
 /** Each command is committed as ONE transaction by the implementation. */
 interface FinancialCommands {
+    suspend fun previewAccountDeletion(accountId: Long, balanceAccountId: Long? = null): AccountDeletionPreview =
+        throw UnsupportedOperationException()
+    suspend fun cancelAccountDeletion(ticket: String) {}
+
     suspend fun execute(command: FinancialCommand): OperationResult
     suspend fun execute(command: FinancialCommand, source: CommandSource): OperationResult = execute(command)
     /** Reconcile a possibly committed request using the original operation ID. */

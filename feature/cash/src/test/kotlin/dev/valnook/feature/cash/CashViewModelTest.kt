@@ -106,7 +106,7 @@ class CashViewModelTest {
                     else listOf(entry.copy(id = 50, occurred_at_ms = 50))
             }
         }
-        val vm = CashViewModel(1, reads, pages, SavedStateHandle())
+        val vm = CashViewModel(1, reads, pages, SavedStateHandle(mapOf("ledgerMonth" to "1970-01")))
         vm.watchCashAccount(1)
         val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.entries.collect() }
         runCurrent()

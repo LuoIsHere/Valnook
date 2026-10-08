@@ -53,6 +53,69 @@ class WebAdminEndToEndTest {
         if (sessions.session.value.mode == DataMode.DEMO) sessions.exitDemo()
     }
 
+    @Test fun demo_account_deletion_changes_only_temporary_copy_and_reentry_restores_seed() = runBlocking<Unit> {
+        val real=sessions.session.value.graph
+        real.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,"Real test account","",emptyList()))
+        val realBefore=real.overview.snapshot()
+        sessions.enterDemo()
+        val demo=sessions.session.value.graph
+        val clean=demo.overview.snapshot()
+        assertTrue(clean.accounts.isNotEmpty());assertTrue(clean.cash.isNotEmpty())
+        val cash=clean.cash.first()
+        val childPreview=demo.commands.previewAccountDeletion(cash.account_id,cash.id)
+        demo.commands.execute(DeleteBalanceAccount(UUID.randomUUID().toString(),cash.account_id,cash.id,childPreview.revision,
+            DeletionConfirmation(childPreview.ticket,childPreview.code)))
+        assertTrue(demo.overview.snapshot().cash.none{it.id==cash.id})
+        val parent=clean.accounts.first().id
+        val mainPreview=demo.commands.previewAccountDeletion(parent)
+        demo.commands.execute(DeleteAccount(UUID.randomUUID().toString(),parent,mainPreview.revision,
+            DeletionConfirmation(mainPreview.ticket,mainPreview.code)))
+        assertTrue(demo.overview.snapshot().accounts.none{it.id==parent})
+        assertEquals(clean.instruments,demo.overview.snapshot().instruments)
+        sessions.exitDemo()
+        assertEquals(realBefore,sessions.session.value.graph.overview.snapshot())
+        sessions.enterDemo()
+        val reset=sessions.session.value.graph.overview.snapshot()
+        assertEquals(clean,reset)
+        sessions.exitDemo()
+        assertEquals(realBefore,sessions.session.value.graph.overview.snapshot())
+    }
+
+    @Test fun account_deletion_requires_preview_code_and_preserves_global_instruments_over_http() = runBlocking<Unit> {
+        val commands=RoomFinancialCommands(database,java.time.Clock.systemUTC())
+        fun id()=UUID.randomUUID().toString()
+        val parent=commands.execute(SaveAccount(id(),null,null,"Delete test","",listOf(CashBalanceChange("USD",-100,null,name="Cash")))).id
+        val cash=RoomOverview(database).snapshot().cash.single().id
+        val type=commands.execute(SaveAssetType(id(),null,"Stocks")).id
+        val instrument=commands.execute(SaveInstrument(id(),null,null,"Apple","AAPL",type,"USD",1000000)).id
+        web.start()
+        val endpoint=URI(requireNotNull(web.state.value.url));val origin="http://${endpoint.host}:${endpoint.port}"
+        val paired=http(endpoint,"POST","/api/v1/pair/code",origin=origin,body=JSONObject().put("code",web.state.value.pairingCode).toString())
+        val cookie=paired.headers["set-cookie"].orEmpty().substringBefore(';');val csrf=JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint,origin,cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            fun post(path:String,body:JSONObject,method:String="POST")=http(endpoint,method,path,origin=origin,cookie=cookie,csrf=csrf,body=body.toString())
+            val bypass=post("/api/v1/balance-accounts/$cash",JSONObject().put("operationId",id()).put("accountId",parent).put("expectedRevision",1)
+                .put("dataGeneration",database.audit().generation()),"DELETE")
+            assertEquals(400,bypass.status)
+            val preview=post("/api/v1/account-deletion-preview",JSONObject().put("accountId",parent).put("balanceAccountId",cash))
+            assertEquals(200,preview.status)
+            val p=JSONObject(preview.body)
+            val body=JSONObject().put("operationId",id()).put("dataGeneration",p.getLong("dataGeneration"))
+                .put("accountId",parent).put("expectedRevision",p.getLong("revision")).put("ticket",p.getString("ticket")).put("code","bad")
+            assertEquals(400,post("/api/v1/balance-accounts/$cash",body,"DELETE").status)
+            body.put("code",p.getString("code"))
+            assertEquals(200,post("/api/v1/balance-accounts/$cash",body,"DELETE").status)
+            assertTrue(RoomOverview(database).snapshot().cash.isEmpty())
+            val main=JSONObject(post("/api/v1/account-deletion-preview",JSONObject().put("accountId",parent)).body)
+            val result=post("/api/v1/accounts/$parent",JSONObject().put("operationId",id()).put("dataGeneration",main.getLong("dataGeneration"))
+                .put("expectedRevision",main.getLong("revision")).put("ticket",main.getString("ticket")).put("code",main.getString("code")),"DELETE")
+            assertEquals(result.body,200,result.status)
+            assertTrue(RoomOverview(database).snapshot().accounts.isEmpty())
+            assertNotNull(database.instruments().instrument(instrument))
+        }
+    }
+
     @Test fun account_preferences_and_direct_first_trade_round_trip_over_http() = runBlocking<Unit> {
         val commands=RoomFinancialCommands(database,java.time.Clock.systemUTC())
         fun id()=UUID.randomUUID().toString()

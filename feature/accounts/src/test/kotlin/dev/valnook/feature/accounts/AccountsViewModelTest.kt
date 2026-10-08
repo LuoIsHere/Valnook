@@ -217,23 +217,4 @@ class AccountsViewModelTest {
         assertEquals("旧名称 · 共享额度主账户", restored.state.value.creditSources.single().label)
     }
 
-    @Test fun existing_balance_account_delete_uses_guarded_command_identity() = runTest(dispatcher) {
-        var request: DeleteBalanceAccount? = null
-        val commands = object : FinancialCommands {
-            override suspend fun execute(command: FinancialCommand): OperationResult {
-                request = command as DeleteBalanceAccount
-                return OperationResult("BALANCE_ACCOUNT", command.balanceAccountId)
-            }
-        }
-        val vm = AccountEditViewModel(7, repository, commands, SavedStateHandle())
-        runCurrent()
-
-        vm.deleteRow("11")
-        runCurrent()
-
-        assertEquals(7L, request?.accountId)
-        assertEquals(11L, request?.balanceAccountId)
-        assertEquals(8L, request?.expectedRevision)
-        assertEquals(SubmissionPhase.SUCCEEDED, vm.submission.value.phase)
-    }
 }

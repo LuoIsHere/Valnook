@@ -22,7 +22,12 @@ import dev.valnook.domain.model.*
         return
     }
     val profit = InvestmentProfitCalculator.fromReadModel(asset)
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+    val listState = rememberLazyListState()
+    var displayedMonth by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(state.month?.toString()) }
+    LaunchedEffect(state.month) {
+        if (displayedMonth != state.month?.toString()) { listState.scrollToItem(0); displayedMonth = state.month?.toString() }
+    }
+    LazyColumn(Modifier.fillMaxSize(), state=listState, contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item { HoldingTable(listOf(asset)) }
         item {
             Text(stringResource(R.string.investment_remaining_cost, money(profit.remainingCost, asset.currency)))
@@ -39,10 +44,11 @@ import dev.valnook.domain.model.*
             }
         } }
         item { Text(stringResource(R.string.investment_trade_history), style = MaterialTheme.typography.titleLarge) }
+        item { MonthPager(state.month, vm::selectMonth) }
         if (state.trades.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_trades)) }
         itemsIndexed(state.trades, key = { _, trade -> trade.id }) { index, trade ->
             TradeHistoryItem(trade, index < state.trades.lastIndex || state.hasMore) { onTrade(trade.id) }
         }
-        if (state.hasMore) item { TextButton(vm::loadMore) { Text(stringResource(R.string.investment_load_more)) } }
+        if (state.hasMore) item { LaunchedEffect(state.trades.size,state.month) { vm.loadMore() }; CircularProgressIndicator() }
     }
 }

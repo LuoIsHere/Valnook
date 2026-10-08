@@ -56,7 +56,12 @@ import java.time.*
     }
     val entries = ledger.rows
     val balance=ledger.account
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
+    val listState = rememberLazyListState()
+    var displayedMonth by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(ledger.month?.toString()) }
+    LaunchedEffect(ledger.month) {
+        if (displayedMonth != ledger.month?.toString()) { listState.scrollToItem(0); displayedMonth = ledger.month?.toString() }
+    }
+    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
         item{
             GlassCard(Modifier.padding(bottom=Space.md), prominent=true) {
             CashBalanceSummary(balance,on_edit=on_form,allAccounts=ledger.allAccounts,
@@ -65,6 +70,7 @@ import java.time.*
             }
         }
         item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
+        item { MonthPager(ledger.month, vm::selectMonth) }
         if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}
         itemsIndexed(entries,key={_,entry->entry.id}){index,entry->
             val time=Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault())
@@ -76,7 +82,7 @@ import java.time.*
                 CashEntryItem(entry,index<entries.lastIndex||ledger.hasMore){on_entry(entry.id)}
             }
         }
-        if(ledger.hasMore)item{TextButton(onClick=vm::load_more_entries){Text(stringResource(R.string.load_more))}}
+        if(ledger.hasMore)item{LaunchedEffect(entries.size,ledger.month){vm.load_more_entries()}; CircularProgressIndicator()}
     }
 }
 @Preview(showBackground=true,widthDp=360,fontScale=2f)

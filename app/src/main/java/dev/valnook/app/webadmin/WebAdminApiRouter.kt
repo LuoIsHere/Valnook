@@ -55,9 +55,33 @@ internal class WebAdminApiRouter(
         }
         if (method == "GET" && path == "/api/v1/session") return sessionState()
         if (method == "GET" && path == "/api/v1/accounts") return accounts()
+        if (method == "POST" && path == "/api/v1/account-deletion-preview") {
+            val body = body(request)
+            val p = sessions.previewWebAccountDeletion(sessionId, body.long("accountId"), body.optionalLong("balanceAccountId"))
+            return success(buildJsonObject {
+                put("ticket", p.ticket); put("code", p.code); put("name", p.name); put("revision", p.revision)
+                put("dataGeneration", reads.generation()); put("cashCount", p.cashCount); put("entryCount", p.entryCount)
+                put("depositCount", p.depositCount); put("tradeCount", p.tradeCount)
+                put("balance", p.balanceMinor?.let { DecimalRules.format_units(it, Currency.of(requireNotNull(p.currencyCode)).fraction_digits) })
+                put("currencyCode", p.currencyCode)
+                put("transfers", buildJsonArray { p.transfers.forEach { value -> add(buildJsonObject {
+                    put("name", value.name); put("currencyCode", value.currencyCode)
+                    put("limit", DecimalRules.format_units(value.limitMinor, Currency.of(value.currencyCode).fraction_digits))
+                }) } })
+            })
+        }
+        if (method == "POST" && path == "/api/v1/account-deletion-cancel") {
+            sessions.cancelWebAccountDeletion(sessionId, body(request).text("ticket"))
+            return success(buildJsonObject { put("status", "cancelled") })
+        }
         ACCOUNT.matchEntire(path)?.let { match ->
             if (method == "GET") return account(match.groupValues[1].toLong())
             if (method == "PUT") return saveAccount(sessionId, match.groupValues[1].toLong(), request)
+            if (method == "DELETE") {
+                val body = body(request)
+                return save(sessionId, body, DeleteAccount(body.operationId(), match.groupValues[1].toLong(),
+                    body.long("expectedRevision"), DeletionConfirmation(body.text("ticket"), body.text("code"))))
+            }
         }
         BALANCE_ACCOUNT.matchEntire(path)?.let { match ->
             if (method == "DELETE") return deleteBalanceAccount(sessionId, match.groupValues[1].toLong(), request)
@@ -214,7 +238,7 @@ internal class WebAdminApiRouter(
     private suspend fun deleteBalanceAccount(sessionId: String, id: Long, request: WebHttpRequest): WebHttpResponse {
         val body = body(request)
         return save(sessionId, body, DeleteBalanceAccount(body.operationId(), body.long("accountId"), id,
-            body.long("expectedRevision")))
+            body.long("expectedRevision"), DeletionConfirmation(body.text("ticket"), body.text("code"))))
     }
 
     private suspend fun records(request: WebHttpRequest): WebHttpResponse {

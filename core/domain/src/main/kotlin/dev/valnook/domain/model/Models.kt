@@ -84,7 +84,7 @@ data class TermDeposit(val id: Long, val account_id: Long, val currency: Currenc
     val principal_minor: Long, val annual_rate_percent_e8: Long, val start_epoch_day: Long,
     val end_epoch_day: Long, val expected_interest_minor: Long, val closed: Boolean,
     val open_cash_linked: Boolean, val close_cash_linked: Boolean?, val revision: Long = 1,
-    val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null)
+    val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null, val closedAtMs: Long? = null)
 data class AssetType(val id: Long, val name: String)
 data class Investment(val id: Long, val account_id: Long, val type_id: Long, val type_name: String,
     val name: String, val symbol: String, val currency: Currency, val holding_quantity_e8: Long,

@@ -29,6 +29,15 @@ interface CashDao {
         ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size""")
     suspend fun cashAccountLedgerPage(cashAccountId: Long, time: Long?, id: Long?, size: Int): List<CashEntryWithSource>
 
+    @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
+        JOIN cash_accounts c ON c.id=e.cash_account_id
+        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        WHERE e.cash_account_id=:cashAccountId AND e.is_deleted=0
+        AND e.occurred_at_ms>=:startMs AND e.occurred_at_ms<:endMs
+        AND (:time IS NULL OR e.occurred_at_ms<:time OR (e.occurred_at_ms=:time AND e.id<:id))
+        ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size""")
+    suspend fun cashAccountMonthPage(cashAccountId: Long, startMs: Long, endMs: Long, time: Long?, id: Long?, size: Int): List<CashEntryWithSource>
+
     @Query("""SELECT c.*,p.account_id AS profile_account_id,p.credit_limit_minor,p.statement_day,
         p.due_rule_type,p.due_rule_value,p.limit_source_account_id FROM cash_accounts c
         LEFT JOIN credit_account_profiles p ON p.account_id=c.id

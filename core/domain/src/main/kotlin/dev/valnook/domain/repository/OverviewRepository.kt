@@ -53,7 +53,11 @@ data class SaveAccount(override val operation_id: String, val accountId: Long?, 
     val showInvestmentSummary: Boolean? = null) : FinancialCommand
 
 data class DeleteBalanceAccount(override val operation_id: String, val accountId: Long,
-    val balanceAccountId: Long, val expectedRevision: Long) : FinancialCommand
+    val balanceAccountId: Long, val expectedRevision: Long,
+    val confirmation: DeletionConfirmation? = null) : FinancialCommand
+
+data class DeleteAccount(override val operation_id: String, val accountId: Long,
+    val expectedRevision: Long, val confirmation: DeletionConfirmation) : FinancialCommand
 
 data class SaveInstrument(override val operation_id: String, val instrumentId: Long?, val expectedRevision: Long?,
     val name: String, val symbol: String, val typeId: Long, val currencyCode: String,

@@ -234,10 +234,9 @@ import java.time.LocalDate
 }
 @Composable fun AccountEditScreen(vm: AccountEditViewModel, onBack: () -> Unit,
     onSortActionChanged: ((() -> Unit)?) -> Unit = {}, onPickImage: () -> Unit = {},
-    onSaveActionChanged: (AccountEditToolbarState?) -> Unit = {}) {
+    onSaveActionChanged: (AccountEditToolbarState?) -> Unit = {}, onDelete: (Long) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
-    var pendingDeleteKey by rememberSaveable { mutableStateOf<String?>(null) }
     var sorting by rememberSaveable { mutableStateOf(false) }
     var sortKeys by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     val latestSortActionChanged by rememberUpdatedState(onSortActionChanged)
@@ -332,12 +331,9 @@ import java.time.LocalDate
                 if (!row.currencyLocked) TextButton(onClick = { vm.removeRow(row.key) }, enabled = submission.editable) {
                     Text(stringResource(R.string.account_cancel_balance_account))
                 }
-                if (row.cashAccountId != null) TextButton(
-                    onClick = { pendingDeleteKey = row.key },
-                    enabled = submission.editable,
-                    modifier = Modifier.testTag("account-delete-${row.cashAccountId}")) {
-                    Text(stringResource(R.string.account_delete_balance_account), color = MaterialTheme.colorScheme.error)
-                }
+                if (row.cashAccountId != null) DeleteIconButton(
+                    stringResource(R.string.account_delete_balance_account), { onDelete(row.cashAccountId) },
+                    Modifier.testTag("account-delete-${row.cashAccountId}"), enabled = submission.editable)
                 }
             }
             }
@@ -346,19 +342,4 @@ import java.time.LocalDate
         ErrorMessage(submission.error?.name)
         if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.account_unknown_result))
     }
-    if (pendingDeleteKey != null) AlertDialog(
-        onDismissRequest = { pendingDeleteKey = null },
-        title = { PopupBlurEffect(); Text(stringResource(R.string.account_delete_title)) },
-        text = { Text(stringResource(R.string.account_delete_message)) },
-        dismissButton = { TextButton(onClick = { pendingDeleteKey = null }) {
-            Text(stringResource(dev.valnook.core.designsystem.R.string.cancel))
-        } },
-        confirmButton = { TextButton(onClick = {
-            val key = pendingDeleteKey
-            pendingDeleteKey = null
-            if (key != null) vm.deleteRow(key)
-        }, modifier = Modifier.testTag("account-delete-confirm")) {
-            Text(stringResource(R.string.account_delete_confirm), color = MaterialTheme.colorScheme.error)
-        } }
-    )
 }

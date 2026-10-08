@@ -69,4 +69,13 @@
     <string name="account_show_investments">Show investment summary</string>
     <string name="account_show_cash">Show on Accounts page</string>
     <string name="account_include_available">Include in available cash</string>
+    <string name="account_delete_parent_scope">Delete this account, all subaccounts, cash entries, deposits, holdings and trades. Global instruments and other accounts are kept. Historical totals will be recalculated. This cannot be undone.</string>
+    <string name="account_delete_child_scope">Delete this subaccount and its cash entries. Deposits and trades are kept without their cash links to this subaccount. No balance is transferred. Other balances stay unchanged. Historical totals will be recalculated. This cannot be undone.</string>
+    <string name="account_delete_counts">Subaccounts: %1$d · Cash entries: %2$d\nAffected deposits: %3$d · Trades: %4$d</string>
+    <string name="account_delete_transfer">%1$s → Independent limit %2$s %3$s</string>
+    <string name="account_delete_transfer_notice">Each linked credit account inherits the full limit, so the combined limit may increase. Their debts stay unchanged.</string>
+    <string name="account_delete_code">Enter confirmation code: %1$s</string>
+    <string name="account_delete_code_input">Confirmation code</string>
+    <string name="account_delete_refresh">Refresh preview and code</string>
+    <string name="account_delete_draft_notice">Deletion uses saved data. Unsaved edits will be discarded.</string>
 </resources>

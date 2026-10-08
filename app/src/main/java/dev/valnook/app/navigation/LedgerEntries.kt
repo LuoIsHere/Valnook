@@ -12,7 +12,7 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
     back: () -> Unit, accountName: (Long) -> String) {
     entry<CashKey> { route ->
         val vm = pageViewModel { CashViewModel(route.accountId, graph.cash, graph.cashPages,
-            createSavedStateHandle(), graph.overview) }
+            createSavedStateHandle(), graph.overview, graph.clock) }
         CashDetail(vm, route.cashAccountId,
             { open(CashBalanceEditKey(route.accountId, route.cashAccountId)) },
             { open(CashEntryKey(route.accountId, route.cashAccountId, it)) })
@@ -40,7 +40,7 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
         CashEntryEditScreen(vm, back)
     }
     entry<SettledDepositsKey> { route ->
-        val vm = pageViewModel { DepositsViewModel(route.accountId, true, graph.depositPages, graph.clock) }
+        val vm = pageViewModel { DepositsViewModel(route.accountId, true, graph.depositPages, graph.clock, createSavedStateHandle()) }
         DepositsScreen(vm, {}, { open(DepositDetailKey(route.accountId, it)) }, closed = true)
     }
     entry<DepositDetailKey> { route ->

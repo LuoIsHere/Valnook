@@ -5,6 +5,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface TradeDao {
+    @Query("""SELECT * FROM investment_trades WHERE investment_id=:positionId AND is_deleted=0
+        AND occurred_at_ms>=:startMs AND occurred_at_ms<:endMs
+        AND (:time IS NULL OR occurred_at_ms<:time OR (occurred_at_ms=:time AND id<:id))
+        ORDER BY occurred_at_ms DESC,id DESC LIMIT :size""")
+    suspend fun monthPage(positionId: Long, startMs: Long, endMs: Long, time: Long?, id: Long?, size: Int): List<TradeEntity>
+
     @Query("SELECT * FROM investment_trades WHERE investment_id=:positionId AND is_deleted=0 ORDER BY occurred_at_ms,id")
     suspend fun replayTrades(positionId: Long): List<TradeEntity>
     @Query("SELECT * FROM investment_trades WHERE investment_id=:investment_id AND is_deleted=0 ORDER BY occurred_at_ms DESC,id DESC LIMIT :limit")

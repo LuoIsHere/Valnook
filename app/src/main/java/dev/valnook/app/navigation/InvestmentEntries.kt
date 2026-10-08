@@ -72,7 +72,7 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
 
 @Composable
 private fun AccountPositionDetail(graph: AppGraph, accountId: Long, positionId: Long, open: (NavKey) -> Unit) {
-    val vm = pageViewModel { InvestmentDetailViewModel(accountId, positionId, graph.investments) }
+    val vm = pageViewModel { InvestmentDetailViewModel(accountId, positionId, graph.investments, createSavedStateHandle(), graph.clock) }
     InvestmentDetail(vm, { open(TradeDetailKey(accountId, it)) },
         { direction, asset -> open(TradeFormKey(accountId, TradeFormMode.CREATE, asset.instrumentId, asset.id, direction = direction)) },
         { open(InstrumentPriceEditKey(it.instrumentId)) })

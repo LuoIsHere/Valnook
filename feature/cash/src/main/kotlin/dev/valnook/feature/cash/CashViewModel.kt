@@ -1,5 +1,8 @@
 package dev.valnook.feature.cash
 
+import java.time.YearMonth
+import java.time.Clock
+import dev.valnook.domain.repository.LedgerMonth
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -33,7 +36,7 @@ sealed interface CashLedgerState {
     data object Failed : CashLedgerState
     data class Ready(val account: CashAccount, val rows: List<CashEntry>, val hasMore: Boolean,
         val allAccounts: List<CashAccount> = emptyList(),
-        val creditSourceLabels: Map<Long, String> = emptyMap()) : CashLedgerState
+        val creditSourceLabels: Map<Long, String> = emptyMap(), val month: YearMonth = YearMonth.now()) : CashLedgerState
 }
 
 private data class BalanceContext(val accounts: List<CashAccount>, val sourceLabels: Map<Long, String>)
@@ -52,7 +55,7 @@ class CashViewModel(
     private val repository: CashRepository,
     private val pages: PagedCashRepository,
     private val saved: SavedStateHandle,
-    private val overview: OverviewRepository? = null
+    private val overview: OverviewRepository? = null, private val clock: Clock = Clock.systemDefaultZone()
 ) : ViewModel() {
     private val balanceContext = overview?.observeSnapshot()?.map(AssetSnapshot::balanceContext)
         ?: flowOf(BalanceContext(emptyList(), emptyMap()))
@@ -63,6 +66,9 @@ class CashViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), CashBalancesState.Loading)
 
     private val selected = saved.getStateFlow("selectedCashAccountId", 0L)
+    val month = saved.getStateFlow("ledgerMonth", YearMonth.now(clock).toString())
+    fun selectMonth(value: YearMonth) { saved["ledgerMonth"] = value.toString() }
+    private var loadedMonth: String? = null
     private val requests = MutableStateFlow(0)
     private var loadedCashAccountId = 0L
     private var loadedRevision: Long? = null
@@ -71,7 +77,8 @@ class CashViewModel(
     private var more = true
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val entries = selected.flatMapLatest { cashAccountId ->
+    val entries = combine(selected, month) { id, selectedMonth -> id to selectedMonth }.flatMapLatest { (cashAccountId, selectedMonth) ->
+        val range = LedgerMonth(YearMonth.parse(selectedMonth), clock.zone)
         if (cashAccountId == 0L) flowOf<CashLedgerState>(CashLedgerState.Loading)
         else combine(repository.observeCashAccount(cashAccountId),
             pages.observeCashAccountRevision(cashAccountId), requests,
@@ -79,21 +86,22 @@ class CashViewModel(
             LedgerInput(account, revision, request, context)
         }.map<LedgerInput, CashLedgerState> { (account, revision, request, context) ->
             val current = account?.takeIf { it.account_id == accountId } ?: return@map CashLedgerState.Failed
-            if (cashAccountId != loadedCashAccountId || revision != loadedRevision) {
-                rows = pages.cashAccountPage(cashAccountId, null, PAGE_SIZE)
+            if (cashAccountId != loadedCashAccountId || revision != loadedRevision || loadedMonth != selectedMonth) {
+                loadedMonth = selectedMonth
+                rows = pages.cashAccountMonthPage(cashAccountId, range, null, PAGE_SIZE)
                 loadedCashAccountId = cashAccountId
                 loadedRevision = revision
                 loadedRequest = request
                 more = rows.size == PAGE_SIZE
             } else if (request != loadedRequest && more) {
                 val last = rows.lastOrNull()
-                val next = if (last == null) emptyList() else pages.cashAccountPage(cashAccountId,
+                val next = if (last == null) emptyList() else pages.cashAccountMonthPage(cashAccountId, range,
                     LedgerCursor(last.occurred_at_ms, last.id), PAGE_SIZE)
                 rows = (rows + next).distinctBy { it.id }
                 loadedRequest = request
                 more = next.size == PAGE_SIZE
             }
-            CashLedgerState.Ready(current, rows, more, context.accounts, context.sourceLabels)
+            CashLedgerState.Ready(current, rows, more, context.accounts, context.sourceLabels, range.month)
         }
     }.catch { emit(CashLedgerState.Failed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), CashLedgerState.Loading)

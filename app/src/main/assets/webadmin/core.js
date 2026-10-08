@@ -15,6 +15,9 @@ const state = {
 };
 const copy = {
   "zh-CN": {
+    deletionCode: "确认码", deleteParentScope: "删除此主账户及全部子账户、现金流水、存单、持仓和交易。保留全局投资标的及其他账户。历史统计会重算，无法撤销。",
+    deleteChildScope: "删除此子账户及现金流水。保留存单与投资交易，解除其现金关联；不转移余额，其他账户余额不变。历史统计会重算，无法撤销。",
+    deleteLimitNotice: "关联账户分别继承总额度，汇总额度可能增加；各自欠款不变。",
     accounts: "账户", records: "记录", investments: "投资", statistics: "统计", connected: "已连接", demoMode: "演示模式",
     sessionEnded: "会话已结束", sessionLost: "连接已失效，请回到手机重新配对。", reconnecting: "连接暂时中断，正在恢复…", loading: "正在加载…",
     empty: "暂无数据", save: "保存", cancel: "取消", saved: "✓ 已保存", showDeposits: "显示定期汇总", showInvestments: "显示投资汇总", showOnAccounts: "在账户页显示", includeAvailable: "计入可用现金", searchInstrument: "搜索投资品",
@@ -47,6 +50,9 @@ const copy = {
     dueAfter: "账单日后 N 天", dueFixed: "每月固定日期"
   },
   "en": {
+    deletionCode: "Confirmation code", deleteParentScope: "Delete this account, all subaccounts, cash entries, deposits, holdings and trades. Keep global instruments and other accounts. Historical totals are recalculated. This cannot be undone.",
+    deleteChildScope: "Delete this subaccount and cash entries. Keep deposits and trades without their cash links. No balance is transferred; other balances stay unchanged. Historical totals are recalculated. This cannot be undone.",
+    deleteLimitNotice: "Each linked account inherits the full limit, which may increase the combined limit. Their debts stay unchanged.",
     accounts: "Accounts", records: "Records", investments: "Investments", statistics: "Statistics", demoMode: "Demo mode",
     connected: "Connected", sessionEnded: "Session ended", sessionLost: "Session expired. Pair again from your phone.", reconnecting: "Connection interrupted. Reconnecting…",
     loading: "Loading…", empty: "No data", save: "Save", cancel: "Cancel", saved: "✓ Saved",

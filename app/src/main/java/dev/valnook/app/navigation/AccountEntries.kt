@@ -9,7 +9,7 @@ import dev.valnook.feature.deposits.*
 import dev.valnook.feature.investments.*
 
 internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
-    onEditSortActionChanged: ((() -> Unit)?) -> Unit, onEditSaveChanged: (AccountEditToolbarState?) -> Unit) {
+    onEditSortActionChanged: ((() -> Unit)?) -> Unit, onEditSaveChanged: (AccountEditToolbarState?) -> Unit, onDeleteCash: (Long, Long) -> Unit) {
     entry<AccountOrderKey> {
         val vm = pageViewModel { AccountOrderViewModel(graph.overview, requireNotNull(graph.accountOrderWriter), createSavedStateHandle()) }
         AccountOrderScreen(vm, back)
@@ -31,12 +31,14 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
     entry<AccountEditKey> { route ->
         val vm = pageViewModel { AccountEditViewModel(route.id, graph.overview, graph.commands, createSavedStateHandle()) }
         dev.valnook.app.appearance.AccountPhotoPicker(vm::changeImage) { pickImage ->
-            AccountEditScreen(vm, back, onEditSortActionChanged, pickImage, onEditSaveChanged)
+            AccountEditScreen(vm, back, onEditSortActionChanged, pickImage, onEditSaveChanged) { cashId ->
+                route.id?.let { onDeleteCash(it, cashId) }
+            }
         }
     }
     entry<AccountKey> { route ->
         val summaryVm = pageViewModel { AccountsViewModel(graph.overview) }
-        val cashVm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle(), graph.overview) }
+        val cashVm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle(), graph.overview, graph.clock) }
         val depositVm = pageViewModel { DepositsViewModel(route.id, false, graph.depositPages, graph.clock) }
         val portfolioVm = pageViewModel { PortfolioViewModel(graph.overview) }
         val initial = if (route.section == "CASH") AccountDetailSection.ACCOUNTS else

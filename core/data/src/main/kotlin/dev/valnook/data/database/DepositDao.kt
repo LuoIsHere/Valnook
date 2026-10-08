@@ -5,6 +5,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface DepositDao {
+    @Query("""SELECT * FROM term_deposits WHERE savings_account_id=:accountId AND status='CLOSED'
+        AND closed_at_ms>=:startMs AND closed_at_ms<:endMs
+        AND (:time IS NULL OR closed_at_ms<:time OR (closed_at_ms=:time AND id<:id))
+        ORDER BY closed_at_ms DESC,id DESC LIMIT :size""")
+    suspend fun closedMonthPage(accountId: Long, startMs: Long, endMs: Long, time: Long?, id: Long?, size: Int): List<DepositEntity>
+
     @Query("SELECT COALESCE(SUM(revision),0) FROM term_deposits WHERE savings_account_id=:accountId")
     fun depositRevision(accountId: Long): Flow<Long>
     @Query("SELECT * FROM term_deposits WHERE savings_account_id=:accountId AND status=:status AND (:day IS NULL OR start_epoch_day<:day OR (start_epoch_day=:day AND id<:id)) ORDER BY start_epoch_day DESC,id DESC LIMIT :size")

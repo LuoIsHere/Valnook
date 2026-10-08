@@ -289,6 +289,19 @@ private fun SessionRoot(
         { value: NavigationToolbarState? -> navigationToolbar = value }
     }
 
+    var deleteTarget by remember(graph.sessionId) { mutableStateOf<Pair<Long, Long?>?>(null) }
+    deleteTarget?.let { (accountId, cashId) ->
+        dev.valnook.feature.accounts.AccountDeletionDialog(graph.commands, accountId, cashId,
+            onDismiss = { deleteTarget = null }, onDeleted = {
+                deleteTarget = null
+                // Drop routes/drafts referencing the removed data.
+                val target: NavKey = if (cashId != null) AccountKey(accountId)
+                    else if (AccountsKey in visibleRoots) AccountsKey else HiddenAccountsKey
+                stack.removeAll { !it.isRoot() }
+                if (target.isRoot()) stack.remove(target)
+                stack.add(target)
+            }, discardDraft = current is AccountEditKey)
+    }
     Box(Modifier.fillMaxSize()) {
         Scaffold(modifier = Modifier.nestedScroll(toolbarScrollBehavior.nestedScrollConnection),
             contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
@@ -333,7 +346,15 @@ private fun SessionRoot(
                     }) { MenuIcon() }
                     is AccountKey -> dev.valnook.designsystem.TopBarAction(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
-                    is AccountEditKey -> { IconButton({ editSortAction?.invoke() },
+                    is CashKey -> dev.valnook.designsystem.DeleteIconButton(
+                        stringResource(dev.valnook.feature.accounts.R.string.account_delete_title),
+                        { deleteTarget = current.accountId to current.cashAccountId }, Modifier.testTag("cash-delete-open"))
+                    is AccountEditKey -> {
+                        current.id?.let { id -> dev.valnook.designsystem.DeleteIconButton(
+                            stringResource(dev.valnook.feature.accounts.R.string.account_delete_title),
+                            { deleteTarget = id to null }, Modifier.testTag("account-delete-open"),
+                            enabled = accountEditSave?.enabled == true) }
+                        IconButton({ editSortAction?.invoke() },
                         Modifier.testTag("subaccount-order-open").semantics { contentDescription = sortDescription },
                         enabled = editSortAction != null) { SortIcon() }
                         dev.valnook.feature.accounts.AccountEditSaveAction(accountEditSave)
@@ -360,7 +381,7 @@ private fun SessionRoot(
                         transitionSpec = { NavigationMotion.forward(offset) },
                         popTransitionSpec = { NavigationMotion.back(offset) },
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
-                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave)
+                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave) { parent, cash -> deleteTarget = parent to cash }
                             investmentEntries(graph, open, back, accountName)
                             ledgerEntries(graph, open, back, accountName)
                             entry<StatisticsKey> {

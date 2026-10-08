@@ -90,7 +90,8 @@ async function accountDetail(id) {
     el("td", { text: v.type === "CREDIT" ? t("creditAccount") : t("savingsAccount") }),
     el("td", { text: v.name }), el("td", { text: v.note || "—" }),
     el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.balance, v.currencyCode) }),
-    el("td", { class: "numeric", text: v.credit ? `${fmt(v.credit.used, v.currencyCode)} / ${fmt(v.credit.totalLimit, v.currencyCode)}` : "—" })));
+    el("td", { class: "numeric", text: v.credit ? `${fmt(v.credit.used, v.currencyCode)} / ${fmt(v.credit.totalLimit, v.currencyCode)}` : "—" }),
+    el("td", {}, deleteAccountButton(a.id, v.id))));
   const savingsCash = data.cash.filter(v => v.type === "SAVINGS");
   const depositRows = data.deposits.map(v => el("tr", { "data-clickable": "true", onclick: () => depositForm(v, null, savingsCash) },
     el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.principal, v.currencyCode) }),
@@ -103,14 +104,41 @@ async function accountDetail(id) {
     el("td", { class: `numeric ${gainClass(v.unrealized)}`, text: fmt(v.unrealized, v.currencyCode) })));
   const content = el("div", {},
     el("div", { class: "section-head" }, el("div", {}, el("strong", { text: a.name }),
-      el("div", { class: "subtle", text: a.note || "—" })), button(t("edit"), () => accountForm({ ...a, cash: data.cash, creditSourceCandidates: data.creditSourceCandidates }))),
-    sectionTable(t("balanceAccounts"), [t("type"), t("name"), t("note"), t("currency"), t("balance"), t("usedLimit")], cashRows),
+      el("div", { class: "subtle", text: a.note || "—" })), button(t("edit"), () => accountForm({ ...a, cash: data.cash, creditSourceCandidates: data.creditSourceCandidates })), deleteAccountButton(a.id)),
+    sectionTable(t("balanceAccounts"), [t("type"), t("name"), t("note"), t("currency"), t("balance"), t("usedLimit"), t("delete")], cashRows),
     sectionTable(t("deposits"), [t("currency"), t("principal"), t("start"), t("endDate"), t("annualRate"), t("status")], depositRows,
       button(t("openDeposit"), () => depositForm(null, a.id, savingsCash))),
     sectionTable(t("positions"), [t("nameCode"), t("quantity"), t("currentPrice"), t("marketValue"), t("pnl")], positionRows));
   openDrawer(t("accountDetails"), "ACCOUNT", content);
 }
 function sectionTable(title, headers, rows, action = null) { return el("section", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: title }), action), table(headers, rows)); }
+
+function deleteAccountButton(accountId, balanceAccountId = null) {
+  return el("button", { type: "button", class: "icon-button", "aria-label": t("delete"), onclick: () => deletionForm(accountId, balanceAccountId).catch(error => notify(errorMessage(error))) },
+    el("svg", { class: "symbol", viewBox: "0 0 24 24", "aria-hidden": "true" },
+      el("path", { d: "M4 6h16M9 3h6M7 6v15h10V6M10 9v9M14 9v9", fill: "none", stroke: "currentColor", "stroke-width": "1.7" })));
+}
+async function deletionForm(accountId, balanceAccountId) {
+  if (!closeDrawer()) return;
+  const p = await api("/api/v1/account-deletion-preview", { method: "POST", body: JSON.stringify({ accountId, balanceAccountId }) });
+  const codeField = field(t("deletionCode"), "code", "", true);
+  const input = $("input", codeField); input.inputMode = "numeric"; input.maxLength = 6; input.pattern = p.code;
+  const error = el("p", { class: "drawer-error full", role: "alert" });
+  const form = el("form", { class: "form-grid" }, el("h2", { class: "full", text: p.name }),
+    el("p", { class: "full", text: t(balanceAccountId == null ? "deleteParentScope" : "deleteChildScope") }),
+    el("p", { class: "full", text: `${t("balanceAccounts")}: ${p.cashCount} · ${t("records")}: ${p.entryCount} · ${t("deposits")}: ${p.depositCount} · ${t("trade")}: ${p.tradeCount}` }),
+    p.balance == null ? null : el("p", { class: "full", text: `${fmt(p.balance)} ${p.currencyCode}` }),
+    ...p.transfers.map(v => el("p", { class: "full", text: `${v.name}: ${fmt(v.limit)} ${v.currencyCode} · ${t("independentLimit")}` })),
+    p.transfers.length ? el("p", { class: "full", text: t("deleteLimitNotice") }) : null,
+    el("strong", { class: "full", text: `${t("deletionCode")}: ${p.code}` }), codeField, error);
+  form.deletionTicket = p.ticket;
+  const bar = actions(btn => saveForm(btn, error, balanceAccountId == null ? `/api/v1/accounts/${accountId}` : `/api/v1/balance-accounts/${balanceAccountId}`, "DELETE", {
+    operationId: uuid(), dataGeneration: p.dataGeneration, accountId, expectedRevision: p.revision, ticket: p.ticket, code: input.value
+  }));
+  const confirmButton = $("[data-save]", bar); confirmButton.textContent = t("delete"); confirmButton.disabled = true;
+  input.addEventListener("input", () => { confirmButton.disabled = input.value !== p.code; });
+  form.append(bar); openDrawer(t("delete"), "ACCOUNT", form);
+}
 
 function accountForm(account) {
   const cash = account?.cash || [];
@@ -509,6 +537,7 @@ function closeDrawer(force = false) {
   const form = $("#drawer-content form");
   if (force !== true && form?.pendingSubmission) { notify(t("unknownResult")); return false; }
   if (force !== true && form?.dataset.dirty && !confirm(t("discard"))) return false;
+  if (form?.deletionTicket) api("/api/v1/account-deletion-cancel", { method: "POST", body: JSON.stringify({ ticket: form.deletionTicket }) }).catch(() => {});
   $("#scrim").hidden = true; $("#drawer").hidden = true; clear($("#drawer-content"));
   $("#workspace").inert = false; document.body.classList.remove("modal-open");
   if (drawerOrigin?.isConnected) drawerOrigin.focus(); drawerOrigin = null;

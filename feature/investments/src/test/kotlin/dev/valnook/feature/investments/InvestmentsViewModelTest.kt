@@ -95,6 +95,8 @@ class InvestmentsViewModelTest {
                 try {emit(1L)
                     awaitCancellation()}finally {active--}
             }
+            override suspend fun tradeMonthPage(positionId:Long,month:LedgerMonth,cursor:TradeCursor?,size:Int) =
+                trade_page(positionId,cursor,size).filter { month.contains(it.occurred_at_ms) }
             override suspend fun trade_page(investment_id:Long,cursor:TradeCursor?,limit:Int):List<Trade> {
                 cursors+=cursor
                 return (if(cursor==null)100L downTo 51L else 50L downTo 49L).map {
@@ -102,7 +104,7 @@ class InvestmentsViewModelTest {
                 }
             }
         }
-        val vm=InvestmentDetailViewModel(1,1,repository)
+        val vm=InvestmentDetailViewModel(1,1,repository,SavedStateHandle(mapOf("ledgerMonth" to "1970-01")))
         val collector=backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){vm.state.collect()}
         runCurrent()
         vm.loadMore()

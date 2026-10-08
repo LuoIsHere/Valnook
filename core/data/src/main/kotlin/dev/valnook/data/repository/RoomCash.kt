@@ -15,6 +15,9 @@ private fun CashEntryWithSource.to_model():CashEntry {
 }
 
 class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
+    override suspend fun cashAccountMonthPage(cashAccountId: Long, month: dev.valnook.domain.repository.LedgerMonth, cursor: LedgerCursor?, size: Int) =
+        dao.cashAccountMonthPage(cashAccountId, month.startMs, month.endMs, cursor?.time, cursor?.id, size.coerceIn(1,100)).map { it.to_model() }
+
     override fun observeRevision(accountId:Long,currencyCode:String)=dao.ledgerRevision(accountId,currencyCode)
     override suspend fun page(accountId:Long,currencyCode:String,cursor:LedgerCursor?,size:Int)=
         dao.ledgerPage(accountId,currencyCode,cursor?.time,cursor?.id,size.coerceIn(1,100)).map{it.to_model()}

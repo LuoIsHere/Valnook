@@ -228,6 +228,16 @@ class AppSessionManager @Inject internal constructor(
     internal fun webAdminReads(): dev.valnook.domain.webadmin.WebAdminReadRepository =
         webAdminGraph().webAdminReads
 
+    internal suspend fun previewWebAccountDeletion(webSessionId: String, accountId: Long, cashId: Long?) = writeMutex.withLock {
+        requireWebOwner(webSessionId)
+        webAdminGraph().commands.previewAccountDeletion(accountId, cashId)
+    }
+
+    internal suspend fun cancelWebAccountDeletion(webSessionId: String, ticket: String) = writeMutex.withLock {
+        requireWebOwner(webSessionId)
+        webAdminGraph().commands.cancelAccountDeletion(ticket)
+    }
+
     internal suspend fun executeWebCommand(
         webSessionId: String,
         expectedGeneration: Long,
@@ -324,6 +334,14 @@ class AppSessionManager @Inject internal constructor(
         private val sessionId: String,
         private val delegate: FinancialCommands
     ) : FinancialCommands {
+        override suspend fun previewAccountDeletion(accountId: Long, balanceAccountId: Long?) = writeMutex.withLock {
+            requireMobileWrite(sessionId)
+            delegate.previewAccountDeletion(accountId, balanceAccountId)
+        }
+        override suspend fun cancelAccountDeletion(ticket: String) = writeMutex.withLock {
+            delegate.cancelAccountDeletion(ticket)
+        }
+
         override suspend fun execute(command: FinancialCommand): OperationResult = writeMutex.withLock {
             requireMobileWrite(sessionId)
             delegate.execute(command)

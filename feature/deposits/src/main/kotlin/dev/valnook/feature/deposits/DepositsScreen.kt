@@ -27,19 +27,28 @@ import kotlinx.coroutines.delay
     when (val current = state) {
         DepositsState.Loading -> CircularProgressIndicator()
         DepositsState.Failed -> Text(stringResource(DepositsR.string.deposits_load_failed))
-        is DepositsState.Ready -> DepositsContent(current.rows,today,on_form,vm::load_more,on_open,on_archive,closed,current.hasMore)
+        is DepositsState.Ready -> DepositsContent(current.rows,today,on_form,vm::load_more,on_open,on_archive,closed,current.hasMore,current.month,vm::selectMonth)
     }
 }
 @Composable fun DepositsContent(rows:List<TermDeposit>,today:Long,on_form:()->Unit,on_more:()->Unit,
-    on_open:(Long)->Unit={},on_archive:(()->Unit)?=null,closed:Boolean=false,hasMore:Boolean=rows.size>=50) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(horizontal=Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
+    on_open:(Long)->Unit={},on_archive:(()->Unit)?=null,closed:Boolean=false,hasMore:Boolean=rows.size>=50,month:YearMonth?=null,onMonth:(YearMonth)->Unit={}) {
+    val listState = rememberLazyListState()
+    var displayedMonth by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(month?.toString()) }
+    LaunchedEffect(month) {
+        if (displayedMonth != month?.toString()) { listState.scrollToItem(0); displayedMonth = month?.toString() }
+    }
+    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=pageContentPadding(horizontal=Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         if(closed)item{Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.titleLarge)}
         else if(on_archive!=null)item{ActionButton(onClick=on_archive,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.settled_deposits))}}
         item{Text(stringResource(R.string.term_formula),style=MaterialTheme.typography.bodySmall,
             color=MaterialTheme.colorScheme.onSurfaceVariant)}
+        if(month!=null)item{MonthPager(month,onMonth)}
         if(rows.isEmpty())item{EmptyState(stringResource(if(closed)R.string.empty_settled_deposits else R.string.empty_deposits))}
         itemsIndexed(rows,key={_,deposit->deposit.id}) { index,d ->
             RecordListItem(Modifier.testTag("deposit-record-${d.id}"), {on_open(d.id)}, index<rows.lastIndex||hasMore) {
+                d.closedAtMs?.let { time -> Text(stringResource(R.string.closed) + " · " +
+                    Instant.ofEpochMilli(time).atZone(ZoneId.systemDefault()).toLocalDate(),
+                    style=MaterialTheme.typography.labelSmall, color=MaterialTheme.colorScheme.onSurfaceVariant) }
                 AmountText(Decimal.format_display(d.principal_minor,d.currency.fraction_digits),d.currency.code)
                 Text(stringResource(R.string.deposit_detail,Decimal.format_e8(d.annual_rate_percent_e8),
                     LocalDate.ofEpochDay(d.start_epoch_day),LocalDate.ofEpochDay(d.end_epoch_day)),
@@ -47,13 +56,13 @@ import kotlinx.coroutines.delay
                 Text(stringResource(R.string.interest_value,Decimal.format_units(d.expected_interest_minor,d.currency.fraction_digits),d.currency.code),
                     style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 val progress=Decimal.progress(d.start_epoch_day,d.end_epoch_day,today)
-                LinearProgressIndicator(progress={progress.toFloat()},modifier=Modifier.fillMaxWidth())
+                LinearProgressIndicator(progress={progress.toFloat()},modifier=Modifier.fillMaxWidth(),drawStopIndicator={})
                 Text(stringResource(R.string.progress_value,progress.multiply(java.math.BigDecimal("100")).toInt()),
                     style=MaterialTheme.typography.labelSmall)
                 Text(deposit_status(d,today),style=MaterialTheme.typography.labelSmall)
             }
         }
-        if(hasMore)item{TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}}
+        if(hasMore)item{if(month!=null){LaunchedEffect(rows.size,month){on_more()};CircularProgressIndicator()}else TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}}
         if(!closed)item{Button(onClick=on_form,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.open_deposit))}}
     }
 }

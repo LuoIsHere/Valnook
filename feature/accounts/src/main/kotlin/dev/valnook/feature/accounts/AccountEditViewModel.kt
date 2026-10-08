@@ -287,15 +287,6 @@ class AccountEditViewModel(
         persist(state.value.copy(rows = state.value.rows.filter { it.key != key || it.cashAccountId != null }))
     }
 
-    fun deleteRow(key: String) = session.submit {
-        val parentId = accountId ?: throw DomainException(ErrorCode.NOT_FOUND)
-        val row = state.value.rows.firstOrNull { it.key == key }
-            ?: throw DomainException(ErrorCode.NOT_FOUND)
-        DeleteBalanceAccount(operationId, parentId,
-            row.cashAccountId ?: throw DomainException(ErrorCode.NOT_FOUND),
-            row.expectedRevision ?: throw DomainException(ErrorCode.STALE_BALANCE))
-    }
-
     fun submit() = session.submit {
         saved["validate"] = true
         persist(state.value)

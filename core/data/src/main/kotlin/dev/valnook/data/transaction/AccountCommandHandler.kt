@@ -125,25 +125,6 @@ internal class AccountCommandHandler(
         return OperationResult("ACCOUNT", accountId)
     }
 
-    suspend fun delete(command: dev.valnook.domain.repository.DeleteBalanceAccount): OperationResult {
-        val account = cash.requireCashAccount(command.balanceAccountId, command.accountId,
-            db.cash().cashAccount(command.balanceAccountId)?.currency_code
-                ?: throw DomainException(ErrorCode.NOT_FOUND))
-        if (account.revision != command.expectedRevision) throw DomainException(ErrorCode.STALE_BALANCE)
-        if (db.credit().dependents(account.id).isNotEmpty()) throw DomainException(ErrorCode.CREDIT_LIMIT_IN_USE)
-        if (account.balance_minor != 0L || db.cash().meaningfulCashEntryCount(account.id) != 0 ||
-            db.cash().meaningfulMovementCount(account.id) != 0 || db.cash().depositReferenceCount(account.id) != 0 ||
-            db.cash().tradeReferenceCount(account.id) != 0) throw DomainException(ErrorCode.BALANCE_ACCOUNT_IN_USE)
-        db.cash().deleteZeroInitializationEntries(account.id)
-        db.cash().deleteZeroInitializationMovements(account.id)
-        db.credit().delete(account.id)
-        if (db.cash().deleteEmptyCashAccount(account.id, account.revision) != 1) {
-            throw DomainException(ErrorCode.BALANCE_ACCOUNT_IN_USE)
-        }
-        fault(TransactionPoint.AFTER_BUSINESS)
-        return OperationResult("BALANCE_ACCOUNT", account.id)
-    }
-
     suspend fun setBalance(command: SetCashBalance, now: Long): OperationResult {
         cash.requireAccount(command.account_id)
         val code = cash.currency(command.currency_code).code

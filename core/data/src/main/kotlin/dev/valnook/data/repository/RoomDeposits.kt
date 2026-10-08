@@ -11,9 +11,12 @@ import kotlinx.coroutines.flow.map
 
 internal fun DepositEntity.toModel()=TermDeposit(id,savings_account_id,Currency.of(currency_code),principal_minor,
     annual_rate_percent_e8,start_epoch_day,end_epoch_day,expected_interest_minor,status=="CLOSED",
-    open_cash_linked,close_cash_linked,revision,open_cash_account_id,close_cash_account_id)
+    open_cash_linked,close_cash_linked,revision,open_cash_account_id,close_cash_account_id,closed_at_ms)
 
 class RoomDeposits(private val dao:DepositDao):DepositRepository, PagedDepositRepository {
+    override suspend fun monthPage(accountId: Long, month: dev.valnook.domain.repository.LedgerMonth, cursor: LedgerCursor?, size: Int) =
+        dao.closedMonthPage(accountId, month.startMs, month.endMs, cursor?.time, cursor?.id, size.coerceIn(1,100)).map { it.toModel() }
+
     override fun observeRevision(accountId:Long)=dao.depositRevision(accountId)
     override suspend fun page(accountId:Long,closed:Boolean,cursor:LedgerCursor?,size:Int)=
         dao.depositPage(accountId,if(closed)"CLOSED" else "OPEN",cursor?.time,cursor?.id,size.coerceIn(1,100)).map{it.toModel()}

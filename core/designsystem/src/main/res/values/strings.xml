@@ -131,4 +131,6 @@
     <string name="retry_loading">Try again</string>
     <string name="state_expanded">Expanded</string>
     <string name="state_collapsed">Collapsed</string>
+    <string name="ledger_previous_month">Previous month</string>
+    <string name="ledger_next_month">Next month</string>
 </resources>
