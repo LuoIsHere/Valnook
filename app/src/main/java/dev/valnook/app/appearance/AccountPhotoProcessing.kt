@@ -26,6 +26,7 @@ internal fun readAccountPhoto(context: Context, uri: Uri): Bitmap {
         }
         output.toByteArray()
     }
+    require(dev.valnook.data.image.WalletImages.staticPhoto(bytes))
     return ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, info, _ ->
         require(info.size.width.toLong() * info.size.height <= 64_000_000)
         val factor = min(1f, 1024f / max(info.size.width, info.size.height))

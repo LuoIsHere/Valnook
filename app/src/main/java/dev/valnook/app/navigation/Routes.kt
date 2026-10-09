@@ -8,6 +8,8 @@ import dev.valnook.feature.deposits.DepositFormMode
 
 @Serializable data object AccountsKey : NavKey
 @Serializable data object AccountOrderKey : NavKey
+@Serializable data object WalletKey : NavKey
+@Serializable data object HiddenWalletKey : NavKey
 @Serializable data object InvestmentsKey : NavKey
 @Serializable data object StatisticsKey : NavKey
 @Serializable data object SettingsKey : NavKey
@@ -48,9 +50,10 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data class DepositFormKey(val accountId: Long, val mode: DepositFormMode, val id: Long? = null) : NavKey
 
 internal fun NavKey.isRoot(): Boolean = this == AccountsKey || this == InvestmentsKey ||
-    this == StatisticsKey || this == SettingsKey
+    this == StatisticsKey || this == WalletKey || this == SettingsKey
 
 internal fun dev.valnook.domain.model.NavigationItemId.rootKey(): NavKey = when (this) {
+    dev.valnook.domain.model.NavigationItemId.WALLET -> WalletKey
     dev.valnook.domain.model.NavigationItemId.ACCOUNTS -> AccountsKey
     dev.valnook.domain.model.NavigationItemId.INVESTMENTS -> InvestmentsKey
     dev.valnook.domain.model.NavigationItemId.STATISTICS -> StatisticsKey
@@ -58,6 +61,7 @@ internal fun dev.valnook.domain.model.NavigationItemId.rootKey(): NavKey = when 
 }
 
 internal fun dev.valnook.domain.model.NavigationItemId.hiddenKey(): NavKey = when (this) {
+    dev.valnook.domain.model.NavigationItemId.WALLET -> HiddenWalletKey
     dev.valnook.domain.model.NavigationItemId.ACCOUNTS -> HiddenAccountsKey
     dev.valnook.domain.model.NavigationItemId.INVESTMENTS -> HiddenInvestmentsKey
     dev.valnook.domain.model.NavigationItemId.STATISTICS -> HiddenStatisticsKey

@@ -83,4 +83,5 @@
     <string name="settings_repository">GitHub repository</string>
     <string name="settings_github_attribution">The GitHub name and related marks are trademarks of GitHub, Inc.</string>
     <string name="settings_repository_url" translatable="false">https://github.com/LuoIsHere/Valnook</string>
+    <string name="settings_nav_wallet">Wallet</string>
 </resources>

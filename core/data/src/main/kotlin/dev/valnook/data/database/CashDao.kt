@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CashDao {
+    @Query("SELECT MIN(occurred_at_ms) AS firstMs,MAX(occurred_at_ms) AS lastMs FROM cash_entries WHERE cash_account_id=:id AND is_deleted=0")
+    fun monthBounds(id: Long): Flow<dev.valnook.domain.repository.LedgerBounds>
+
     @Query("SELECT COALESCE(SUM(revision),0) FROM cash_accounts WHERE savings_account_id=:accountId AND currency_code=:code")
     fun ledgerRevision(accountId: Long, code: String): Flow<Long>
 

@@ -290,6 +290,7 @@ internal class ArchiveReader(
             val navigationOrder = appearance["navigationOrder"] as? String ?: invalid()
             val navigationVisible = appearance["navigationVisible"] as? String ?: invalid()
             validateNavigation(navigationOrder, navigationVisible)
+            val restoredNavigation = dev.valnook.domain.model.NavigationConfiguration.restore(navigationOrder,navigationVisible)
             insert(db, "app_settings", ContentValues().apply {
                 put("id", stringLong(financial["id"]))
                 val base = financial["baseCurrency"]
@@ -297,8 +298,8 @@ internal class ArchiveReader(
                 put("revision", stringLong(financial["revision"]))
                 put("language", enumValue(appearance, "language", setOf("SYSTEM", "ZH_HANS", "ENGLISH")))
                 put("gain_loss_scheme", enumValue(appearance, "gainLossScheme", setOf("GREEN_GAIN", "RED_GAIN")))
-                put("navigation_order", navigationOrder)
-                put("navigation_visible", navigationVisible)
+                put("navigation_order", restoredNavigation.order.joinToString(",") { it.name })
+                put("navigation_visible", restoredNavigation.visible.joinToString(",") { it.name })
             })
         }
         val rates = financial["rates"] as? List<*> ?: invalid()
@@ -333,6 +334,21 @@ internal class ArchiveReader(
             .use { if (it.moveToFirst()) invalid() }
         sql.query("SELECT 1 FROM cash_accounts WHERE display_order<0 LIMIT 1")
             .use { if (it.moveToFirst()) invalid() }
+        sql.query("SELECT id,data,width,height,tint FROM wallet_card_images").use { cursor ->
+            while (cursor.moveToNext()) {
+                val image = dev.valnook.domain.model.WalletImage(cursor.getString(0),cursor.getBlob(1),cursor.getInt(2),cursor.getInt(3),cursor.getLong(4))
+                if (!dev.valnook.data.image.WalletImages.valid(image)) invalid()
+            }
+        }
+        sql.query("SELECT name,display_order,revision,binding_lost,bound_cash_account_id FROM wallet_cards").use { cursor ->
+            val orders = mutableSetOf<Long>()
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(0)
+                if (runCatching { dev.valnook.domain.model.WalletRules.name(name) }.getOrNull() != name ||
+                    cursor.getLong(1) < 0 || !orders.add(cursor.getLong(1)) || cursor.getLong(2) < 1 ||
+                    (cursor.getInt(3) == 1 && !cursor.isNull(4))) invalid()
+            }
+        }
         sql.query("SELECT id,data FROM account_icon_images").use { cursor ->
             while (cursor.moveToNext()) {
                 if (!dev.valnook.data.transaction.AccountIconImages.valid(cursor.getString(0), cursor.getBlob(1))) invalid()
@@ -526,7 +542,7 @@ internal class ArchiveReader(
     }
 
     private fun validateNavigation(order: String, visible: String) {
-        val all = setOf("ACCOUNTS", "INVESTMENTS", "STATISTICS", "SETTINGS")
+        val all = if ("WALLET" in order.split(',')) setOf("ACCOUNTS", "WALLET", "INVESTMENTS", "STATISTICS", "SETTINGS") else setOf("ACCOUNTS", "INVESTMENTS", "STATISTICS", "SETTINGS")
         val orderValues = order.split(',')
         val visibleValues = visible.split(',').filter(String::isNotBlank)
         if (orderValues.toSet() != all || orderValues.size != all.size ||

@@ -20,6 +20,24 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 class MigrationTest {
     @get:Rule val helper=MigrationTestHelper(InstrumentationRegistry.getInstrumentation(),
         ValnookDatabase::class.java,emptyList(),FrameworkSQLiteOpenHelperFactory())
+    @Test fun v15_wallet_migration_preserves_navigation_and_starts_empty() {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name="migration-wallet-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name,15).apply {
+                execSQL("INSERT INTO app_settings(id,base_currency,language,gain_loss_scheme,revision,navigation_order,navigation_visible) VALUES (1,NULL,'SYSTEM','GREEN_GAIN',1,'INVESTMENTS,ACCOUNTS,SETTINGS,STATISTICS','ACCOUNTS,SETTINGS')")
+                close()
+            }
+            helper.runMigrationsAndValidate(name,16,true,MIGRATION_15_16).apply {
+                query("SELECT navigation_order,navigation_visible FROM app_settings").use {
+                    assertTrue(it.moveToFirst());assertEquals("INVESTMENTS,ACCOUNTS,WALLET,SETTINGS,STATISTICS",it.getString(0))
+                    assertEquals(setOf("ACCOUNTS","SETTINGS","WALLET"),it.getString(1).split(',').toSet())
+                }
+                query("SELECT COUNT(*) FROM wallet_cards").use{assertTrue(it.moveToFirst());assertEquals(0,it.getInt(0))}
+                close()
+            }
+        }finally{context.deleteDatabase(name)}
+    }
     @Test fun v14_account_preferences_default_to_existing_behavior() {
         val context=ApplicationProvider.getApplicationContext<android.content.Context>()
         val name="migration-v14-${UUID.randomUUID()}.db"

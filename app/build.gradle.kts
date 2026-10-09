@@ -64,6 +64,7 @@ dependencies {
     implementation(project(":core:data"))
     implementation(project(":core:designsystem"))
     implementation(project(":feature:accounts"))
+    implementation(project(":feature:wallet"))
     implementation(project(":feature:cash"))
     implementation(project(":feature:deposits"))
     implementation(project(":feature:investments"))

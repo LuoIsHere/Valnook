@@ -54,7 +54,7 @@ internal object BackupContract {
     const val DEPOSIT_INTEREST_RULE = 1
     const val HISTORICAL_VALUATION_RULE = STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -63,6 +63,8 @@ internal object BackupContract {
         PortableColumn(name, PortableKind.LOCAL_DATE, databaseName = databaseName)
 
     val tables = listOf(
+        PortableTable("data/wallet_card_images.jsonl", "wallet_card_images", listOf(text("id"), PortableColumn("data", PortableKind.BLOB), long("width"), long("height"), long("tint")), "id"),
+        PortableTable("data/wallet_cards.jsonl", "wallet_cards", listOf(long("id"), text("name"), text("image_key", true), long("bound_cash_account_id", true), long("display_order"), long("created_at_ms"), long("updated_at_ms"), long("revision"), bool("binding_lost")), "display_order,id"),
         PortableTable("data/account_icon_images.jsonl", "account_icon_images", listOf(
             text("id"), PortableColumn("data", PortableKind.BLOB)), "id"),
         PortableTable("data/accounts.jsonl", "savings_accounts", listOf(
@@ -154,9 +156,9 @@ internal object BackupContract {
             (dataSchemaVersion == 1 && it.table == "credit_account_profiles") }
             .map { it.copy(columns = it.columns.filterNot { column ->
                 column.name in setOf("icon_type", "icon_value") || (dataSchemaVersion < 3 && column.name == "display_order") }) }
-        4, 5 -> tables
+        4, 5, 6 -> tables
         else -> emptyList()
-    }).map { table -> if (dataSchemaVersion >= 5) table else table.copy(columns = table.columns.filterNot {
+    }).filterNot { dataSchemaVersion < 6 && it.table in setOf("wallet_cards", "wallet_card_images") }.map { table -> if (dataSchemaVersion >= 5) table else table.copy(columns = table.columns.filterNot {
         it.name in setOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page")
     }) }
 
@@ -167,7 +169,7 @@ internal object BackupContract {
     val zipPaths: Set<String> = payloadPaths + "manifest.json"
 
     val importOrder = listOf(
-        "account_icon_images", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "investments",
+        "account_icon_images", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "wallet_card_images", "wallet_cards", "investments",
         "term_deposits", "investment_trades", "cash_entries", "cash_movements", "instrument_price_history",
         "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "audit_metadata",
         "audit_events", "audit_event_accounts"

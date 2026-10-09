@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.Flow
 data class LedgerCursor(val time: Long, val id: Long)
 
 interface PagedCashRepository {
+    fun observeMonthBounds(cashAccountId: Long): Flow<LedgerBounds> = kotlinx.coroutines.flow.flowOf(LedgerBounds(null,null))
+
     suspend fun cashAccountMonthPage(cashAccountId: Long, month: LedgerMonth, cursor: LedgerCursor?, size: Int): List<CashEntry> =
         readMonthPage(month, cursor, size, { it: CashEntry -> it.occurred_at_ms },
             { LedgerCursor(it.occurred_at_ms, it.id) }) { next, limit -> cashAccountPage(cashAccountId, next, limit) }

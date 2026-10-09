@@ -21,7 +21,7 @@ internal fun cash_change_text(entry:CashEntry)=
     CashSource.CASH_SET->R.string.manual_balance_change
 })
 
-@Composable internal fun CashEntryItem(entry:CashEntry,showDivider:Boolean=true,on_open:()->Unit) {
+@Composable fun CashEntryItem(entry:CashEntry,showDivider:Boolean=true,on_open:()->Unit) {
     RecordListItem(onClick=on_open,showDivider=showDivider) {
         Text(cash_change_text(entry),style=MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings="tnum"))
         Text(cash_source_label(entry.source),style=MaterialTheme.typography.bodySmall,

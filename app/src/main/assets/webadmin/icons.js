@@ -1,4 +1,5 @@
 import { $, state, t, el } from "./core.js";
+import { staticPhotoSize } from "./photo-validation.js";
 import { symbols } from "./symbols.js";
 
 export function symbol(key) {
@@ -45,6 +46,8 @@ export function iconPicker(current) {
     processing = true;
     try {
       if (file.size > 32 * 1024 * 1024) throw new Error();
+      staticPhotoSize(await file.arrayBuffer());
+      if (version !== imageVersion) return;
       const url = URL.createObjectURL(file), image = new Image();
       try { image.src = url; await image.decode(); } finally { URL.revokeObjectURL(url); }
       if (version !== imageVersion) return;

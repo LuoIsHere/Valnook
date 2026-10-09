@@ -6,7 +6,7 @@
 - Developer: luoishere
 - Contact: [xlll1314@outlook.com](mailto:xlll1314@outlook.com)
 - Effective date: October 7, 2026
-- Last updated: October 7, 2026
+- Last updated: October 8, 2026
 - Distribution: [Official GitHub repository](https://github.com/LuoIsHere/Valnook)
 
 ## 1. Scope
@@ -27,6 +27,8 @@ Valnook primarily stores data locally. The developer does not operate a server t
 | Web session information | Local network connection addresses, browser identification, pairing and session credentials, and connection and activity times, used for authentication, session management, and access limits. |
 
 Core financial management does not require registering a Valnook account or connecting a cloud service. The application does not use financial records for advertising, marketing profiles, or sale.
+
+Wallet card faces are optional images selected by you through the system photo picker. Static JPEG, PNG and WebP images are cropped, rotated, compressed and processed locally; original location metadata is not retained. Valnook does not perform OCR or collect card numbers, expiry dates or CVV. Use blank or redacted card faces. Cards may link to an existing subaccount without creating a new account or duplicating financial records. Card images, links and order are included in complete local and cloud backups, including OneDrive uploads when enabled. Wallet images are not exposed through web management. Deleting a card does not delete its linked account; clearing all data also removes Wallet data.
 
 ## 3. Local Storage and Permissions
 

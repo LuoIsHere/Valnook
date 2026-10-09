@@ -471,6 +471,7 @@ internal fun colorLabel(value: GainLossColorScheme): String = stringResource(whe
 
 @Composable
 private fun navigationLabel(value: NavigationItemId): String = stringResource(when (value) {
+    NavigationItemId.WALLET -> R.string.settings_nav_wallet
     NavigationItemId.ACCOUNTS -> R.string.settings_nav_accounts
     NavigationItemId.INVESTMENTS -> R.string.settings_nav_investments
     NavigationItemId.STATISTICS -> R.string.settings_nav_statistics

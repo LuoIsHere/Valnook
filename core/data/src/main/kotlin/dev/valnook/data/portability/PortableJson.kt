@@ -50,10 +50,11 @@ internal object PortableJson {
                     PortableKind.TEXT -> put(column.databaseName, item as? String ?: fail())
                     PortableKind.BLOB -> {
                         val raw = item as? String ?: fail()
-                        if (raw.length > 175000) fail()
+                        val maxBytes = if (table.table == "wallet_card_images") dev.valnook.domain.model.WalletRules.MAX_IMAGE_BYTES else dev.valnook.domain.model.AccountSymbols.MAX_IMAGE_BYTES
+                        if (raw.length > ((maxBytes + 2) / 3) * 4) fail()
                         val bytes = try { android.util.Base64.decode(raw, android.util.Base64.NO_WRAP) }
                             catch (_: IllegalArgumentException) { fail() }
-                        if (bytes.size > dev.valnook.domain.model.AccountSymbols.MAX_IMAGE_BYTES ||
+                        if (bytes.size > maxBytes ||
                             android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP) != raw) fail()
                         put(column.databaseName, bytes)
                     }

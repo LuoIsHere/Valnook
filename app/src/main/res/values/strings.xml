@@ -24,4 +24,6 @@
     <string name="cloud_failure_auth">Microsoft authorization is required again.</string>
     <string name="cloud_failure_verify">The uploaded file could not be verified. Existing recovery points were kept.</string>
     <string name="cloud_failure_prepare">The local backup package could not be prepared.</string>
+    <string name="nav_wallet">Wallet</string>
+    <string name="wallet_delete_card">Delete card</string>
 </resources>

@@ -286,6 +286,21 @@ class AppSessionManager @Inject internal constructor(
         depositPages = source.depositPages,
         portability = SessionPortability(sessionId, mode, source.portability),
         cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator),
+        wallet = object : dev.valnook.domain.repository.WalletRepository {
+            private val delegate = dev.valnook.data.repository.RoomWallet(source.database,source.clock)
+            override fun observeCards() = delegate.observeCards()
+            override suspend fun image(key: String) = delegate.image(key)
+            override suspend fun save(id: Long?, expectedRevision: Long?, name: String, cashAccountId: Long?, imageKey: String?, image: dev.valnook.domain.model.WalletImage?) = writeMutex.withLock {
+                requireMobileWrite(sessionId)
+                delegate.save(id,expectedRevision,name,cashAccountId,imageKey,image)
+            }
+            override suspend fun delete(id: Long, expectedRevision: Long) = writeMutex.withLock {
+                requireMobileWrite(sessionId); delegate.delete(id,expectedRevision)
+            }
+            override suspend fun reorder(expected: List<Long>, ordered: List<Long>) = writeMutex.withLock {
+                requireMobileWrite(sessionId); delegate.reorder(expected,ordered)
+            }
+        },
         accountOrderWriter = object : AccountOrderWriter {
             override suspend fun saveOrder(expectedOrder: List<Long>, orderedIds: List<Long>) = writeMutex.withLock {
                 requireMobileWrite(sessionId)

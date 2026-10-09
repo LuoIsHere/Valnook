@@ -555,33 +555,52 @@ class BackupPortabilityTest {
         return result
     }
 
+    @Test fun schema5_backup_overwrites_existing_wallet_with_empty_collection() = runBlocking {
+        val source=database("pre-wallet")
+        RoomFinancialCommands(source,clock).testAccount("Legacy bank")
+        val bytes=ByteArrayOutputStream();engine(source).createBackup(UUID.randomUUID().toString(),bytes){}
+        val target=database("wallet-target")
+        val wallet=dev.valnook.data.repository.RoomWallet(target,clock)
+        wallet.save(null,null,"Must be replaced",null,null)
+        val reader=engine(target)
+        val staged=reader.prepareRestore(ByteArrayInputStream(downgradeToLegacySchema(bytes.toByteArray(),5)),"legacy.val_backup"){}
+        try{reader.commitRestore(staged){}}finally{reader.close(staged)}
+        assertTrue(target.wallet().cards().isEmpty())
+        assertEquals("Legacy bank",RoomOverview(target).snapshot().accounts.single().name)
+    }
+
     private fun downgradeToLegacySchema(bytes: ByteArray, version: Int = 1): ByteArray {
         val files = linkedMapOf<String, ByteArray>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> while (true) {
             val entry = zip.nextEntry ?: break
             files[entry.name] = zip.readBytes()
         } }
-        files.remove("data/account_icon_images.jsonl")
+        files.remove("data/wallet_cards.jsonl"); files.remove("data/wallet_card_images.jsonl")
+        if(version < 4) files.remove("data/account_icon_images.jsonl")
         if (version == 1) files.remove("data/credit_account_profiles.jsonl")
         listOf("data/accounts.jsonl", "data/cash_accounts.jsonl").forEach { path ->
             files[path] = files.getValue(path).toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
-                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 3) remove("display_order"); remove("icon_type"); remove("icon_value"); listOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page").forEach { remove(it) } }.toString() }.toByteArray()
+                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 3) remove("display_order"); if(version < 4) { remove("icon_type"); remove("icon_value") }; if(version < 5) listOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page").forEach { remove(it) } }.toString() }.toByteArray()
         }
         val totals = JSONObject(files.getValue("verification/snapshot_totals.json").toString(Charsets.UTF_8))
-        totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")
+        totals.getJSONObject("recordCounts").remove("data/wallet_cards.jsonl")
+        totals.getJSONObject("recordCounts").remove("data/wallet_card_images.jsonl")
+        if(version < 4) totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")
         if (version == 1) totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
         files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
         val manifest = JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
         manifest.put("dataSchemaVersion", version)
         manifest.put("requiredFeatures", JSONArray(listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1") +
             (if (version >= 2) listOf("credit-accounts-v1") else emptyList()) +
-            (if (version >= 3) listOf("account-order-v1") else emptyList())))
+            (if (version >= 3) listOf("account-order-v1") else emptyList()) +
+            (if (version >= 4) listOf("account-icons-v1") else emptyList()) +
+            (if (version >= 5) listOf("account-presentation-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->
             val row = fileRows.getJSONObject(index)
             val path = row.getString("path")
-            if (path != "data/account_icon_images.jsonl" && (version != 1 || path != "data/credit_account_profiles.jsonl")) {
+            if (path in files) {
                 if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl")) {
                     val value = files.getValue(path)
                     row.put("uncompressedBytes", value.size)

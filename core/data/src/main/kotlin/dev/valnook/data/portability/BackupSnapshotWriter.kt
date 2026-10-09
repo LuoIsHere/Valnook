@@ -204,8 +204,8 @@ internal class BackupSnapshotWriter(
             put("settingsPresent", settings != null)
             put("language", settings?.opt("language") ?: "SYSTEM")
             put("gainLossScheme", settings?.opt("gain_loss_scheme") ?: "GREEN_GAIN")
-            put("navigationOrder", settings?.opt("navigation_order") ?: "ACCOUNTS,INVESTMENTS,STATISTICS,SETTINGS")
-            put("navigationVisible", settings?.opt("navigation_visible") ?: "ACCOUNTS,INVESTMENTS,STATISTICS,SETTINGS")
+            put("navigationOrder", settings?.opt("navigation_order") ?: "ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS")
+            put("navigationVisible", settings?.opt("navigation_visible") ?: "ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS")
         }.toString())
         return mapOf("preferences/financial.json" to 1L, "preferences/appearance.json" to 1L)
     }

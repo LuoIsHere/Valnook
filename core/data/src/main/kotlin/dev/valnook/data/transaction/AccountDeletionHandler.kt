@@ -68,6 +68,7 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
         exec("DELETE FROM cash_entries WHERE cash_account_id=?", id)
         exec("DELETE FROM cash_movements WHERE cash_account_id=?", id)
         exec("DELETE FROM statistics_baseline_items WHERE item_kind='CASH' AND reference_id=?", id)
+        db.wallet().unbind(id,now)
         db.credit().delete(id)
         exec("DELETE FROM cash_accounts WHERE id=?", id)
         exec("DELETE FROM demo_labels WHERE entity_kind='CASH' AND entity_id=?", id)
@@ -94,6 +95,7 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
         exec("DELETE FROM investments WHERE savings_account_id=?", id)
         exec("DELETE FROM credit_account_profiles WHERE account_id IN (SELECT id FROM cash_accounts WHERE savings_account_id=?)", id)
         exec("DELETE FROM demo_labels WHERE entity_kind='CASH' AND entity_id IN (SELECT id FROM cash_accounts WHERE savings_account_id=?)", id)
+        db.cash().accountIds(id).forEach { db.wallet().unbind(it,clock.millis()) }
         exec("DELETE FROM cash_accounts WHERE savings_account_id=?", id)
         exec("DELETE FROM demo_labels WHERE entity_kind='ACCOUNT' AND entity_id=?", id)
         exec("DELETE FROM savings_accounts WHERE id=?", id)

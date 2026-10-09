@@ -79,4 +79,5 @@
     <string name="settings_privacy_policy_summary">离线查看隐私政策与免责声明</string>
     <string name="settings_repository">GitHub 仓库</string>
     <string name="settings_github_attribution">GitHub 名称及相关标志的商标权归 GitHub, Inc. 所有</string>
+    <string name="settings_nav_wallet">卡包</string>
 </resources>

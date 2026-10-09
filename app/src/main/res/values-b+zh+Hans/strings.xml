@@ -24,4 +24,6 @@
     <string name="cloud_failure_auth">需要重新进行 Microsoft 授权。</string>
     <string name="cloud_failure_verify">上传文件未通过验证，已有恢复点已保留。</string>
     <string name="cloud_failure_prepare">无法准备本地备份包。</string>
+    <string name="nav_wallet">卡包</string>
+    <string name="wallet_delete_card">删除卡片</string>
 </resources>

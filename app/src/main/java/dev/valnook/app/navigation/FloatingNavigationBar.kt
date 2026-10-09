@@ -30,6 +30,7 @@ internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId
                 controlHeight = 48.dp, containerColor = Color.Transparent,
                 indicatorInset = 0.dp, spacing = 4.dp) { item ->
                 Text(stringResource(when (item) {
+                    NavigationItemId.WALLET -> R.string.nav_wallet
                     NavigationItemId.ACCOUNTS -> R.string.nav_accounts
                     NavigationItemId.INVESTMENTS -> R.string.nav_investments
                     NavigationItemId.STATISTICS -> R.string.nav_statistics
@@ -41,6 +42,7 @@ internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId
 }
 
 private fun itemForKey(key: NavKey): NavigationItemId = when (key) {
+    WalletKey -> NavigationItemId.WALLET
     AccountsKey -> NavigationItemId.ACCOUNTS
     InvestmentsKey -> NavigationItemId.INVESTMENTS
     StatisticsKey -> NavigationItemId.STATISTICS

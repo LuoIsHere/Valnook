@@ -51,11 +51,5 @@ internal fun settingsModel(settings: SettingsEntity?, rates: List<FxRateEntity>)
     parseNavigation(settings)
 )
 
-private fun parseNavigation(settings: SettingsEntity?): NavigationConfiguration {
-    fun ids(raw: String?): List<NavigationItemId> = raw.orEmpty().split(',').mapNotNull {
-        runCatching { NavigationItemId.valueOf(it) }.getOrNull()
-    }
-    val order = ids(settings?.navigation_order)
-    val visible = ids(settings?.navigation_visible).toSet()
-    return runCatching { NavigationConfiguration(order, visible) }.getOrElse { NavigationConfiguration() }
-}
+private fun parseNavigation(settings: SettingsEntity?): NavigationConfiguration =
+    NavigationConfiguration.restore(settings?.navigation_order, settings?.navigation_visible)

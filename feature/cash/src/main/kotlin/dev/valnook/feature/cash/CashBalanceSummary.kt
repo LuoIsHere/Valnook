@@ -21,13 +21,13 @@ import java.math.RoundingMode
 import java.time.LocalDate
 
 /** Shared balance layout for the currency list and its ledger header. */
-@Composable internal fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?,
+@Composable fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?,
     modifier:Modifier=Modifier,allAccounts:List<CashAccount> = emptyList(),
     creditSourceLabels:Map<Long,String> = emptyMap()) {
     Column(modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(account.name.ifBlank { account.currency.code },style=MaterialTheme.typography.titleMedium,
+            Text(account.name.ifBlank { account.currency.code },modifier=Modifier.weight(1f).padding(end=Space.sm),maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
                 color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text(if(account.type==BalanceAccountType.CREDIT) stringResource(R.string.cash_credit_account)
                 else stringResource(R.string.cash_savings_account),style=MaterialTheme.typography.labelMedium,

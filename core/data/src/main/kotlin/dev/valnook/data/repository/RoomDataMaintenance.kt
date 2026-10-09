@@ -11,6 +11,8 @@ class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
         db.withTransaction {
             val maintenance = db.maintenance()
             val now = System.currentTimeMillis()
+            maintenance.clearWalletCards()
+            maintenance.clearWalletImages()
             maintenance.clearAuditAccounts()
             maintenance.clearAuditEvents()
             maintenance.clearStatisticsCache()

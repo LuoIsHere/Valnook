@@ -5,6 +5,8 @@ import androidx.room.Query
 
 @Dao
 interface MaintenanceDao {
+    @Query("DELETE FROM wallet_cards") suspend fun clearWalletCards()
+    @Query("DELETE FROM wallet_card_images") suspend fun clearWalletImages()
     @Query("DELETE FROM audit_event_accounts") suspend fun clearAuditAccounts()
     @Query("DELETE FROM audit_events") suspend fun clearAuditEvents()
     @Query("DELETE FROM statistics_cache") suspend fun clearStatisticsCache()

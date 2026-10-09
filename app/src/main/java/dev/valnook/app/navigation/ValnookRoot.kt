@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
@@ -91,6 +92,7 @@ import dev.valnook.feature.settings.NavigationToolbarState
 import dev.valnook.feature.settings.NavigationSettingsActions
 import dev.valnook.feature.statistics.StatisticsScreen
 import dev.valnook.feature.statistics.StatisticsViewModel
+import dev.valnook.feature.wallet.*
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -216,8 +218,35 @@ private fun SessionRoot(
     val accountName: (Long) -> String = { id -> accounts.firstOrNull { it.id == id }?.name.orEmpty() }
     val scope = rememberCoroutineScope()
     val open: (NavKey) -> Unit = { route -> if (stack.last() != route) stack.add(route) }
+    var walletToolbar by remember(graph.sessionId) { mutableStateOf<WalletToolbar?>(null) }
+    val walletOverview=androidx.lifecycle.viewmodel.compose.viewModel(key="wallet-overview-${graph.sessionId}") {
+        dev.valnook.feature.wallet.WalletOverviewViewModel(requireNotNull(graph.wallet))
+    }
+    val walletPreloadEdge=with(LocalDensity.current){
+        (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp-48.dp).coerceAtMost(440.dp).roundToPx()
+    }
+    LaunchedEffect(walletOverview,walletPreloadEdge){
+        androidx.compose.runtime.withFrameNanos { }
+        walletOverview.start(walletPreloadEdge)
+    }
+    val appContext=androidx.compose.ui.platform.LocalContext.current.applicationContext
+    val owner=androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(walletOverview,owner,walletPreloadEdge) {
+        val memory=object:android.content.ComponentCallbacks2 {
+            override fun onConfigurationChanged(configuration:android.content.res.Configuration){}
+            override fun onLowMemory(){walletOverview.trimMemory()}
+            override fun onTrimMemory(level:Int){if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)walletOverview.trimMemory()}
+        }
+        val lifecycle=androidx.lifecycle.LifecycleEventObserver { _,event->
+            if(event==androidx.lifecycle.Lifecycle.Event.ON_START)walletOverview.start(walletPreloadEdge)
+        }
+        appContext.registerComponentCallbacks(memory);owner.lifecycle.addObserver(lifecycle)
+        onDispose{appContext.unregisterComponentCallbacks(memory);owner.lifecycle.removeObserver(lifecycle);walletOverview.stop()}
+    }
+    val updateWalletToolbar = remember(graph.sessionId) { { value: WalletToolbar? -> walletToolbar = value } }
     val selectRoot: (NavKey) -> Unit = { route ->
         if (current.isRoot() && current != route) {
+            if(current == WalletKey)walletToolbar?.back?.invoke()
             stack.remove(route)
             stack.add(route)
         }
@@ -230,7 +259,10 @@ private fun SessionRoot(
             stack.add(firstRoot)
         } else onExit()
     }
+    val walletCurrent = current == WalletKey || current == HiddenWalletKey
+    val walletDetail = walletCurrent && walletToolbar?.detail == true
     val title = when (current) {
+        WalletKey, HiddenWalletKey -> walletToolbar?.title ?: stringResource(R.string.nav_wallet)
         AccountsKey -> stringResource(R.string.nav_accounts)
         InvestmentsKey -> stringResource(R.string.nav_investments)
         StatisticsKey -> stringResource(R.string.nav_statistics)
@@ -263,15 +295,15 @@ private fun SessionRoot(
     val barHeight = (56f + 32f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp
     val backdrop = rememberGlassBackdrop()
     val accountImages = remember(graph.sessionId) { dev.valnook.designsystem.AccountImageLoader(graph.overview::accountIconImage) }
-    val glassTop = current.isRoot()
+    val glassTop = current.isRoot() || current == HiddenWalletKey
     val toolbarScrollState = rememberToolbarScrollState(stack)
     val toolbarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(toolbarScrollState)
     val toolbarBackgroundAlpha by animateFloatAsState(
-        if (toolbarScrollState.contentOffset < -0.5f) 1f else 0f,
+        if (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f) 1f else 0f,
         animationSpec = tween(120), label = "toolbar-background")
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
-    val showCapsule = current.isRoot() && !keyboardOpen
+    val showCapsule = current.isRoot() && !keyboardOpen && !walletDetail
     var overlayHeightPx by remember { mutableIntStateOf(0) }
     val systemBottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
     val bottomSpace = if (showCapsule) with(density) { overlayHeightPx.toDp() } else systemBottom
@@ -320,7 +352,9 @@ private fun SessionRoot(
                                 dev.valnook.designsystem.AccountAvatar(icon.symbol, icon.imageKey, size = 32.dp)
                             }
                         }
-                        Text(title, Modifier.weight(1f), maxLines = 2)
+                        if(walletCurrent) androidx.compose.animation.Crossfade(title,Modifier.weight(1f),animationSpec=tween(160),label="wallet-title") { value ->
+                            Text(value,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        } else Text(title, Modifier.weight(1f), maxLines = 2)
                     }
                     if (active.mode == DataMode.DEMO) Text(
                         stringResource(dev.valnook.feature.settings.R.string.settings_demo_banner),
@@ -329,9 +363,21 @@ private fun SessionRoot(
                 }
             }, colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent,
                 scrolledContainerColor = Color.Transparent), expandedHeight = barHeight, navigationIcon = {
-                if (!current.isRoot()) BackButton(stringResource(R.string.nav_back), back)
+                if (walletDetail) BackButton(stringResource(R.string.nav_back), { walletToolbar?.back?.invoke() })
+                else if (!current.isRoot()) BackButton(stringResource(R.string.nav_back), back)
             }, actions = {
                 when (current) {
+                    WalletKey, HiddenWalletKey -> if (!walletDetail) {
+                        IconButton({ walletToolbar?.add?.invoke() }, Modifier.testTag("wallet-add")) { Text("＋") }
+                    } else {
+                        val editLabel=stringResource(R.string.nav_edit)
+                        IconButton({walletToolbar?.edit?.invoke()},
+                            Modifier.testTag("wallet-edit").semantics {contentDescription=editLabel},enabled=walletToolbar?.enabled==true) {
+                            dev.valnook.designsystem.EditIcon()
+                        }
+                        dev.valnook.designsystem.DeleteIconButton(stringResource(R.string.wallet_delete_card),
+                            {walletToolbar?.delete?.invoke()},Modifier.testTag("wallet-delete"),enabled=walletToolbar?.enabled==true)
+                    }
                     NavigationSettingsKey -> NavigationSettingsActions(navigationToolbar)
                     AccountsKey, HiddenAccountsKey -> {
                         IconButton({ open(AccountOrderKey) }, Modifier.testTag("account-order-open").semantics {
@@ -384,6 +430,20 @@ private fun SessionRoot(
                             accountEntries(graph, open, back, updateEditSortAction, updateEditSave) { parent, cash -> deleteTarget = parent to cash }
                             investmentEntries(graph, open, back, accountName)
                             ledgerEntries(graph, open, back, accountName)
+                            entry<WalletKey> {
+                                WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
+                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards) }, updateWalletToolbar,
+                                    { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
+                                    { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletOverview.scroll,
+                                    maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
+                            }
+                            entry<HiddenWalletKey> {
+                                WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
+                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards) }, updateWalletToolbar,
+                                    { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
+                                    { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletOverview.scroll,
+                                    maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
+                            }
                             entry<StatisticsKey> {
                                 StatisticsScreen(pageViewModel {
                                     StatisticsViewModel(graph.statistics, graph.clock, createSavedStateHandle())

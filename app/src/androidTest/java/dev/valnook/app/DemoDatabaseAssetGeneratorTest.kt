@@ -44,6 +44,7 @@ class DemoDatabaseAssetGeneratorTest {
                 raw.instruments,raw.cashPages,raw.depositPages)
             DemoDataSeeder(graph, clock).seed(AppSettings())
             enrichHistoricalSources(database, clock)
+            seedWallet(database, clock)
             val snapshot = graph.overview.snapshot()
             assertEquals(12, snapshot.accounts.size)
             assertEquals(37, snapshot.cash.size)
@@ -63,6 +64,40 @@ class DemoDatabaseAssetGeneratorTest {
             source.inputStream().use { input -> input.copyTo(output) }
         }
         assertTrue(source.length() > 0)
+    }
+
+    private suspend fun seedWallet(database: ValnookDatabase, clock: Clock) {
+        val repository=dev.valnook.data.repository.RoomWallet(database,clock)
+        val cash=dev.valnook.data.repository.RoomOverview(database).snapshot().cash
+        val commands=dev.valnook.data.transaction.RoomFinancialCommands(database,clock)
+        cash.filter { it.creditProfile==null }.take(1).forEach { account ->
+            commands.execute(dev.valnook.domain.repository.SetCashBalance(java.util.UUID.randomUUID().toString(),account.account_id,
+                account.currency.code,account.balance_minor+13500,account.revision,account.id,account.name,account.note))
+            commands.execute(dev.valnook.domain.repository.SetCashBalance(java.util.UUID.randomUUID().toString(),account.account_id,
+                account.currency.code,account.balance_minor+11100,account.revision+1,account.id,account.name,account.note))
+        }
+        val savings=cash.first{it.creditProfile==null}.id
+        val credit=cash.first{it.creditProfile!=null}.id
+        val bindings=List<Long?>(15){index->when(index){0,4->savings;1,7->credit;2,8,14->null;else->cash[(index*3)%cash.size].id}}
+        val colors=listOf(0xff687983,0xff888078,0xff363a42,0xff8b929a,0xff778681,
+            0xff817788,0xff9a897b,0xff506474,0xff8c9090,0xff736e68,
+            0xff697877,0xff7c7d8e,0xffa09284,0xff57606a,0xff727579).map{it.toInt()}
+        val names=listOf("晨雾 · Mist","砂岩 · Sandstone","夜幕 · Dusk","雾银 · Silver","苔影 · Moss",
+            "暮紫 · Mauve","暖沙 · Sand","深湾 · Bay","月岩 · Moonstone","烟棕 · Umber",
+            "静湖 · Lake","蓝灰 · Slate","晨光 · Dawn","石墨 · Graphite","薄雾 · Haze")
+        colors.forEachIndexed { index,color ->
+            val bitmap=android.graphics.Bitmap.createBitmap(1268,800,android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas=android.graphics.Canvas(bitmap)
+            val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+            paint.shader=android.graphics.LinearGradient(0f,0f,1268f,800f,intArrayOf(color,android.graphics.Color.rgb(25+index*8,29+index*8,35+index*8)),null,android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawRect(0f,0f,1268f,800f,paint)
+            paint.shader=android.graphics.RadialGradient(250f,80f,850f,intArrayOf(0x55ffffff,0x00ffffff),null,android.graphics.Shader.TileMode.CLAMP)
+            canvas.drawCircle(250f,80f,850f,paint)
+            paint.shader=null;paint.style=android.graphics.Paint.Style.STROKE;paint.strokeWidth=2f;paint.color=0x18ffffff
+            for(r in 0..8)canvas.drawCircle(1120f,760f,280f+r*45f,paint)
+            val image=dev.valnook.data.image.WalletImages.encode(bitmap,1f,0f,0f);bitmap.recycle()
+            repository.save(null,null,names[index],bindings[index],image.key,image)
+        }
     }
 
     private suspend fun enrichHistoricalSources(database: ValnookDatabase, clock: Clock) {

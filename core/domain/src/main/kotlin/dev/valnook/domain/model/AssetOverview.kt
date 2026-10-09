@@ -10,7 +10,7 @@ data class Instrument(val id: Long, val name: String, val symbol: String, val ty
 data class FxRate(val sourceCurrency: Currency, val targetCurrency: Currency, val rate: BigDecimal)
 enum class AppLanguage { SYSTEM, ZH_HANS, ENGLISH }
 enum class GainLossColorScheme { GREEN_GAIN, RED_GAIN }
-enum class NavigationItemId { ACCOUNTS, INVESTMENTS, STATISTICS, SETTINGS }
+enum class NavigationItemId { ACCOUNTS, WALLET, INVESTMENTS, STATISTICS, SETTINGS }
 
 data class NavigationConfiguration(
     val order: List<NavigationItemId> = NavigationItemId.entries,
@@ -21,6 +21,23 @@ data class NavigationConfiguration(
         require(NavigationItemId.SETTINGS in visible)
     }
 
+    companion object {
+        fun restore(orderRaw: String?, visibleRaw: String?): NavigationConfiguration {
+            fun parse(raw: String?) = raw.orEmpty().split(",").mapNotNull {
+                runCatching { NavigationItemId.valueOf(it) }.getOrNull()
+            }.distinct()
+            val order = parse(orderRaw).toMutableList()
+            if (order.isEmpty()) return NavigationConfiguration()
+            val visible = parse(visibleRaw).toMutableSet()
+            if (NavigationItemId.WALLET !in order) {
+                order.add((order.indexOf(NavigationItemId.ACCOUNTS) + 1).coerceAtLeast(0), NavigationItemId.WALLET)
+                visible.add(NavigationItemId.WALLET)
+            }
+            NavigationItemId.entries.filterNot(order::contains).forEach(order::add)
+            visible.add(NavigationItemId.SETTINGS)
+            return NavigationConfiguration(order,visible)
+        }
+    }
     val visibleInOrder: List<NavigationItemId> get() = order.filter(visible::contains)
     val hiddenInOrder: List<NavigationItemId> get() = order.filterNot(visible::contains)
 }
