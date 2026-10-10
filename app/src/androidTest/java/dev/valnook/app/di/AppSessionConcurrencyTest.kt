@@ -48,7 +48,7 @@ class AppSessionConcurrencyTest {
 
     @Test fun write_already_inside_the_session_boundary_finishes_before_demo_switch()=runBlocking {
         val commands=BlockingCommands()
-        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()).copy(commands=commands),database,clock)
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false).copy(commands=commands),database,clock)
         val original=manager.session.value
         val write=async { original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
             "ordered write","",emptyList())) }
@@ -69,7 +69,7 @@ class AppSessionConcurrencyTest {
     @Test fun request_waiting_behind_clear_is_rejected_after_the_new_generation_is_published()=runBlocking {
         val commands=CountingCommands()
         val maintenance=BlockingMaintenance()
-        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()).copy(
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false).copy(
             commands=commands,maintenance=maintenance),database,clock,
             onboarding=dev.valnook.app.onboarding.OnboardingPreferences(
                 context.getSharedPreferences("onboarding-concurrency-fixture",0)))
@@ -92,7 +92,7 @@ class AppSessionConcurrencyTest {
 
     @Test fun demo_rejects_backup_capability_and_invalidates_real_file_callbacks()=runBlocking {
         val manager=AppSessionManager(context,
-            createDatabaseGraph(context,database,clock,currentBuildInfo()),database,clock)
+            createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false),database,clock)
         val realPortability=manager.session.value.graph.portability
         manager.enterDemo()
         val demoPortability=manager.session.value.graph.portability
@@ -114,7 +114,7 @@ class AppSessionConcurrencyTest {
     }
 
     @Test fun restore_requires_a_fresh_challenge_and_rotates_the_session_after_one_commit()=runBlocking {
-        val graph=createDatabaseGraph(context,database,clock,currentBuildInfo())
+        val graph=createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false)
         val manager=AppSessionManager(context,graph,database,clock)
         val original=manager.session.value
         original.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
@@ -151,11 +151,22 @@ class AppSessionConcurrencyTest {
     }
 
     @Test fun web_lease_is_the_only_writer_and_release_rotates_back_to_mobile()=runBlocking {
-        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()),database,clock)
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false),database,clock)
         val mobileBefore=manager.session.value
+        val privateCard=mobileBefore.graph.wallet!!.save(null,null,"Private local card",null,null)
+        mobileBefore.graph.walletPrivate!!.save(privateCard,dev.valnook.domain.repository.WalletPrivateContent(number="TEST-ONLY"))
         manager.reserveWebAdminServer("server-a")
         val lease=manager.acquireWebWriteLease("web-a")
         assertTrue(manager.session.value.id!=mobileBefore.id)
+
+        try {
+            manager.session.value.graph.walletPrivate!!.read(privateCard)
+            throw AssertionError("Private reads must be blocked while Web owns the lease")
+        } catch(error:DomainException) { assertEquals(ErrorCode.WEB_ADMIN_ACTIVE,error.code) }
+        try {
+            mobileBefore.graph.walletPrivate!!.save(privateCard,dev.valnook.domain.repository.WalletPrivateContent())
+            throw AssertionError("Stale mobile private writes must be blocked")
+        } catch(error:DomainException) { assertEquals(ErrorCode.WEB_ADMIN_ACTIVE,error.code) }
 
         try {
             manager.session.value.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,
@@ -220,7 +231,7 @@ class AppSessionConcurrencyTest {
     }
 
     @Test fun demo_web_admin_writes_only_the_disposable_demo_database()=runBlocking {
-        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo()),database,clock)
+        val manager=AppSessionManager(context,createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false),database,clock)
         val realNamesBefore=dev.valnook.data.repository.RoomOverview(database).snapshot().accounts.map { it.name }
         manager.enterDemo()
         manager.reserveWebAdminServer("demo-server")

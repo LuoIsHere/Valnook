@@ -18,7 +18,8 @@ data class WalletDraft(val id: Long?, val revision: Long?, val name: String, val
 class WalletViewModel(val sessionId: String, val repository: WalletRepository,
     private val overview: OverviewRepository, private val pages: PagedCashRepository,
     private val clock: Clock, private val saved: SavedStateHandle,
-    preparedCards:StateFlow<List<WalletCard>?>?=null) : ViewModel() {
+    preparedCards:StateFlow<List<WalletCard>?>?=null,
+    val privateRepository:WalletPrivateRepository?=null) : ViewModel() {
     val visit = saved.getStateFlow("wallet-visit",0L)
     val today = MutableStateFlow(LocalDate.now(clock.withZone(ZoneId.systemDefault())))
     val selected = saved.getStateFlow<Long?>("wallet-selected",null)

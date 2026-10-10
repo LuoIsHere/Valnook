@@ -32,7 +32,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineStart
 
-data class WalletToolbar(val title:String,val detail:Boolean,val back:()->Unit,val add:()->Unit,val edit:()->Unit,val delete:()->Unit,val enabled:Boolean,val scrolled:Boolean)
+data class WalletToolbar(val title:String,val detail:Boolean,val back:()->Unit,val add:()->Unit,val edit:()->Unit,val delete:()->Unit,val enabled:Boolean,val scrolled:Boolean,
+    val flip:(()->Unit)?=null,val flipped:Boolean=false,val flipLoading:Boolean=false)
 internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
 
 @Composable fun WalletScreen(vm:WalletViewModel,onToolbar:(WalletToolbar?)->Unit,
@@ -48,6 +49,10 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     val error by vm.operationFailed.collectAsStateWithLifecycle()
     val draft by vm.draft.collectAsStateWithLifecycle()
     val cache=imageCache?:remember(vm.sessionId){WalletImageCache(vm.repository)}
+    val privateScope=rememberCoroutineScope()
+    val privateState=remember(vm.sessionId,selected){WalletPrivateState(selected,vm.privateRepository,privateScope)}
+    WalletPrivateProtection(privateState)
+    var preparingReturn by remember(selected){mutableStateOf(false)}
     var returning by remember { mutableStateOf(false) }
     val scene=remember { Animatable(if(selected==null)0f else 1f) }
     val closingScene=remember { Animatable(0f) }
@@ -59,7 +64,10 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
         else if(restored)scene.snapTo(1f)
         else {scene.snapTo(0f);scene.animateTo(1f,tween(WalletEnterDuration,easing=LinearEasing))}
     }
-    val returnToOverview:()->Unit={if(selected!=null&&!returning&&!busy&&!scene.isRunning)returning=true}
+    val returnToOverview:()->Unit={if(selected!=null&&!returning&&!preparingReturn&&!busy&&!privateState.editing&&!scene.isRunning){
+        preparingReturn=true
+        privateScope.launch { privateState.front();returning=true;preparingReturn=false }
+    }}
     var deleting by rememberSaveable { mutableStateOf<Long?>(null) }
     var detailScrolled by remember { mutableStateOf(false) }
     val overviewScrolled by remember(overviewScroll){derivedStateOf{overviewScroll.firstVisibleItemIndex>0||overviewScroll.firstVisibleItemScrollOffset>0}}
@@ -69,12 +77,15 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     val toolbarTitle=if(selected!=null) collapsedTitle?:current?.name?:title else title
     val scrolled=if(selected==null||returning)overviewScrolled else detailScrolled
     val latestReturn by rememberUpdatedState(returnToOverview)
-    DisposableEffect(vm,toolbarTitle,selected,current?.revision,busy,scrolled,returning,scene.isRunning) {
+    DisposableEffect(vm,toolbarTitle,selected,current?.revision,busy,scrolled,returning,preparingReturn,scene.isRunning,
+        privateState.editing,privateState.loading,privateState.desiredBack) {
         onToolbar(WalletToolbar(toolbarTitle,selected!=null,{latestReturn()},{vm.edit()},
-            {vm.currentCard?.let{vm.edit(it)}},{deleting=vm.selected.value},!busy&&!returning&&!scene.isRunning,scrolled))
+            {privateScope.launch { privateState.front();vm.currentCard?.let{vm.edit(it)} }},{deleting=vm.selected.value},
+            !busy&&!returning&&!preparingReturn&&!scene.isRunning&&!privateState.editing,scrolled,
+            if(privateState.available)privateState::flip else null,privateState.desiredBack,privateState.loading))
         onDispose{onToolbar(null)}
     }
-    BackHandler(selected!=null && draft==null){returnToOverview()}
+    BackHandler(selected!=null && draft==null&&!privateState.editing){returnToOverview()}
     LaunchedEffect(vm){while(true){vm.refreshTime();delay(30_000)}}
     if(cards==null) { if(failed) HintMessage(wording("Unable to load cards. Reopen Wallet to retry.","卡片加载失败，请重新打开卡包重试。"),isError=true) else PageLoading();return }
     val holder=rememberSaveableStateHolder()
@@ -147,7 +158,19 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
                             rememberSharedContentState("${vm.sessionId}:${card.id}"),visible=!returning,
                             zIndexInOverlay=(cards.orEmpty().lastIndex-cards.orEmpty().indexOfFirst{it.id==card.id}).toFloat(),
                             boundsTransform={_,_->if(returning)tween(WalletReturnCardDuration,delayMillis=WalletReturnCardDelay,easing=WalletSelectionEasing)else tween(WalletEnterDuration,easing=WalletSelectionEasing)}),
-                        frame,returnToOverview,!busy&&!returning&&!scene.isRunning,returning,progress)
+                        frame,returnToOverview,!busy&&!returning&&!preparingReturn&&!scene.isRunning,returning,progress,privateState)
+                }
+            }
+            AnimatedVisibility(privateState.copyNotice != null,
+                Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom=24.dp).zIndex(100f),
+                enter=fadeIn(tween(150))+slideInVertically(tween(180)){it/3},exit=fadeOut(tween(150))) {
+                // Generic feedback only: never interpolate the copied field or its value.
+                // 提示只包含通用状态，禁止拼接字段名称、卡号、有效期或 CVV。
+                Surface(shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha=.96f),
+                    contentColor=MaterialTheme.colorScheme.onSurfaceVariant,shadowElevation=2.dp,
+                    modifier=Modifier.testTag("wallet-copy-notice").semantics(mergeDescendants=true) { liveRegion=LiveRegionMode.Polite }) {
+                    Text(if(privateState.lastCopySucceeded)wording("Copied","复制成功")else wording("Copy failed. Try again.","复制失败，请重试"),
+                        Modifier.padding(horizontal=22.dp,vertical=12.dp),style=MaterialTheme.typography.bodyMedium)
                 }
             }
         }
@@ -161,7 +184,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     cards?.firstOrNull{it.id==deleting}?.let { card ->
         AnimatedGlassDialog(true,{if(!busy)deleting=null}) {GlassCard{Column(Modifier.padding(24.dp)){
             Text(wording("Delete this card?","删除这张卡片？"),style=MaterialTheme.typography.titleLarge)
-            Text(wording("Only the card is deleted. The linked account and its records are kept.","只删除卡片，不删除绑定账户及其记录。"),Modifier.padding(vertical=16.dp))
+            Text(wording("The card and any private back details are deleted. The linked account and its records are kept.","只删除卡片及其本机私密背面内容，不删除绑定账户及其记录。"),Modifier.padding(vertical=16.dp))
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
                 TextButton({deleting=null},enabled=!busy){Text(wording("Cancel","取消"))}
                 TextButton({deleting=null;vm.delete(card)},enabled=!busy,modifier=Modifier.testTag("wallet-delete-confirm")){Text(wording("Delete","删除"),color=MaterialTheme.colorScheme.error)}
@@ -169,6 +192,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
         }}}
     }
     draft?.let { WalletEditor(vm,cache,it) }
+    WalletPrivateDialogs(privateState)
 }
 
 @Composable private fun WalletStack(cards:List<WalletCard>,busy:Boolean,cache:WalletImageCache,

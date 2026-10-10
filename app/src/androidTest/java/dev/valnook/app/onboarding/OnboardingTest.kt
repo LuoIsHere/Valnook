@@ -268,7 +268,7 @@ class OnboardingTest {
 
     @Test fun successful_clear_reopens_setup_but_cancel_and_failure_preserve_completion() {
         val clock = Clock.systemUTC()
-        val graph = dev.valnook.app.di.createDatabaseGraph(context, db, clock, dev.valnook.app.di.currentBuildInfo())
+        val graph = dev.valnook.app.di.createDatabaseGraph(context, db, clock, dev.valnook.app.di.currentBuildInfo(), persistentPrivateCards = false)
         var failClear = false
         val maintenance = object : DataMaintenance {
             override suspend fun clearBusinessData() {

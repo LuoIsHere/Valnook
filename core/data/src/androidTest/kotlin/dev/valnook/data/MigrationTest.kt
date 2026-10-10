@@ -20,6 +20,28 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 class MigrationTest {
     @get:Rule val helper=MigrationTestHelper(InstrumentationRegistry.getInstrumentation(),
         ValnookDatabase::class.java,emptyList(),FrameworkSQLiteOpenHelperFactory())
+    @Test fun v16_to_v17_preserves_cards_and_adds_only_empty_local_identity() {
+        val context=ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name="migration-private-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name,16).apply {
+                execSQL("INSERT INTO wallet_cards(id,name,image_key,bound_cash_account_id,display_order,created_at_ms,updated_at_ms,revision,binding_lost) VALUES (4,'Preserved',NULL,NULL,7,100,200,3,0)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name,17,true,MIGRATION_16_17).apply {
+                query("SELECT name,display_order,revision FROM wallet_cards WHERE id=4").use {
+                    assertTrue(it.moveToFirst());assertEquals("Preserved",it.getString(0));assertEquals(7,it.getInt(1));assertEquals(3,it.getInt(2))
+                }
+                query("SELECT count(*) FROM local_wallet_identity").use{assertTrue(it.moveToFirst());assertEquals(0,it.getInt(0))}
+                execSQL("PRAGMA foreign_keys=ON")
+                execSQL("INSERT INTO local_wallet_identity(card_id,token) VALUES (4,'local-only-token')")
+                execSQL("DELETE FROM wallet_cards WHERE id=4")
+                query("SELECT count(*) FROM local_wallet_identity").use{assertTrue(it.moveToFirst());assertEquals(0,it.getInt(0))}
+                query("PRAGMA foreign_key_check").use{assertFalse(it.moveToFirst())}
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
     @Test fun v15_wallet_migration_preserves_navigation_and_starts_empty() {
         val context=ApplicationProvider.getApplicationContext<android.content.Context>()
         val name="migration-wallet-${UUID.randomUUID()}.db"

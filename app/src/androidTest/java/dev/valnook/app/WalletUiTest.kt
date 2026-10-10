@@ -10,6 +10,7 @@ import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.lifecycleScope
 import androidx.test.platform.io.PlatformTestStorageRegistry
@@ -32,7 +33,7 @@ import java.time.YearMonth
 class WalletUiTest {
     @get:Rule(order=0)val hilt=HiltAndroidRule(this)
     @get:Rule(order=1)val rule=createAndroidComposeRule<MainActivity>()
-    @Before fun prepare(){hilt.inject()}
+    @Before fun prepare(){hilt.inject();rule.waitForIdle()}
     private val graph get()=rule.activity.sessions.session.value.graph
     private val wallet get()=requireNotNull(graph.wallet)
     private fun switchDemo(enabled:Boolean) {
@@ -65,6 +66,209 @@ class WalletUiTest {
         val bitmap=Bitmap.createBitmap(1000,631,Bitmap.Config.ARGB_8888);bitmap.eraseColor(color)
         val image=WalletImages.encode(bitmap,1f,0f,0f);bitmap.recycle()
         wallet.save(null,null,name,bound,image.key,image)
+    }
+    private fun openPrivateCard():Long {
+        val id=card("Private card")
+        root();rule.onNodeWithTag("nav-wallet").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick();rule.waitForIdle()
+        rule.onNodeWithTag("wallet-flip").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-edit",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        return id
+    }
+    private fun copiedClip(tag:String):android.content.ClipData {
+        val clipboard=rule.activity.getSystemService(android.content.ClipboardManager::class.java)
+        val copied=java.util.concurrent.atomic.AtomicReference<android.content.ClipData?>()
+        // Observe our actual system clipboard write before emulator host clipboard synchronization can replace it.
+        // 核验应用实际写入系统剪贴板的事件，避免可见模拟器的主机剪贴板同步随后替换元数据。
+        val listener=android.content.ClipboardManager.OnPrimaryClipChangedListener {
+            clipboard.primaryClip?.takeIf { it.description.label=="Valnook" }?.let{copied.compareAndSet(null,it)}
+        }
+        rule.runOnUiThread{clipboard.addPrimaryClipChangedListener(listener)}
+        try {
+            rule.onNodeWithTag(tag,useUnmergedTree=true).performClick()
+            rule.waitUntil(5000){copied.get()!=null}
+            return copied.get()!!
+        } finally { rule.runOnUiThread{clipboard.removePrimaryClipChangedListener(listener)} }
+    }
+    @Test fun private_back_edits_encrypts_formats_and_returns_without_extra_toolbar() {
+        val id=openPrivateCard()
+        rule.onAllNodesWithTag("root-toolbar").assertCountEquals(1)
+        assertTrue(rule.activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE !=0)
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.onNodeWithText("Android Keystore",substring=true).assertExists()
+        rule.onNodeWithText("AES-GCM",substring=true).assertExists()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-number").performScrollTo().performTextInput("0000****----1234")
+        rule.onNodeWithTag("wallet-private-expiry").performScrollTo().performTextInput("01/29")
+        rule.onNodeWithTag("wallet-private-cvv1").performScrollTo().performTextInput("001")
+        rule.onNodeWithTag("wallet-private-cvv2").performScrollTo().performTextInput("002")
+        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==1L}
+        val actual=runBlocking{graph.walletPrivate!!.read(id)}
+        assertEquals("0000****----1234",actual.number);assertEquals("001",actual.cvv1)
+        rule.onNodeWithText("0000 **** ---- 1234",useUnmergedTree=true).assertExists()
+        listOf("number" to actual.number,"expiry" to actual.expiry,"cvv1" to actual.cvv1,"cvv2" to actual.cvv2).forEach{(field,value)->
+            val clip=copiedClip("wallet-copy-$field")
+            rule.onNodeWithTag("wallet-copy-notice").assert(hasText("Copied") or hasText("复制成功"))
+            assertEquals(value,clip.getItemAt(0).text.toString())
+            assertTrue(clip.description.extras!!.getBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE))
+        }
+        rule.onNodeWithTag("wallet-card-back",useUnmergedTree=true).performTouchInput{click(androidx.compose.ui.geometry.Offset(width*.9f,height*.15f))}
+        rule.onNodeWithTag("wallet-detail").assertExists()
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).assertExists()
+        rule.onNodeWithTag("wallet-card-back",useUnmergedTree=true).captureToImage().asAndroidBitmap().let { bitmap->
+            PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-private-back.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        }
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().assertExists()
+        // Close this dialog explicitly: a global Back may be consumed by Android's clipboard overlay.
+        // 明确取消应用提示；系统复制浮层可能先消费全局返回，不能据此假定应用弹窗已关闭。
+        rule.onNode(hasText("Cancel") or hasText("取消")).performScrollTo().performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-warning-confirm").fetchSemanticsNodes().isEmpty()}
+        rule.onNodeWithContentDescription(rule.activity.getString(R.string.nav_back)).assertIsEnabled().performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isEmpty()}
+        assertFalse(rule.activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE !=0)
+        rule.onNodeWithTag("wallet-stack").assertExists()
+    }
+    @Test fun private_spacing_optional_fields_and_four_digit_cvv_follow_saved_preferences() {
+        val id=openPrivateCard()
+        rule.onNodeWithText("VALID THRU",useUnmergedTree=true).assertDoesNotExist()
+        rule.onNodeWithText("CVV1",useUnmergedTree=true).assertDoesNotExist()
+        rule.onNodeWithText("CVV2",useUnmergedTree=true).assertDoesNotExist()
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-number").performScrollTo().performTextInput("0000****----1234")
+        rule.onNodeWithTag("wallet-private-spacing").performScrollTo().assertIsOn().performClick()
+        rule.onNodeWithTag("wallet-private-spacing").assertIsOff()
+        val cvv=rule.onNodeWithTag("wallet-private-cvv2")
+        cvv.performScrollTo().performTextReplacement("0004")
+        cvv.performTextReplacement("12345");cvv.assertTextContains("0004")
+        cvv.performTextReplacement("a12");cvv.assertTextContains("0004")
+        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==1L}
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-number").fetchSemanticsNodes().isEmpty()}
+        assertFalse(runBlocking{graph.walletPrivate!!.read(id)}.showNumberSpacing)
+        rule.onNodeWithText("0000****----1234",useUnmergedTree=true).assertExists()
+        rule.onNodeWithText("VALID THRU",useUnmergedTree=true).assertDoesNotExist()
+        rule.onNodeWithText("CVV1",useUnmergedTree=true).assertDoesNotExist()
+        rule.onNodeWithText("CVV2",useUnmergedTree=true).assertExists()
+        rule.onNodeWithTag("wallet-copy-cvv1",useUnmergedTree=true).assertDoesNotExist()
+        rule.onNodeWithTag("wallet-copy-cvv2",useUnmergedTree=true).assertExists()
+        val copied=copiedClip("wallet-copy-number")
+        rule.onNodeWithTag("wallet-copy-notice").assert(hasText("Copied") or hasText("复制成功"))
+        rule.onNodeWithTag("wallet-copy-notice").captureToImage().asAndroidBitmap().let { bitmap->
+            PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-copy-feedback.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        }
+        assertEquals("0000****----1234",copied.getItemAt(0).text.toString())
+        assertTrue(copied.description.extras!!.getBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE))
+        rule.onNodeWithTag("wallet-card-back",useUnmergedTree=true).captureToImage().asAndroidBitmap().let { bitmap->
+            PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-private-single-cvv.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+        }
+        rule.onNodeWithTag("wallet-flip").performClick();rule.waitForIdle()
+        rule.onNodeWithTag("wallet-copy-notice").assertDoesNotExist()
+        rule.onNodeWithTag("wallet-flip").performClick();rule.waitForIdle()
+        rule.onNodeWithText("0000****----1234",useUnmergedTree=true).assertExists()
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-spacing").performScrollTo().assertIsOff().performClick()
+        cvv.performScrollTo().performTextReplacement("")
+        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==2L}
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-number").fetchSemanticsNodes().isEmpty()}
+        rule.onNodeWithText("0000 **** ---- 1234",useUnmergedTree=true).assertExists()
+        rule.onNodeWithText("CVV2",useUnmergedTree=true).assertDoesNotExist()
+    }
+    @Test fun private_palette_cancel_opt_out_and_reentry_preserve_saved_values() {
+        val id=openPrivateCard()
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.onNodeWithTag("wallet-private-warning-skip").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
+        rule.onNodeWithTag("wallet-private-palette").performClick()
+        rule.onNodeWithTag("wallet-private-color").performScrollTo().performTextReplacement("556677")
+        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==1L}
+        assertEquals(0xff556677L,runBlocking{graph.walletPrivate!!.read(id)}.backColor)
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-number").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("wallet-private-warning-confirm").assertDoesNotExist()
+        rule.onNodeWithTag("wallet-private-number").performScrollTo().performTextInput("DISCARD")
+        rule.onNodeWithTag("wallet-private-cancel").performScrollTo().performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-discard").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("wallet-private-discard").performClick()
+        assertEquals("",runBlocking{graph.walletPrivate!!.read(id)}.number)
+    }
+    @Test fun private_back_is_concealed_after_background_and_reloads_only_on_flip() {
+        val id=openPrivateCard()
+        runBlocking{graph.walletPrivate!!.save(id,WalletPrivateContent(number="TEST-ONLY"))}
+        rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        rule.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        rule.waitForIdle()
+        rule.onNodeWithTag("wallet-card-back",useUnmergedTree=true).assertDoesNotExist()
+        assertFalse(rule.activity.window.attributes.flags and android.view.WindowManager.LayoutParams.FLAG_SECURE !=0)
+        rule.onNodeWithTag("wallet-flip").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithText("TEST-O NLY",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+    }
+    @Test fun private_back_38_characters_fit_narrow_large_type_in_both_themes_and_chinese_notice() {
+        val id=card("Private layout")
+        val content=WalletPrivateContent(number="12345678901234567890123456789012345678",expiry="01/29",cvv1="001",cvv2="002")
+        runBlocking{graph.walletPrivate!!.save(id,content)}
+        val vm=rule.runOnUiThread{WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle(),privateRepository=graph.walletPrivate)}
+        rule.runOnUiThread{vm.select(id)}
+        for(dark in listOf(false,true)) {
+            var toolbar:WalletToolbar?=null
+            rule.runOnUiThread { rule.activity.setContent {
+                // Each visual fixture is a fresh visit; do not retain the previous fixture's toolbar callback.
+                key(dark) {
+                val configuration=android.content.res.Configuration(androidx.compose.ui.platform.LocalConfiguration.current).apply{setLocale(java.util.Locale.SIMPLIFIED_CHINESE)}
+                val density=LocalDensity.current
+                CompositionLocalProvider(androidx.compose.ui.platform.LocalConfiguration provides configuration,
+                    LocalDensity provides Density(density.density,1.5f)) {
+                    ValnookTheme(dark_theme=dark){Box(Modifier.width(320.dp).height(660.dp)) {
+                        WalletScreen(vm,{toolbar=it},{_,_,_->},{_,_->})
+                    }}
+                }
+                }
+            } }
+            rule.waitUntil(10000){toolbar?.flip!=null}
+            rule.runOnUiThread{toolbar!!.flip!!.invoke()}
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-edit",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+            val face=rule.onNodeWithTag("wallet-card-back",useUnmergedTree=true)
+            val bounds=face.fetchSemanticsNode().boundsInRoot
+            walletNumberLines(content.number).forEachIndexed { index,line->
+                val text=rule.onNodeWithText(line,useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+                assertTrue(bounds.contains(text.topLeft));assertTrue(bounds.contains(text.bottomRight))
+                rule.onNodeWithTag("wallet-private-number-line-$index",useUnmergedTree=true)
+                    .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult){action->
+                        val layouts=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                        assertTrue(action(layouts))
+                        val layout=layouts.single()
+                        assertFalse("Card layout overflow: width=${layout.didOverflowWidth}, height=${layout.didOverflowHeight}, size=${layout.size}, right=${layout.getLineRight(0)}, constraints=${layout.layoutInput.constraints}, font=${layout.layoutInput.style.fontSize}",layout.hasVisualOverflow)
+                    }
+            }
+            face.captureToImage().asAndroidBitmap().let { bitmap->
+                PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-private-38-${if(dark)"dark" else "light"}.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+            }
+        }
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.onNodeWithText("Android Keystore",substring=true).assertExists()
+        rule.onNodeWithText("Valnook为按照MIT协议发行的开源软件，不对您的财产损失负任何责任").assertExists()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-number").performScrollTo().assertExists()
+    }
+    @Test fun demo_has_no_flip_capability_and_previous_private_session_is_revoked() {
+        val old=graph.walletPrivate!!;val id=card("Local private")
+        runBlocking{old.save(id,WalletPrivateContent(number="TEST-ONLY"))}
+        switchDemo(true)
+        assertNull(graph.walletPrivate)
+        assertTrue(runCatching{runBlocking{old.read(id)}}.isFailure)
+        root();rule.onNodeWithTag("nav-wallet").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}
+        val first=runBlocking{wallet.observeCards().first()}.last().id
+        rule.onNodeWithTag("wallet-card-$first",useUnmergedTree=true).performClick();rule.waitForIdle()
+        rule.onNodeWithTag("wallet-flip").assertDoesNotExist()
+        switchDemo(false)
+        assertEquals("TEST-ONLY",runBlocking{graph.walletPrivate!!.read(id)}.number)
     }
     @Test fun empty_create_edit_and_return_use_one_toolbar_and_hide_capsule_in_detail() {
         root();rule.onNodeWithTag("nav-wallet").performClick()

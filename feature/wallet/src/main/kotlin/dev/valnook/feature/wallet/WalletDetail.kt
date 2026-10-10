@@ -30,7 +30,7 @@ import java.time.*
 @Composable internal fun WalletDetail(vm:WalletViewModel,card:WalletCard,cache:WalletImageCache,
     onEntry:(Long,Long,Long)->Unit,onBalance:(Long,Long)->Unit,edit:()->Unit,
     onTitle:(String?)->Unit,onScrolled:(Boolean)->Unit,cardModifier:Modifier,frame:()->WalletSceneFrame,
-    onReturn:()->Unit,returnEnabled:Boolean,returning:Boolean,progress:()->Float) {
+    onReturn:()->Unit,returnEnabled:Boolean,returning:Boolean,progress:()->Float,privateState:WalletPrivateState) {
     key(card.id,card.boundCashAccountId) {
         val snapshot by vm.snapshot.collectAsStateWithLifecycle()
         val ledger by vm.ledger.collectAsStateWithLifecycle()
@@ -40,6 +40,13 @@ import java.time.*
         val parent=snapshot?.accounts?.firstOrNull{it.id==account?.account_id}
         val names=snapshot?.cash.orEmpty().associate { cash->cash.id to listOf(snapshot?.accounts?.firstOrNull{it.id==cash.account_id}?.name,cash.name).filterNotNull().joinToString(" · ") }
         var collapse by rememberSaveable { mutableFloatStateOf(0f) }
+        DisposableEffect(privateState) {
+            privateState.expand={
+                if(collapse>0f)androidx.compose.animation.core.animate(collapse,0f,
+                    animationSpec=androidx.compose.animation.core.tween(280,easing=WalletSelectionEasing)){value,_->collapse=value}
+            }
+            onDispose { privateState.expand={} }
+        }
         val list=rememberLazyListState()
         var chooseMonth by rememberSaveable { mutableStateOf(false) }
         val localTitle=if(collapse>.5f)account?.name?:card.name else card.name
@@ -72,12 +79,13 @@ import java.time.*
             LaunchedEffect(ledger.month){if(shownMonth!=ledger.month.toString()){list.scrollToItem(0);shownMonth=ledger.month.toString()}}
             Column(Modifier.fillMaxSize().nestedScroll(nested).padding(top=LocalPageTopSpace.current,bottom=LocalPageBottomSpace.current)) {
                 Box(Modifier.fillMaxWidth().height(headerHeight*(1-collapse)).clipToBounds(),contentAlignment=Alignment.TopCenter) {
-                    WalletCardView(card,cache,cardModifier.width(width).requiredHeight(width/WalletRules.ASPECT).graphicsLayer {
+                    WalletFlippingCard(card,cache,privateState,cardModifier.width(width).requiredHeight(width/WalletRules.ASPECT).graphicsLayer {
                         translationY=-headerPx*collapse*.25f
                         val visible=(1-collapse*1.25f).coerceIn(0f,1f)
                         alpha=if(returning)maxOf(visible,(progress()*4).coerceIn(0f,1f))else visible
                     }.semantics{contentDescription=card.name}.clickable(interactionSource=remember{androidx.compose.foundation.interaction.MutableInteractionSource()},
-                        indication=null,enabled=returnEnabled&&collapse<.8f,onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn))
+                        indication=null,enabled=returnEnabled&&collapse<.8f&&privateState.angle.value==0f&&!privateState.desiredBack,
+                        onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled)
                 }
                 GlassSurface(Modifier.fillMaxWidth().weight(1f,fill=false).padding(horizontal=16.dp).then(panelMotion),RoundedCornerShape(24.dp)) {
                     LazyColumn(Modifier.fillMaxWidth().testTag("wallet-ledger"),state=list,

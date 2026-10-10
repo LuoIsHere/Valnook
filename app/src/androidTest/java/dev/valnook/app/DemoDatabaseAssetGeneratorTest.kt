@@ -37,7 +37,7 @@ class DemoDatabaseAssetGeneratorTest {
             .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)
             .build()
         try {
-            val raw = createDatabaseGraph(context,database,clock,currentBuildInfo())
+            val raw = createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false)
             val graph = AppGraph("demo-asset-generator",raw.accounts,raw.cash,raw.deposits,
                 raw.investments,raw.commands,raw.clock,raw.overview,
                 dev.valnook.data.repository.RoomStatistics(database, clock),raw.settings,raw.settingsWriter,

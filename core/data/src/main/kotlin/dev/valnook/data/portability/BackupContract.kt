@@ -62,6 +62,9 @@ internal object BackupContract {
     private fun localDate(name: String, databaseName: String) =
         PortableColumn(name, PortableKind.LOCAL_DATE, databaseName = databaseName)
 
+    // SECURITY: Explicit public-data allowlist only. Never add local_wallet_identity, encrypted vault files,
+    // card numbers, expiry, CVV1/2, back/edge colors or private warning preferences to any export contract.
+    // 安全边界：卡背数据（含配色）、密文文件、本机关联和提示偏好一律不备份/导出；禁止自动枚举全部表。
     val tables = listOf(
         PortableTable("data/wallet_card_images.jsonl", "wallet_card_images", listOf(text("id"), PortableColumn("data", PortableKind.BLOB), long("width"), long("height"), long("tint")), "id"),
         PortableTable("data/wallet_cards.jsonl", "wallet_cards", listOf(long("id"), text("name"), text("image_key", true), long("bound_cash_account_id", true), long("display_order"), long("created_at_ms"), long("updated_at_ms"), long("revision"), bool("binding_lost")), "display_order,id"),

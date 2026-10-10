@@ -22,7 +22,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import java.math.BigDecimal
 
-/** Read-only projections for the Web API. Mutations remain exclusively in FinancialCommands. */
+/**
+ * Read-only projections for the Web API. Mutations remain exclusively in FinancialCommands.
+ * SECURITY: Never inject WalletPrivateRepository or expose private card values/colors/files through this API.
+ * 安全边界：网页不得获取卡背内容、配色或密文资源，禁止注入私密仓库或增加“已认证即可读取”的接口。
+ */
 class RoomWebAdminReadRepository(
     private val database: ValnookDatabase,
     private val overview: OverviewRepository,

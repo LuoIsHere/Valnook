@@ -13,7 +13,7 @@
     <string name="backup_created">备份时间</string>
     <string name="backup_versions">来源版本</string>
     <string name="backup_counts">主账户 / 现金账户 / 交易 / 审计事件</string>
-    <string name="backup_overwrite_warning">这会覆盖全部当前记录、卡包卡片及图片，并恢复财务和显示偏好，不会合并。不含卡包的旧备份会将卡包恢复为空。备份文件未加密。</string>
+    <string name="backup_overwrite_warning">这会覆盖全部当前记录、卡包卡片及图片，并恢复财务和显示偏好，不会合并。不含卡包的旧备份会将卡包恢复为空。卡片背面私密内容及配色不参与备份，成功恢复后会永久清除。备份文件未加密。</string>
     <string name="backup_audit_incomplete">部分旧操作早于审计起点；已有事实会保留，但不会伪造修改前后历史。</string>
     <string name="backup_continue">继续</string>
     <string name="backup_cancel">取消</string>

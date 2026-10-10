@@ -1,4 +1,6 @@
 package dev.valnook.app.navigation
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -370,6 +372,15 @@ private fun SessionRoot(
                     WalletKey, HiddenWalletKey -> if (!walletDetail) {
                         IconButton({ walletToolbar?.add?.invoke() }, Modifier.testTag("wallet-add")) { Text("＋") }
                     } else {
+                        walletToolbar?.flip?.let { flip ->
+                            val description=if(walletToolbar?.flipped==true)
+                                dev.valnook.feature.wallet.walletFlipLabel(false) else dev.valnook.feature.wallet.walletFlipLabel(true)
+                            IconButton(flip,Modifier.testTag("wallet-flip").semantics{contentDescription=description},
+                                enabled=walletToolbar?.enabled==true) {
+                                if(walletToolbar?.flipLoading==true)CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)
+                                else dev.valnook.feature.wallet.WalletFlipIcon()
+                            }
+                        }
                         val editLabel=stringResource(R.string.nav_edit)
                         IconButton({walletToolbar?.edit?.invoke()},
                             Modifier.testTag("wallet-edit").semantics {contentDescription=editLabel},enabled=walletToolbar?.enabled==true) {
@@ -432,14 +443,14 @@ private fun SessionRoot(
                             ledgerEntries(graph, open, back, accountName)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
-                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards) }, updateWalletToolbar,
+                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate) }, updateWalletToolbar,
                                     { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
                                     { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletOverview.scroll,
                                     maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
                             }
                             entry<HiddenWalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
-                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards) }, updateWalletToolbar,
+                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate) }, updateWalletToolbar,
                                     { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
                                     { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletOverview.scroll,
                                     maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)

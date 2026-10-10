@@ -13,7 +13,7 @@
     <string name="backup_created">Backup time</string>
     <string name="backup_versions">Source versions</string>
     <string name="backup_counts">Accounts / cash accounts / trades / audit events</string>
-    <string name="backup_overwrite_warning">This replaces all current records, Wallet cards and images, and financial and display preferences. It does not merge. Older backups restore an empty Wallet. The backup is not encrypted.</string>
+    <string name="backup_overwrite_warning">This replaces all current records, Wallet cards and images, and financial and display preferences. It does not merge. Older backups restore an empty Wallet. Private card back details and colors are never backed up; a successful restore permanently clears them. The backup is not encrypted.</string>
     <string name="backup_audit_incomplete">Older activity predates audit tracking. Existing facts are preserved without fabricated before/after history.</string>
     <string name="backup_continue">Continue</string>
     <string name="backup_cancel">Cancel</string>

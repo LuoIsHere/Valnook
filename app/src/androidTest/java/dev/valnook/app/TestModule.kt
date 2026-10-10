@@ -50,7 +50,7 @@ object TestModule {
     @Provides
     @Singleton
     internal fun databaseGraph(@ApplicationContext context: Context, database: ValnookDatabase, clock: Clock): DatabaseGraph =
-        createDatabaseGraph(context, database, clock, currentBuildInfo())
+        createDatabaseGraph(context, database, clock, currentBuildInfo(), persistentPrivateCards = false)
 
     @Provides @Singleton fun cloudAccessProvider(): CloudAccessProvider = CloudAccessProvider { CloudAccessResult.Unavailable }
     @Provides @Singleton fun backupScheduler(): BackupScheduler = object : BackupScheduler {

@@ -18,6 +18,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import java.io.InputStream
 import java.io.OutputStream
 import java.security.SecureRandom
@@ -58,6 +59,12 @@ class AppSessionManager @Inject internal constructor(
     private val mutable = MutableStateFlow(ActiveSession(initialId, DataMode.REAL,
         bind(realDatabaseGraph, initialId, DataMode.REAL)))
     val session = mutable.asStateFlow()
+    init {
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+            // Reconcile unreferenced ciphertext after interrupted deletion/restore; no values are decoded.
+            runCatching { writeMutex.withLock { realDatabaseGraph.walletPrivate.cleanup() } }
+        }
+    }
     fun observeCloudState() = cloudCoordinator.observeState()
     suspend fun consumeCloudBanner(eventId: String) = cloudCoordinator.consumeBanner(eventId)
     suspend fun reconcileCloudSchedule() = cloudCoordinator.reconcileSchedule()
@@ -74,7 +81,7 @@ class AppSessionManager @Inject internal constructor(
         val databaseName = "$DEMO_DATABASE_PREFIX${UUID.randomUUID()}.db"
         val database = ValnookDatabase.fromAsset(context, databaseName, DEMO_DATABASE_ASSET)
         try {
-            val raw = createDatabaseGraph(context, database, clock, realDatabaseGraph.portability.buildInfo())
+            val raw = createDatabaseGraph(context, database, clock, realDatabaseGraph.portability.buildInfo(), persistentPrivateCards = false)
             var fixtureSettings = raw.settings.observeSettings().first()
             fixtureSettings = raw.settingsWriter.applyChange(
                 SaveLanguage(fixtureSettings.revision, displayPreferences.language))
@@ -160,6 +167,7 @@ class AppSessionManager @Inject internal constructor(
         try {
             withContext(NonCancellable) {
                 realDatabaseGraph.maintenance.clearBusinessData()
+                realDatabaseGraph.walletPrivate.cleanup(clearPreferences = true)
                 withContext(kotlinx.coroutines.Dispatchers.IO) {
                     onboarding.save(dev.valnook.app.onboarding.OnboardingDraft())
                 }
@@ -296,9 +304,25 @@ class AppSessionManager @Inject internal constructor(
             }
             override suspend fun delete(id: Long, expectedRevision: Long) = writeMutex.withLock {
                 requireMobileWrite(sessionId); delegate.delete(id,expectedRevision)
+                runCatching { source.walletPrivate.cleanup() }
+                Unit
             }
             override suspend fun reorder(expected: List<Long>, ordered: List<Long>) = writeMutex.withLock {
                 requireMobileWrite(sessionId); delegate.reorder(expected,ordered)
+            }
+        },
+        walletPrivate = if(mode == DataMode.DEMO) null else object : dev.valnook.domain.repository.WalletPrivateRepository {
+            override suspend fun read(cardId: Long) = writeMutex.withLock {
+                requireMobileWrite(sessionId); source.walletPrivate.read(cardId)
+            }
+            override suspend fun save(cardId: Long, content: dev.valnook.domain.repository.WalletPrivateContent) = writeMutex.withLock {
+                requireMobileWrite(sessionId); source.walletPrivate.save(cardId, content)
+            }
+            override suspend fun warningDismissed() = writeMutex.withLock {
+                requireMobileWrite(sessionId); source.walletPrivate.warningDismissed()
+            }
+            override suspend fun dismissWarning() = writeMutex.withLock {
+                requireMobileWrite(sessionId); source.walletPrivate.dismissWarning()
             }
         },
         accountOrderWriter = object : AccountOrderWriter {
@@ -455,6 +479,8 @@ class AppSessionManager @Inject internal constructor(
             }
             val result = engine.commitRestore(pending.staged, progress)
             withContext(NonCancellable) {
+                // FK cascades have already invalidated all local card identities transactionally.
+                runCatching { realDatabaseGraph.walletPrivate.cleanup() }
                 engine.close(pending.staged)
                 pendingRestore = null
                 publishRealSession()

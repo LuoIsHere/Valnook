@@ -38,7 +38,8 @@ class AppGraph(
         dev.valnook.domain.portability.UnavailableDataPortability,
     val cloudBackup: CloudBackupService = dev.valnook.domain.cloud.UnavailableCloudBackupService,
     val wallet: WalletRepository? = null,
-    val accountOrderWriter: AccountOrderWriter? = null
+    val accountOrderWriter: AccountOrderWriter? = null,
+    val walletPrivate: WalletPrivateRepository? = null
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -58,14 +59,16 @@ internal data class DatabaseGraph(
     val depositPages: PagedDepositRepository,
     val maintenance: DataMaintenance,
     val portability: RoomPortabilityEngine,
-    val webAdminReads: dev.valnook.domain.webadmin.WebAdminReadRepository
+    val webAdminReads: dev.valnook.domain.webadmin.WebAdminReadRepository,
+    val walletPrivate: LocalWalletPrivateRepository
 )
 
 internal fun createDatabaseGraph(
     context: Context,
     database: ValnookDatabase,
     clock: Clock,
-    buildInfo: AppBuildInfo
+    buildInfo: AppBuildInfo,
+    persistentPrivateCards: Boolean = true
 ): DatabaseGraph {
     val cash = RoomCash(database.cash())
     val deposits = RoomDeposits(database.deposits())
@@ -88,7 +91,8 @@ internal fun createDatabaseGraph(
         portability = RoomPortabilityEngine(context, database, clock, buildInfo),
         webAdminReads = dev.valnook.data.webadmin.RoomWebAdminReadRepository(
             database, RoomOverview(database), RoomStatistics(database, clock),
-            deposits, RoomInvestments(database))
+            deposits, RoomInvestments(database)),
+        walletPrivate = LocalWalletPrivateRepository(context, database, persistentPrivateCards)
     )
 }
 
