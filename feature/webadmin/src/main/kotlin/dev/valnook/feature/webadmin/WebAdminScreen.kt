@@ -123,6 +123,7 @@ private fun ClientDetails(client: WebAdminClient?) {
 
 @Composable
 private fun errorText(error: WebAdminError): String = when (error) {
+    WebAdminError.PORT_IN_USE -> stringResource(R.string.webadmin_error_port, dev.valnook.domain.webadmin.WEB_DEFAULT_PORT)
     WebAdminError.NO_PRIVATE_LAN -> stringResource(R.string.webadmin_error_no_lan)
     WebAdminError.SESSION_BUSY -> stringResource(R.string.webadmin_error_busy)
     WebAdminError.MAINTENANCE_ACTIVE -> stringResource(R.string.webadmin_error_maintenance)

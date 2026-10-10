@@ -20,4 +20,5 @@
     <string name="webadmin_error_busy">已有其他浏览器会话正在使用。</string>
     <string name="webadmin_error_maintenance">请先结束当前恢复、清空数据或文件操作。</string>
     <string name="webadmin_error_start">本地网页服务启动失败。</string>
+    <string name="webadmin_error_port">端口 %1$d 已被占用，请结束占用该端口的服务后重试。</string>
 </resources>

@@ -20,4 +20,5 @@
     <string name="webadmin_error_busy">Another browser session is active.</string>
     <string name="webadmin_error_maintenance">Finish the current restore, clear-data, or file operation first.</string>
     <string name="webadmin_error_start">The local web service could not start.</string>
+    <string name="webadmin_error_port">Port %1$d is in use. Stop the service using it, then try again.</string>
 </resources>

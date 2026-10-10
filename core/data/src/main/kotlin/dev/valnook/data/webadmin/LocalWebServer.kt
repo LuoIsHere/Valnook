@@ -1,5 +1,8 @@
 package dev.valnook.data.webadmin
 
+import dev.valnook.domain.webadmin.WEB_DEFAULT_PORT
+import dev.valnook.domain.webadmin.WebAdminError
+import dev.valnook.domain.webadmin.WebAdminException
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -37,13 +40,12 @@ import io.ktor.websocket.readText
 import io.ktor.websocket.send
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.ServerSocket
+import java.net.BindException
 import java.util.concurrent.atomic.AtomicBoolean
 
 const val WEB_MAX_BODY_BYTES = 256 * 1024
@@ -92,13 +94,12 @@ class LocalWebServer {
 
     suspend fun start(address: String, callbacks: LocalWebServerCallbacks): LocalWebServerBinding {
         check(engine == null)
-        // CIO's resolvedConnectors() can wait indefinitely on Android when the configured
-        // port is zero. Ask the OS for an ephemeral port on the exact interface first, then
-        // bind CIO to that value. This keeps the random-port policy without blocking the UI.
-        val port = withContext(Dispatchers.IO) { reserveEphemeralPort(address) }
+        val port = WEB_DEFAULT_PORT
         // Ktor otherwise inherits the caller's structured-concurrency Job. A long-lived server
         // then prevents start() from returning to Android. Give each engine its own owned scope.
-        val createdScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        // CIO also propagates bind failures through its engine job. start() awaits and reports
+        // them below; do not let a busy port become an uncaught Android process exception.
+        val createdScope = CoroutineScope(SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, _ -> })
         val created = createdScope.embeddedServer(CIO, host = address, port = port) {
                 install(WebSockets) {
                     pingPeriodMillis = 10_000
@@ -146,21 +147,21 @@ class LocalWebServer {
                 }
         }
         return try {
-            created.start(wait = false)
+            // Permit restarting our listener while old connections are in TIME_WAIT.
+            // SO_REUSEADDR does not allow sharing another active listener.
+            created.engineConfig.reuseAddress = true
+            withContext(Dispatchers.IO) { created.start(wait = false) }
             engine = created
             engineScope = createdScope
             LocalWebServerBinding(address, port)
         } catch (error: Throwable) {
             runCatching { created.stop(0, 500) }
             createdScope.cancel()
+            if (generateSequence(error) { it.cause }.any { it is BindException }) {
+                throw WebAdminException(WebAdminError.PORT_IN_USE)
+            }
             throw error
         }
-    }
-
-    private fun reserveEphemeralPort(address: String): Int = ServerSocket().use { socket ->
-        socket.reuseAddress = false
-        socket.bind(InetSocketAddress(InetAddress.getByName(address), 0))
-        socket.localPort
     }
 
     suspend fun stop() = withContext(Dispatchers.IO) {

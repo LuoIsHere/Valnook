@@ -16,6 +16,8 @@ import dev.valnook.data.transaction.TransactionPoint
 import dev.valnook.domain.repository.*
 import dev.valnook.domain.model.*
 import dev.valnook.domain.webadmin.WebAdminPhase
+import dev.valnook.domain.webadmin.WebAdminError
+import dev.valnook.domain.webadmin.WEB_DEFAULT_PORT
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
@@ -33,6 +35,8 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.net.Socket
+import java.net.ServerSocket
+import java.net.InetSocketAddress
 import java.net.URI
 import java.security.SecureRandom
 import java.util.Base64
@@ -51,6 +55,92 @@ class WebAdminEndToEndTest {
         step("cleanup")
         web.stop()
         if (sessions.session.value.mode == DataMode.DEMO) sessions.exitDemo()
+    }
+
+    @Test fun fixed_port_reports_conflict_and_recovers_without_losing_the_write_lease() = runBlocking<Unit> {
+        web.start()
+        val endpoint = URI(requireNotNull(web.state.value.url))
+        assertEquals(WEB_DEFAULT_PORT, endpoint.port)
+        assertEquals(200, http(endpoint, "GET", "/").status)
+        web.stop()
+        ServerSocket().use { occupied ->
+            occupied.reuseAddress = true
+            occupied.bind(InetSocketAddress(endpoint.host, WEB_DEFAULT_PORT))
+            web.start()
+            assertEquals(WebAdminPhase.CLOSED, web.state.value.phase)
+            assertEquals(WebAdminError.PORT_IN_USE, web.state.value.error)
+            assertEquals(null, web.state.value.url)
+        }
+        repeat(2) {
+            web.start()
+            assertEquals(WebAdminPhase.WAITING, web.state.value.phase)
+            assertEquals(endpoint, URI(requireNotNull(web.state.value.url)))
+            assertEquals(200, http(endpoint, "GET", "/").status)
+            web.stop()
+        }
+    }
+
+    @Test fun subaccount_name_note_and_append_preserve_existing_order_and_ledger_over_http() = runBlocking<Unit> {
+        val commands = RoomFinancialCommands(database, java.time.Clock.systemUTC())
+        val accountId = commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "Parent", "", listOf(
+            CashBalanceChange("USD", 10000, null, name = "First"),
+            CashBalanceChange("USD", 20000, null, name = "Second")
+        ))).id
+        web.start()
+        val endpoint = URI(requireNotNull(web.state.value.url))
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
+            body = JSONObject().put("code", web.state.value.pairingCode).toString())
+        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf = JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint, origin, cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            fun detail() = JSONObject(http(endpoint, "GET", "/api/v1/accounts/$accountId", cookie = cookie).body)
+            val before = detail()
+            val cashBefore = before.getJSONArray("cash")
+            val recordsBefore = JSONObject(http(endpoint, "GET", "/api/v1/records", cookie = cookie).body).getJSONArray("items").toString()
+            val changes = org.json.JSONArray()
+            // Reverse request order: editing by stable ID must not reorder the existing accounts.
+            for (index in 1 downTo 0) {
+                val row = cashBefore.getJSONObject(index)
+                changes.put(JSONObject().put("cashAccountId", row.getLong("id"))
+                    .put("expectedRevision", row.getLong("revision")).put("currencyCode", "USD")
+                    .put("balance", row.getString("balance")).put("name", if (index == 0) "Renamed 储蓄" else row.getString("name"))
+                    .put("note", if (index == 0) "First line\n第二行" else ""))
+            }
+            val body = JSONObject().put("operationId", UUID.randomUUID().toString()).put("dataGeneration", before.getLong("dataGeneration"))
+                .put("expectedRevision", before.getJSONObject("account").getLong("revision"))
+                .put("name", "Parent").put("cashChanges", changes)
+            val saved = http(endpoint, "PUT", "/api/v1/accounts/$accountId", origin = origin, cookie = cookie, csrf = csrf, body = body.toString())
+            assertEquals(saved.body, 200, saved.status)
+            val edited = detail()
+            val cashEdited = edited.getJSONArray("cash")
+            assertEquals(2, cashEdited.length())
+            for (index in 0..1) {
+                assertEquals(cashBefore.getJSONObject(index).getLong("id"), cashEdited.getJSONObject(index).getLong("id"))
+                assertEquals(cashBefore.getJSONObject(index).getString("balance"), cashEdited.getJSONObject(index).getString("balance"))
+            }
+            assertEquals("Renamed 储蓄", cashEdited.getJSONObject(0).getString("name"))
+            assertEquals("First line\n第二行", cashEdited.getJSONObject(0).getString("note"))
+            // Query raw ledger rows: names in the HTTP read model legitimately change after renaming.
+            val recordsAfter = JSONObject(http(endpoint, "GET", "/api/v1/records", cookie = cookie).body).getJSONArray("items")
+            val original = org.json.JSONArray(recordsBefore)
+            assertEquals(original.length(), recordsAfter.length())
+            for (index in 0 until original.length()) {
+                for (key in listOf("id", "amount", "businessAtMs", "revision")) {
+                    assertEquals(original.getJSONObject(index).get(key), recordsAfter.getJSONObject(index).get(key))
+                }
+            }
+            body.put("operationId", UUID.randomUUID().toString()).put("dataGeneration", edited.getLong("dataGeneration"))
+                .put("expectedRevision", edited.getJSONObject("account").getLong("revision"))
+                .put("cashChanges", org.json.JSONArray().put(JSONObject().put("currencyCode", "USD").put("balance", "0").put("name", "Third")))
+            val added = http(endpoint, "PUT", "/api/v1/accounts/$accountId", origin = origin, cookie = cookie, csrf = csrf, body = body.toString())
+            assertEquals(added.body, 200, added.status)
+            val finalCash = detail().getJSONArray("cash")
+            assertEquals(3, finalCash.length())
+            assertEquals("Third", finalCash.getJSONObject(2).getString("name"))
+            for (index in 0..1) assertEquals(cashBefore.getJSONObject(index).getLong("id"), finalCash.getJSONObject(index).getLong("id"))
+        }
     }
 
     @Test fun demo_account_deletion_changes_only_temporary_copy_and_reentry_restores_seed() = runBlocking<Unit> {

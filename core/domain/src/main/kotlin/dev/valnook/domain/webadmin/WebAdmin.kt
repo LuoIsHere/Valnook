@@ -11,12 +11,14 @@ import kotlinx.coroutines.flow.StateFlow
 
 const val WEB_API_VERSION = 1
 const val WEB_ASSET_VERSION = 2
+const val WEB_DEFAULT_PORT = 8765
 
 enum class WebAdminPhase { CLOSED, WAITING, ACTIVE }
 
 enum class WebAdminError {
     NO_PRIVATE_LAN,
     START_FAILED,
+    PORT_IN_USE,
     SESSION_BUSY,
     SESSION_EXPIRED,
     MAINTENANCE_ACTIVE,

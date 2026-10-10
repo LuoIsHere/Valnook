@@ -66,13 +66,13 @@ class AppWebAdminCoordinator @Inject constructor(
             publishWaiting()
             networkWatch = resolver.watch(address) { scope.launch { stop() } }
             timeoutJob = scope.launch { timeoutLoop() }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
             runCatching { server.stop() }
             binding = null
             reservationId = null
             sessions.releaseWebAdminServer(reservation)
             pairing.stop()
-            mutable.value = WebAdminRuntimeState(error = WebAdminError.START_FAILED)
+            mutable.value = WebAdminRuntimeState(error = (error as? WebAdminException)?.error ?: WebAdminError.START_FAILED)
         }
     }
 

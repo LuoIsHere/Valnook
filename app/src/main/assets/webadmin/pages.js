@@ -86,12 +86,14 @@ async function renderAccounts() {
 async function accountDetail(id) {
   state.viewEpoch++;
   const data = await api(`/api/v1/accounts/${id}`); const a = data.account;
-  const cashRows = data.cash.map(v => el("tr", {},
-    el("td", { text: v.type === "CREDIT" ? t("creditAccount") : t("savingsAccount") }),
-    el("td", { text: v.name }), el("td", { text: v.note || "—" }),
-    el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.balance, v.currencyCode) }),
-    el("td", { class: "numeric", text: v.credit ? `${fmt(v.credit.used, v.currencyCode)} / ${fmt(v.credit.totalLimit, v.currencyCode)}` : "—" }),
-    el("td", {}, deleteAccountButton(a.id, v.id))));
+  const editAccount = { ...a, cash: data.cash, creditSourceCandidates: data.creditSourceCandidates };
+  const cashCards = data.cash.map(v => el("article", { class: "cash-card", "data-cash-id": v.id },
+    el("div", { class: "cash-card-head" }, el("div", { class: "cash-identity" },
+      el("h3", { text: v.name }), el("div", { class: "subtle", text: `${v.type === "CREDIT" ? t("creditAccount") : t("savingsAccount")} · ${v.currencyCode}` })),
+      el("div", { class: "action-group" }, deleteAccountButton(a.id, v.id))),
+    el("div", { class: "cash-amount" }, el("span", { class: "subtle", text: t("balance") }), el("strong", { text: fmt(v.balance, v.currencyCode) })),
+    v.credit ? el("div", { class: "cash-credit-summary subtle", text: `${t("usedLimit")} ${fmt(v.credit.used, v.currencyCode)} · ${t("creditLimit")} ${fmt(v.credit.totalLimit, v.currencyCode)}` }) : null,
+    v.note ? el("p", { class: "account-note", text: v.note }) : null));
   const savingsCash = data.cash.filter(v => v.type === "SAVINGS");
   const depositRows = data.deposits.map(v => el("tr", { "data-clickable": "true", onclick: () => depositForm(v, null, savingsCash) },
     el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.principal, v.currencyCode) }),
@@ -103,9 +105,13 @@ async function accountDetail(id) {
     el("td", { class: "numeric", text: fmt(v.marketValue, v.currencyCode) }),
     el("td", { class: `numeric ${gainClass(v.unrealized)}`, text: fmt(v.unrealized, v.currencyCode) })));
   const content = el("div", {},
-    el("div", { class: "section-head" }, el("div", {}, el("strong", { text: a.name }),
-      el("div", { class: "subtle", text: a.note || "—" })), button(t("edit"), () => accountForm({ ...a, cash: data.cash, creditSourceCandidates: data.creditSourceCandidates })), deleteAccountButton(a.id)),
-    sectionTable(t("balanceAccounts"), [t("type"), t("name"), t("note"), t("currency"), t("balance"), t("usedLimit"), t("delete")], cashRows),
+    el("div", { class: "account-detail-head" },
+      el("div", { class: "section-head" }, el("div", { class: "account-cell" }, avatar(a.icon), el("strong", { text: a.name })),
+        el("div", { class: "action-group" }, button(t("edit"), () => accountForm(editAccount)), deleteAccountButton(a.id))),
+      a.note ? el("p", { class: "account-note", text: a.note }) : null),
+    el("section", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: t("subaccount") }),
+      button(t("addSubaccount"), () => accountForm(editAccount, null, true))),
+      el("div", { class: "cash-card-list" }, ...cashCards, !cashCards.length ? el("p", { class: "empty", text: t("empty") }) : null)),
     sectionTable(t("deposits"), [t("currency"), t("principal"), t("start"), t("endDate"), t("annualRate"), t("status")], depositRows,
       button(t("openDeposit"), () => depositForm(null, a.id, savingsCash))),
     sectionTable(t("positions"), [t("nameCode"), t("quantity"), t("currentPrice"), t("marketValue"), t("pnl")], positionRows));
@@ -114,7 +120,7 @@ async function accountDetail(id) {
 function sectionTable(title, headers, rows, action = null) { return el("section", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: title }), action), table(headers, rows)); }
 
 function deleteAccountButton(accountId, balanceAccountId = null) {
-  return el("button", { type: "button", class: "icon-button", "aria-label": t("delete"), onclick: () => deletionForm(accountId, balanceAccountId).catch(error => notify(errorMessage(error))) },
+  return el("button", { type: "button", class: "icon-button danger", "aria-label": t("delete"), onclick: () => deletionForm(accountId, balanceAccountId).catch(error => notify(errorMessage(error))) },
     el("svg", { class: "symbol", viewBox: "0 0 24 24", "aria-hidden": "true" },
       el("path", { d: "M4 6h16M9 3h6M7 6v15h10V6M10 9v9M14 9v9", fill: "none", stroke: "currentColor", "stroke-width": "1.7" })));
 }
@@ -126,7 +132,7 @@ async function deletionForm(accountId, balanceAccountId) {
   const error = el("p", { class: "drawer-error full", role: "alert" });
   const form = el("form", { class: "form-grid" }, el("h2", { class: "full", text: p.name }),
     el("p", { class: "full", text: t(balanceAccountId == null ? "deleteParentScope" : "deleteChildScope") }),
-    el("p", { class: "full", text: `${t("balanceAccounts")}: ${p.cashCount} · ${t("records")}: ${p.entryCount} · ${t("deposits")}: ${p.depositCount} · ${t("trade")}: ${p.tradeCount}` }),
+    el("p", { class: "full", text: `${t("subaccount")}: ${p.cashCount} · ${t("records")}: ${p.entryCount} · ${t("deposits")}: ${p.depositCount} · ${t("trade")}: ${p.tradeCount}` }),
     p.balance == null ? null : el("p", { class: "full", text: `${fmt(p.balance)} ${p.currencyCode}` }),
     ...p.transfers.map(v => el("p", { class: "full", text: `${v.name}: ${fmt(v.limit)} ${v.currencyCode} · ${t("independentLimit")}` })),
     p.transfers.length ? el("p", { class: "full", text: t("deleteLimitNotice") }) : null,
@@ -140,62 +146,94 @@ async function deletionForm(accountId, balanceAccountId) {
   form.append(bar); openDrawer(t("delete"), "ACCOUNT", form);
 }
 
-function accountForm(account) {
+function accountForm(account, focusCashId = null, addNew = false) {
   const cash = account?.cash || [];
   const picker = iconPicker(account?.icon);
-  const form = el("form", { class: "form-grid" });
-  form.append(picker.element);
-  form.append(field(t("name"), "name", account?.name || "", true), field(t("note"), "note", account?.note || "", false, "text", true));
-  form.append(checkField(t("showDeposits"), "showDepositSummary", account?.showDepositSummary ?? true),
-    checkField(t("showInvestments"), "showInvestmentSummary", account?.showInvestmentSummary ?? true));
-  cash.forEach((v, index) => {
-    form.append(checkField(`${t("showOnAccounts")} · ${v.name}`, `visible-${index}`, v.showOnAccountsPage ?? true));
-    if (v.type === "SAVINGS") form.append(checkField(`${t("includeAvailable")} · ${v.name}`, `available-${index}`, v.includeInAvailableCash ?? true));
-    form.append(field(`${v.currencyCode} · ${v.name}`, `cash-${index}`, v.balance, true));
-    if (v.type === "CREDIT") form.append(selectField(`${t("limitSource")} · ${v.name}`, `source-${index}`,
-      [{ value: "", label: t("independentLimit") }, ...(account?.creditSourceCandidates || []).filter(s => s.accountId === account.id && s.id !== v.id && s.currencyCode === v.currencyCode)
-        .map(s => ({ value: s.id, label: `${s.accountName} · ${s.name}` }))], v.credit?.limitSourceAccountId),
-      field(`${t("creditLimit")} · ${v.name}`, `limit-${index}`, v.credit?.creditLimit || ""),
-      field(`${t("statementDay")} · ${v.name}`, `statement-${index}`, v.credit?.statementDay || 12, true),
-      selectField(`${t("dueRule")} · ${v.name}`, `dueType-${index}`, [{ value: "AFTER_STATEMENT_DAYS", label: t("dueAfter") }, { value: "FIXED_DAY_OF_MONTH", label: t("dueFixed") }], v.credit?.dueRule?.type),
-      field(`${t("dueValue")} · ${v.name}`, `dueValue-${index}`, v.credit?.dueRule?.value || 20, true));
+  const form = el("form", { class: "form-grid account-form" });
+  const noteField = (name, value = "") => el("div", { class: "field full" },
+    el("label", { for: `f-${name}`, text: t("note") }), el("textarea", { id: `f-${name}`, name, rows: 3, maxlength: 2000, text: value }));
+  const basic = el("section", { class: "account-form-section full" }, el("h3", { text: t("basicInformation") }),
+    el("div", { class: "form-grid" }, field(t("name"), "name", account?.name || "", true, "text", true),
+      el("details", { class: "icon-disclosure full" }, el("summary", { text: t("icon") }), picker.element),
+      noteField("note", account?.note || ""),
+      el("div", { class: "setting-group full" }, checkField(t("showDeposits"), "showDepositSummary", account?.showDepositSummary ?? true),
+        checkField(t("showInvestments"), "showInvestmentSummary", account?.showInvestmentSummary ?? true))));
+  form.append(basic);
+  const children = el("section", { class: "account-form-section full cash-edit-list" }, el("h3", { text: t("subaccount") }));
+  const sourceOptions = (currency, excluded) => [{ value: "", label: t("independentLimit") }, ...(account?.creditSourceCandidates || [])
+    .filter(v => v.accountId === account.id && v.id !== excluded && (!currency || v.currencyCode === currency))
+    .map(v => ({ value: v.id, label: `${v.accountName} · ${v.name}` }))];
+  cash.forEach(v => {
+    // Stable account IDs bind inputs to data; list position is never an edit target.
+    const key = v.id;
+    const fields = el("div", { class: "form-grid" }, field(t("name"), `cashName-${key}`, v.name, true),
+      field(t("balance"), `cash-${key}`, v.balance, true), noteField(`cashNote-${key}`, v.note || ""),
+      el("div", { class: "setting-group full" }, checkField(t("showOnAccounts"), `visible-${key}`, v.showOnAccountsPage ?? true),
+        v.type === "SAVINGS" ? checkField(t("includeAvailable"), `available-${key}`, v.includeInAvailableCash ?? true) : null));
+    if (v.type === "CREDIT") fields.append(
+      selectField(t("limitSource"), `source-${key}`, sourceOptions(v.currencyCode, v.id), v.credit?.limitSourceAccountId),
+      field(t("creditLimit"), `limit-${key}`, v.credit?.creditLimit || ""),
+      field(t("statementDay"), `statement-${key}`, v.credit?.statementDay || 12, true),
+      selectField(t("dueRule"), `dueType-${key}`, [{ value: "AFTER_STATEMENT_DAYS", label: t("dueAfter") }, { value: "FIXED_DAY_OF_MONTH", label: t("dueFixed") }], v.credit?.dueRule?.type),
+      field(t("dueValue"), `dueValue-${key}`, v.credit?.dueRule?.value || 20, true));
+    const item = el("details", { class: "cash-editor-card", "data-edit-cash": key, open: focusCashId === key || cash.length === 1 },
+      el("summary", {}, el("strong", { text: v.name }), el("span", { class: "subtle", text: `${v.currencyCode} · ${v.type === "CREDIT" ? t("creditAccount") : t("savingsAccount")}` })), fields);
+    children.append(item);
   });
-  form.append(field(t("newCashName"), "newCashName", ""), field(t("newCashCurrency"), "newCashCurrency", account ? "" : (state.session.baseCurrency || "CNY"), !account),
-    field(t("newCashBalance"), "newCashBalance", "0"),
+  if (cash.length) form.append(children);
+  const newFields = el("fieldset", { class: "cash-editor-card form-grid new-cash-fields" },
+    el("legend", { text: t("addSubaccount") }),
+    field(t("newCashName"), "newCashName", "", true),
+    field(t("newCashCurrency"), "newCashCurrency", state.session.baseCurrency || "CNY", true),
+    field(t("newCashBalance"), "newCashBalance", "0", true),
     selectField(t("type"), "newCashType", [{ value: "SAVINGS", label: t("savingsAccount") }, { value: "CREDIT", label: t("creditAccount") }]),
-    selectField(t("limitSource"), "newLimitSource", [{ value: "", label: t("independentLimit") }, ...(account?.creditSourceCandidates || []).filter(s => s.accountId === account?.id)
-      .map(s => ({ value: s.id, label: `${s.accountName} · ${s.name}` }))]),
+    noteField("newCashNote"), selectField(t("limitSource"), "newLimitSource", sourceOptions(), ""),
     field(t("creditLimit"), "newCreditLimit", "10000", true), field(t("statementDay"), "newStatementDay", "12", true),
     selectField(t("dueRule"), "newDueType", [{ value: "AFTER_STATEMENT_DAYS", label: t("dueAfter") }, { value: "FIXED_DAY_OF_MONTH", label: t("dueFixed") }]),
     field(t("dueValue"), "newDueValue", "20", true));
+  const addToggle = checkField(t("addSubaccount"), "addNewCash", !account || addNew);
+  form.append(el("section", { class: "account-form-section full new-cash-section" }, addToggle, newFields));
   const error = el("p", { class: "drawer-error" });
   form.append(error, actions(async submit => {
     const fd = new FormData(form);
     const body = { operationId: uuid(), dataGeneration: state.generation, expectedRevision: account?.revision ?? null,
-      name: fd.get("name"), note: fd.get("note") || "", showDepositSummary: fd.get("showDepositSummary") === "on", showInvestmentSummary: fd.get("showInvestmentSummary") === "on", cashChanges: cash.map((v, i) => ({ cashAccountId: v.id, expectedRevision: v.revision, currencyCode: v.currencyCode, balance: fd.get(`cash-${i}`), name: v.name, note: v.note, type: v.type, showOnAccountsPage: fd.get(`visible-${i}`) === "on", includeInAvailableCash: v.type === "SAVINGS" ? fd.get(`available-${i}`) === "on" : v.includeInAvailableCash,
-        credit: v.type === "CREDIT" ? { limitSourceAccountId: fd.get(`source-${i}`) ? Number(fd.get(`source-${i}`)) : null, creditLimit: fd.get(`limit-${i}`) || v.credit?.creditLimit || "", statementDay: Number(fd.get(`statement-${i}`)), dueRule: { type: fd.get(`dueType-${i}`), value: Number(fd.get(`dueValue-${i}`)) } } : null })) };
+      name: fd.get("name"), note: fd.get("note") || "", showDepositSummary: fd.get("showDepositSummary") === "on", showInvestmentSummary: fd.get("showInvestmentSummary") === "on", cashChanges: cash.map(v => ({ cashAccountId: v.id, expectedRevision: v.revision, currencyCode: v.currencyCode, balance: fd.get(`cash-${v.id}`), name: fd.get(`cashName-${v.id}`), note: fd.get(`cashNote-${v.id}`) || "", type: v.type, showOnAccountsPage: fd.get(`visible-${v.id}`) === "on", includeInAvailableCash: v.type === "SAVINGS" ? fd.get(`available-${v.id}`) === "on" : v.includeInAvailableCash,
+        credit: v.type === "CREDIT" ? { limitSourceAccountId: fd.get(`source-${v.id}`) ? Number(fd.get(`source-${v.id}`)) : null, creditLimit: fd.get(`limit-${v.id}`) || v.credit?.creditLimit || "", statementDay: Number(fd.get(`statement-${v.id}`)), dueRule: { type: fd.get(`dueType-${v.id}`), value: Number(fd.get(`dueValue-${v.id}`)) } } : null })) };
     if (String(fd.get("newCashCurrency") || "").trim()) body.cashChanges.push({ cashAccountId: null, expectedRevision: null,
       currencyCode: String(fd.get("newCashCurrency")).trim().toUpperCase(), balance: fd.get("newCashBalance") || "0",
-      name: fd.get("newCashName") || "", note: "", type: fd.get("newCashType"),
+      name: fd.get("newCashName") || "", note: fd.get("newCashNote") || "", type: fd.get("newCashType"),
       credit: fd.get("newCashType") === "CREDIT" ? { limitSourceAccountId: fd.get("newLimitSource") ? Number(fd.get("newLimitSource")) : null, creditLimit: fd.get("newCreditLimit"), statementDay: Number(fd.get("newStatementDay")), dueRule: { type: fd.get("newDueType"), value: Number(fd.get("newDueValue")) } } : null });
     body.iconChange = await picker.value();
     await saveForm(submit, error, account ? `/api/v1/accounts/${account.id}` : "/api/v1/accounts", account ? "PUT" : "POST", body);
   }));
   const updateCredit = () => {
-    const credit = form.elements.newCashType.value === "CREDIT";
+    // An uncertain save must keep every input frozen until its operation is reconciled.
+    if (form.pendingSubmission) return;
+    const adding = form.elements.addNewCash.checked;
+    newFields.hidden = !adding; newFields.disabled = !adding;
+    const credit = adding && form.elements.newCashType.value === "CREDIT";
     ["newLimitSource", "newCreditLimit", "newStatementDay", "newDueType", "newDueValue"].forEach(name => {
       const input = form.elements[name]; input.disabled = !credit; input.closest(".field").hidden = !credit;
     });
     const currency = form.elements.newCashCurrency.value.trim().toUpperCase();
-    form.elements.newCashName.required = !!currency;
+    form.elements.newCashName.required = adding;
     Array.from(form.elements.newLimitSource.options).slice(1).forEach(option => {
       const candidate = account?.creditSourceCandidates?.find(v => String(v.id) === option.value);
       option.disabled = candidate?.currencyCode !== currency;
       if (option.disabled && option.selected) form.elements.newLimitSource.value = "";
     });
+    form.elements.newCreditLimit.readOnly = !!form.elements.newLimitSource.value;
   };
+  form.elements.newLimitSource.addEventListener("change", updateCredit);
+  form.elements.addNewCash.addEventListener("change", updateCredit);
+  form.addEventListener("save-settled", updateCredit);
+  form.addEventListener("invalid", event => { const group=event.target.closest("details"); if(group) group.open=true; }, true);
   form.elements.newCashType.addEventListener("change", updateCredit);
   form.elements.newCashCurrency.addEventListener("input", updateCredit); updateCredit();
+  const updateSources = () => cash.filter(v => v.type === "CREDIT").forEach(v => {
+    form.elements[`limit-${v.id}`].readOnly = !!form.elements[`source-${v.id}`].value;
+  });
+  form.addEventListener("change", updateSources); updateSources();
   form.validateInputs = () => {
     const check = (name, valid) => {
       const input = form.elements[name];
@@ -208,17 +246,17 @@ function accountForm(account) {
       const scale = state.session.currencies?.find(v => v.code === code)?.fractionDigits ?? (code === "JPY" || code === "KRW" || code === "VND" ? 0 : ["KWD","BHD","OMR","TND"].includes(code) ? 3 : 2);
       check(name, (signed ? /^-?\d+(?:\.\d+)?$/ : /^\d+(?:\.\d+)?$/).test(value) && (value.split(".")[1]?.replace(/0+$/, "").length || 0) <= scale);
     };
-    cash.forEach((v,i) => {
-      decimal(`cash-${i}`,true,v.currencyCode);
+    cash.forEach(v => {
+      decimal(`cash-${v.id}`,true,v.currencyCode);
       if (v.type === "CREDIT") {
-        check(`limit-${i}`,true);
-        if (!form.elements[`source-${i}`].value) decimal(`limit-${i}`,false,v.currencyCode);
-        check(`statement-${i}`,/^(?:[1-9]|[12]\d|3[01])$/.test(form.elements[`statement-${i}`].value));
-        const due=Number(form.elements[`dueValue-${i}`].value);
-        check(`dueValue-${i}`,Number.isInteger(due) && due>=1 && due<=(form.elements[`dueType-${i}`].value === "FIXED_DAY_OF_MONTH" ? 31 : 365));
+        check(`limit-${v.id}`,true);
+        if (!form.elements[`source-${v.id}`].value) decimal(`limit-${v.id}`,false,v.currencyCode);
+        check(`statement-${v.id}`,/^(?:[1-9]|[12]\d|3[01])$/.test(form.elements[`statement-${v.id}`].value));
+        const due=Number(form.elements[`dueValue-${v.id}`].value);
+        check(`dueValue-${v.id}`,Number.isInteger(due) && due>=1 && due<=(form.elements[`dueType-${v.id}`].value === "FIXED_DAY_OF_MONTH" ? 31 : 365));
       }
     });
-    const currency=form.elements.newCashCurrency.value.trim().toUpperCase();
+    const currency=form.elements.addNewCash.checked ? form.elements.newCashCurrency.value.trim().toUpperCase() : "";
     if (currency) {
       decimal("newCashBalance",true,currency);
       if (form.elements.newCashType.value === "CREDIT") {
@@ -232,6 +270,8 @@ function accountForm(account) {
   };
   form.addEventListener("input", event => { event.target.setCustomValidity?.(""); event.target.removeAttribute?.("aria-invalid"); });
   openDrawer(account ? t("editAccount") : t("newAccount"), "ACCOUNT", form);
+  if (focusCashId != null) form.querySelector(`[data-edit-cash="${focusCashId}"]`)?.scrollIntoView({ block: "start" });
+  if (addNew) newFields.scrollIntoView({ block: "start" });
 }
 
 async function renderRecords(reset) {
@@ -519,6 +559,7 @@ function openDrawer(title, kicker, content) {
   $("#drawer-title").textContent = title; $("#drawer-kicker").textContent = kicker || "";
   clear($("#drawer-content")); $("#drawer-content").append(content);
   $("#scrim").hidden = false; $("#drawer").hidden = false; $("#workspace").inert = true;
+  $("#drawer-content").scrollTop = 0;
   document.body.classList.add("modal-open");
   const form = content.matches("form") ? content : $("form", content);
   if (form) {

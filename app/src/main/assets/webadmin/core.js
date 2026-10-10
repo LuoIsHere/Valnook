@@ -85,6 +85,8 @@ const copy = {
     dueAfter: "Days after statement", dueFixed: "Fixed day each month"
   }
 };
+Object.assign(copy["zh-CN"], { basicInformation: "基本信息", addSubaccount: "新增子账户", newCashName: "子账户名称", newCashCurrency: "币种", newCashBalance: "初始余额" });
+Object.assign(copy.en, { basicInformation: "Basic information", addSubaccount: "Add subaccount", newCashName: "Subaccount name", newCashCurrency: "Currency", newCashBalance: "Opening balance" });
 const t = key => (copy[state.locale] || copy["zh-CN"])[key] || key;
 
 function el(tag, attrs = {}, ...children) {

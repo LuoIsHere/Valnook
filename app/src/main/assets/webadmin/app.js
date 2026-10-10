@@ -17,7 +17,7 @@ function applyTheme() { document.documentElement.dataset.theme = themeSelect.val
 themeSelect.addEventListener("change", () => { applyTheme(); try { localStorage.setItem("valnook-theme", themeSelect.value); } catch (_) {} }); applyTheme();
 document.addEventListener("keydown", event => {
   if (event.key !== "Tab" || $("#drawer").hidden) return;
-  const nodes = Array.from($("#drawer").querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]')).filter(v => v.getClientRects().length);
+  const nodes = Array.from($("#drawer").querySelectorAll('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, [tabindex="0"]')).filter(v => v.getClientRects().length);
   const first = nodes[0], last = nodes.at(-1);
   if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
   else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
