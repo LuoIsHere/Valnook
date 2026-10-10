@@ -25,7 +25,7 @@
 .investment-account-profit{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:0 12px 10px;font-size:13px;color:var(--muted)}
 .investment-group-body:not([hidden]){animation:appear .14s ease-out}.investment-group-body .table-wrap{border-radius:16px}.investment-group-body table{min-width:640px}
 .closed-positions{margin-top:12px}.closed-positions summary{cursor:pointer;padding:10px 12px;border-radius:12px}.closed-positions summary:hover{background:var(--soft)}
-.drawer:has(.price-editor){width:min(880px,calc(100vw - 32px))}.price-editor{display:grid;gap:12px}.price-search{position:sticky;top:0;background:var(--solid);z-index:1;border-radius:12px}
+.price-editor{display:grid;gap:12px}.price-search{position:sticky;top:0;background:var(--solid);z-index:1;border-radius:12px}
 .price-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,180px);align-items:center;gap:18px;padding:10px 0;border-bottom:1px solid var(--line)}
 .price-identity{min-width:0}.price-identity label{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.price-identity .subtle{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .price-row input{text-align:right;font-variant-numeric:tabular-nums}.price-row input[aria-invalid=true]{border-color:var(--danger)}.price-error{color:var(--danger);font-size:12px}.price-error:empty{display:none}.price-changed{margin-right:6px;color:var(--text)}
@@ -42,3 +42,23 @@
 @media(max-width:640px){.cash-card{padding:18px;border-radius:20px}.cash-card-head{gap:10px}.cash-card-head .action-group{gap:5px}.cash-card-head .secondary{padding:7px 11px}.cash-editor-card{padding:16px}.account-form>.account-form-section .form-grid{grid-template-columns:1fr}.cash-amount strong{font-size:23px}}
 
 .account-detail-head .account-cell strong{display:block;text-wrap:balance}.account-form textarea:focus-visible,.account-form summary:focus-visible{outline:2px solid var(--muted);outline-offset:3px;border-radius:8px}
+
+/* Gentle motion: surfaces stay sharp; no blur-radius or financial-number interpolation. */
+/* The resize target stays inside the glass edge without adding a visible frame. */
+.drawer-resize-handle{position:absolute;z-index:4;left:0;top:28px;bottom:28px;width:12px;cursor:ew-resize;touch-action:none;outline:none}
+.drawer-resize-handle:after{content:'';position:absolute;left:3px;top:50%;width:3px;height:40px;border-radius:99px;background:var(--muted);opacity:.18;transform:translateY(-50%);transition:opacity .18s}
+.drawer-resize-handle:hover:after,.drawer-resize-handle:focus-visible:after,.resizing-drawer .drawer-resize-handle:after{opacity:.65}
+.drawer-resize-handle:focus-visible{outline:2px solid var(--muted);outline-offset:-2px;border-radius:8px}
+.resizing-drawer,.resizing-drawer *{cursor:ew-resize!important;user-select:none!important}
+@media(min-width:641px){.drawer{width:min(var(--drawer-width,680px),calc(100vw - 32px))}}
+@media(max-width:640px){.drawer-resize-handle{display:none}}
+.content,.drawer,.investment-group-body:not([hidden]){animation:none}
+#nav{position:relative;isolation:isolate}.nav-item{position:relative;z-index:1}.nav-item.active{background:transparent;box-shadow:none}.nav-indicator{position:absolute;pointer-events:none;border-radius:99px;background:var(--soft);box-shadow:0 3px 14px rgba(0,0,0,.04);z-index:0}
+.nav-item.active:hover{background:transparent}.content-shell{position:relative}.page-loading{position:absolute;z-index:9;right:24px;margin-top:5px;color:var(--muted);font-size:11px;pointer-events:none;display:flex;align-items:center;gap:8px}.page-loading:before{content:'';width:5px;height:5px;background:currentColor;border-radius:50%;animation:loading-breathe 1.4s ease-in-out infinite}
+.loading-skeleton{display:grid;gap:24px;min-height:420px}.skeleton-hero,.skeleton-body{border-radius:24px;background:var(--surface);animation:loading-breathe 1.8s ease-in-out infinite}.skeleton-hero{height:170px}.skeleton-body{height:230px;animation-delay:.15s}
+@keyframes loading-breathe{0%,100%{opacity:.5}50%{opacity:.85}}
+.bar-fill{transform-origin:left center}.chart-curve{transform-box:fill-box}.chart-point{fill:var(--accent)}
+.cash-editor-card,.icon-disclosure,.closed-positions,.investment-group-body{overflow:clip}.expansion-chevron{transition:transform .28s cubic-bezier(.22,.8,.25,1)}
+.toast{background:var(--surface);color:var(--text);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
+.drawer[inert]{pointer-events:none}.drawer-actions button{transition:background .18s,transform .18s}.cash-editor-card summary:after{transition:opacity .2s}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

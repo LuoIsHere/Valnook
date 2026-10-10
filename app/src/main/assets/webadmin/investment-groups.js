@@ -1,4 +1,4 @@
-import { el, fmt, fmtPrice, gainClass, state, t } from "./core.js";
+import { el, fmt, fmtPrice, gainClass, state, t, motion } from "./core.js";
 import { avatar } from "./icons.js";
 
 export function investmentGroups({ table, positionDetail }) {
@@ -28,7 +28,7 @@ export function investmentGroups({ table, positionDetail }) {
     const toggle = el("button", { type: "button", class: "investment-account-toggle", "aria-expanded": String(expanded),
       "aria-controls": bodyId, onclick: () => {
         const next = toggle.getAttribute("aria-expanded") !== "true";
-        toggle.setAttribute("aria-expanded", String(next)); body.hidden = !next;
+        toggle.setAttribute("aria-expanded", String(next)); motion.expand(body, next);
         if (next) state.expandedInvestmentAccounts.add(account.id); else state.expandedInvestmentAccounts.delete(account.id);
       } },
       el("span", { class: "account-cell" }, avatar(account.icon), el("strong", { text: account.name }),

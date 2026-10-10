@@ -90,7 +90,7 @@ Object.assign(copy.en, { basicInformation: "Basic information", addSubaccount: "
 const t = key => (copy[state.locale] || copy["zh-CN"])[key] || key;
 
 function el(tag, attrs = {}, ...children) {
-  const node = ["svg", "path", "line", "polyline", "circle"].includes(tag)
+  const node = ["svg", "g", "path", "line", "polyline", "circle"].includes(tag)
     ? document.createElementNS("http://www.w3.org/2000/svg", tag) : document.createElement(tag);
   Object.entries(attrs).forEach(([key, value]) => {
     if (key === "class") node.setAttribute("class", value);
@@ -234,4 +234,85 @@ Object.assign(copy.en, {
   priceConflict: "This instrument changed or no longer exists. Refresh and review the price.", cleared: "No holdings / Closed positions",
   nameCode: "Name / Symbol", marketQuantity: "Market value / Quantity", priceCost: "Price / Cost"
 });
-export { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t };
+// Presentation only: animations never send activity, delay writes, or interpolate monetary values.
+const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");
+const activeMotion = new Map();
+const motionEase = "cubic-bezier(.22,.8,.25,1)";
+const motion = {
+  run(node, frames, options = {}) {
+    activeMotion.get(node)?.cancel();
+    if (motionPreference.matches || !node?.animate || !node.isConnected) return Promise.resolve(true);
+    const animation = node.animate(frames, { duration: 360, easing: motionEase, fill: "both", ...options });
+    activeMotion.set(node, animation);
+    return animation.finished.then(() => true, () => false).then(finished => {
+      if (activeMotion.get(node) === animation) activeMotion.delete(node);
+      animation.cancel();
+      return finished;
+    });
+  },
+  stop(root) {
+    for (const [node, animation] of activeMotion) if (node === root || root.contains(node)) animation.cancel();
+  },
+  enter(root) {
+    if (motionPreference.matches) return;
+    const candidates = root.querySelectorAll(".hero,.cards>.metric,.cash-card,.table-wrap,.chart,.bars,.investment-group");
+    let order = 0;
+    for (const node of candidates) {
+      const rect = node.getBoundingClientRect();
+      if (rect.bottom <= 0 || rect.top >= innerHeight || !rect.height) continue;
+      // Avoid nested entrance transforms and cap stagger regardless of list length.
+      if (node.parentElement.closest(".cash-card,.investment-group")) continue;
+      motion.run(node, [{ opacity: .35, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }],
+        { duration: 400, delay: Math.min(order++ * 35, 140) });
+    }
+    for (const curve of root.querySelectorAll(".chart-curve")) motion.run(curve,
+      [{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0% 0 0)" }], { duration: 760, delay: 60 });
+    for (const bar of root.querySelectorAll(".bar-fill")) {
+      if (bar.getBoundingClientRect().top < innerHeight) motion.run(bar,
+        [{ transform: "scaleX(0)" }, { transform: "scaleX(1)" }], { duration: 560, delay: 90 });
+    }
+  },
+  async expand(node, open) {
+    const version = node.motionVersion = (node.motionVersion || 0) + 1;
+    const start = node.hidden ? 0 : node.getBoundingClientRect().height;
+    node.hidden = false; node.inert = !open;
+    const end = open ? node.scrollHeight : 0;
+    const completed = await motion.run(node, [{ height: `${start}px`, opacity: open ? .5 : 1 },
+      { height: `${end}px`, opacity: open ? 1 : .5 }], { duration: 280 });
+    if (completed && node.motionVersion === version) { node.hidden = !open; node.inert = !open; }
+  },
+  async details(node, open) {
+    const version = node.motionVersion = (node.motionVersion || 0) + 1;
+    const start = node.getBoundingClientRect().height;
+    activeMotion.get(node)?.cancel();
+    node.open = true;
+    const style = getComputedStyle(node), summary = node.querySelector(":scope>summary");
+    const end = open ? node.getBoundingClientRect().height : summary.getBoundingClientRect().height +
+      parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    node.dataset.expanded = String(open); summary.setAttribute("aria-expanded", String(open));
+    for (const child of node.children) if (child !== summary) child.inert = !open;
+    const completed = await motion.run(node, [{ height: `${start}px` }, { height: `${end}px` }], { duration: 280 });
+    if (completed && node.motionVersion === version) {
+      node.open = open; delete node.dataset.expanded;
+      for (const child of node.children) if (child !== summary) child.inert = false;
+    }
+  },
+  bindDetails(root) {
+    for (const node of root.querySelectorAll("details")) {
+      if (node.dataset.motionBound) continue;
+      node.dataset.motionBound = "true";
+      node.querySelector(":scope>summary")?.addEventListener("click", event => {
+        event.preventDefault();
+        motion.details(node, !(node.dataset.expanded ? node.dataset.expanded === "true" : node.open));
+      });
+    }
+  }
+};
+motionPreference.addEventListener("change", () => {
+  if (motionPreference.matches) for (const animation of activeMotion.values()) animation.finish();
+});
+Object.assign(copy["zh-CN"], { updating: "正在更新…" });
+Object.assign(copy.en, { updating: "Updating…" });
+Object.assign(copy["zh-CN"], { resizePanel: "调整侧栏宽度", resizePanelHint: "拖动调整宽度；双击恢复默认。也可使用左右键调整，Enter 恢复默认。" });
+Object.assign(copy.en, { resizePanel: "Resize panel", resizePanelHint: "Drag to resize; double-click to reset. Use arrow keys to resize or Enter to reset." });
+export { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion };

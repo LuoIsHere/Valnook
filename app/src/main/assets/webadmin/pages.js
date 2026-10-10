@@ -1,4 +1,4 @@
-import { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t } from "./core.js";
+import { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion } from "./core.js";
 import { symbol, avatar, iconPicker } from "./icons.js";
 import { openPriceEditor } from "./price-editor.js";
 import { investmentGroups } from "./investment-groups.js";
@@ -9,25 +9,90 @@ async function preload() {
   state.accounts = accounts.items; state.instruments = instruments.items; state.assetTypes = types.items; state.positions = positions.items;
 }
 function renderNav() {
-  const nav = $("#nav"); clear(nav);
-  [["accounts", "account_balance_wallet"], ["records", "payments"], ["investments", "trending_up"], ["statistics", "monitoring"]].forEach(([key, icon]) => {
-    nav.append(el("button", { class: `nav-item ${state.page === key ? "active" : ""}`, type: "button", onclick: () => navigate(key), "aria-label": t(key), "aria-current": state.page === key ? "page" : null },
-      symbol(icon), el("span", { class: "nav-label", text: t(key) })));
-  });
+  const nav = $("#nav");
+  if (!nav.querySelector(".nav-indicator")) {
+    nav.append(el("span", { class: "nav-indicator", "aria-hidden": "true" }));
+    [["accounts", "account_balance_wallet"], ["records", "payments"], ["investments", "trending_up"], ["statistics", "monitoring"]].forEach(([key, icon]) => {
+      nav.append(el("button", { class: "nav-item", "data-page": key, type: "button", onclick: () => navigate(key) },
+        symbol(icon), el("span", { class: "nav-label", text: t(key) })));
+    });
+    new ResizeObserver(() => positionNav(false)).observe(nav);
+  }
+  for (const item of nav.querySelectorAll(".nav-item")) {
+    const selected = item.dataset.page === state.page;
+    item.classList.toggle("active", selected); item.setAttribute("aria-label", t(item.dataset.page));
+    item.querySelector(".nav-label").textContent = t(item.dataset.page);
+    if (selected) item.setAttribute("aria-current", "page"); else item.removeAttribute("aria-current");
+  }
+  positionNav(true);
 }
-async function navigate(page) {
-  if (!closeDrawer()) return;
+function positionNav(animate) {
+  const nav = $("#nav"), pill = nav.querySelector(".nav-indicator"), target = nav.querySelector(".active");
+  if (!pill || !target || !nav.getClientRects().length) return;
+  const old = pill.getBoundingClientRect(), box = nav.getBoundingClientRect(), next = target.getBoundingClientRect();
+  motion.stop(pill);
+  Object.assign(pill.style, { left: `${next.left-box.left}px`, top: `${next.top-box.top}px`, width: `${next.width}px`, height: `${next.height}px` });
+  if (animate && old.width && (Math.abs(old.left-next.left) > 1 || Math.abs(old.top-next.top) > 1)) motion.run(pill,
+    [{ transform: `translate(${old.left-next.left}px,${old.top-next.top}px)` }, { transform: "none" }], { duration: 340 });
+}
+let loadingTimer;
+function setLoading(refresh) {
+  const root = $("#content"); root.setAttribute("aria-busy", "true"); root.inert = !refresh;
+  let status = $("#page-loading");
+  if (!status) { status = el("div", { id: "page-loading", class: "page-loading", role: "status" }); root.before(status); }
+  status.hidden = true;
+  clearTimeout(loadingTimer);
+  loadingTimer = setTimeout(() => {
+    status.textContent = t(refresh ? "updating" : "loading"); status.hidden = false;
+    if (!root.children.length) root.append(el("div", { class: "loading-skeleton", "aria-hidden": "true" },
+      el("div", { class: "skeleton-hero" }), el("div", { class: "skeleton-body" })));
+  }, 150);
+}
+function finishLoading() {
+  clearTimeout(loadingTimer); $("#page-loading")?.setAttribute("hidden", "");
+  $("#content").removeAttribute("aria-busy"); $("#content").inert = false;
+}
+function replacePage(content, refresh = false) {
+  const root = $("#content"), focusedId = root.contains(document.activeElement) ? document.activeElement.id : null;
+  const previousRows = new Map(Array.from(root.querySelectorAll("[data-account-row]"), node => [node.dataset.accountRow, node.getBoundingClientRect().top]));
+  const previousCurve = root.querySelector(".chart-curve")?.innerHTML;
+  const previousBars = Array.from(root.querySelectorAll(".bar-fill"), v => ({ key: v.dataset.barKey, width: v.style.width }));
+  motion.stop(root); root.replaceChildren(...content.childNodes); motion.bindDetails(root);
+  if (!refresh) motion.enter(root);
+  else for (const bar of root.querySelectorAll(".bar-fill")) {
+    const old = previousBars.find(v => v.key === bar.dataset.barKey), width = parseFloat(bar.style.width);
+    if (old && width && old.width !== bar.style.width) motion.run(bar,
+      [{ transform: `scaleX(${parseFloat(old.width)/width})` }, { transform: "scaleX(1)" }], { duration: 460 });
+  }
+  if (refresh) {
+    for (const row of root.querySelectorAll("[data-account-row]")) {
+      const previous = previousRows.get(row.dataset.accountRow), top = row.getBoundingClientRect().top;
+      if (previous == null) motion.run(row, [{ opacity: 0 }, { opacity: 1 }], { duration: 320 });
+      else if (Math.abs(previous-top)>1) motion.run(row, [{ transform: `translateY(${previous-top}px)` }, { transform: "none" }], { duration: 320 });
+    }
+    const curve = root.querySelector(".chart-curve");
+    if (curve && previousCurve !== curve.innerHTML) motion.run(curve, [{ opacity: .45 }, { opacity: 1 }], { duration: 240 });
+  }
+  if (focusedId) document.getElementById(focusedId)?.focus({ preventScroll: true });
+}
+async function navigate(page, { refresh = false } = {}) {
+  if (!closeDrawer(false, true)) return;
   state.viewEpoch++; state.page = page; renderNav();
   const epoch = state.viewEpoch; state.pageLoading = true;
   $("#page-kicker").textContent = state.session?.dataMode === "DEMO" ? `${t("demoMode")} · WEB ADMIN` : "WEB ADMIN";
-  $("#page-title").textContent = t(page); showLoading();
+  setLoading(refresh);
   try {
-    if (page === "accounts") await renderAccounts();
+    if (page === "accounts") await renderAccounts(refresh);
     else if (page === "records") await renderRecords(true);
-    else if (page === "investments") await renderInvestments();
-    else await renderStatistics();
-  } catch (error) { showError(error); }
-  finally { if (epoch === state.viewEpoch) state.pageLoading = false; }
+    else if (page === "investments") await renderInvestments(refresh);
+    else await renderStatistics(refresh);
+    if (epoch === state.viewEpoch) $("#page-title").textContent = t(page);
+  } catch (error) {
+    if (epoch === state.viewEpoch) {
+      if (refresh) notify(t("loadFailed"));
+      else { $("#page-title").textContent = t(page); showError(error); }
+    }
+  } finally { if (epoch === state.viewEpoch) { state.pageLoading = false; finishLoading(); } }
 }
 let refreshTimer, refreshTask;
 function scheduleRefresh() {
@@ -39,20 +104,24 @@ function refreshCurrent() {
   if (state.saving || !$("#drawer").hidden) { state.pendingRefresh = true; return Promise.resolve(); }
   if (refreshTask) return refreshTask;
   state.pendingRefresh = false; state.refreshing = true;
+  const epoch = state.viewEpoch;
+  setLoading(true);
   refreshTask = (async () => {
     const scroll = window.scrollY;
     try {
       await preload();
+      if (epoch !== state.viewEpoch) return;
       if (state.saving || !$("#drawer").hidden) { state.pendingRefresh = true; return; }
-      await navigate(state.page); window.scrollTo(0, scroll);
+      await navigate(state.page, { refresh: true });
+      if (state.viewEpoch === epoch + 1) window.scrollTo(0, scroll);
     } catch (error) { if (error.name !== "AbortError") notify(t("loadFailed")); }
   })().finally(() => {
+    if (epoch === state.viewEpoch) finishLoading();
     refreshTask = null; state.refreshing = false;
     if (state.pendingRefresh && $("#drawer").hidden && !state.saving) scheduleRefresh();
   });
   return refreshTask;
 }
-function showLoading() { const root = $("#content"); clear(root); root.append(el("p", { class: "muted", text: t("loading") })); }
 function showError(error) { if (error.name === "AbortError") return; const root = $("#content"); clear(root); root.append(el("div", { class: "empty", text: `${t("loadFailed")}: ${error.code || error.message}` })); }
 function emptyRow(cols) { return el("tr", {}, el("td", { colspan: cols, class: "empty", text: t("empty") })); }
 function table(headers, rows) {
@@ -66,12 +135,12 @@ function button(label, click, kind = "secondary") { return el("button", { class:
 } }); }
 function metric(label, value, cls = "") { return el("div", { class: "metric" }, el("div", { class: "subtle", text: label }), el("div", { class: `value ${cls}`, text: value })); }
 
-async function renderAccounts() {
+async function renderAccounts(refresh = false) {
   const [data, summary] = await Promise.all([api("/api/v1/accounts"), api("/api/v1/statistics/summary")]); state.accounts = data.items;
-  const root = $("#content"); clear(root);
+  const root = el("div");
   root.append(hero(summary, "totalAssets"));
   root.append(toolbar(el("div", { class: "spacer" }), button(t("newAccount"), () => accountForm(null), "primary")));
-  const rows = data.items.map(item => el("tr", { "data-clickable": "true", onclick: () => accountDetail(item.id) },
+  const rows = data.items.map(item => el("tr", { "data-clickable": "true", "data-account-row": item.id, onclick: () => accountDetail(item.id) },
     el("td", {}, el("div", { class: "account-cell" }, avatar(item.icon), el("div", {}, el("strong", { text: item.name }), el("div", { class: "subtle", text: item.note || "—" })) )),
     el("td", { class: "numeric", text: fmt(item.availableCash ?? item.cash, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.creditBalance, data.baseCurrency) }),
@@ -82,10 +151,12 @@ async function renderAccounts() {
   const accountTable = table([t("account"), t("cash"), t("creditBalance"), t("deposits"), t("investmentValue"), t("totalAssets"), t("complete")], rows);
   accountTable.classList.add("accounts-table"); root.append(accountTable);
   if (data.items.some(item => !item.complete)) root.append(el("p", { class: "subtle", text: t("incomplete") }));
+  replacePage(root, refresh);
 }
-async function accountDetail(id) {
+async function accountDetail(id, returnState = null) {
   state.viewEpoch++;
   const data = await api(`/api/v1/accounts/${id}`); const a = data.account;
+  if (returnState && returnState.cycle !== drawerCycle) return;
   const editAccount = { ...a, cash: data.cash, creditSourceCandidates: data.creditSourceCandidates };
   const cashCards = data.cash.map(v => el("article", { class: "cash-card", "data-cash-id": v.id },
     el("div", { class: "cash-card-head" }, el("div", { class: "cash-identity" },
@@ -115,7 +186,9 @@ async function accountDetail(id) {
     sectionTable(t("deposits"), [t("currency"), t("principal"), t("start"), t("endDate"), t("annualRate"), t("status")], depositRows,
       button(t("openDeposit"), () => depositForm(null, a.id, savingsCash))),
     sectionTable(t("positions"), [t("nameCode"), t("quantity"), t("currentPrice"), t("marketValue"), t("pnl")], positionRows));
-  openDrawer(t("accountDetails"), "ACCOUNT", content);
+  content.drawerRoute = { kind: "account", id };
+  openDrawer(t("accountDetails"), "ACCOUNT", content, !!returnState);
+  if (returnState) $("#drawer-content").scrollTop = returnState.scrollTop;
 }
 function sectionTable(title, headers, rows, action = null) { return el("section", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: title }), action), table(headers, rows)); }
 
@@ -147,9 +220,11 @@ async function deletionForm(accountId, balanceAccountId) {
 }
 
 function accountForm(account, focusCashId = null, addNew = false) {
+  const parentDrawer = account ? captureDrawerParent() : null;
   const cash = account?.cash || [];
   const picker = iconPicker(account?.icon);
   const form = el("form", { class: "form-grid account-form" });
+  form.parentDrawer = parentDrawer;
   const noteField = (name, value = "") => el("div", { class: "field full" },
     el("label", { for: `f-${name}`, text: t("note") }), el("textarea", { id: `f-${name}`, name, rows: 3, maxlength: 2000, text: value }));
   const basic = el("section", { class: "account-form-section full" }, el("h3", { text: t("basicInformation") }),
@@ -227,7 +302,7 @@ function accountForm(account, focusCashId = null, addNew = false) {
   form.elements.newLimitSource.addEventListener("change", updateCredit);
   form.elements.addNewCash.addEventListener("change", updateCredit);
   form.addEventListener("save-settled", updateCredit);
-  form.addEventListener("invalid", event => { const group=event.target.closest("details"); if(group) group.open=true; }, true);
+  form.addEventListener("invalid", event => { const group=event.target.closest("details"); if(group) motion.details(group, true); }, true);
   form.elements.newCashType.addEventListener("change", updateCredit);
   form.elements.newCashCurrency.addEventListener("input", updateCredit); updateCredit();
   const updateSources = () => cash.filter(v => v.type === "CREDIT").forEach(v => {
@@ -275,15 +350,11 @@ function accountForm(account, focusCashId = null, addNew = false) {
 }
 
 async function renderRecords(reset) {
-  if (reset) { state.recordsHistory = []; state.recordsCursor = null; }
-  const root = $("#content");
+  const root = el("div");
   const oldControls = $("#record-controls");
   if (oldControls) state.recordFilters = Object.fromEntries(new FormData(oldControls));
-  if (reset) clear(root);
   const requestId = state.recordsRequest = (state.recordsRequest || 0) + 1;
-  let controls = $("#record-controls");
-  if (!controls) {
-    controls = el("form", { id: "record-controls", class: "toolbar" },
+  const controls = el("form", { id: "record-controls", class: "toolbar" },
       field(t("fromDate"), "from", "", false, "date"), field(t("toDate"), "to", "", false, "date"),
       selectField(t("account"), "accountId", [{ value: "", label: t("all") }, ...state.accounts.map(v => ({ value: v.id, label: v.name }))]),
       selectField(t("type"), "type", [{ value: "", label: t("all") }, { value: "CASH", label: t("cash") }, { value: "DEPOSIT", label: t("deposit") }, { value: "TRADE", label: t("trade") }]),
@@ -291,20 +362,21 @@ async function renderRecords(reset) {
     Object.entries(state.recordFilters).forEach(([name, value]) => { if (controls.elements[name]) controls.elements[name].value = value; });
     controls.addEventListener("submit", event => { event.preventDefault(); renderRecords(true).catch(showError); });
     root.append(controls, el("div", { id: "records-table" }));
-  }
   const fd = new FormData(controls); const params = new URLSearchParams({ pageSize: "50" });
   if (fd.get("from")) params.set("from", String(new Date(`${fd.get("from")}T00:00:00`).getTime()));
   if (fd.get("to")) params.set("to", String(new Date(`${fd.get("to")}T23:59:59.999`).getTime()));
   ["accountId", "type", "query"].forEach(k => { if (fd.get(k)) params.set(k, fd.get(k)); });
   if (!reset && state.recordsCursor) params.set("cursor", state.recordsCursor);
-  const data = await api(`/api/v1/records?${params}`); if (requestId !== state.recordsRequest) return; state.recordsHistory.push(...data.items); state.recordsCursor = data.nextCursor;
+  const data = await api(`/api/v1/records?${params}`); if (requestId !== state.recordsRequest) return;
+  state.recordsHistory = reset ? data.items : [...state.recordsHistory, ...data.items]; state.recordsCursor = data.nextCursor;
   const rows = state.recordsHistory.map(v => el("tr", { "data-clickable": "true", onclick: () => openRecord(v) },
     el("td", { text: when(v.businessAtMs) }), el("td", { text: v.accountName }), el("td", { text: v.childName || "—" }),
     el("td", {}, el("strong", { class: v.action === "BUY" ? "gain" : v.action === "SELL" ? "loss" : "", text: actionLabel(v.action) })),
     el("td", { text: v.objectName || "—" }), el("td", { class: "numeric", text: v.amount ? fmt(v.amount, v.currencyCode) : fmt(v.quantity) }),
     el("td", { text: v.currencyCode }), el("td", { text: v.note || "—" }), el("td", { text: when(v.updatedAtMs) }), el("td", { text: t("edit") })));
-  const holder = $("#records-table"); clear(holder); holder.append(table([t("time"), t("account"), t("subaccount"), t("type"), t("object"), t("amountQuantity"), t("currency"), t("note"), t("updated"), t("operation")], rows));
+  const holder = $("#records-table", root); holder.append(table([t("time"), t("account"), t("subaccount"), t("type"), t("object"), t("amountQuantity"), t("currency"), t("note"), t("updated"), t("operation")], rows));
   if (state.recordsCursor) holder.append(toolbar(el("div", { class: "spacer" }), button(t("loadMore"), () => renderRecords(false))));
+  replacePage(root, !!oldControls);
 }
 function actionLabel(action) {
   return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose") })[action] || action;
@@ -340,10 +412,13 @@ function cashRecordForm(record) {
   })); openDrawer(t("editCashRecord"), "RECORD", form);
 }
 
-async function renderInvestments() {
-  const [, summary] = await Promise.all([preload(), api("/api/v1/statistics/summary")]); const root = $("#content"); clear(root);
+async function renderInvestments(refresh = false) {
+  const requestId = state.investmentRequest = (state.investmentRequest || 0) + 1;
+  const [, summary] = await Promise.all([preload(), api("/api/v1/statistics/summary")]);
+  if (requestId !== state.investmentRequest) return;
+  const root = el("div");
   root.append(hero(summary, "investmentValue"));
-  const tabs = el("div", { class: "tabs" }, ...[["instruments", t("instruments")], ["positions", t("positions")]].map(([key, label]) => el("button", { type: "button", class: `tab ${state.investmentTab === key ? "active" : ""}`, text: label, onclick: () => { state.investmentTab = key; renderInvestments(); } })));
+  const tabs = el("div", { class: "tabs" }, ...[["instruments", t("instruments")], ["positions", t("positions")]].map(([key, label]) => el("button", { type: "button", class: `tab ${state.investmentTab === key ? "active" : ""}`, text: label, onclick: () => { state.investmentTab = key; renderInvestments(true).catch(error => { if (error.name !== "AbortError") notify(t("loadFailed")); }); } })));
   root.append(tabs);
   if (state.investmentTab === "instruments") {
     const prices = button(t("updatePrices"), () => openPriceEditor({ actions, saveForm, openDrawer }));
@@ -358,6 +433,7 @@ async function renderInvestments() {
     root.append(toolbar(el("div", { class: "spacer" }), button(t("newPosition"), positionForm, "primary")));
     root.append(investmentGroups({ table, positionDetail }));
   }
+  replacePage(root, refresh);
 }
 function assetTypeForm() {
   const form = el("form", { class: "form-grid" }); form.append(field(t("assetTypeName"), "name", "", true, "text", true));
@@ -397,20 +473,25 @@ function instrumentForm(item) {
     });
   })); openDrawer(item ? t("editInstrument") : t("newInstrument"), "INSTRUMENT", form);
 }
-async function positionDetail(id) {
+async function positionDetail(id, returnState = null, parentDrawer = captureDrawerParent()) {
   state.viewEpoch++;
   const data = await api(`/api/v1/positions/${id}`), p = data.position;
   const account = await api(`/api/v1/accounts/${p.accountId}`);
+  if (returnState && returnState.cycle !== drawerCycle) return;
   const cash = account.cash.filter(v => v.type === "SAVINGS" && v.currencyCode === p.currencyCode);
   const summary = el("div", { class: "cards" }, metric(t("quantity"), fmt(p.quantity)), metric(t("marketValue"), fmt(p.marketValue, p.currencyCode)), metric(t("realized"), fmt(p.realized, p.currencyCode), gainClass(p.realized)), metric(t("unrealized"), fmt(p.unrealized, p.currencyCode), gainClass(p.unrealized)));
   summary.append(metric(t("currentPrice"), fmtPrice(p.currentPrice, p.currencyCode)),
     metric(t("averageCost"), fmt(p.averageCost, p.currencyCode)), metric(t("holdingCost"), fmt(p.remainingCost, p.currencyCode)));
   const tradeRows = data.trades.map(v => el("tr", { "data-clickable": "true", onclick: () => tradeForm(p, v, cash) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: v.action === "BUY" ? "gain" : "loss", text: v.action === "BUY" ? t("buy") : t("sell") }), el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmt(v.unitPrice, p.currencyCode) }), el("td", { class: "numeric", text: fmt(v.fee, p.currencyCode) }), el("td", { text: v.cashLinked ? "✓" : "—" })));
   const content = el("div", {}, summary, toolbar(el("div", { class: "spacer" }), button(t("newTrade"), () => tradeForm(p, null, cash), "primary")), table([t("time"), t("direction"), t("quantity"), t("executionPrice"), t("fee"), t("cashLink")], tradeRows));
-  openDrawer(`${p.name} · ${p.symbol}`, accountName(p.accountId), content);
+  content.parentDrawer = parentDrawer;
+  content.drawerRoute = { kind: "position", id, parentDrawer };
+  openDrawer(`${p.name} · ${p.symbol}`, accountName(p.accountId), content, !!returnState);
+  if (returnState) $("#drawer-content").scrollTop = returnState.scrollTop;
 }
 function tradeForm(position, trade, cashAccounts) {
   const form = el("form", { class: "form-grid" });
+  form.parentDrawer = captureDrawerParent();
   form.append(selectField(t("direction"), "direction", [{ value: "BUY", label: t("buy") }, { value: "SELL", label: t("sell") }], trade?.action), field(t("quantity"), "quantity", trade?.quantity || "", true), field(t("executionPrice"), "executionPrice", trade?.unitPrice || state.instruments.find(v => v.id === position.instrumentId)?.currentPrice || "", true), field(t("fee"), "fee", trade?.fee || "0", true), field(t("time"), "occurred", trade ? toLocalDateTime(trade.businessAtMs) : toLocalDateTime(Date.now()), true, "datetime-local"), checkField(t("cashLink"), "cashLinked", trade?.cashLinked),
     selectField(t("cashAccount"), "cashAccountId", [{ value: "", label: t("none") }, ...cashAccounts.map(v => ({ value: v.id, label: `${v.name} · ${v.currencyCode}` }))], trade?.linkedCashAccountId));
   const error = el("p", { class: "drawer-error" });
@@ -428,6 +509,7 @@ function tradeForm(position, trade, cashAccounts) {
 
 function depositForm(deposit, accountId = null, cashAccounts = []) {
   const form = el("form", { class: "form-grid" });
+  form.parentDrawer = captureDrawerParent();
   const eligibleCash = cashAccounts.filter(v => v.type === "SAVINGS" && (!deposit || v.currencyCode === deposit.currencyCode));
   form.append(field(t("currency"), "currency", deposit?.currencyCode || state.session.baseCurrency || "CNY", true, "text", false, !!deposit),
     field(t("principal"), "principal", deposit?.principal || "", true), field(t("rate"), "rate", deposit?.annualRatePercent || "", true),
@@ -456,12 +538,13 @@ function depositForm(deposit, accountId = null, cashAccounts = []) {
   form.append(error, bar); openDrawer(deposit ? t("editDeposit") : t("openDeposit"), deposit?.currencyCode || "DEPOSIT", form);
 }
 
-async function renderStatistics() {
+async function renderStatistics(refresh = false) {
   const [summary, dist, history] = await Promise.all([api("/api/v1/statistics/summary"), api("/api/v1/statistics/distribution"), api("/api/v1/statistics/history?granularity=DAILY&metric=TOTAL_ASSETS")]);
-  const root = $("#content"); clear(root);
+  const root = el("div");
   root.append(el("div", { class: "cards" }, metric(t("totalAssets"), fmt(summary.totalAssets, summary.currency)), metric(t("availableCash"), fmt(summary.availableCash, summary.currency)), metric(t("investmentValue"), fmt(summary.investmentValue, summary.currency)), metric(t("monthlyChange"), fmt(summary.monthlyChange, summary.currency), gainClass(summary.monthlyChange))));
   root.append(chart(history.items));
   [[t("accountDistribution"), dist.accounts], [t("assetTypeDistribution"), dist.assetTypes], [t("currencyDistribution"), dist.currencies]].forEach(([title, items]) => root.append(distribution(title, items, dist.currency)));
+  replacePage(root, refresh);
 }
 function chart(points) {
   const valid = points.filter(v => v.value !== null && !v.future); const section = el("section", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: t("history") })));
@@ -470,13 +553,15 @@ function chart(points) {
   const coords = valid.map((v, i) => `${(i / Math.max(1, valid.length - 1)) * 100},${94 - ((Number(v.value) - min) / span) * 84}`).join(" ");
   const svg = el("svg", { class: "chart", viewBox: "0 0 100 100", preserveAspectRatio: "none", role: "img", "aria-label": t("history") });
   [10, 38, 66, 94].forEach(y => svg.append(el("line", { class: "chart-grid", x1: 0, x2: 100, y1: y, y2: y })));
-  svg.append(el("polyline", { points: coords })); section.append(svg); return section;
+  if (valid.length === 1) svg.append(el("circle", { class: "chart-point", cx: 50, cy: 52, r: 1.3 }));
+  else svg.append(el("g", { class: "chart-curve" }, el("polyline", { points: coords })));
+  section.append(svg); return section;
 }
 function distribution(title, items, currency) {
   const max = Math.max(1, ...items.map(v => Math.abs(Number(v.value))));
   const rows = items.map(v => el("div", { class: "bar-row" },
     el("span", { text: v.label }),
-    el("div", { class: "bar-track" }, el("div", { class: "bar-fill", style: `width:${Math.min(100, Math.abs(Number(v.value)) / max * 100)}%` })),
+    el("div", { class: "bar-track" }, el("div", { class: "bar-fill", "data-bar-key": `${title}:${v.label}`, style: `width:${Math.min(100, Math.abs(Number(v.value)) / max * 100)}%` })),
     el("span", { class: "numeric", text: fmt(v.value, currency) })));
   return el("section", { class: "section" },
     el("div", { class: "section-head" }, el("h2", { text: title })), el("div", { class: "bars" }, ...rows));
@@ -550,14 +635,94 @@ function errorMessage(error) {
   const labels = { STALE_RECORD: t("staleRecord"), STALE_BALANCE: t("staleBalance"), CURRENCY_LOCKED: t("currencyLocked"), SYMBOL_LOCKED: t("symbolLocked"), INSUFFICIENT_HOLDING: t("insufficientHolding"), FORMAT: t("invalidFormat") };
   return labels[error.code] || (error.code && t(error.code) !== error.code ? t(error.code) : null) || `${t("saveFailed")}: ${error.code || error.message}`;
 }
-let toastTimer, drawerOrigin;
-function notify(message) { const toast = $("#toast"); toast.textContent = message; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.hidden = true, 5000); }
+let toastTimer, drawerOrigin, drawerCycle = 0, toastCycle = 0;
+function captureDrawerParent() {
+  const content = $("#drawer-content").firstElementChild;
+  if ($("#drawer").hidden || !content?.drawerRoute) return null;
+  return { content, route: content.drawerRoute, title: $("#drawer-title").textContent,
+    kicker: $("#drawer-kicker").textContent, scrollTop: $("#drawer-content").scrollTop };
+}
+let sharedDrawerWidth = null, cancelDrawerResize = () => {};
+function configureDrawerResize(drawer) {
+  cancelDrawerResize();
+  let handle = drawer.querySelector(".drawer-resize-handle");
+  if (!handle) {
+    handle = el("div", { class: "drawer-resize-handle", role: "separator", tabindex: 0,
+      "aria-orientation": "vertical", "aria-controls": "drawer-content" });
+    drawer.prepend(handle);
+    let drag = null;
+    const bounds = () => ({ min: Math.min(480, innerWidth - 32), max: innerWidth - 32 });
+    const applyWidth = () => {
+      const { min, max } = bounds(), width = Math.round(Math.max(min, Math.min(max, sharedDrawerWidth ?? 680)));
+      drawer.style.setProperty("--drawer-width", `${width}px`);
+      handle.setAttribute("aria-valuemin", String(min)); handle.setAttribute("aria-valuemax", String(max));
+      handle.setAttribute("aria-valuenow", String(width)); handle.setAttribute("aria-valuetext", `${width} px`);
+    };
+    const finish = (commit) => {
+      if (!drag) return;
+      const previous = drag; drag = null;
+      if (!commit) sharedDrawerWidth = previous.savedWidth;
+      if (handle.hasPointerCapture(previous.id)) handle.releasePointerCapture(previous.id);
+      document.body.classList.remove("resizing-drawer"); applyWidth();
+    };
+    cancelDrawerResize = () => finish(false);
+    handle.addEventListener("pointerdown", event => {
+      if (event.button !== 0 || !event.isPrimary || drawer.inert || matchMedia("(max-width:640px)").matches) return;
+      event.preventDefault();
+      // Direct manipulation must follow the pointer, not the entrance animation.
+      motion.stop(drawer);
+      drag = { id: event.pointerId, x: event.clientX, width: drawer.getBoundingClientRect().width, savedWidth: sharedDrawerWidth };
+      handle.setPointerCapture(event.pointerId); handle.focus({ preventScroll: true });
+      document.body.classList.add("resizing-drawer");
+    });
+    handle.addEventListener("pointermove", event => {
+      if (drag?.id !== event.pointerId) return;
+      const { min, max } = bounds();
+      sharedDrawerWidth = Math.max(min, Math.min(max, drag.width + drag.x - event.clientX)); applyWidth();
+    });
+    handle.addEventListener("pointerup", event => { if (drag?.id === event.pointerId) finish(true); });
+    handle.addEventListener("pointercancel", () => finish(false));
+    handle.addEventListener("lostpointercapture", () => finish(false));
+    handle.addEventListener("click", event => event.stopPropagation());
+    handle.addEventListener("dblclick", () => { finish(false); sharedDrawerWidth = null; applyWidth(); });
+    handle.addEventListener("keydown", event => {
+      if (event.key === "Escape" && drag) { event.preventDefault(); event.stopPropagation(); finish(false); return; }
+      if (!["ArrowLeft", "ArrowRight", "Home", "End", "Enter"].includes(event.key)) return;
+      event.preventDefault(); finish(false);
+      const { min, max } = bounds(), current = drawer.getBoundingClientRect().width;
+      sharedDrawerWidth = event.key === "Enter" ? null : event.key === "Home" ? min : event.key === "End" ? max :
+        Math.max(min, Math.min(max, current + (event.key === "ArrowLeft" ? 24 : -24)));
+      applyWidth();
+    });
+    window.addEventListener("blur", () => finish(false));
+    window.addEventListener("resize", () => { finish(false); applyWidth(); });
+    handle.applyWidth = applyWidth;
+  }
+  handle.setAttribute("aria-label", t("resizePanel")); handle.title = t("resizePanelHint");
+  handle.applyWidth();
+}
+function notify(message) {
+  if (document.body.dataset.ended) return;
+  const toast = $("#toast"), cycle = ++toastCycle;
+  const alreadyVisible = !toast.hidden; toast.textContent = message; toast.hidden = false; clearTimeout(toastTimer);
+  if (alreadyVisible) motion.stop(toast);
+  if (!alreadyVisible) motion.run(toast, [{ opacity: 0, translate: "0 6px" }, { opacity: 1, translate: "0 0" }], { duration: 220 });
+  toastTimer = setTimeout(async () => {
+    const done = await motion.run(toast, [{ opacity: 1 }, { opacity: 0 }], { duration: 200 });
+    if (done && cycle === toastCycle) toast.hidden = true;
+  }, 5000);
+}
 function saved() { notify(t("saved")); }
-function openDrawer(title, kicker, content) {
-  if (!$("#drawer").hidden && !closeDrawer()) return;
-  drawerOrigin = document.activeElement;
+function openDrawer(title, kicker, content, confirmedReplacement = false) {
+  if (document.body.dataset.ended) return;
+  finishLoading();
+  const drawer = $("#drawer"), replacing = !drawer.hidden, origin = drawerOrigin;
+  if (replacing && !confirmedReplacement && !closeDrawer(false, true)) return;
+  ++drawerCycle; motion.stop(drawer); motion.stop($("#scrim")); drawer.inert = false;
+  drawerOrigin = replacing ? origin : document.activeElement;
   $("#drawer-title").textContent = title; $("#drawer-kicker").textContent = kicker || "";
   clear($("#drawer-content")); $("#drawer-content").append(content);
+  configureDrawerResize(drawer);
   $("#scrim").hidden = false; $("#drawer").hidden = false; $("#workspace").inert = true;
   $("#drawer-content").scrollTop = 0;
   document.body.classList.add("modal-open");
@@ -572,17 +737,64 @@ function openDrawer(title, kicker, content) {
     form.addEventListener("submit", event => { event.preventDefault(); $("[data-save]", form)?.click(); });
   }
   $("#drawer-close").focus();
+  motion.bindDetails(content);
+  if (replacing) motion.run($("#drawer-content"), [{ opacity: .45, transform: "translateY(5px)" }, { opacity: 1, transform: "none" }], { duration: 260 });
+  else {
+    const offset = matchMedia("(max-width:640px)").matches ? "translateY(20px)" : "translateX(24px)";
+    motion.run(drawer, [{ opacity: .65, transform: offset }, { opacity: 1, transform: "none" }], { duration: 380 });
+    motion.run($("#scrim"), [{ opacity: 0 }, { opacity: 1 }], { duration: 300 });
+    motion.enter(content);
+  }
 }
-function closeDrawer(force = false) {
+function closeDrawer(force = false, immediate = false) {
+  const drawer = $("#drawer");
+  if (document.body.dataset.ended) { immediate = true; finishLoading(); motion.stop($("#content")); motion.stop($("#toast")); }
+  if (drawer.hidden) return true;
+  if (drawer.inert && force !== true && !immediate) return false;
   if (force !== true && state.saving) return false;
   const form = $("#drawer-content form");
   if (force !== true && form?.pendingSubmission) { notify(t("unknownResult")); return false; }
   if (force !== true && form?.dataset.dirty && !confirm(t("discard"))) return false;
+  const parent = $("#drawer-content").firstElementChild?.parentDrawer;
+  if (!immediate && parent) {
+    const reload = force === true || state.pendingRefresh;
+    if (force === true) state.pendingRefresh = true;
+    // Return within the existing shell; a successful save must reload fresh account data.
+    const content = reload ? el("div", { class: "empty", role: "status", text: t("loading") }) : parent.content;
+    openDrawer(parent.title, parent.kicker, content, true);
+    $("#drawer-content").scrollTop = parent.scrollTop;
+    if (reload) {
+      const returnState = { cycle: drawerCycle, scrollTop: parent.scrollTop };
+      // Preserve the original route chain when refreshing a parent after a mutation.
+      content.parentDrawer = parent.route.parentDrawer || null;
+      const retry = () => (parent.route.kind === "position"
+        ? positionDetail(parent.route.id, returnState, parent.route.parentDrawer)
+        : accountDetail(parent.route.id, returnState)).catch(error => {
+        if (error.name === "AbortError" || returnState.cycle !== drawerCycle || document.body.dataset.ended) return;
+        clear(content); content.append(el("p", { role: "alert", text: t("loadFailed") }), button(t("refresh"), retry));
+      });
+      retry();
+    }
+    return true;
+  }
   if (form?.deletionTicket) api("/api/v1/account-deletion-cancel", { method: "POST", body: JSON.stringify({ ticket: form.deletionTicket }) }).catch(() => {});
-  $("#scrim").hidden = true; $("#drawer").hidden = true; clear($("#drawer-content"));
-  $("#workspace").inert = false; document.body.classList.remove("modal-open");
-  if (drawerOrigin?.isConnected) drawerOrigin.focus(); drawerOrigin = null;
-  if (state.pendingRefresh && force !== true) scheduleRefresh();
+  cancelDrawerResize();
+  const cycle = ++drawerCycle;
+  const finish = () => {
+    if (cycle !== drawerCycle) return;
+    motion.stop(drawer); motion.stop($("#scrim"));
+    $("#scrim").hidden = true; drawer.hidden = true; drawer.inert = false; clear($("#drawer-content"));
+    $("#workspace").inert = false; document.body.classList.remove("modal-open");
+    if (drawerOrigin?.isConnected) drawerOrigin.focus({ preventScroll: true }); drawerOrigin = null;
+    if (!document.body.dataset.ended && (state.pendingRefresh || force === true)) scheduleRefresh();
+  };
+  if (immediate || document.body.dataset.ended) finish();
+  else {
+    drawer.inert = true;
+    const style = getComputedStyle(drawer), offset = matchMedia("(max-width:640px)").matches ? "translateY(14px)" : "translateX(18px)";
+    motion.run($("#scrim"), [{ opacity: getComputedStyle($("#scrim")).opacity }, { opacity: 0 }], { duration: 240 });
+    motion.run(drawer, [{ opacity: style.opacity, transform: style.transform }, { opacity: 0, transform: offset }], { duration: 260 }).then(done => { if (done) finish(); });
+  }
   return true;
 }
 function hero(summary, primary) {
