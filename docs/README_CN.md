@@ -6,7 +6,7 @@
 
 <p align="center">一款以本地存储为主的 Android 个人财务记录与资产管理应用。</p>
 <p align="center"><strong>版本 0.0.15</strong> · <a href="../LICENSE">MIT 许可证</a></p>
-<p align="center"><a href="README.md">English</a> · 简体中文</p>
+<p align="center"><a href="../README.md">English</a> · 简体中文</p>
 
 ## 用途
 
@@ -34,6 +34,10 @@ Valnook 帮助您集中管理储蓄、信用账户、定期存款和投资记录
   </tr>
 </table>
 
+<p align="center">
+  <img src="images/wallet-motion-cn.gif" width="300" alt="选择卡片与返回卡包的动画">
+</p>
+
 ## 项目架构
 
 | 模块 | 职责 |
@@ -42,7 +46,7 @@ Valnook 帮助您集中管理储蓄、信用账户、定期存款和投资记录
 | `core:domain` | 数据模型、财务计算规则和数据访问接口。 |
 | `core:data` | 本地存储、数据访问实现、备份恢复和本地网页服务。 |
 | `core:designsystem` | 共用主题与 UI 组件。 |
-| `feature:*` | 账户、资金、定期、投资、卡包、统计、设置、备份和网页管理页面。 |
+| `feature:*` | 账户、资金、定期、投资、卡包、统计、设置、备份和网页管理页然后面。 |
 
 ## 实现方式
 
