@@ -94,6 +94,7 @@ class WalletImageCache(private val repository: WalletRepository) {
                 drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha=.045f),Color.Transparent)),size.width*.65f,Offset(size.width,size.height*1.1f))
             }
         }
+        if(card.imageKey==null)card.faceStyle?.let { WalletFaceCanvas(it,Modifier.matchParentSize()) }
         image?.let { Image(it.bitmap,contentDescription=null,modifier=Modifier.fillMaxSize(),contentScale=ContentScale.Crop) }
     }
 }

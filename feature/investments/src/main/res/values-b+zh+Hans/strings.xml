@@ -100,4 +100,6 @@
     <string name="investment_fx_summary">按当前设置汇率折算 ⓘ</string>
     <string name="investment_search">搜索名称、代码或币种</string>
     <string name="investment_catalogue">管理投资品</string>
+    <string name="investment_closed_positions">已清仓</string>
+    <string name="investment_no_closed_positions">暂无已清仓记录</string>
 </resources>

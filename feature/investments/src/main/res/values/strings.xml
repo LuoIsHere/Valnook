@@ -100,4 +100,6 @@
     <string name="investment_fx_summary">Converted at configured rates ⓘ</string>
     <string name="investment_search">Search name, symbol or currency</string>
     <string name="investment_catalogue">Manage instruments</string>
+    <string name="investment_closed_positions">Closed positions</string>
+    <string name="investment_no_closed_positions">No closed positions</string>
 </resources>

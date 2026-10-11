@@ -32,4 +32,5 @@
     <string name="cash_due_today">今天是还款日</string>
     <string name="cash_due_in">还款日还有 %1$d 天</string>
     <string name="cash_statement_in">账单日还有 %1$d 天</string>
+    <string name="cash_previous_balance">调整前余额 %1$s</string>
 </resources>

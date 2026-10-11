@@ -17,28 +17,34 @@ import dev.valnook.domain.calculation.CreditBillingCalendar
 import dev.valnook.domain.calculation.CreditBillingFocus
 import dev.valnook.domain.calculation.CreditLimitCalculator
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.unit.dp
 import java.math.RoundingMode
 import java.time.LocalDate
 
 /** Shared balance layout for the currency list and its ledger header. */
 @Composable fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?,
     modifier:Modifier=Modifier,allAccounts:List<CashAccount> = emptyList(),
-    creditSourceLabels:Map<Long,String> = emptyMap()) {
+    creditSourceLabels:Map<Long,String> = emptyMap(),
+    trend:List<dev.valnook.domain.model.CashTrendPoint>? = null) {
     Column(modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(Space.sm)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(account.name.ifBlank { account.currency.code },modifier=Modifier.weight(1f).padding(end=Space.sm),maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
-                color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(if(account.type==BalanceAccountType.CREDIT) stringResource(R.string.cash_credit_account)
-                else stringResource(R.string.cash_savings_account),style=MaterialTheme.typography.labelMedium,
-                color=MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text(DecimalRules.format_display(account.balance_minor,account.currency.fraction_digits)+" "+account.currency.code,
-                style=MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings="tnum"),modifier=Modifier.weight(1f),
-                color=if(account.type==BalanceAccountType.SAVINGS && account.balance_minor<0)
-                    MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-            if(on_edit!=null) CompactEditButton(stringResource(R.string.cash_edit_balance), on_edit)
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.sm)) {
+            Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement=Arrangement.spacedBy(Space.sm),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                    Text(account.name.ifBlank { account.currency.code },maxLines=2,
+                        overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(if(account.type==BalanceAccountType.CREDIT) stringResource(R.string.cash_credit_account)
+                        else stringResource(R.string.cash_savings_account),style=MaterialTheme.typography.labelSmall,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.75f),modifier=Modifier.padding(top=3.dp))
+                }
+                Text(DecimalRules.format_display(account.balance_minor,account.currency.fraction_digits)+" "+account.currency.code,
+                    style=MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings="tnum"),
+                    color=if(account.type==BalanceAccountType.SAVINGS && account.balance_minor<0)
+                        MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
+            }
+            if(trend!=null)CashTrendChart(trend,account,Modifier.width(84.dp),compact=true)
+            if(on_edit!=null)CompactEditButton(stringResource(R.string.cash_edit_balance),on_edit)
         }
         if(account.note.isNotBlank()) Text(account.note,style=MaterialTheme.typography.bodySmall)
         if(account.type==BalanceAccountType.CREDIT) {

@@ -38,7 +38,8 @@ internal object CommandFingerprint {
                 command.expectedRevision, command.priceE5, command.effectiveAtMs)
             is CreateInvestmentPosition -> listOf("POSITION_CREATE", command.accountId, command.instrumentId)
             is SetCashBalance -> listOf("CASH_SET",command.account_id,Currency.of(command.currency_code).code,
-                command.balance_minor,command.expected_revision,command.cashAccountId,command.name.trim(),command.note)
+                command.balance_minor,command.expected_revision,command.cashAccountId,command.name.trim(),command.note) +
+                (if(command.entryNote.isBlank()) emptyList() else listOf("ENTRY_NOTE",command.entryNote.trim()))
             is OpenTermDeposit -> listOf("TERM_OPEN",command.account_id,Currency.of(command.currency_code).code,command.principal_minor,
                 command.annual_rate_percent_e8,command.start_epoch_day,command.end_epoch_day,command.cash_linked,
                 command.cashAccountId)

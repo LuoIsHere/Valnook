@@ -7,6 +7,8 @@ interface AccountRepository {
     fun observe_accounts(): Flow<List<SavingsAccount>>
 }
 interface CashRepository {
+    fun observeTrends(accountId: Long, now: java.time.Instant, zone: java.time.ZoneId): Flow<Map<Long, List<CashTrendPoint>>> =
+        kotlinx.coroutines.flow.flowOf(emptyMap())
     fun observe_cash(account_id: Long): Flow<List<CashAccount>>
     fun observeCashAccount(cashAccountId: Long): Flow<CashAccount?>
     fun observeCashEntries(cashAccountId: Long, limit: Int): Flow<List<CashEntry>>
@@ -50,7 +52,7 @@ enum class CommandSource { MOBILE, WEB_ADMIN }
 sealed interface FinancialCommand { val operation_id: String }
 data class SetCashBalance(override val operation_id: String, val account_id: Long,
     val currency_code: String, val balance_minor: Long, val expected_revision: Long?,
-    val cashAccountId: Long? = null, val name: String = "", val note: String = "") : FinancialCommand
+    val cashAccountId: Long? = null, val name: String = "", val note: String = "", val entryNote: String = "") : FinancialCommand
 data class OpenTermDeposit(override val operation_id: String, val account_id: Long,
     val currency_code: String, val principal_minor: Long, val annual_rate_percent_e8: Long,
     val start_epoch_day: Long, val end_epoch_day: Long, val cash_linked: Boolean,

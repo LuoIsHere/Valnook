@@ -7,6 +7,15 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CashDao {
+    // One snapshot for all subaccounts; no per-row history query or audit movement double counting.
+    @Query("""SELECT c.id AS cashId,c.balance_minor AS balance,c.created_at_ms AS createdAt,
+        (SELECT baseline_at_ms FROM statistics_state WHERE id=1) AS baseline,
+        e.occurred_at_ms AS occurredAt,e.delta_minor AS delta
+        FROM cash_accounts c LEFT JOIN cash_entries e ON e.cash_account_id=c.id
+        AND e.is_deleted=0 AND e.occurred_at_ms>=:startMs
+        WHERE c.savings_account_id=:accountId ORDER BY c.id,e.occurred_at_ms,e.id""")
+    fun trends(accountId:Long,startMs:Long):Flow<List<CashTrendRow>>
+
     @Query("SELECT MIN(occurred_at_ms) AS firstMs,MAX(occurred_at_ms) AS lastMs FROM cash_entries WHERE cash_account_id=:id AND is_deleted=0")
     fun monthBounds(id: Long): Flow<dev.valnook.domain.repository.LedgerBounds>
 
@@ -169,3 +178,5 @@ data class BalanceAccountRow(
     val due_rule_value: Int?,
     val limit_source_account_id: Long?
 )
+
+data class CashTrendRow(val cashId:Long,val balance:Long,val createdAt:Long,val baseline:Long?,val occurredAt:Long?,val delta:Long?)

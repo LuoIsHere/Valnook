@@ -130,13 +130,14 @@ internal class CashWriter(
         sourceId: Long?,
         delta: Long,
         occurred: Long,
-        now: Long
+        now: Long,
+        note: String = ""
     ): Long {
         val account = dao.cashAccount(cashAccountId) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
         return dao.insert_entry(CashEntryEntity(original_operation_id = operationId,
             savings_account_id = account.savings_account_id, currency_code = account.currency_code,
             cash_account_id = account.id, source_kind = kind, source_id = sourceId, delta_minor = delta,
-            occurred_at_ms = occurred, note = "", revision = 1, is_deleted = false,
+            occurred_at_ms = occurred, note = note, revision = 1, is_deleted = false,
             created_at_ms = now, updated_at_ms = now))
     }
 }

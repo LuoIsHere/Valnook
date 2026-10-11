@@ -13,11 +13,12 @@ import java.time.Clock
 class RoomWallet(private val db: ValnookDatabase, private val clock: Clock) : WalletRepository {
     override fun observeCards() = db.wallet().observeCards().map { rows -> rows.map {
         WalletCard(it.id,it.name,it.image_key,it.bound_cash_account_id,it.display_order,it.created_at_ms,
-            it.updated_at_ms,it.revision,it.binding_lost)
+            it.updated_at_ms,it.revision,it.binding_lost,it.face_style?.let(WalletFaceStyle::decode))
     } }
     override suspend fun image(key: String) = db.wallet().image(key)?.let { WalletImage(it.id,it.data,it.width,it.height,it.tint) }
     override suspend fun save(id: Long?, expectedRevision: Long?, name: String, cashAccountId: Long?,
-        imageKey: String?, image: WalletImage?): Long {
+        imageKey: String?, image: WalletImage?, faceStyle: WalletFaceStyle?): Long {
+        require(faceStyle == null || (imageKey == null && image == null))
         val cleanName = WalletRules.name(name)
         if (image != null && !withContext(Dispatchers.Default) { WalletImages.valid(image) }) throw DomainException(ErrorCode.FORMAT)
         return db.withTransaction {
@@ -32,7 +33,7 @@ class RoomWallet(private val db: ValnookDatabase, private val clock: Clock) : Wa
             val now = clock.millis()
             val row = WalletCardEntity(id ?: 0,cleanName,imageKey,cashAccountId,
                 old?.display_order ?: ((db.wallet().cards().maxOfOrNull { it.display_order } ?: -1) + 1),
-                old?.created_at_ms ?: now,now,(old?.revision ?: 0) + 1,false)
+                old?.created_at_ms ?: now,now,(old?.revision ?: 0) + 1,false,faceStyle?.encode())
             val savedId = if (old == null) db.wallet().insert(row) else { check(db.wallet().update(row) == 1); old.id }
             db.wallet().collectImages()
             check(db.audit().advanceGeneration(now) == 1)

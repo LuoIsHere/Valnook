@@ -21,15 +21,17 @@ import java.time.*
 
 @Composable fun CashScreen(vm:CashViewModel,on_open:(Long)->Unit) {
     val state by vm.balances.collectAsStateWithLifecycle()
+    val trends by vm.trends.collectAsStateWithLifecycle()
     when (val current = state) {
         CashBalancesState.Loading -> CircularProgressIndicator()
         CashBalancesState.Failed -> Text(stringResource(CashR.string.cash_balance_load_failed))
         is CashBalancesState.Ready -> CashContent(current.rows, current.allAccounts,
-            current.creditSourceLabels) { on_open(it.id) }
+            current.creditSourceLabels, trends) { on_open(it.id) }
     }
 }
 @Composable fun CashContent(rows:List<CashAccount>,allAccounts:List<CashAccount> = rows,
     creditSourceLabels:Map<Long,String> = emptyMap(),
+    trends:Map<Long,List<CashTrendPoint>> = emptyMap(),
     on_open:(CashAccount)->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
@@ -37,13 +39,14 @@ import java.time.*
             val history_label=stringResource(R.string.cash_changes)+" · "+cash.name
             CashBalanceSummary(cash,null,Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable{on_open(cash)}
                 .semantics{contentDescription=history_label}.padding(vertical=Space.sm), allAccounts,
-                creditSourceLabels)
+                creditSourceLabels, trends[cash.id].orEmpty())
             if(index<rows.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
 @Composable fun CashDetail(vm:CashViewModel,cashAccountId:Long,on_form:()->Unit,on_entry:(Long)->Unit) {
     val ledgerState by vm.entries.collectAsStateWithLifecycle()
+    val trends by vm.trends.collectAsStateWithLifecycle()
     LaunchedEffect(cashAccountId){vm.watchCashAccount(cashAccountId)}
     if (ledgerState == CashLedgerState.Failed) {
         Text(stringResource(CashR.string.cash_history_load_failed))
@@ -69,6 +72,7 @@ import java.time.*
                 modifier=Modifier.fillMaxWidth().padding(16.dp))
             }
         }
+        item { CashTrendChart(trends[cashAccountId].orEmpty(),balance,Modifier.fillMaxWidth().padding(bottom=Space.md)) }
         item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
         item { MonthPager(ledger.month, vm::selectMonth) }
         if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}

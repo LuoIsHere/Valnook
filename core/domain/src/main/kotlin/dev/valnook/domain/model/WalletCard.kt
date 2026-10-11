@@ -2,7 +2,7 @@ package dev.valnook.domain.model
 
 data class WalletCard(val id: Long, val name: String, val imageKey: String?,
     val boundCashAccountId: Long?, val displayOrder: Long, val createdAtMs: Long,
-    val updatedAtMs: Long, val revision: Long, val bindingLost: Boolean = false)
+    val updatedAtMs: Long, val revision: Long, val bindingLost: Boolean = false, val faceStyle: WalletFaceStyle? = null)
 
 data class WalletImage(val key: String, val bytes: ByteArray, val width: Int, val height: Int,
     val tint: Long)

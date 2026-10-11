@@ -86,17 +86,12 @@ class DemoDatabaseAssetGeneratorTest {
             "暮紫 · Mauve","暖沙 · Sand","深湾 · Bay","月岩 · Moonstone","烟棕 · Umber",
             "静湖 · Lake","蓝灰 · Slate","晨光 · Dawn","石墨 · Graphite","薄雾 · Haze")
         colors.forEachIndexed { index,color ->
-            val bitmap=android.graphics.Bitmap.createBitmap(1268,800,android.graphics.Bitmap.Config.ARGB_8888)
-            val canvas=android.graphics.Canvas(bitmap)
-            val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
-            paint.shader=android.graphics.LinearGradient(0f,0f,1268f,800f,intArrayOf(color,android.graphics.Color.rgb(25+index*8,29+index*8,35+index*8)),null,android.graphics.Shader.TileMode.CLAMP)
-            canvas.drawRect(0f,0f,1268f,800f,paint)
-            paint.shader=android.graphics.RadialGradient(250f,80f,850f,intArrayOf(0x55ffffff,0x00ffffff),null,android.graphics.Shader.TileMode.CLAMP)
-            canvas.drawCircle(250f,80f,850f,paint)
-            paint.shader=null;paint.style=android.graphics.Paint.Style.STROKE;paint.strokeWidth=2f;paint.color=0x18ffffff
-            for(r in 0..8)canvas.drawCircle(1120f,760f,280f+r*45f,paint)
-            val image=dev.valnook.data.image.WalletImages.encode(bitmap,1f,0f,0f);bitmap.recycle()
-            repository.save(null,null,names[index],bindings[index],image.key,image)
+            val style=dev.valnook.domain.model.WalletFaceStyle(
+                background=dev.valnook.domain.model.WalletFaceBackground.entries[index%3],
+                geometry=dev.valnook.domain.model.WalletFaceGeometry.entries[index%6],
+                base=color.toLong() and 0xffffffffL,
+                secondary=0xff303740L,accent=0xffe4e8edL)
+            repository.save(null,null,names[index],bindings[index],null,faceStyle=style)
         }
     }
 

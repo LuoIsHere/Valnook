@@ -15,6 +15,17 @@ private fun CashEntryWithSource.to_model():CashEntry {
 }
 
 class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
+    override fun observeTrends(accountId:Long,now:java.time.Instant,zone:java.time.ZoneId) =
+        dao.trends(accountId,CashTrendRules.months(now,zone).first().atDay(1).atStartOfDay(zone).toInstant().toEpochMilli())
+            .map { rows -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                rows.groupBy { it.cashId }.mapValues { (_,group) ->
+                    val first=group.first()
+                    CashTrendRules.calculate(first.balance,group.mapNotNull { row ->
+                        row.occurredAt?.let { CashTrendChange(it,requireNotNull(row.delta)) }
+                    },maxOf(first.createdAt,first.baseline?:now.toEpochMilli()),now,zone)
+                }
+            } }
+
     override fun observeMonthBounds(cashAccountId: Long) = dao.monthBounds(cashAccountId)
     override suspend fun cashAccountMonthPage(cashAccountId: Long, month: dev.valnook.domain.repository.LedgerMonth, cursor: LedgerCursor?, size: Int) =
         dao.cashAccountMonthPage(cashAccountId, month.startMs, month.endMs, cursor?.time, cursor?.id, size.coerceIn(1,100)).map { it.to_model() }

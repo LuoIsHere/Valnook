@@ -13,7 +13,7 @@ data class WalletLedger(val month: YearMonth, val rows: List<CashEntry> = emptyL
     val loading: Boolean = true, val more: Boolean = false, val appending: Boolean = false,
     val failed: Boolean = false, val appendFailed: Boolean = false, val generation: Long = 0)
 data class WalletDraft(val id: Long?, val revision: Long?, val name: String, val boundId: Long?,
-    val imageKey: String?, val image: WalletImage? = null)
+    val imageKey: String?, val image: WalletImage? = null, val faceStyle: WalletFaceStyle? = null)
 
 class WalletViewModel(val sessionId: String, val repository: WalletRepository,
     private val overview: OverviewRepository, private val pages: PagedCashRepository,
@@ -110,12 +110,12 @@ class WalletViewModel(val sessionId: String, val repository: WalletRepository,
     }
     fun edit(card: WalletCard?=null) {
         operationFailed.value=false
-        draft.value=WalletDraft(card?.id,card?.revision,card?.name.orEmpty(),card?.boundCashAccountId,card?.imageKey)
+        draft.value=WalletDraft(card?.id,card?.revision,card?.name.orEmpty(),card?.boundCashAccountId,card?.imageKey,faceStyle=card?.faceStyle)
     }
     fun save() {
         val value=draft.value?:return
         mutate {
-            val id=repository.save(value.id,value.revision,value.name,value.boundId,value.imageKey,value.image)
+            val id=repository.save(value.id,value.revision,value.name,value.boundId,value.imageKey,value.image,value.faceStyle)
             mutableCards.value=repository.observeCards().first()
             draft.value=null;select(id)
         }

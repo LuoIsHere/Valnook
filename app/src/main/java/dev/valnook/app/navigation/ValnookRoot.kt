@@ -211,6 +211,10 @@ private fun SessionRoot(
             stack.add(firstRoot)
         }
     }
+    val selectedCash by remember(graph,current) {
+        (current as? CashKey)?.let { graph.cash.observeCashAccount(it.cashAccountId) }
+            ?: kotlinx.coroutines.flow.flowOf(null)
+    }.collectAsStateWithLifecycle(null)
     val accounts by remember(graph) { graph.accounts.observe_accounts() }.collectAsStateWithLifecycle(emptyList())
     val pickerRates = remember(settings) {
         val base = settings.baseCurrency?.code
@@ -285,11 +289,12 @@ private fun SessionRoot(
         is AccountEditKey -> stringResource(R.string.title_edit_account)
         AccountOrderKey -> stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
-        is AccountInvestmentsKey -> stringResource(R.string.title_all_instruments)
+        is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
         is InstrumentKey -> stringResource(R.string.title_instrument_detail)
         is InstrumentPriceEditKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
         is AccountInstrumentKey -> accountName(current.accountId)
         is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
+        is CashKey -> selectedCash?.name.orEmpty()
         is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
         else -> "Valnook"
     }
@@ -314,6 +319,8 @@ private fun SessionRoot(
     val addAccountDescription = stringResource(R.string.nav_add_account)
     val instrumentLibraryDescription = stringResource(R.string.nav_instrument_library)
     val sortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
+    var balanceToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.cash.CashBalanceToolbarState?>(null) }
+    val updateBalanceToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.cash.CashBalanceToolbarState? -> balanceToolbar=value } }
     var accountEditSave by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountEditToolbarState?>(null) }
     val updateEditSave = remember(graph.sessionId) { { value: dev.valnook.feature.accounts.AccountEditToolbarState? -> accountEditSave = value } }
     var editSortAction by remember(graph.sessionId) { mutableStateOf<(() -> Unit)?>(null) }
@@ -401,8 +408,9 @@ private fun SessionRoot(
                     InvestmentsKey, HiddenInvestmentsKey -> IconButton({ open(InstrumentLibraryKey) }, Modifier.semantics {
                         contentDescription = instrumentLibraryDescription
                     }) { MenuIcon() }
-                    is AccountKey -> dev.valnook.designsystem.TopBarAction(stringResource(R.string.nav_edit),
+                    is AccountKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
+                    is CashBalanceEditKey -> dev.valnook.feature.cash.CashBalanceSaveAction(balanceToolbar)
                     is CashKey -> dev.valnook.designsystem.DeleteIconButton(
                         stringResource(dev.valnook.feature.accounts.R.string.account_delete_title),
                         { deleteTarget = current.accountId to current.cashAccountId }, Modifier.testTag("cash-delete-open"))
@@ -440,7 +448,7 @@ private fun SessionRoot(
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
                             accountEntries(graph, open, back, updateEditSortAction, updateEditSave) { parent, cash -> deleteTarget = parent to cash }
                             investmentEntries(graph, open, back, accountName)
-                            ledgerEntries(graph, open, back, accountName)
+                            ledgerEntries(graph, open, back, accountName, updateBalanceToolbar)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
                                     graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate) }, updateWalletToolbar,

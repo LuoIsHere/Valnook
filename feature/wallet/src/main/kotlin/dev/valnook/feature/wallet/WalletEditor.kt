@@ -48,7 +48,7 @@ import kotlinx.coroutines.*
         GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)
             .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text(if(value.id==null)wording("Add card","添加卡片")else wording("Edit card","编辑卡片"),style=MaterialTheme.typography.titleLarge)
-            WalletCardView(WalletCard(value.id?:0,value.name,value.imageKey,value.boundId,0,0,0,0),cache,preview=value.image)
+            WalletCardView(WalletCard(value.id?:0,value.name,value.imageKey,value.boundId,0,0,0,0,faceStyle=value.faceStyle),cache,preview=value.image)
             OutlinedTextField(value.name,{vm.draft.value=value.copy(name=it)},label={Text(wording("Card name","卡片名称"))},
                 singleLine=true,enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("wallet-name"),
                 supportingText={Text(wording("1–40 characters · only shown outside the card","1–40 个字符，仅在卡面外显示"))})
@@ -56,6 +56,7 @@ import kotlinx.coroutines.*
                 TextButton({focus.clearFocus();keyboard?.hide();picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=!busy,modifier=Modifier.testTag("wallet-photo")){Text(wording("Choose image","选择图片"))}
                 if(value.imageKey!=null||value.image!=null)TextButton({vm.draft.value=value.copy(imageKey=null,image=null)},enabled=!busy){Text(wording("Remove image","移除图片"))}
             }
+            WalletFacePicker(value.faceStyle, !busy, value.imageKey!=null||value.image!=null) { style -> vm.draft.value=value.copy(faceStyle=style,imageKey=null,image=null) }
             Text(wording("Use a blank or redacted card face. Images stay on this device and are included in your backups.","建议使用空白或已遮挡敏感信息的卡面。图片在本机处理，并随完整备份保存。"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             val account=snapshot?.cash?.firstOrNull{it.id==value.boundId}
             val parent=snapshot?.accounts?.firstOrNull{it.id==account?.account_id}
@@ -86,7 +87,7 @@ import kotlinx.coroutines.*
             }
         } }
     }
-    uri?.let { selected->WalletCrop(selected,{image->vm.draft.value=vm.draft.value?.copy(imageKey=image.key,image=image)}){
+    uri?.let { selected->WalletCrop(selected,{image->vm.draft.value=vm.draft.value?.copy(imageKey=image.key,image=image,faceStyle=null)}){
         runCatching{context.contentResolver.releasePersistableUriPermission(Uri.parse(selected),Intent.FLAG_GRANT_READ_URI_PERMISSION)};uri=null
     } }
 }

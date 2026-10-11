@@ -39,7 +39,10 @@ import kotlinx.coroutines.delay
     }
     LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=pageContentPadding(horizontal=Space.md),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         if(closed)item{Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.titleLarge)}
-        else if(on_archive!=null)item{ActionButton(onClick=on_archive,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.settled_deposits))}}
+        else item { Row(Modifier.fillMaxWidth(), horizontalArrangement=Arrangement.spacedBy(Space.sm)) {
+            Button(onClick=on_form,modifier=Modifier.weight(1f)){Text(stringResource(R.string.open_deposit))}
+            if(on_archive!=null) ActionButton(onClick=on_archive,modifier=Modifier.weight(1f)){Text(stringResource(R.string.settled_deposits))}
+        } }
         item{Text(stringResource(R.string.term_formula),style=MaterialTheme.typography.bodySmall,
             color=MaterialTheme.colorScheme.onSurfaceVariant)}
         if(month!=null)item{MonthPager(month,onMonth)}
@@ -63,7 +66,7 @@ import kotlinx.coroutines.delay
             }
         }
         if(hasMore)item{if(month!=null){LaunchedEffect(rows.size,month){on_more()};CircularProgressIndicator()}else TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}}
-        if(!closed)item{Button(onClick=on_form,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.open_deposit))}}
+
     }
 }
 @Preview(showBackground=true,widthDp=360)

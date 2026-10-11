@@ -11,7 +11,7 @@ internal fun InvestmentWithType.toModel(): Investment {
         DecimalRules.exact_long(java.math.BigDecimal.valueOf(current_price_e5).multiply(java.math.BigDecimal("1000"))),
         price_updated_at_ms, position.revision, position.last_activity_at_ms,
         position.instrument_id, position.remaining_cost, position.realized_profit,
-        position.chronology_valid, position.algorithm_version)
+        position.chronology_valid, position.algorithm_version, position.position_state == "CLOSED")
 }
 internal fun TradeEntity.toModel(): Trade = Trade(id, investment_id, Direction.valueOf(direction),
     quantity_e8, execution_price_e8, amount_minor, Currency.of(currency_code), cash_linked, occurred_at_ms, revision,

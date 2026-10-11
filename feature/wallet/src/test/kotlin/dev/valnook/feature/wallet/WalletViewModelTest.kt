@@ -20,7 +20,7 @@ class WalletViewModelTest {
     private val repository=object:WalletRepository {
         override fun observeCards()=cards
         override suspend fun image(key:String):WalletImage?=null
-        override suspend fun save(id:Long?,expectedRevision:Long?,name:String,cashAccountId:Long?,imageKey:String?,image:WalletImage?)=error("unused")
+        override suspend fun save(id:Long?,expectedRevision:Long?,name:String,cashAccountId:Long?,imageKey:String?,image:WalletImage?,faceStyle:dev.valnook.domain.model.WalletFaceStyle?)=error("unused")
         override suspend fun delete(id:Long,expectedRevision:Long)=error("unused")
         override suspend fun reorder(expected:List<Long>,ordered:List<Long>)=error("unused")
     }

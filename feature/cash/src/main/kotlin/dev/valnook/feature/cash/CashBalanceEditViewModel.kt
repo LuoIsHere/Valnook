@@ -23,7 +23,8 @@ data class CashBalanceEditState(
     val account: CashAccount? = null,
     val balanceInput: String = "",
     val loaded: Boolean = false,
-    val failed: Boolean = false
+    val failed: Boolean = false,
+    val entryNote: String = ""
 )
 
 class CashBalanceEditViewModel(
@@ -42,7 +43,7 @@ class CashBalanceEditViewModel(
     }
     val submission = session.state
     private val mutable = MutableStateFlow(CashBalanceEditState(balanceInput = saved["balance"] ?: "",
-        loaded = saved["loaded"] ?: false))
+        loaded = false))
     val state = mutable.asStateFlow()
 
     init {
@@ -52,7 +53,7 @@ class CashBalanceEditViewModel(
                     ?.takeIf { it.account_id == parentAccountId } ?: throw DomainException(ErrorCode.NOT_FOUND)
                 val input = saved.get<String>("balance") ?: R.format_units(account.balance_minor,
                     account.currency.fraction_digits)
-                mutable.value = CashBalanceEditState(account, input, true)
+                mutable.value = CashBalanceEditState(account, input, true, entryNote = saved["entryNote"] ?: "")
                 saved["balance"] = input
                 saved["loaded"] = true
             } catch (cancelled: CancellationException) {
@@ -69,6 +70,12 @@ class CashBalanceEditViewModel(
         saved["balance"] = value
     }
 
+    fun changeNote(value: String) {
+        if (!submission.value.editable || value.length > 2000) return
+        mutable.value = state.value.copy(entryNote = value)
+        saved["entryNote"] = value
+    }
+
     fun changePreview(): String? = runCatching {
         val current = requireNotNull(state.value.account)
         val target = R.parse_signed_minor(state.value.balanceInput, current.currency)
@@ -81,7 +88,7 @@ class CashBalanceEditViewModel(
         val current = state.value.account ?: throw DomainException(ErrorCode.NOT_FOUND)
         SetCashBalance(operationId, parentAccountId, current.currency.code,
             R.parse_signed_minor(state.value.balanceInput, current.currency), current.revision,
-            current.id, current.name, current.note)
+            current.id, current.name, current.note, state.value.entryNote)
     }
 
     fun consumeSuccess(): Boolean {

@@ -158,9 +158,23 @@ class CashViewModelTest {
         }
         val vm = CashBalanceEditViewModel(1, 1, reads, commands, SavedStateHandle())
         runCurrent()
+        vm.changeNote("Balance reconciliation")
         vm.changeBalance("-2.500")
         assertEquals("-7.500 KWD", vm.changePreview())
         vm.submit(); runCurrent()
         assertEquals(-2500L, request!!.balance_minor)
+        assertEquals("Balance reconciliation", request!!.entryNote)
     }
+    @Test fun restored_editor_waits_for_account_before_displaying_saved_draft() = runTest(dispatcher) {
+        val commands = object : FinancialCommands {
+            override suspend fun execute(command: FinancialCommand) = OperationResult("CASH_ENTRY", 2)
+        }
+        val vm=CashBalanceEditViewModel(1,1,reads,commands,SavedStateHandle(mapOf("loaded" to true,"balance" to "7.500","entryNote" to "Kept draft")))
+        assertEquals(false,vm.state.value.loaded)
+        runCurrent()
+        assertEquals(true,vm.state.value.loaded)
+        assertEquals("7.500",vm.state.value.balanceInput)
+        assertEquals("Kept draft",vm.state.value.entryNote)
+    }
+
 }

@@ -298,9 +298,9 @@ class AppSessionManager @Inject internal constructor(
             private val delegate = dev.valnook.data.repository.RoomWallet(source.database,source.clock)
             override fun observeCards() = delegate.observeCards()
             override suspend fun image(key: String) = delegate.image(key)
-            override suspend fun save(id: Long?, expectedRevision: Long?, name: String, cashAccountId: Long?, imageKey: String?, image: dev.valnook.domain.model.WalletImage?) = writeMutex.withLock {
+            override suspend fun save(id: Long?, expectedRevision: Long?, name: String, cashAccountId: Long?, imageKey: String?, image: dev.valnook.domain.model.WalletImage?, faceStyle: dev.valnook.domain.model.WalletFaceStyle?) = writeMutex.withLock {
                 requireMobileWrite(sessionId)
-                delegate.save(id,expectedRevision,name,cashAccountId,imageKey,image)
+                delegate.save(id,expectedRevision,name,cashAccountId,imageKey,image,faceStyle)
             }
             override suspend fun delete(id: Long, expectedRevision: Long) = writeMutex.withLock {
                 requireMobileWrite(sessionId); delegate.delete(id,expectedRevision)

@@ -414,7 +414,8 @@ class WalletUiTest {
         root();switchDemo(true)
         val demo=wallet;val cards=runBlocking{demo.observeCards().first()}
         assertEquals(15,cards.size);assertTrue(cards.any{it.boundCashAccountId==null})
-        assertTrue(cards.all{runBlocking{demo.image(requireNotNull(it.imageKey))}!=null})
+        assertTrue(cards.all{it.faceStyle!=null&&it.imageKey==null})
+        assertEquals(6,cards.map{it.faceStyle!!.geometry}.distinct().size)
         assertTrue(runBlocking{runCatching{original.save(null,null,"Stale",null,null)}}.isFailure)
         rule.onNodeWithTag("nav-wallet").performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}

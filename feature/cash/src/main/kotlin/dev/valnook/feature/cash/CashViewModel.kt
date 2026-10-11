@@ -57,6 +57,14 @@ class CashViewModel(
     private val saved: SavedStateHandle,
     private val overview: OverviewRepository? = null, private val clock: Clock = Clock.systemDefaultZone()
 ) : ViewModel() {
+    // Refresh time boundaries while visible, including a device time-zone change.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val trends = kotlinx.coroutines.flow.flow {
+        while (true) { emit(clock.instant() to java.time.ZoneId.systemDefault()); kotlinx.coroutines.delay(60_000) }
+    }.flatMapLatest { (now, zone) -> repository.observeTrends(accountId, now, zone) }
+        .catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyMap())
+
     private val balanceContext = overview?.observeSnapshot()?.map(AssetSnapshot::balanceContext)
         ?: flowOf(BalanceContext(emptyList(), emptyMap()))
 

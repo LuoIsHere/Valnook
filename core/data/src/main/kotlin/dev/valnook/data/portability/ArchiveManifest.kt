@@ -101,6 +101,7 @@ data class ArchiveManifest(
             val features = root.list("requiredFeatures").map { it as? String ?: fail() }
             if (features.toSet().size != features.size) fail()
             if (dataSchemaVersion >= 6 && "wallet-cards-v1" !in features) incompatible()
+            if (dataSchemaVersion >= 7 && "wallet-face-style-v1" !in features) incompatible()
             if (dataSchemaVersion >= 2 && "credit-accounts-v1" !in features) incompatible()
             if (dataSchemaVersion >= 3 && "account-order-v1" !in features) incompatible()
             if (dataSchemaVersion >= 5 && "account-presentation-v1" !in features) incompatible()

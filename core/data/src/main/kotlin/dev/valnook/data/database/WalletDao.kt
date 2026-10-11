@@ -13,7 +13,8 @@ data class WalletImageEntity(@PrimaryKey val id: String, val data: ByteArray,
 ], indices = [Index("image_key"), Index("bound_cash_account_id"), Index(value = ["display_order", "id"])])
 data class WalletCardEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val name: String,
     val image_key: String?, val bound_cash_account_id: Long?, val display_order: Long,
-    val created_at_ms: Long, val updated_at_ms: Long, val revision: Long, val binding_lost: Boolean = false)
+    val created_at_ms: Long, val updated_at_ms: Long, val revision: Long, val binding_lost: Boolean = false,
+    @ColumnInfo(defaultValue = "NULL") val face_style: String? = null)
 
 @Dao
 interface WalletDao {

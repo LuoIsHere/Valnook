@@ -340,6 +340,11 @@ internal class ArchiveReader(
                 if (!dev.valnook.data.image.WalletImages.valid(image)) invalid()
             }
         }
+        sql.query("SELECT face_style,image_key FROM wallet_cards WHERE face_style IS NOT NULL").use { cursor ->
+            while(cursor.moveToNext()) {
+                if (!cursor.isNull(1) || runCatching { dev.valnook.domain.model.WalletFaceStyle.decode(cursor.getString(0)) }.isFailure) mismatch()
+            }
+        }
         sql.query("SELECT name,display_order,revision,binding_lost,bound_cash_account_id FROM wallet_cards").use { cursor ->
             val orders = mutableSetOf<Long>()
             while (cursor.moveToNext()) {

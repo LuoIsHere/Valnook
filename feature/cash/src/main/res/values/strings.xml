@@ -32,4 +32,5 @@
     <string name="cash_due_today">Payment due today</string>
     <string name="cash_due_in">Payment due in %1$d days</string>
     <string name="cash_statement_in">Statement date in %1$d days</string>
+    <string name="cash_previous_balance">Previous balance %1$s</string>
 </resources>

@@ -7,7 +7,7 @@ interface WalletRepository {
     fun observeCards(): Flow<List<WalletCard>>
     suspend fun image(key: String): WalletImage?
     suspend fun save(id: Long?, expectedRevision: Long?, name: String, cashAccountId: Long?,
-        imageKey: String?, image: WalletImage? = null): Long
+        imageKey: String?, image: WalletImage? = null, faceStyle: WalletFaceStyle? = null): Long
     suspend fun delete(id: Long, expectedRevision: Long)
     suspend fun reorder(expected: List<Long>, ordered: List<Long>)
 }

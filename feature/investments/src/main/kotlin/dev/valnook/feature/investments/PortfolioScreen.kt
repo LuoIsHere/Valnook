@@ -143,12 +143,12 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
     val current = state as? PortfolioState.Ready
     if (current == null) { Text(stringResource(if (state == PortfolioState.Failed) R.string.investment_read_failed else R.string.investment_loading))
         return }
-    val positions = current.snapshot.positions.filter { it.account_id == accountId && (all || it.holding_quantity_e8 > 0) }
+    val positions = current.snapshot.positions.filter { it.account_id == accountId && (if (all) it.isClosed else it.holding_quantity_e8 > 0) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-        item { Text(stringResource(if (all) R.string.investment_all_instruments else R.string.investment_current_holdings), style = MaterialTheme.typography.titleLarge) }
-        if (!all) item { ActionButton(onAll, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_all_instruments)) } }
-        if (positions.isEmpty()) item { EmptyState(stringResource(if (all) R.string.investment_no_associations else R.string.investment_no_holdings)) }
-        item { HoldingTable(positions) { onPosition(it.id) } }
-        item { Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_add_to_account)) } }
+        if (!all) item { Text(stringResource(R.string.investment_current_holdings), style = MaterialTheme.typography.titleLarge) }
+        if (!all) item { ActionButton(onAll, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_closed_positions)) } }
+        if (positions.isEmpty()) item { EmptyState(stringResource(if (all) R.string.investment_no_closed_positions else R.string.investment_no_holdings)) }
+        if (positions.isNotEmpty()) item { HoldingTable(positions) { onPosition(it.id) } }
+        if (!all) item { Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_add_to_account)) } }
     }
 }

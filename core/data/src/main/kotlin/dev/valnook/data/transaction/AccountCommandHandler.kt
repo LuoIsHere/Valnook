@@ -126,6 +126,7 @@ internal class AccountCommandHandler(
     }
 
     suspend fun setBalance(command: SetCashBalance, now: Long): OperationResult {
+        if (command.entryNote.length > 2000) throw DomainException(ErrorCode.FORMAT)
         cash.requireAccount(command.account_id)
         val code = cash.currency(command.currency_code).code
         val old = command.cashAccountId?.let { cash.requireCashAccount(it, command.account_id, code) }
@@ -134,14 +135,14 @@ internal class AccountCommandHandler(
             val created = cash.createAccount(command.operation_id, command.account_id,
                 command.name.ifBlank { code }, command.note, code, command.balance_minor, now)
             val entryId = cash.entry(command.operation_id, created.id, CashSource.CASH_SET.name, null,
-                command.balance_minor, now, now)
+                command.balance_minor, now, now, command.entryNote.trim())
             fault(TransactionPoint.AFTER_BUSINESS)
             return OperationResult("CASH_ENTRY", entryId)
         }
         if (old.revision != command.expected_revision) throw DomainException(ErrorCode.STALE_BALANCE)
         val delta = R.replace_contribution(command.balance_minor, old.balance_minor, 0)
         cash.change(command.operation_id, old.id, delta, "CASH_SET", now)
-        val id = cash.entry(command.operation_id, old.id, CashSource.CASH_SET.name, null, delta, now, now)
+        val id = cash.entry(command.operation_id, old.id, CashSource.CASH_SET.name, null, delta, now, now, command.entryNote.trim())
         fault(TransactionPoint.AFTER_BUSINESS)
         return OperationResult("CASH_ENTRY", id)
     }

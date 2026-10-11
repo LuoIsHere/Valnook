@@ -91,7 +91,7 @@ data class Investment(val id: Long, val account_id: Long, val type_id: Long, val
     val current_price_e8: Long, val price_updated_at_ms: Long,
     val revision: Long = 1, val last_activity_at_ms: Long = 0, val instrumentId: Long = id,
     val remainingCost: String? = null, val realizedProfit: String? = null,
-    val chronologyValid: Boolean = true, val algorithmVersion: Int = 4)
+    val chronologyValid: Boolean = true, val algorithmVersion: Int = 4, val isClosed: Boolean = false)
 enum class Direction { BUY, SELL }
 data class Trade(val id: Long, val investment_id: Long, val direction: Direction,
     val quantity_e8: Long, val execution_price_e8: Long, val amount_minor: Long,
