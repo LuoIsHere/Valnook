@@ -29,14 +29,10 @@ Valnook 帮助您集中管理储蓄、信用账户、定期存款和投资记录
   <tr><th>账户</th><th>卡片详情</th><th>统计</th></tr>
   <tr>
     <td><img src="images/accounts-cn.png" width="240" alt="账户"></td>
-    <td><img src="images/wallet-detail-cn.png" width="240" alt="卡片详情"></td>
+    <td><img src="images/wallet-motion-cn.gif" width="240" alt="选择卡片与返回卡包的动画"></td>
     <td><img src="images/statistics-cn.png" width="240" alt="统计"></td>
   </tr>
 </table>
-
-<p align="center">
-  <img src="images/wallet-motion-cn.gif" width="300" alt="选择卡片与返回卡包的动画">
-</p>
 
 ## 项目架构
 
@@ -60,6 +56,12 @@ Valnook 帮助您集中管理储蓄、信用账户、定期存款和投资记录
 云备份由用户选择启用。卡背私密数据仅保存在本机，不能通过备份恢复，网页端也无法访问；卡面图片会包含在完整备份中。备份和 Excel 文件本身不加密，请妥善保管。网页管理连接不提供传输加密，请仅在可信网络和设备上使用。
 
 详细说明见[隐私政策与免责声明](PRIVACY_POLICY_CN.md)。[English](PRIVACY_POLICY_EN.md)。
+
+## 文档
+
+- [OneDrive 备份工作流程（英文）](ONEDRIVE_BACKUP.md)
+- [Google Drive 备份旧实现说明（英文，暂未启用）](GOOGLE_DRIVE_BACKUP.md)
+- [完整更新日志（英文）](CHANGELOG.md)
 
 ## Attention / 注意
 

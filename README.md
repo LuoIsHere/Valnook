@@ -29,14 +29,10 @@ Valnook brings savings, credit accounts, term deposits, and investment records t
   <tr><th>Accounts</th><th>Card details</th><th>Statistics</th></tr>
   <tr>
     <td><img src="docs/images/accounts-en.png" width="240" alt="Accounts"></td>
-    <td><img src="docs/images/wallet-detail-en.png" width="240" alt="Card details"></td>
+    <td><img src="docs/images/wallet-motion-en.gif" width="240" alt="Selecting a wallet card and returning to the card stack"></td>
     <td><img src="docs/images/statistics-en.png" width="240" alt="Statistics"></td>
   </tr>
 </table>
-
-<p align="center">
-  <img src="docs/images/wallet-motion-en.gif" width="300" alt="Selecting a wallet card and returning to the card stack">
-</p>
 
 ## Project structure
 
@@ -60,6 +56,12 @@ Valnook brings savings, credit accounts, term deposits, and investment records t
 Cloud backup is optional. Private card-back data stays on the device and is unavailable to web management or backup recovery. Card-front images are included in full backups. Backup and Excel files are not encrypted; keep them safe. Use web management only on trusted networks and devices, as its connection is not encrypted.
 
 See the [Privacy Policy and Disclaimer](docs/PRIVACY_POLICY_EN.md) for details. [简体中文](docs/PRIVACY_POLICY_CN.md).
+
+## Documentation
+
+- [How OneDrive backup works](docs/ONEDRIVE_BACKUP.md)
+- [Google Drive backup: retained implementation, currently disabled](docs/GOOGLE_DRIVE_BACKUP.md)
+- [Full changelog](docs/CHANGELOG.md)
 
 ## Attention
 
