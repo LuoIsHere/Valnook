@@ -33,8 +33,14 @@ data class StatisticsPoint(
     val date: LocalDate,
     val value: BigDecimal?,
     val reliable: Boolean,
-    val future: Boolean = false
-)
+    val future: Boolean = false,
+    val comparisonValue: BigDecimal? = null
+) {
+    val change: BigDecimal? get() = if (reliable && !future && comparisonValue != null) value?.subtract(comparisonValue) else null
+    val changePercent: BigDecimal? get() = comparisonValue?.takeIf { it.signum() > 0 }?.let {
+        change?.multiply(BigDecimal(100))?.divide(it, 2, java.math.RoundingMode.HALF_UP)
+    }
+}
 
 data class StatisticsSeries(
     val metric: StatisticsMetric,

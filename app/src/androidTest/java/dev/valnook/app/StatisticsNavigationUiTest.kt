@@ -45,8 +45,8 @@ class StatisticsNavigationUiTest {
             rule.onNodeWithTag("statistics-granularity-total_assets-daily")
                 .fetchSemanticsNode().config[SemanticsProperties.Selected]
         }
-        assertTrue(rule.onNodeWithTag("statistics-monthly-change").fetchSemanticsNode().boundsInRoot.top <
-            rule.onNodeWithTag("statistics-total_assets").fetchSemanticsNode().boundsInRoot.top)
+        rule.onNodeWithTag("statistics-monthly-change").assertDoesNotExist()
+        rule.onNodeWithTag("statistics-change-total_assets").assertExists()
         assertTrue(rule.onNodeWithTag("statistics-readout-total_assets")
             .fetchSemanticsNode().boundsInRoot.height > 0f)
         val chart = rule.onNodeWithTag("statistics-chart-total_assets")

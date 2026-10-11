@@ -16,7 +16,7 @@ private fun CashEntryWithSource.to_model():CashEntry {
 
 class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
     override fun observeTrends(accountId:Long,now:java.time.Instant,zone:java.time.ZoneId) =
-        dao.trends(accountId,CashTrendRules.months(now,zone).first().atDay(1).atStartOfDay(zone).toInstant().toEpochMilli())
+        dao.trends(accountId,CashTrendRules.dates(now,zone).first().atStartOfDay(zone).toInstant().toEpochMilli())
             .map { rows -> kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                 rows.groupBy { it.cashId }.mapValues { (_,group) ->
                     val first=group.first()

@@ -19,4 +19,6 @@
     <string name="statistics_chart_description">%1$s chart for %2$s</string>
     <string name="statistics_previous_point">Previous data point</string>
     <string name="statistics_next_point">Next data point</string>
+    <string name="statistics_day_change">Day change</string>
+    <string name="statistics_month_change">Month change</string>
 </resources>

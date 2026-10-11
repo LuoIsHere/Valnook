@@ -19,4 +19,6 @@
     <string name="statistics_chart_description">%1$s图表，%2$s</string>
     <string name="statistics_previous_point">上一个数据点</string>
     <string name="statistics_next_point">下一个数据点</string>
+    <string name="statistics_day_change">当日变化</string>
+    <string name="statistics_month_change">当月变化</string>
 </resources>

@@ -68,6 +68,7 @@ import java.time.*
         item{
             GlassCard(Modifier.padding(bottom=Space.md), prominent=true) {
             CashBalanceSummary(balance,on_edit=on_form,allAccounts=ledger.allAccounts,
+                showBalance=false,
                 creditSourceLabels=ledger.creditSourceLabels,
                 modifier=Modifier.fillMaxWidth().padding(16.dp))
             }

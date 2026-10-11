@@ -25,7 +25,8 @@ import java.time.LocalDate
 @Composable fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?,
     modifier:Modifier=Modifier,allAccounts:List<CashAccount> = emptyList(),
     creditSourceLabels:Map<Long,String> = emptyMap(),
-    trend:List<dev.valnook.domain.model.CashTrendPoint>? = null) {
+    trend:List<dev.valnook.domain.model.CashTrendPoint>? = null,
+    showBalance:Boolean = true) {
     Column(modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(Space.sm)) {
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.sm)) {
@@ -38,7 +39,7 @@ import java.time.LocalDate
                         else stringResource(R.string.cash_savings_account),style=MaterialTheme.typography.labelSmall,
                         color=MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha=.75f),modifier=Modifier.padding(top=3.dp))
                 }
-                Text(DecimalRules.format_display(account.balance_minor,account.currency.fraction_digits)+" "+account.currency.code,
+                if(showBalance) Text(DecimalRules.format_display(account.balance_minor,account.currency.fraction_digits)+" "+account.currency.code,
                     style=MaterialTheme.typography.headlineSmall.copy(fontFeatureSettings="tnum"),
                     color=if(account.type==BalanceAccountType.SAVINGS && account.balance_minor<0)
                         MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)

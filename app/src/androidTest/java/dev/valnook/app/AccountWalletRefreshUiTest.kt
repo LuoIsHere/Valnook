@@ -119,25 +119,25 @@ class AccountWalletRefreshUiTest {
         }}}
         rule.onNodeWithText("4 388.98 CNY").assertExists();capture("cash-large-text-dark")
     }
-    @Test fun bundled_demo_shows_real_six_month_balances_and_debt() {
+    @Test fun bundled_demo_shows_real_daily_balances() {
         val enter=rule.runOnUiThread { rule.activity.lifecycleScope.async {rule.activity.sessions.enterDemo()} }
         rule.waitUntil(20000){enter.isCompleted};runBlocking{enter.await()};rule.waitForIdle()
         val snapshot=runBlocking{graph.overview.snapshot()}
         val savings=snapshot.cash.first{it.creditProfile==null}
         val credit=snapshot.cash.first{it.account_id==savings.account_id&&it.creditProfile!=null}
         val points=runBlocking{graph.cash.observeTrends(savings.account_id,graph.clock.instant(),graph.clock.zone).first()}
-        assertEquals(6,points.getValue(savings.id).count{it.balanceMinor!=null})
+        assertTrue(points.getValue(savings.id).count{it.balanceMinor!=null} >= 90)
         assertEquals(java.math.BigInteger.valueOf(savings.balance_minor),points.getValue(savings.id).last().balanceMinor)
         waitTag("account-total-${savings.account_id}")
         rule.onNodeWithTag("account-total-${savings.account_id}").performScrollTo().performClick()
         rule.waitUntil(15000){rule.onAllNodesWithText(savings.name).fetchSemanticsNodes().isNotEmpty()}
         capture("demo-subaccounts")
         rule.onNodeWithText(savings.name).performClick();rule.waitForIdle()
-        rule.waitUntil(15000){rule.onAllNodes(hasContentDescription(points.getValue(savings.id).first().month.toString(),substring=true)).fetchSemanticsNodes().isNotEmpty()}
+        rule.waitUntil(15000){rule.onAllNodes(hasContentDescription(points.getValue(savings.id).first().date.toString(),substring=true)).fetchSemanticsNodes().isNotEmpty()}
         capture("demo-savings-trend")
         rule.onNodeWithContentDescription(label(dev.valnook.app.R.string.nav_back)).performClick()
         rule.onNodeWithText(credit.name).performScrollTo().performClick();rule.waitForIdle()
-        rule.waitUntil(15000){rule.onAllNodes(hasContentDescription(points.getValue(credit.id).first().month.toString(),substring=true)).fetchSemanticsNodes().isNotEmpty()}
+        rule.waitUntil(15000){rule.onAllNodes(hasContentDescription(points.getValue(credit.id).first().date.toString(),substring=true)).fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithText(label(dev.valnook.feature.cash.R.string.cash_amount_owed)).assertExists()
         capture("demo-debt-trend")
         rule.onNodeWithText("近6个月").assertDoesNotExist()

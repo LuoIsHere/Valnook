@@ -1,0 +1,5 @@
+<resources>
+    <string name="trend_previous_point">Previous day or month</string>
+    <string name="trend_next_point">Next day or month</string>
+    <string name="trend_latest_point">Show latest value</string>
+</resources>

@@ -340,6 +340,56 @@ class StatisticsRepositoryTest {
         assertEquals(sourceRevision, requireNotNull(db.statistics().state()).source_revision)
     }
 
+    @Test fun daily_changes_use_each_metrics_previous_day_and_missing_baseline_stays_unknown() = runBlocking {
+        val repository=RoomStatistics(db,clock)
+        val series=StatisticsMetric.entries.associateWith { repository.loadSeries(StatisticsRequest(it,
+            StatisticsPeriod(StatisticsGranularity.DAILY,2026,10))) }
+        series.values.forEach {
+            assertNull(it.points[0].change)
+            assertNull(it.points[0].changePercent)
+            assertNull(it.points[2].change)
+        }
+        decimal("40",requireNotNull(series.getValue(StatisticsMetric.TOTAL_ASSETS).points[1].change))
+        decimal("40",requireNotNull(series.getValue(StatisticsMetric.INVESTMENT_VALUE).points[1].change))
+        decimal("0",requireNotNull(series.getValue(StatisticsMetric.AVAILABLE_CASH).points[1].change))
+        decimal("20.00",requireNotNull(series.getValue(StatisticsMetric.INVESTMENT_VALUE).points[1].changePercent))
+    }
+    @Test fun first_visible_day_and_month_query_an_offscreen_calendar_baseline() = runBlocking {
+        val baseline=LocalDate.of(2026,9,1)
+        db.openHelper.writableDatabase.execSQL("UPDATE statistics_state SET baseline_at_ms=?,earliest_invalidated_epoch_day=? WHERE id=1",
+            arrayOf(baseline.atStartOfDay(clock.zone).toInstant().toEpochMilli(),baseline.toEpochDay()))
+        val repository=RoomStatistics(db,clock)
+        val day=repository.loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+            StatisticsPeriod(StatisticsGranularity.DAILY,2026,10))).points.first()
+        decimal("80",requireNotNull(day.comparisonValue))
+        decimal("250",requireNotNull(day.change))
+        val month=repository.loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+            StatisticsPeriod(StatisticsGranularity.MONTHLY,2026))).points[9]
+        decimal("80",requireNotNull(month.comparisonValue))
+        decimal("290",requireNotNull(month.change))
+    }
+
+    @Test fun prehistory_is_zero_for_daily_and_monthly_charts_without_fabricating_comparisons() = runBlocking {
+        val repository=RoomStatistics(db,clock)
+        StatisticsMetric.entries.forEach { metric ->
+            val daily=repository.loadSeries(StatisticsRequest(metric,StatisticsPeriod(StatisticsGranularity.DAILY,2026,9)))
+            assertEquals(30,daily.points.size)
+            assertTrue(daily.points.all{it.value==BigDecimal.ZERO && !it.reliable && !it.future})
+            assertTrue(daily.points.all{it.change==null && it.changePercent==null})
+            val monthly=repository.loadSeries(StatisticsRequest(metric,StatisticsPeriod(StatisticsGranularity.MONTHLY,2026)))
+            assertTrue(monthly.points.take(9).all{it.value==BigDecimal.ZERO})
+            assertNull(monthly.points[9].comparisonValue)
+            assertTrue(monthly.points.drop(10).all{it.future && it.value==null})
+        }
+        assertTrue(db.statistics().cached("TOTAL_ASSETS",LocalDate.of(2026,9,1).toEpochDay(),
+            LocalDate.of(2026,9,30).toEpochDay(),2,db.statistics().state()!!.rule_version).isEmpty())
+        db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val unavailable=repository.loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+            StatisticsPeriod(StatisticsGranularity.DAILY,2026,10)))
+        assertNull(unavailable.points.first().value)
+    }
+
     private enum class OctoberDay { START, END }
     private fun at(day: OctoberDay): Long = when (day) {
         OctoberDay.START -> octoberFirst.atStartOfDay(clock.zone).toInstant().toEpochMilli()

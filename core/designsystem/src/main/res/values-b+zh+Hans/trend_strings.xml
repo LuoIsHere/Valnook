@@ -1,0 +1,5 @@
+<resources>
+    <string name="trend_previous_point">上一日期</string>
+    <string name="trend_next_point">下一日期</string>
+    <string name="trend_latest_point">显示最新金额</string>
+</resources>

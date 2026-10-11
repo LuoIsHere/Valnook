@@ -32,7 +32,11 @@ class RoomStatistics(
         replayMutex.withLock {
             val today = LocalDate.now(clock)
             val dates = StatisticsCalendar.slots(request.period, today)
-            val actualDates = dates.filter { !it.isAfter(today) }
+            fun comparisonDate(date: LocalDate) = if (request.period.granularity == StatisticsGranularity.DAILY)
+                date.minusDays(1) else YearMonth.from(date).minusMonths(1).atEndOfMonth()
+            // Include the off-screen baseline: do not compare to the previous non-null observation.
+            // 包含可视范围之外的比较基准；不能跳过缺失日期改用更早的点。
+            val actualDates = (dates + dates.map(::comparisonDate)).distinct().filter { !it.isAfter(today) }
             val header = readHeader()
             val baselineDate = instantDate(header.state.baseline_at_ms)
             val reliableDates = actualDates.filter { it >= baselineDate }
@@ -47,8 +51,11 @@ class RoomStatistics(
             StatisticsSeries(request.metric, request.period, header.settings.baseCurrency, dates.map { date ->
                 when {
                     date.isAfter(today) -> StatisticsPoint(date, null, reliable = false, future = true)
-                    date < baselineDate -> StatisticsPoint(date, null, reliable = false)
-                    else -> StatisticsPoint(date, values[date], reliable = values.containsKey(date))
+                    // Display padding only: do not cache it or use it as a financial comparison baseline.
+                    // 仅补齐历史起点之前的图表，不写入缓存或用于变化/百分比的真实基准。
+                    date < baselineDate -> StatisticsPoint(date, BigDecimal.ZERO, reliable = false)
+                    else -> StatisticsPoint(date, values[date], reliable = values[date] != null,
+                        comparisonValue = values[comparisonDate(date)])
                 }
             })
         }

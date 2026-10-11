@@ -59,7 +59,10 @@ private val typography=Typography(
         if(dark_theme) dark.onSurfaceVariant else light.onSurfaceVariant)
     MaterialTheme(colorScheme=if(dark_theme) dark else light,typography=typography,
         shapes=Shapes(small=RoundedCornerShape(12.dp),medium=RoundedCornerShape(16.dp),large=RoundedCornerShape(20.dp))) {
-        CompositionLocalProvider(LocalGainLossPalette provides palette) {
+        val trendPalette = if(dark_theme) TrendPalette(Color(0xFF59B5E8),Color(0xFF59B5E8),Color(0xFF686E78),
+            Color(0xFFB0B7C2).copy(alpha=.75f),Color(0xFFA5ADB8).copy(alpha=.18f)) else TrendPalette(
+            Color(0xFFB88714),Color(0xFFE5B83D),Color(0xFFA1A6AE),Color(0xFF737983).copy(alpha=.75f),Color(0xFF817763).copy(alpha=.22f))
+        CompositionLocalProvider(LocalGainLossPalette provides palette, LocalTrendPalette provides trendPalette) {
             Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background,
                 contentColor=MaterialTheme.colorScheme.onSurface) {content()}
         }
