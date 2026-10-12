@@ -27,7 +27,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.valnook.data.image.WalletImages
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.*
 import kotlinx.coroutines.*
@@ -98,7 +97,7 @@ import kotlinx.coroutines.*
     var failed by remember { mutableStateOf(false) };var busy by remember { mutableStateOf(false) }
     var zoom by rememberSaveable{mutableFloatStateOf(1f)}
     var x by rememberSaveable{mutableFloatStateOf(0f)};var y by rememberSaveable{mutableFloatStateOf(0f)}
-    LaunchedEffect(uri){try{source=withContext(Dispatchers.IO){WalletImages.read(context,Uri.parse(uri))}}
+    LaunchedEffect(uri){try{source=withContext(Dispatchers.IO){WalletImageCodec.read(context,Uri.parse(uri))}}
         catch(c:CancellationException){throw c}catch(_:Exception){failed=true}}
     AnimatedGlassDialog(true,{if(!busy)onClose()}) {
         GlassCard { Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -108,7 +107,7 @@ import kotlinx.coroutines.*
                 Canvas(Modifier.fillMaxWidth().aspectRatio(WalletRules.ASPECT).clip(RoundedCornerShape(18.dp))
                     .testTag("wallet-crop").pointerInput(busy){detectTransformGestures{_,pan,scale,_->if(!busy){
                         zoom=(zoom*scale).coerceIn(1f,5f);x=(x+pan.x/size.width).coerceIn(-3f,3f);y=(y+pan.y/size.height).coerceIn(-3f,3f)
-                    }}}) {drawIntoCanvas{it.nativeCanvas.drawBitmap(bitmap,null,WalletImages.cropRect(bitmap.width,bitmap.height,size.width,size.height,zoom,x,y),android.graphics.Paint(3))}}
+                    }}}) {drawIntoCanvas{it.nativeCanvas.drawBitmap(bitmap,null,WalletImageCodec.cropRect(bitmap.width,bitmap.height,size.width,size.height,zoom,x,y),android.graphics.Paint(3))}}
                 Text(wording("Move and pinch to crop · fixed card proportions","移动、双指缩放裁剪 · 固定卡片比例"),style=MaterialTheme.typography.bodySmall)
                 Slider(zoom,{zoom=it},valueRange=1f..5f,enabled=!busy)
                 TextButton({scope.launch{busy=true;try{source=withContext(Dispatchers.Default){Bitmap.createBitmap(bitmap,0,0,bitmap.width,bitmap.height,Matrix().apply{postRotate(90f)},true)};zoom=1f;x=0f;y=0f}finally{busy=false}}},enabled=!busy,modifier=Modifier.testTag("wallet-rotate")){Text(wording("Rotate 90°","旋转 90°"))}
@@ -116,7 +115,7 @@ import kotlinx.coroutines.*
             if(failed)HintMessage(wording("Unable to process image. Use a static JPEG, PNG or WebP under 20 MiB and 40 MP.","无法处理图片，请选择 20 MiB、4000 万像素以内的静态 JPEG、PNG 或 WebP。"),isError=true)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){
                 TextButton(onClose,enabled=!busy){Text(wording("Cancel","取消"))}
-                Button({scope.launch{busy=true;failed=false;try{val image=withContext(Dispatchers.Default){WalletImages.encode(requireNotNull(bitmap),zoom,x,y)};onImage(image);onClose()}
+                Button({scope.launch{busy=true;failed=false;try{val image=withContext(Dispatchers.Default){WalletImageCodec.encode(requireNotNull(bitmap),zoom,x,y)};onImage(image);onClose()}
                     catch(c:CancellationException){throw c}catch(_:Exception){failed=true}finally{busy=false}}},enabled=bitmap!=null&&!busy,modifier=Modifier.testTag("wallet-crop-confirm")){Text(wording("Use image","使用图片"))}
             }
         } }

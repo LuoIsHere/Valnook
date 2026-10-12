@@ -23,11 +23,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.*
-import dev.valnook.feature.cash.CashBalanceSummary
-import dev.valnook.feature.cash.CashEntryItem
 import java.time.*
 
-@Composable internal fun WalletDetail(vm:WalletViewModel,card:WalletCard,cache:WalletImageCache,
+@Composable internal fun WalletDetail(vm:WalletViewModel,card:WalletCard,cache:WalletImageCache,cashSlots:WalletCashSlots,
     onEntry:(Long,Long,Long)->Unit,onBalance:(Long,Long)->Unit,edit:()->Unit,
     onTitle:(String?)->Unit,onScrolled:(Boolean)->Unit,cardModifier:Modifier,frame:()->WalletSceneFrame,
     onReturn:()->Unit,returnEnabled:Boolean,returning:Boolean,progress:()->Float,privateState:WalletPrivateState) {
@@ -100,7 +98,7 @@ import java.time.*
                         else {
                             item("summary") {
                                 Text(parent?.name.orEmpty(),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                CashBalanceSummary(account,{onBalance(account.account_id,account.id)},Modifier.padding(vertical=12.dp),snapshot?.cash.orEmpty(),names)
+                                cashSlots.balanceSummary(account,{onBalance(account.account_id,account.id)},Modifier.padding(vertical=12.dp),snapshot?.cash.orEmpty(),names)
                             }
                             item("month") {
                                 Text(wording("Funds activity","资金变动"),Modifier.padding(top=16.dp),style=MaterialTheme.typography.titleLarge)
@@ -121,7 +119,7 @@ import java.time.*
                                 val date=Instant.ofEpochMilli(row.occurred_at_ms).atZone(vm.zone).toLocalDate()
                                 val previous=ledger.rows.getOrNull(index-1)?.let{Instant.ofEpochMilli(it.occurred_at_ms).atZone(vm.zone).toLocalDate()}
                                 if(date!=previous)Text(date.toString(),Modifier.padding(top=16.dp,bottom=6.dp),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                CashEntryItem(row,index<ledger.rows.lastIndex){onEntry(account.account_id,account.id,row.id)}
+                                cashSlots.entryItem(row,index<ledger.rows.lastIndex){onEntry(account.account_id,account.id,row.id)}
                             }
                             if(ledger.more)item("more") {
                                 if(ledger.appendFailed)TextButton(vm::more){Text(wording("Retry loading more","继续加载失败，点击重试"))}

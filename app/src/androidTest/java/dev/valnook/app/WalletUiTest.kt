@@ -17,7 +17,7 @@ import androidx.test.platform.io.PlatformTestStorageRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.valnook.app.navigation.ValnookRoot
-import dev.valnook.data.image.WalletImages
+import dev.valnook.app.navigation.walletCashSlots
 import dev.valnook.designsystem.ValnookTheme
 import dev.valnook.domain.repository.*
 import dev.valnook.feature.wallet.*
@@ -64,7 +64,7 @@ class WalletUiTest {
     }
     private fun card(name:String,bound:Long?=null,color:Int=0xff566775.toInt()):Long=runBlocking{
         val bitmap=Bitmap.createBitmap(1000,631,Bitmap.Config.ARGB_8888);bitmap.eraseColor(color)
-        val image=WalletImages.encode(bitmap,1f,0f,0f);bitmap.recycle()
+        val image=WalletImageCodec.encode(bitmap,1f,0f,0f);bitmap.recycle()
         wallet.save(null,null,name,bound,image.key,image)
     }
     private fun openPrivateCard():Long {
@@ -225,7 +225,7 @@ class WalletUiTest {
                 CompositionLocalProvider(androidx.compose.ui.platform.LocalConfiguration provides configuration,
                     LocalDensity provides Density(density.density,1.5f)) {
                     ValnookTheme(dark_theme=dark){Box(Modifier.width(320.dp).height(660.dp)) {
-                        WalletScreen(vm,{toolbar=it},{_,_,_->},{_,_->})
+                        WalletScreen(vm,{toolbar=it},{_,_,_->},{_,_->},walletCashSlots)
                     }}
                 }
                 }
@@ -325,7 +325,7 @@ class WalletUiTest {
             @Suppress("DEPRECATION")
             rule.activity.resources.updateConfiguration(config,rule.activity.resources.displayMetrics)
             rule.activity.setContent {
-                ValnookTheme(dark_theme=largeEnglish) { WalletScreen(vm,{}, {_,_,_->},{_,_->}) }
+                ValnookTheme(dark_theme=largeEnglish) { WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots) }
             }
         }
         rule.runOnUiThread {
@@ -370,7 +370,7 @@ class WalletUiTest {
         }
         val first=card("Mist",cash.id);card("Sandstone",color=0xff877e73.toInt());card("Dusk",color=0xff363a42.toInt())
         val vm=rule.runOnUiThread{WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle())}
-        rule.runOnUiThread{rule.activity.setContent{ValnookTheme(dark_theme=true){WalletScreen(vm,{}, {_,_,_->},{_,_->})}}}
+        rule.runOnUiThread{rule.activity.setContent{ValnookTheme(dark_theme=true){WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}}
         rule.waitUntil(10000){vm.cards.value?.size==3};rule.waitForIdle();save("wallet-stack-dark")
         rule.onNodeWithTag("wallet-card-$first",useUnmergedTree=true).performClick()
         rule.waitUntil(10000){!vm.ledger.value.loading&&vm.selected.value==first}
@@ -381,7 +381,7 @@ class WalletUiTest {
         rule.runOnUiThread{vm.month(YearMonth.of(2026,10))}
         rule.waitUntil(10000){!vm.ledger.value.loading};assertEquals(1,vm.ledger.value.rows.size)
         rule.runOnUiThread{vm.select(null)};rule.waitForIdle();rule.onNodeWithTag("wallet-stack").assertExists()
-        rule.runOnUiThread{rule.activity.setContent{ValnookTheme(dark_theme=false){WalletScreen(vm,{}, {_,_,_->},{_,_->})}}}
+        rule.runOnUiThread{rule.activity.setContent{ValnookTheme(dark_theme=false){WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}}
         rule.waitForIdle();save("wallet-stack-light")
     }
     @Test fun fifty_cards_scroll_and_reorder_persists_without_a_sorting_menu() {
@@ -454,7 +454,7 @@ class WalletUiTest {
         val owner=object:androidx.activity.result.ActivityResultRegistryOwner{override val activityResultRegistry=registry}
         val vm=rule.runOnUiThread{WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle())}
         try {
-            rule.runOnUiThread{rule.activity.setContent{CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner){ValnookTheme(dark_theme=true){WalletScreen(vm,{}, {_,_,_->},{_,_->})}}}}
+            rule.runOnUiThread{rule.activity.setContent{CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner){ValnookTheme(dark_theme=true){WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}}}
             rule.waitUntil(10000){vm.cards.value!=null};rule.runOnUiThread{vm.edit()}
             rule.onNodeWithTag("wallet-name").performTextInput("Imported face")
             rule.onNodeWithTag("wallet-photo").performScrollTo().performClick()
@@ -666,13 +666,13 @@ class WalletUiTest {
         rule.runOnUiThread{rule.activity.setContent{
             val density=LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density,1.6f)) {
-                ValnookTheme(dark_theme=true){Box(Modifier.fillMaxSize().wrapContentSize(androidx.compose.ui.Alignment.TopStart).width(androidx.compose.ui.unit.Dp(320f)).fillMaxHeight()) {WalletScreen(vm,{}, {_,_,_->},{_,_->})}}
+                ValnookTheme(dark_theme=true){Box(Modifier.fillMaxSize().wrapContentSize(androidx.compose.ui.Alignment.TopStart).width(androidx.compose.ui.unit.Dp(320f)).fillMaxHeight()) {WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}
             }
         }}
         rule.waitForIdle();rule.onNodeWithTag("wallet-ledger").performScrollToIndex(0);save("wallet-credit-large-narrow")
         rule.onNodeWithTag("wallet-ledger").performTouchInput{swipeUp()};save("wallet-credit-collapsed")
         rule.runOnUiThread{rule.activity.setContent{
-            ValnookTheme(dark_theme=false){Box(Modifier.fillMaxSize().wrapContentSize(androidx.compose.ui.Alignment.TopStart).fillMaxWidth().height(androidx.compose.ui.unit.Dp(320f))) {WalletScreen(vm,{}, {_,_,_->},{_,_->})}}
+            ValnookTheme(dark_theme=false){Box(Modifier.fillMaxSize().wrapContentSize(androidx.compose.ui.Alignment.TopStart).fillMaxWidth().height(androidx.compose.ui.unit.Dp(320f))) {WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}
         }}
         rule.waitForIdle();save("wallet-landscape-height")
     }

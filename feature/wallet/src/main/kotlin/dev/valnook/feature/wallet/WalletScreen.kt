@@ -37,7 +37,7 @@ data class WalletToolbar(val title:String,val detail:Boolean,val back:()->Unit,v
 internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
 
 @Composable fun WalletScreen(vm:WalletViewModel,onToolbar:(WalletToolbar?)->Unit,
-    onEntry:(Long,Long,Long)->Unit,onBalance:(Long,Long)->Unit,
+    onEntry:(Long,Long,Long)->Unit,onBalance:(Long,Long)->Unit,cashSlots:WalletCashSlots,
     overviewScroll:LazyListState=rememberLazyListState(),overviewBottomSpace:Dp=LocalPageBottomSpace.current,
     imageCache:WalletImageCache?=null) {
     val cards by vm.cards.collectAsStateWithLifecycle()
@@ -153,7 +153,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
             }
             current?.let { card ->
                 holder.SaveableStateProvider("${card.id}:$visit") {
-                    WalletDetail(vm,card,cache,onEntry,onBalance,{vm.edit(card)},
+                    WalletDetail(vm,card,cache,cashSlots,onEntry,onBalance,{vm.edit(card)},
                         {collapsedTitle=it},{detailScrolled=it},Modifier.sharedElementWithCallerManagedVisibility(
                             rememberSharedContentState("${vm.sessionId}:${card.id}"),visible=!returning,
                             zIndexInOverlay=(cards.orEmpty().lastIndex-cards.orEmpty().indexOfFirst{it.id==card.id}).toFloat(),

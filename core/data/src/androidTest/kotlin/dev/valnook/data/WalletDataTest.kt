@@ -30,10 +30,22 @@ class WalletDataTest {
     @Before fun prepare(){db=Room.inMemoryDatabaseBuilder(ApplicationProvider.getApplicationContext(),ValnookDatabase::class.java).addCallback(ValnookDatabase.seed).build();wallet=RoomWallet(db,clock);commands=RoomFinancialCommands(db,clock)}
     @After fun close(){db.close()}
     private fun image(noisy:Boolean=false):WalletImage {
-        val bitmap=Bitmap.createBitmap(if(noisy)1600 else 1000,if(noisy)1009 else 700,Bitmap.Config.ARGB_8888)
-        if(noisy){val random=java.util.Random(42);val pixels=IntArray(bitmap.width*bitmap.height){0xff000000.toInt() or random.nextInt(0x1000000)};bitmap.setPixels(pixels,0,bitmap.width,0,0,bitmap.width,bitmap.height)}
-        else bitmap.eraseColor(0xff556677.toInt())
-        return WalletImages.encode(bitmap,1f,0f,0f).also{bitmap.recycle()}
+        // Same output contract as the wallet editor (card aspect, static WebP, size cap) without a feature dependency.
+        var width=if(noisy)1600 else 1000
+        while(true) {
+            val height=Math.round(width/WalletRules.ASPECT)
+            val bitmap=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888)
+            try {
+                if(noisy){val random=java.util.Random(42);val pixels=IntArray(width*height){0xff000000.toInt() or random.nextInt(0x1000000)};bitmap.setPixels(pixels,0,width,0,0,width,height)}
+                else bitmap.eraseColor(0xff556677.toInt())
+                for(quality in listOf(92,85,78)) {
+                    val out=ByteArrayOutputStream();check(bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY,quality,out))
+                    val bytes=out.toByteArray()
+                    if(bytes.size<=WalletRules.MAX_IMAGE_BYTES)return WalletImage(WalletImageFormat.digest(bytes),bytes,width,height,0xff556677L)
+                }
+            } finally { bitmap.recycle() }
+            width=(width*.8f).toInt()
+        }
     }
     @Test fun images_are_reference_safe_and_stale_edits_and_sorts_roll_back()=runBlocking {
         val image=image();assertTrue(WalletImages.valid(image))
