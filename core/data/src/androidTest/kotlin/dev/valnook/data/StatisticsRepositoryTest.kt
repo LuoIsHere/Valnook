@@ -202,11 +202,12 @@ class StatisticsRepositoryTest {
         val repository = RoomStatistics(db, clock)
         val current = repository.loadCurrent()
         decimal("80", requireNotNull(current.availableCash))
-        assertNull(current.investmentValue)
-        assertNull(current.totalAssets)
+        decimal("240", requireNotNull(current.investmentValue))
+        decimal("370", requireNotNull(current.totalAssets))
         val series = repository.loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
             StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
-        assertTrue(series.points.take(2).all { it.value == null && !it.future })
+        assertNull(series.points[0].value)
+        decimal("240", requireNotNull(series.points[1].value))
     }
 
     @Test fun clearingDerivedCacheRebuildsTheSameValues() = runBlocking {
@@ -388,6 +389,26 @@ class StatisticsRepositoryTest {
         val unavailable=repository.loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
             StatisticsPeriod(StatisticsGranularity.DAILY,2026,10)))
         assertNull(unavailable.points.first().value)
+    }
+
+    @Test fun current_chart_point_matches_live_book_and_is_not_cached_as_historical_close() = runBlocking {
+        val future = clock.instant().plusSeconds(3 * 86400).toEpochMilli()
+        db.openHelper.writableDatabase.execSQL("UPDATE cash_accounts SET balance_minor=15000 WHERE id=1")
+        insertCashEntry("future-posted", 1, 5_000, future)
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val overview = dev.valnook.domain.calculation.AssetValuation.calculate(
+            dev.valnook.data.repository.RoomOverview(db).snapshot())
+        val repo = RoomStatistics(db, clock)
+        val request = StatisticsRequest(StatisticsMetric.TOTAL_ASSETS, StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10))
+        val series = repo.loadSeries(request)
+        decimal(overview.total.amount.toPlainString(), requireNotNull(series.points[1].value))
+        decimal("330", requireNotNull(series.points[0].value))
+        assertTrue(db.statistics().cached("TOTAL_ASSETS", octoberFirst.plusDays(1).toEpochDay(),
+            octoberFirst.plusDays(1).toEpochDay(), db.statistics().state()!!.source_revision, STATISTICS_RULE_VERSION).isEmpty())
+        val nextDayClock = Clock.offset(clock, Duration.ofDays(1))
+        val next = RoomStatistics(db, nextDayClock).loadSeries(request)
+        decimal("370", requireNotNull(next.points[1].value))
+        decimal("420", requireNotNull(next.points[2].value))
     }
 
     private enum class OctoberDay { START, END }

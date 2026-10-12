@@ -53,7 +53,7 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }
 @Composable fun InvestmentHome(vm: PortfolioViewModel, onAccount: (Long) -> Unit,
-    onPosition: (Long, Long) -> Unit) {
+    trend: @Composable () -> Unit = {}, onPosition: (Long, Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         PortfolioState.Loading -> PageLoading()
@@ -62,20 +62,15 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
             val groups = current.snapshot.positions.filter { it.holding_quantity_e8 > 0 }.groupBy { it.account_id }
             LazyColumn(Modifier.fillMaxSize().testTag("investment-home"), contentPadding = pageContentPadding(),
                 verticalArrangement = Arrangement.spacedBy(Space.md)) {
-                item {
-                    GlassCard(Modifier.testTag("investment-summary"), prominent = true) {
-                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(stringResource(R.string.investment_total_value), style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(converted(current.overview.investmentValue), Modifier.testTag("investment-market-total"),
-                            style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings = "tnum"))
+                item("month-trend") {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        trend()
                         MetricGrid(2) { index ->
                             Column {
                                 if (index == 0) TotalLine(stringResource(R.string.investment_total_unrealized), current.overview.floating, colorByValue = true)
                                 else TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized, colorByValue = true)
                             }
                         }
-                    }
                     }
                 }
                 if (groups.isEmpty()) item { EmptyState(stringResource(R.string.investment_no_holdings_summary)) }

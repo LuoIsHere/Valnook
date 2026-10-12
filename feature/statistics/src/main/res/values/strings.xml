@@ -1,7 +1,7 @@
 <resources>
     <string name="statistics_title">Statistics</string>
     <string name="statistics_change_month">Change this month</string>
-    <string name="statistics_total">Total assets</string>
+    <string name="statistics_total">Net assets</string>
     <string name="statistics_cash">Available cash</string>
     <string name="statistics_investment">Investment value</string>
     <string name="statistics_daily">Daily</string>
@@ -21,4 +21,5 @@
     <string name="statistics_next_point">Next data point</string>
     <string name="statistics_day_change">Day change</string>
     <string name="statistics_month_change">Month change</string>
+    <string name="statistics_home_investment">Total investment value</string>
 </resources>

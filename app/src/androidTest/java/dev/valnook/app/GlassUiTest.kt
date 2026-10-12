@@ -68,7 +68,7 @@ class GlassUiTest {
                     key(dark) { ValnookRoot(activity.sessions, activity.webAdmin) }
                 }
             }
-            rule.waitUntil(10_000) { rule.onAllNodesWithTag("accounts-summary").fetchSemanticsNodes().isNotEmpty() }
+            rule.waitUntil(10_000) { rule.onAllNodesWithTag("accounts-month-trend").fetchSemanticsNodes().isNotEmpty() }
             val theme = if (dark) "dark" else "light"
             rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
             save("root-$theme-accounts", rule.onRoot().captureToImage().asAndroidBitmap())
@@ -82,7 +82,7 @@ class GlassUiTest {
             assertEquals(toolbar, rule.onNodeWithTag("root-toolbar").fetchSemanticsNode().boundsInWindow)
             save("root-$theme-scrolled", rule.onRoot().captureToImage().asAndroidBitmap())
             rule.onNodeWithTag("nav-investments").performClick()
-            rule.waitUntil(10_000) { rule.onAllNodesWithTag("investment-summary").fetchSemanticsNodes().isNotEmpty() }
+            rule.waitUntil(10_000) { rule.onAllNodesWithTag("investment-month-trend").fetchSemanticsNodes().isNotEmpty() }
             rule.mainClock.advanceTimeBy(200)
             rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
             save("root-$theme-investments", rule.onRoot().captureToImage().asAndroidBitmap())

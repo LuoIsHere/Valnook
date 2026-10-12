@@ -466,11 +466,19 @@ private fun SessionRoot(
                             entry<StatisticsKey> {
                                 StatisticsScreen(pageViewModel {
                                     StatisticsViewModel(graph.statistics, graph.clock, createSavedStateHandle())
+                                }, summary = {
+                                    dev.valnook.feature.accounts.AccountOverviewSummary(pageViewModel {
+                                        dev.valnook.feature.accounts.AccountsViewModel(graph.overview)
+                                    })
                                 })
                             }
                             entry<HiddenStatisticsKey> {
                                 StatisticsScreen(pageViewModel {
                                     StatisticsViewModel(graph.statistics, graph.clock, createSavedStateHandle())
+                                }, summary = {
+                                    dev.valnook.feature.accounts.AccountOverviewSummary(pageViewModel {
+                                        dev.valnook.feature.accounts.AccountsViewModel(graph.overview)
+                                    })
                                 })
                             }
                             entry<SettingsKey> {

@@ -37,7 +37,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 @Composable
-fun StatisticsScreen(vm: StatisticsViewModel) {
+fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.loading) {
@@ -59,12 +59,12 @@ fun StatisticsScreen(vm: StatisticsViewModel) {
             vm.refresh()
         }
     }
-    if (state.failed && state.current == null) {
-        Box(Modifier.fillMaxSize().padding(Space.md)) { Text(stringResource(R.string.statistics_load_failed)) }
-        return
-    }
     LazyColumn(Modifier.fillMaxSize().testTag("statistics-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.lg)) {
+        item("asset-summary") { summary() }
+        if (state.failed) item("statistics-retry") {
+            TextButton(vm::refresh) { Text(stringResource(R.string.statistics_load_failed)) }
+        }
         StatisticsMetric.entries.forEach { metric ->
             item(metric.name) {
                 state.charts[metric]?.let { chart ->
@@ -126,7 +126,8 @@ private fun StatisticChart(
 }
 
 @Composable
-private fun InteractiveChart(series: StatisticsSeries, title: String) {
+internal fun InteractiveChart(series: StatisticsSeries, title: String, showChange: Boolean = true,
+    valueTag: String = "statistics-value-${series.metric.name.lowercase()}", chartTag: String = "statistics-chart-${series.metric.name.lowercase()}") {
     var selectedIndex by remember(series) { mutableStateOf<Int?>(null) }
     val selected=if(selectedIndex!=null)series.points.getOrNull(selectedIndex!!) else series.points.lastOrNull { !it.future }
     val locale=LocalConfiguration.current.locales[0]
@@ -139,15 +140,17 @@ private fun InteractiveChart(series: StatisticsSeries, title: String) {
     }?:"—"
     Column(Modifier.fillMaxWidth().testTag("statistics-readout-${series.metric.name.lowercase()}")) {
         Text(valueText,style=MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
-            modifier=Modifier.testTag("statistics-value-${series.metric.name.lowercase()}"))
+            modifier=Modifier.testTag(valueTag))
         Text(dateText.ifEmpty { "—" },style=MaterialTheme.typography.bodySmall.copy(lineHeight=24.sp),maxLines=1,
             color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=2.dp)
                 .heightIn(min=with(LocalDensity.current){24.sp.toDp()}))
+        if (showChange) {
         Text(stringResource(if(series.period.granularity==StatisticsGranularity.DAILY) R.string.statistics_day_change else R.string.statistics_month_change),
             style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
         Text(money(change,series.currency,signed=true)+" ("+percent+")",style=MaterialTheme.typography.titleMedium.copy(fontFeatureSettings="tnum"),
             color=when(change?.signum()) { 1->palette.gain; -1->palette.loss; else->palette.neutral },
             modifier=Modifier.testTag("statistics-change-${series.metric.name.lowercase()}"))
+        }
     }
     val normalized=remember(series.points) {
         val values=series.points.mapNotNull { it.value }
@@ -173,7 +176,7 @@ private fun InteractiveChart(series: StatisticsSeries, title: String) {
         }
     },description=stringResource(R.string.statistics_chart_description,title,periodLabel(series.period)),
         readout="$dateText, $valueText",animationKey="${series.metric}-${series.period}",futureExtensionFrom=futureExtensionFrom,
-        modifier=Modifier.padding(top=12.dp).height(192.dp).testTag("statistics-chart-${series.metric.name.lowercase()}"))
+        modifier=Modifier.padding(top=12.dp).height(if(showChange)192.dp else 172.dp).testTag(chartTag))
 }
 
 internal fun sparseXAxisLabels(series: StatisticsSeries): List<Pair<Int, String>> {

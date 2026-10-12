@@ -52,44 +52,22 @@ import java.time.LocalDate
 
 @Composable fun AccountsScreen(vm: AccountsViewModel, onOpen: (Long) -> Unit,
     onOpenCash: (Long, Long) -> Unit = { _, _ -> }, onOpenDeposits: (Long) -> Unit = {},
-    onOpenInvestments: (Long) -> Unit = {}) {
+    onOpenInvestments: (Long) -> Unit = {}, header: @Composable () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         AccountsState.Loading -> PageLoading()
         AccountsState.Failed -> PageFailure(stringResource(R.string.accounts_load_failed), vm::reload)
         is AccountsState.Ready -> AccountsContent(current.overview, onOpen, current.snapshot,
-            onOpenCash, onOpenDeposits, onOpenInvestments)
+            onOpenCash, onOpenDeposits, onOpenInvestments, header)
     }
 }
 @Composable fun AccountsContent(overview: AssetOverview, onOpen: (Long) -> Unit,
     snapshot: AssetSnapshot? = null, onOpenCash: (Long, Long) -> Unit = { _, _ -> },
-    onOpenDeposits: (Long) -> Unit = {}, onOpenInvestments: (Long) -> Unit = {}) {
+    onOpenDeposits: (Long) -> Unit = {}, onOpenInvestments: (Long) -> Unit = {}, header: @Composable () -> Unit = {}) {
     var expandedId by rememberSaveable { mutableStateOf<Long?>(null) }
     LazyColumn(Modifier.fillMaxSize().testTag("accounts-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(0.dp)) {
-        item {
-            GlassCard(Modifier.padding(bottom = Space.md).testTag("accounts-summary"), prominent = true) {
-            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
-                    color = amountColor(overview.total))
-                val metrics = buildList {
-                    add(stringResource(R.string.accounts_cash) to overview.availableCash)
-                    add(stringResource(R.string.accounts_investments) to overview.investmentValue)
-                    add(stringResource(R.string.accounts_deposits) to overview.depositValue)
-                    if (overview.creditBalance.amount.signum() != 0 ||
-                        snapshot?.cash?.any { it.type == BalanceAccountType.CREDIT } == true)
-                        add(stringResource(R.string.accounts_credit_balance) to overview.creditBalance)
-                }
-                MetricGrid(metrics.size) { index ->
-                    val (label, total) = metrics[index]
-                    SummaryMetric(label, totalText(total))
-                }
-                if (!overview.total.complete) HintMessage(stringResource(R.string.accounts_summary_incomplete, missingText(overview.total)))
-            }
-            }
-        }
+        item("month-trend") { header() }
         if (overview.accounts.isEmpty()) item { EmptyState(stringResource(R.string.accounts_empty)) }
         items(overview.accounts, key = { it.account.id }) { row ->
             val isExpanded = expandedId == row.account.id
@@ -164,6 +142,40 @@ import java.time.LocalDate
             }
         }
     }
+}
+
+/** Current asset composition; independent of the historical chart selection. */
+@Composable fun AccountOverviewSummary(vm: AccountsViewModel) {
+    val state by vm.state.collectAsStateWithLifecycle()
+    when (val current = state) {
+        AccountsState.Loading -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        AccountsState.Failed -> TextButton(vm::reload) { Text(stringResource(R.string.accounts_load_failed)) }
+        is AccountsState.Ready -> AssetSummaryCard(current.overview, current.snapshot)
+    }
+}
+
+@Composable private fun AssetSummaryCard(overview: AssetOverview, snapshot: AssetSnapshot?) {
+            GlassCard(Modifier.testTag("statistics-summary"), prominent = true) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(totalText(overview.total), style = MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
+                    color = amountColor(overview.total))
+                val metrics = buildList {
+                    add(stringResource(R.string.accounts_cash) to overview.availableCash)
+                    add(stringResource(R.string.accounts_investments) to overview.investmentValue)
+                    add(stringResource(R.string.accounts_deposits) to overview.depositValue)
+                    if (overview.creditBalance.amount.signum() != 0 ||
+                        snapshot?.cash?.any { it.type == BalanceAccountType.CREDIT } == true)
+                        add(stringResource(R.string.accounts_credit_balance) to overview.creditBalance)
+                }
+                MetricGrid(metrics.size) { index ->
+                    val (label, total) = metrics[index]
+                    SummaryMetric(label, totalText(total))
+                }
+                if (!overview.total.complete) HintMessage(stringResource(R.string.accounts_summary_incomplete, missingText(overview.total)))
+            }
+            }
 }
 
 @Composable private fun amountColor(total: ConvertedTotal) =

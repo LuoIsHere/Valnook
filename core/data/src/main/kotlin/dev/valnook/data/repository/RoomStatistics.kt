@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import dev.valnook.data.database.*
 import dev.valnook.domain.model.*
 import dev.valnook.domain.calculation.StatisticsCalendar
+import dev.valnook.domain.calculation.AssetValuation
 import dev.valnook.domain.repository.StatisticsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -39,7 +40,7 @@ class RoomStatistics(
             val actualDates = (dates + dates.map(::comparisonDate)).distinct().filter { !it.isAfter(today) }
             val header = readHeader()
             val baselineDate = instantDate(header.state.baseline_at_ms)
-            val reliableDates = actualDates.filter { it >= baselineDate }
+            val reliableDates = actualDates.filter { it >= baselineDate && it != today }
             val reusableDates = header.state.earliest_invalidated_epoch_day?.let { invalidatedFrom ->
                 reliableDates.filter { it.toEpochDay() < invalidatedFrom }
             } ?: reliableDates
@@ -47,7 +48,8 @@ class RoomStatistics(
             val missing = reliableDates.filterNot(cached::containsKey)
             val computed = if (missing.isEmpty()) emptyMap() else compute(readSource(header), missing)
             if (computed.isNotEmpty()) commit(header.state.source_revision, computed)
-            val values = cached + computed.mapValues { (_, value) -> value.forMetric(request.metric) }
+            val live = if (today in actualDates && today >= baselineDate) mapOf(today to readCurrent(header).forMetric(request.metric)) else emptyMap()
+            val values = cached + computed.mapValues { (_, value) -> value.forMetric(request.metric) } + live
             StatisticsSeries(request.metric, request.period, header.settings.baseCurrency, dates.map { date ->
                 when {
                     date.isAfter(today) -> StatisticsPoint(date, null, reliable = false, future = true)
@@ -72,14 +74,14 @@ class RoomStatistics(
                     header.settings.baseCurrency, MonthlyAssetChange(null, header.settings.baseCurrency,
                         null, "baseline_unavailable"))
             }
-            val neededDates = listOf(previousMonthEnd, today).filter { it >= baselineDate }
+            val neededDates = listOf(previousMonthEnd).filter { it >= baselineDate }
             val cached = if (header.state.earliest_invalidated_epoch_day == null)
                 cachedValues(neededDates, header.state.source_revision, header.state.rule_version) else emptyMap()
             val missing = neededDates.filterNot(cached::containsKey)
             val computed = if (missing.isEmpty()) emptyMap() else compute(readSource(header), missing)
             if (computed.isNotEmpty()) commit(header.state.source_revision, computed)
             val values = cached + computed
-            val current = values.getValue(today)
+            val current = readCurrent(header)
             val change = if (previousMonthEnd < baselineDate) {
                 MonthlyAssetChange(null, header.settings.baseCurrency, null, "baseline_unavailable")
             } else {
@@ -90,6 +92,16 @@ class RoomStatistics(
             CurrentStatistics(current.total, current.cash, current.investment,
                 header.settings.baseCurrency, change)
         }
+    }
+
+    // Today is the live book, including entries already posted with a future date.
+    // 今天与账户汇总共用估值规则（包含已入账的未来日期记录）；不缓存为历史日末值。
+    private suspend fun readCurrent(header: Header): Values = db.withTransaction {
+        if (db.statistics().state()?.source_revision != header.state.source_revision)
+            throw DomainException(ErrorCode.STALE_RECORD)
+        val overview = AssetValuation.calculate(RoomOverview(db).snapshot())
+        fun known(total: ConvertedTotal) = total.amount.takeIf { total.complete }
+        Values(known(overview.total), known(overview.availableCash), known(overview.investmentValue))
     }
 
     private suspend fun readHeader(): Header = db.withTransaction {
@@ -120,7 +132,8 @@ class RoomStatistics(
         val rows = db.statistics().cached(metric.name, dates.minOf { it.toEpochDay() },
             dates.maxOf { it.toEpochDay() }, revision, ruleVersion).associateBy { it.epoch_day }
         return dates.mapNotNull { date ->
-            rows[date.toEpochDay()]?.let { row -> date to row.value_decimal?.toBigDecimal() }
+            rows[date.toEpochDay()]?.takeIf { instantDate(it.computed_at_ms) > date }
+                ?.let { row -> date to row.value_decimal?.toBigDecimal() }
         }.toMap()
     }
 

@@ -301,6 +301,68 @@ class WalletUiTest {
         rule.onNodeWithTag("root-capsule").assertExists()
         save("wallet-single")
     }
+    @Test fun artwork_options_hint_scroll_and_reveal_selection_in_chinese() = verifyArtworkPeek(false)
+    @Test fun artwork_options_hint_scroll_with_large_english_text() = verifyArtworkPeek(true)
+
+    private var artworkConfiguration:android.content.res.Configuration?=null
+    @After fun restoreArtworkConfiguration() {
+        artworkConfiguration?.let { original -> rule.runOnUiThread {
+            @Suppress("DEPRECATION")
+            rule.activity.resources.updateConfiguration(original,rule.activity.resources.displayMetrics)
+        } }
+    }
+
+    private fun verifyArtworkPeek(largeEnglish:Boolean) {
+        artworkConfiguration=android.content.res.Configuration(rule.activity.resources.configuration)
+        val config=android.content.res.Configuration(rule.activity.resources.configuration).apply {
+            setLocales(android.os.LocaleList(if(largeEnglish)java.util.Locale.US else java.util.Locale.SIMPLIFIED_CHINESE))
+            fontScale=if(largeEnglish)1.5f else 1f
+        }
+        val vm=rule.runOnUiThread { WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle()) }
+        rule.runOnUiThread {
+            // Dialogs read their window Context's resources; a root-only local override does not cover them.
+            // 只修改测试 Activity 的资源并在测试后恢复，不更改设备语言、字体或模拟器配置。
+            @Suppress("DEPRECATION")
+            rule.activity.resources.updateConfiguration(config,rule.activity.resources.displayMetrics)
+            rule.activity.setContent {
+                ValnookTheme(dark_theme=largeEnglish) { WalletScreen(vm,{}, {_,_,_->},{_,_->}) }
+            }
+        }
+        rule.runOnUiThread {
+            vm.edit()
+            vm.draft.value=vm.draft.value!!.copy(faceStyle=dev.valnook.domain.model.WalletFaceStyle())
+        }
+        rule.waitForIdle()
+        val row=rule.onNodeWithTag("wallet-face-geometry")
+        row.performScrollTo()
+        rule.onNodeWithText(if(largeEnglish)"Rings" else "圆环").assertExists()
+        val firstWidth=rule.onNodeWithTag("wallet-face-geometry-0").fetchSemanticsNode().boundsInRoot.width
+        val partial=(1..5).first { index ->
+            rule.onAllNodesWithTag("wallet-face-geometry-$index").fetchSemanticsNodes().firstOrNull()
+                ?.boundsInRoot?.width?.let { it>0f&&it<firstWidth-2f }==true
+        }
+        val fragment=rule.onNodeWithTag("wallet-face-geometry-$partial").fetchSemanticsNode().boundsInRoot
+        val density=rule.activity.resources.displayMetrics.density
+        assertTrue("Next option should visibly peek out",fragment.width/density in 20f..28f)
+        save(if(largeEnglish)"wallet-picker-peek-en-large" else "wallet-picker-peek-zh")
+        val rowBounds=row.fetchSemanticsNode().boundsInRoot
+        row.performTouchInput { click(fragment.center-rowBounds.topLeft) }
+        rule.waitForIdle()
+        assertEquals(partial,vm.draft.value!!.faceStyle!!.geometry.ordinal)
+        assertTrue(rule.onNodeWithTag("wallet-face-geometry-$partial").fetchSemanticsNode().boundsInRoot.width>=firstWidth-2f)
+        row.performTouchInput { swipeLeft() }
+        row.performScrollToIndex(5)
+        rule.onNodeWithTag("wallet-face-geometry-5").performClick()
+        rule.waitForIdle()
+        assertEquals(dev.valnook.domain.model.WalletFaceGeometry.BLOCKS,vm.draft.value!!.faceStyle!!.geometry)
+        val draft=vm.draft.value
+        rule.runOnUiThread { vm.draft.value=null };rule.waitForIdle()
+        rule.runOnUiThread { vm.draft.value=draft };rule.waitForIdle()
+        row.performScrollTo()
+        assertTrue("Reopened selection should be fully visible",rule.onNodeWithTag("wallet-face-geometry-5").fetchSemanticsNode().boundsInRoot.width>=firstWidth-2f)
+        save(if(largeEnglish)"wallet-picker-selected-en-large" else "wallet-picker-selected-zh")
+        rule.runOnUiThread { vm.draft.value=null }
+    }
     @Test fun stack_selection_month_switch_and_return_preserve_reading_state() {
         val cash=runBlocking{
             graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,"Wallet bank","",listOf(CashBalanceChange("USD",123450,null,name="Everyday account"))))

@@ -5,17 +5,23 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.navigation3.runtime.*
 import dev.valnook.app.di.AppGraph
 import dev.valnook.feature.investments.*
+import dev.valnook.feature.statistics.*
+import dev.valnook.domain.model.StatisticsMetric
 
 internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit, accountName: (Long) -> String) {
     entry<InvestmentsKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
-        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }) { accountId, positionId ->
+        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
+            CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, graph.statistics, graph.clock) })
+        }) { accountId, positionId ->
             open(AssetKey(accountId, positionId))
         }
     }
     entry<HiddenInvestmentsKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
-        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }) { accountId, positionId ->
+        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
+            CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, graph.statistics, graph.clock) })
+        }) { accountId, positionId ->
             open(AssetKey(accountId, positionId))
         }
     }

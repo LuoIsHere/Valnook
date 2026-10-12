@@ -30,7 +30,8 @@ class StatisticsNavigationUiTest {
             throw AssertionError(rule.onRoot().printToString(maxDepth = 6), error)
         }
         rule.onNodeWithTag("statistics-total_assets").assertExists()
-        rule.onNodeWithTag("statistics-available_cash").assertExists()
+        rule.onNodeWithTag("statistics-summary").assertExists()
+        rule.onNodeWithTag("statistics-list").performScrollToNode(hasTestTag("statistics-chart-total_assets"))
         val daily = rule.onNodeWithTag("statistics-granularity-total_assets-daily")
         val monthly = rule.onNodeWithTag("statistics-granularity-total_assets-monthly")
         daily.assertIsSelected()

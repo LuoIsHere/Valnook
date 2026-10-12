@@ -38,6 +38,15 @@ object TestModule {
     fun database(@ApplicationContext context: Context): ValnookDatabase =
         Room.inMemoryDatabaseBuilder(context, ValnookDatabase::class.java)
             .addCallback(ValnookDatabase.seed)
+            // Fixture history must precede the fixed October 3 test clock, not the host date.
+            // 测试内存库的历史起点必须早于固定测试时钟，不能使用宿主机日期。
+            .addCallback(object : androidx.room.RoomDatabase.Callback() {
+                override fun onCreate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                    val baseline = java.time.LocalDate.of(2026, 10, 1)
+                    db.execSQL("UPDATE statistics_state SET baseline_at_ms=?,earliest_invalidated_epoch_day=? WHERE id=1",
+                        arrayOf(baseline.atStartOfDay(ZoneId.of("Asia/Hong_Kong")).toInstant().toEpochMilli(), baseline.toEpochDay()))
+                }
+            })
             .build()
 
     @Provides

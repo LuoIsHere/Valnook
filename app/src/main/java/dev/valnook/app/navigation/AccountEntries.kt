@@ -4,6 +4,8 @@ import androidx.lifecycle.createSavedStateHandle
 import androidx.navigation3.runtime.*
 import dev.valnook.app.di.AppGraph
 import dev.valnook.feature.accounts.*
+import dev.valnook.feature.statistics.*
+import dev.valnook.domain.model.StatisticsMetric
 import dev.valnook.feature.cash.*
 import dev.valnook.feature.deposits.*
 import dev.valnook.feature.investments.*
@@ -19,14 +21,18 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
         AccountsScreen(vm, { open(AccountKey(it)) },
             { accountId, cashId -> open(CashKey(accountId, cashId)) },
             { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },
-            { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) })
+            { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) }, header = {
+                CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.AVAILABLE_CASH, graph.statistics, graph.clock) })
+            })
     }
     entry<HiddenAccountsKey> {
         val vm = pageViewModel { AccountsViewModel(graph.overview) }
         AccountsScreen(vm, { open(AccountKey(it)) },
             { accountId, cashId -> open(CashKey(accountId, cashId)) },
             { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },
-            { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) })
+            { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) }, header = {
+                CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.AVAILABLE_CASH, graph.statistics, graph.clock) })
+            })
     }
     entry<AccountEditKey> { route ->
         val vm = pageViewModel { AccountEditViewModel(route.id, graph.overview, graph.commands, createSavedStateHandle()) }
