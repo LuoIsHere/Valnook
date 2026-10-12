@@ -10,6 +10,8 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import kotlin.math.*
 
+internal data class CropBounds(val left: Float, val top: Float, val right: Float, val bottom: Float)
+
 /** Decodes, crops and encodes card faces; storage re-validates the result independently. */
 object WalletImageCodec {
     fun read(context: Context, uri: Uri): Bitmap {
@@ -28,12 +30,19 @@ object WalletImageCodec {
         }
     }
 
-    fun cropRect(width: Int,height: Int,targetWidth: Float,targetHeight: Float,zoom: Float,x: Float,y: Float): RectF {
+    fun cropRect(width: Int,height: Int,targetWidth: Float,targetHeight: Float,zoom: Float,x: Float,y: Float): RectF =
+        cropBounds(width,height,targetWidth,targetHeight,zoom,x,y).let { RectF(it.left,it.top,it.right,it.bottom) }
+
+    /** Pure crop geometry shared by the live preview and the encoder. */
+    internal fun cropBounds(width: Int,height: Int,targetWidth: Float,targetHeight: Float,zoom: Float,x: Float,y: Float): CropBounds {
         val scale = max(targetWidth/width,targetHeight/height)*zoom.coerceIn(1f,5f)
         val w=width*scale; val h=height*scale
-        val dx=(x*targetWidth).coerceIn(-(w-targetWidth)/2,(w-targetWidth)/2)
-        val dy=(y*targetHeight).coerceIn(-(h-targetHeight)/2,(h-targetHeight)/2)
-        return RectF((targetWidth-w)/2+dx,(targetHeight-h)/2+dy,(targetWidth+w)/2+dx,(targetHeight+h)/2+dy)
+        // The covering edge can land one ulp short of the canvas; clamp so the pan range is never empty.
+        // 铺满的那条边可能因浮点舍入比画布短一个最小精度单位，钳到 0 以免平移范围变成空区间而闪退。
+        val rangeX=max(0f,(w-targetWidth)/2); val rangeY=max(0f,(h-targetHeight)/2)
+        val dx=(x*targetWidth).coerceIn(-rangeX,rangeX)
+        val dy=(y*targetHeight).coerceIn(-rangeY,rangeY)
+        return CropBounds((targetWidth-w)/2+dx,(targetHeight-h)/2+dy,(targetWidth+w)/2+dx,(targetHeight+h)/2+dy)
     }
 
     fun encode(source: Bitmap,zoom: Float,x: Float,y: Float): WalletImage {
