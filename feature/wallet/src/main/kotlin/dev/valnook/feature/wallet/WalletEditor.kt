@@ -35,6 +35,7 @@ import kotlinx.coroutines.*
     val busy by vm.busy.collectAsStateWithLifecycle()
     val error by vm.operationFailed.collectAsStateWithLifecycle()
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
+    val cards by vm.cards.collectAsStateWithLifecycle()
     var choosing by rememberSaveable { mutableStateOf(false) }
     var uri by rememberSaveable { mutableStateOf<String?>(null) }
     val context=LocalContext.current
@@ -62,7 +63,7 @@ import kotlinx.coroutines.*
             TextButton({choosing=true},enabled=!busy,modifier=Modifier.testTag("wallet-bind")) {
                 Text(if(account==null)wording("Link a subaccount (optional)","绑定子账户（可选）")else "${parent?.name} · ${account.name} · ${account.currency.code}")
             }
-            if(value.boundId!=null&&vm.cards.value.orEmpty().any{it.id!=value.id&&it.boundCashAccountId==value.boundId})
+            if(value.boundId!=null&&cards.orEmpty().any{it.id!=value.id&&it.boundCashAccountId==value.boundId})
                 Text(wording("These cards show all records from the same subaccount.","这些卡片将展示同一子账户的全部记录。"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(error) HintMessage(wording("Could not save. Your draft is kept; retry or reopen if the card changed elsewhere.","保存失败，已保留填写内容。请重试；若卡片已被其他操作修改，请重新编辑。"),isError=true)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {

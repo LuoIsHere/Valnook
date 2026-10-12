@@ -75,8 +75,14 @@ class AccountWalletRefreshUiTest {
         rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick();waitTag("wallet-edit")
         rule.onNodeWithTag("wallet-edit").performClick();waitTag("wallet-name")
         val zh=rule.activity.resources.configuration.locales[0].language=="zh"
-        rule.onNodeWithText(if(zh)"柔光"else"Glow").performScrollTo().performClick()
-        rule.onNodeWithText(if(zh)"方块"else"Blocks").performScrollTo().performClick()
+        // Option rows are lazy: off-screen chips are not composed until the row itself scrolls to them.
+        // 选项行是 LazyRow：屏幕外的选项尚未组合，必须先让该行滚动到目标项。
+        fun chooseFace(row:String,label:String) {
+            rule.onNodeWithTag(row).performScrollTo().performScrollToNode(hasText(label))
+            rule.onNodeWithText(label).performClick()
+        }
+        chooseFace("wallet-face-background",if(zh)"柔光"else"Glow")
+        chooseFace("wallet-face-geometry",if(zh)"方块"else"Blocks")
         capture("wallet-style-editor")
         rule.onNodeWithTag("wallet-save").performScrollTo().performClick()
         rule.waitUntil(15000){rule.onAllNodesWithTag("wallet-save").fetchSemanticsNodes().isEmpty()}
