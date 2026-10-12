@@ -5,8 +5,14 @@
 <h1 align="center">Valnook</h1>
 
 <p align="center">A local-first Android app for personal financial records and asset management.</p>
-<p align="center"><strong>Version 0.0.15</strong> · <a href="LICENSE">MIT License</a></p>
+<p align="center"><strong>Version 0.0.16</strong> · <a href="LICENSE">MIT License</a></p>
 <p align="center">English · <a href="docs/README_CN.md">简体中文</a></p>
+
+## A note from the author
+
+I’m an embedded developer, and Valnook is my first Android app. I started it because every finance app I tried felt a little awkward, and the features I wanted most — card wallets, investment summaries, cloud backup — were often behind a paywall. So I built my own and made it open source. I can’t fully explain why open source matters so much to me; maybe it’s just that keeping track of your own money shouldn’t sit behind a paywall, or require trusting software you can’t look inside.
+
+Valnook was built with help from Codex. Most of the code was written by AI, while the architecture, implementation approach and trade-offs are my decisions and my responsibility. I use it every day, and it comes with some deliberate compromises: investment prices aren’t updated automatically, because I don’t want to run a server for a non-profit project, and cloud backup uses the free OneDrive. It’s still young and certainly rough in places, so issues and feedback are very welcome.
 
 ## About
 
@@ -16,21 +22,21 @@ Valnook brings savings, credit accounts, term deposits, and investment records t
 
 | Feature | Description |
 | --- | --- |
-| Accounts | Organize savings and credit subaccounts by main account and currency. Record balances and fund activity, and view credit limits, statement dates, and payment due dates. |
+| Accounts | Organize savings and credit subaccounts by main account and currency. Record balances and fund activity, view balance trends, and check credit limits and billing dates. |
 | Term deposits | Record principal, term, and interest rate; manage opening and closing deposits. |
-| Investments | Record holdings and trades, update valuations, and view market value and profit/loss. |
-| Statistics | View assets by account, asset type, and currency, with daily and monthly history. |
-| Wallet | Import card images and organize cards. Link a subaccount to view its balance, credit limits, and monthly fund activity. Store card numbers, expiry dates, and CVVs locally with encryption. |
+| Investments | Record holdings and trades, view monthly market value trends and profit/loss, and review closed positions by account. |
+| Statistics | View an asset summary and daily or monthly trends for net assets, available cash, and investment value. |
+| Wallet | Choose built-in card designs and colors or import images, then organize cards in an animated stack. Link a subaccount to view its balance, credit limits, and monthly fund activity. Store card numbers, expiry dates, and CVVs locally with encryption. |
 | Web management | Pair your phone with a computer on the same local network to manage accounts and financial records from a browser. |
 | Backup and export | Create and restore local backups, back up data to OneDrive, or export to Excel. Private card-back information is excluded from backups and exports. |
 | Personalization | English and Chinese, light and dark themes, custom account icons and navigation, and a demo mode for trying the app. |
 
 <table>
-  <tr><th>Accounts</th><th>Card details</th><th>Statistics</th></tr>
+  <tr><th>Accounts</th><th>Subaccount</th><th>Card details</th></tr>
   <tr>
     <td><img src="docs/images/accounts-en.png" width="240" alt="Accounts"></td>
+    <td><img src="docs/images/subaccount-en.png" width="240" alt="Subaccount balance history"></td>
     <td><img src="docs/images/wallet-motion-en.gif" width="240" alt="Selecting a wallet card and returning to the card stack"></td>
-    <td><img src="docs/images/statistics-en.png" width="240" alt="Statistics"></td>
   </tr>
 </table>
 
@@ -53,7 +59,7 @@ Valnook brings savings, credit accounts, term deposits, and investment records t
 
 ## Privacy
 
-Cloud backup is optional. Private card-back data stays on the device and is unavailable to web management or backup recovery. Card-front images are included in full backups. Backup and Excel files are not encrypted; keep them safe. Use web management only on trusted networks and devices, as its connection is not encrypted.
+Cloud backup is optional. Private card-back data stays on the device and is unavailable to web management or backup recovery. Card-front images and built-in designs are included in full backups. Backup and Excel files are not encrypted; keep them safe. Use web management only on trusted networks and devices, as its connection is not encrypted.
 
 See the [Privacy Policy and Disclaimer](docs/PRIVACY_POLICY_EN.md) for details. [简体中文](docs/PRIVACY_POLICY_CN.md).
 

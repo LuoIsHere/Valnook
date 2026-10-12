@@ -6,7 +6,7 @@
 - Developer: luoishere
 - Contact: [xlll1314@outlook.com](mailto:xlll1314@outlook.com)
 - Effective date: October 7, 2026
-- Last updated: October 9, 2026
+- Last updated: October 12, 2026
 - Distribution: [Official GitHub repository](https://github.com/LuoIsHere/Valnook)
 
 ## 1. Scope
@@ -28,7 +28,7 @@ Valnook primarily stores data locally. The developer does not operate a server t
 
 Core financial management does not require registering a Valnook account or connecting a cloud service. The application does not use financial records for advertising, marketing profiles, or sale.
 
-Wallet card faces are optional images selected by you through the system photo picker. Static JPEG, PNG and WebP images are cropped, rotated, compressed and processed locally; original location metadata is not retained. Valnook does not perform OCR or automatically collect card numbers, expiry dates or CVV. Use blank or redacted card faces. Cards may link to an existing subaccount without creating a new account or duplicating financial records. Card images, links and order are included in complete local and cloud backups, including OneDrive uploads when enabled. Wallet images are not exposed through web management. Deleting a card does not delete its linked account; clearing all data also removes Wallet data.
+Wallet card fronts can use built-in patterns and colors or images selected by you through the system photo picker. Static JPEG, PNG and WebP images are cropped, rotated, compressed and processed locally; original location metadata is not retained. Valnook does not perform OCR or automatically collect card numbers, expiry dates or CVV. Use blank or redacted card faces. Cards may link to an existing subaccount without creating a new account or duplicating financial records. Card-front images, built-in patterns and colors, links and order are included in complete local and cloud backups, including OneDrive uploads when enabled. Wallet images are not exposed through web management. Deleting a card does not delete its linked account; clearing all data also removes Wallet data.
 
 Card backs are available only in real-data mode. You may voluntarily enter a card number, expiry date, CVV1 and CVV2 and choose back and edge colors. These values use Android Keystore for key management and AES-GCM encryption and are stored separately in this device's private no-backup directory. They are never uploaded, included in local or OneDrive cloud backups, exported to Excel or other formats, or accessible through web management. They are excluded from financial audit history, logs and saved page state. The choice to stop showing the risk notice also remains on this device only. Only when you explicitly tap a copy icon is the corresponding number, expiry or CVV placed on the system clipboard and marked sensitive to limit system previews. The clipboard is outside this app's encrypted storage; the paste destination and software with appropriate access may receive it. Copy with care. The app never copies automatically, logs copied values or includes them in backups or file exports.
 
@@ -115,5 +115,7 @@ This policy does not exclude or limit liability that cannot be excluded or limit
 ## 11. Policy Version and Contact
 
 The update date at the beginning of this document identifies this policy's version. Its public text is available in the documentation directory of the official GitHub repository. The Chinese and English versions are intended to convey the same content.
+
+If the privacy policy displayed in the app differs from the privacy policy published in the official GitHub repository, the policy published in the official GitHub repository takes precedence.
 
 For privacy questions or requests, contact **luoishere** at [xlll1314@outlook.com](mailto:xlll1314@outlook.com).

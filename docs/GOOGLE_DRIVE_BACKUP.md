@@ -1,6 +1,6 @@
 # How Google Drive Backup Works
 
-**Due to the Google Drive API user policy, this backup option is currently disabled.** Google Drive authorization and storage adapters remain in the source code, but Valnook 0.0.15 does not expose a Google Drive backup entry point or wire these adapters into its active cloud backup service. The current provider is [OneDrive](ONEDRIVE_BACKUP.md).
+**Due to the Google Drive API user policy, this backup option is currently disabled.** Google Drive authorization and storage adapters remain in the source code, but Valnook 0.0.16 does not expose a Google Drive backup entry point or wire these adapters into its active cloud backup service. The current provider is [OneDrive](ONEDRIVE_BACKUP.md).
 
 This document describes the retained Google Drive implementation and its backup workflow. Its presence does not mean that Google Drive sign-in, automatic backups, or cloud restoration are available in the current app.
 
@@ -99,7 +99,7 @@ Changing the active provider to OneDrive does not copy Google Drive files into O
 
 ## Data and privacy boundaries
 
-The shared archive format includes supported financial records, account icons, wallet fronts, card links, ordering, and portable settings. It excludes authentication tokens, SDK authentication caches, Keystore keys, and all private card-back fields, back/edge colors, encrypted vault files, and local-only associations.
+The shared archive format includes supported financial records, account icons, wallet-front images and built-in designs, card links, ordering, and portable settings. It excludes authentication tokens, SDK authentication caches, Keystore keys, and all private card-back fields, back/edge colors, encrypted vault files, and local-only associations.
 
 The archive is **not encrypted by Valnook**. HTTPS protects the transfer, while checksums verify consistency rather than encrypting or signing the contents. A successful restore cannot recover excluded card-back content and leaves restored card backs empty. See the [Privacy Policy](PRIVACY_POLICY_EN.md).
 

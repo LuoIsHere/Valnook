@@ -1,6 +1,6 @@
 # How OneDrive Backup Works
 
-OneDrive is the active cloud backup provider in Valnook 0.0.15. The Android app creates a complete local backup archive and uploads it directly to the signed-in user's OneDrive. Backups are snapshots for recovery, not continuous synchronization between devices.
+OneDrive is the active cloud backup provider in Valnook 0.0.16. The Android app creates a complete local backup archive and uploads it directly to the signed-in user's OneDrive. Backups are snapshots for recovery, not continuous synchronization between devices.
 
 ## Platforms and components
 
@@ -117,7 +117,7 @@ Authentication calls use MSAL's `signIn`, `signInAgain`, `acquireTokenSilent`, a
 
 Disconnecting clears the local cloud connection, cancels scheduled work, invalidates in-flight generations, and signs out of the local MSAL client. It does not delete existing OneDrive backups. Removing the server-side grant is a separate action through Microsoft's account consent-management page or organizational My Apps portal.
 
-The archive contains the explicitly supported financial records, account icons, wallet fronts, card links, ordering, and portable settings. It excludes OAuth tokens, authentication caches, Android Keystore keys, and all private card-back content: card numbers, expiry dates, CVVs, back/edge colors, encrypted vault files, and their local-only associations.
+The archive contains the explicitly supported financial records, account icons, wallet-front images and built-in designs, card links, ordering, and portable settings. It excludes OAuth tokens, authentication caches, Android Keystore keys, and all private card-back content: card numbers, expiry dates, CVVs, back/edge colors, encrypted vault files, and their local-only associations.
 
 The `.val_backup` archive is **not encrypted by Valnook**. HTTPS protects transfers; checksum verification checks consistency and is not encryption or a digital signature. A person with access to the archive can read its included data. See the [Privacy Policy](PRIVACY_POLICY_EN.md).
 
