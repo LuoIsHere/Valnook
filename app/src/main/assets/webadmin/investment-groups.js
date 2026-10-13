@@ -1,4 +1,4 @@
-import { el, fmt, fmtPrice, gainClass, state, t, motion } from "./core.js";
+import { el, fmt, fmtPrice, fmtQuantity, gainClass, state, t, motion } from "./core.js";
 import { avatar } from "./icons.js";
 
 export function investmentGroups({ table, positionDetail }) {
@@ -9,17 +9,19 @@ export function investmentGroups({ table, positionDetail }) {
     return table([t("nameCode"), t("marketQuantity"), t("priceCost"), t("unrealized")], positions.map(v =>
       el("tr", { "data-clickable": "true", onclick: () => positionDetail(v.id) },
         el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: `${v.symbol} · ${v.currencyCode}` })),
-        cell(fmt(v.marketValue, v.currencyCode), fmt(v.quantity)),
-        cell(fmtPrice(v.currentPrice, v.currencyCode), fmt(v.averageCost, v.currencyCode)),
+        cell(fmt(v.marketValue, v.currencyCode), fmtQuantity(v.quantity)),
+        cell(fmtPrice(v.currentPrice, v.currencyCode), fmtPrice(v.averageCost, v.currencyCode)),
         cell(fmt(v.unrealized, v.currencyCode), v.unrealizedPercent == null ? "—" : `${fmt(v.unrealizedPercent)}%`, gainClass(v.unrealized))
       )));
   }
   state.accounts.forEach(account => {
     const positions = state.positions.filter(v => v.accountId === account.id)
       .sort((a, b) => b.lastActivityAtMs - a.lastActivityAtMs || a.id - b.id);
-    if (!positions.length) return;
+    // Match the app: an account appears only while it holds something; positions whose trades
+    // were all deleted (neither holding nor closed) stay hidden.
     const active = positions.filter(v => Number(v.quantity) > 0);
-    const closed = positions.filter(v => Number(v.quantity) === 0);
+    if (!active.length) return;
+    const closed = positions.filter(v => v.closed === true);
     const bodyId = `investment-account-${account.id}`;
     const expanded = state.expandedInvestmentAccounts.has(account.id);
     const body = el("div", { id: bodyId, class: "investment-group-body", hidden: !expanded }, holdings(active));

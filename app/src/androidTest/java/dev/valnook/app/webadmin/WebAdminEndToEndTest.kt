@@ -623,14 +623,31 @@ class WebAdminEndToEndTest {
         assertEquals(staleResponse.body, 409, staleResponse.status)
         assertTrue(JSONObject(staleResponse.body).getJSONObject("error").getBoolean("refreshRequired"))
 
-        val currentRootCash = rootDetail.getJSONArray("cash").getJSONObject(0)
-        val protectedDelete = JSONObject().put("operationId", UUID.randomUUID().toString())
-            .put("dataGeneration", generation).put("accountId", rootParent.getLong("id"))
-            .put("expectedRevision", currentRootCash.getLong("revision"))
-        val deleteResponse = http(endpoint, "DELETE", "/api/v1/balance-accounts/${currentRootCash.getLong("id")}",
-            origin = origin, cookie = cookie, csrf = csrf, body = protectedDelete.toString())
-        assertEquals(deleteResponse.body, 409, deleteResponse.status)
-        assertTrue(deleteResponse.body.contains("CREDIT_LIMIT_IN_USE"))
+        // Deleting a shared limit source needs the confirmation code; dependents inherit its full limit.
+        val previewResponse = http(endpoint, "POST", "/api/v1/account-deletion-preview", origin = origin,
+            cookie = cookie, csrf = csrf, body = JSONObject().put("accountId", rootParent.getLong("id"))
+                .put("balanceAccountId", rootCash.getLong("id")).toString())
+        assertEquals(previewResponse.body, 200, previewResponse.status)
+        val preview = JSONObject(previewResponse.body)
+        val transfer = preview.getJSONArray("transfers").getJSONObject(0)
+        assertEquals(1, preview.getJSONArray("transfers").length())
+        assertEquals("Supplementary card", transfer.getString("name"))
+        assertEquals("6000.00", transfer.getString("limit"))
+        val confirmedDelete = JSONObject().put("operationId", UUID.randomUUID().toString())
+            .put("dataGeneration", preview.getLong("dataGeneration")).put("accountId", rootParent.getLong("id"))
+            .put("expectedRevision", preview.getLong("revision"))
+            .put("ticket", preview.getString("ticket")).put("code", preview.getString("code"))
+        val deleteResponse = http(endpoint, "DELETE", "/api/v1/balance-accounts/${rootCash.getLong("id")}",
+            origin = origin, cookie = cookie, csrf = csrf, body = confirmedDelete.toString())
+        assertEquals(deleteResponse.body, 200, deleteResponse.status)
+        rootDetail = JSONObject(http(endpoint, "GET", "/api/v1/accounts/${rootParent.getLong("id")}",
+            cookie = cookie).body)
+        val remaining = rootDetail.getJSONArray("cash")
+        assertEquals(1, remaining.length())
+        val inherited = remaining.getJSONObject(0).getJSONObject("credit")
+        assertEquals(childCash.getLong("id"), remaining.getJSONObject(0).getLong("id"))
+        assertTrue(inherited.isNull("limitSourceAccountId"))
+        assertEquals("6000.00", inherited.getString("creditLimit"))
         socket.close()
     }
 

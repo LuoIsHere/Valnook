@@ -1,4 +1,4 @@
-import { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion } from "./core.js";
+import { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion } from "./core.js";
 import { symbol, avatar, iconPicker } from "./icons.js";
 import { openPriceEditor } from "./price-editor.js";
 import { investmentGroups } from "./investment-groups.js";
@@ -124,8 +124,12 @@ function refreshCurrent() {
 }
 function showError(error) { if (error.name === "AbortError") return; const root = $("#content"); clear(root); root.append(el("div", { class: "empty", text: `${t("loadFailed")}: ${error.code || error.message}` })); }
 function emptyRow(cols) { return el("tr", {}, el("td", { colspan: cols, class: "empty", text: t("empty") })); }
+function bindRow(row) {
+  if (row.dataset.clickable) { row.tabIndex = 0; row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); row.click(); } }); }
+  return row;
+}
 function table(headers, rows) {
-  rows.forEach(row => { if (row.dataset.clickable) { row.tabIndex = 0; row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); row.click(); } }); } });
+  rows.forEach(bindRow);
   const body = el("tbody"); if (!rows.length) body.append(emptyRow(headers.length)); else rows.forEach(row => body.append(row));
   return el("div", { class: "table-wrap" }, el("table", {}, el("thead", {}, el("tr", {}, ...headers.map((h, i) => el("th", { text: h, scope: "col", class: rows[0]?.children[i]?.classList.contains("numeric") ? "numeric" : "" })))), body));
 }
@@ -170,9 +174,10 @@ async function accountDetail(id, returnState = null) {
     el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.principal, v.currencyCode) }),
     el("td", { text: v.startDate }), el("td", { text: v.endDate }),
     el("td", { class: "numeric", text: `${fmt(v.annualRatePercent)}%` }), el("td", { text: v.closed ? t("settled") : t("holding") })));
-  const positionRows = data.positions.map(v => el("tr", { "data-clickable": "true", onclick: () => positionDetail(v.id) },
+  // Positions whose trades were all deleted are neither held nor closed; the app hides them too.
+  const positionRows = data.positions.filter(v => Number(v.quantity) > 0 || v.closed === true).map(v => el("tr", { "data-clickable": "true", onclick: () => positionDetail(v.id) },
     el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
-    el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmtPrice(v.currentPrice, v.currencyCode) }),
+    el("td", { class: "numeric", text: fmtQuantity(v.quantity) }), el("td", { class: "numeric", text: fmtPrice(v.currentPrice, v.currencyCode) }),
     el("td", { class: "numeric", text: fmt(v.marketValue, v.currencyCode) }),
     el("td", { class: `numeric ${gainClass(v.unrealized)}`, text: fmt(v.unrealized, v.currencyCode) })));
   const content = el("div", {},
@@ -372,7 +377,7 @@ async function renderRecords(reset) {
   const rows = state.recordsHistory.map(v => el("tr", { "data-clickable": "true", onclick: () => openRecord(v) },
     el("td", { text: when(v.businessAtMs) }), el("td", { text: v.accountName }), el("td", { text: v.childName || "—" }),
     el("td", {}, el("strong", { class: v.action === "BUY" ? "gain" : v.action === "SELL" ? "loss" : "", text: actionLabel(v.action) })),
-    el("td", { text: v.objectName || "—" }), el("td", { class: "numeric", text: v.amount ? fmt(v.amount, v.currencyCode) : fmt(v.quantity) }),
+    el("td", { text: v.objectName || "—" }), el("td", { class: "numeric", text: v.amount ? fmt(v.amount, v.currencyCode) : fmtQuantity(v.quantity) }),
     el("td", { text: v.currencyCode }), el("td", { text: v.note || "—" }), el("td", { text: when(v.updatedAtMs) }), el("td", { text: t("edit") })));
   const holder = $("#records-table", root); holder.append(table([t("time"), t("account"), t("subaccount"), t("type"), t("object"), t("amountQuantity"), t("currency"), t("note"), t("updated"), t("operation")], rows));
   if (state.recordsCursor) holder.append(toolbar(el("div", { class: "spacer" }), button(t("loadMore"), () => renderRecords(false))));
@@ -390,7 +395,12 @@ async function openRecord(record) {
       const tradeId = record.kind === "TRADE" ? record.id : record.sourceId;
       const data = await api(`/api/v1/positions/${positionId}`), position = data.position;
       const account = await api(`/api/v1/accounts/${position.accountId}`);
-      const trade = data.trades.find(v => v.id === tradeId);
+      let trade = data.trades.find(v => v.id === tradeId), cursor = data.nextCursor;
+      // Older trades are beyond the first page of the position detail.
+      while (!trade && cursor) {
+        const page = await api(`/api/v1/positions/${positionId}/trades?pageSize=100&cursor=${encodeURIComponent(cursor)}`);
+        trade = page.items.find(v => v.id === tradeId); cursor = page.nextCursor;
+      }
       if (!trade) throw new Error("NOT_FOUND");
       return tradeForm(position, trade, account.cash.filter(v => v.type === "SAVINGS" && v.currencyCode === position.currencyCode));
     }
@@ -423,7 +433,7 @@ async function renderInvestments(refresh = false) {
   if (state.investmentTab === "instruments") {
     const prices = button(t("updatePrices"), () => openPriceEditor({ actions, saveForm, openDrawer }));
     prices.disabled = !state.instruments.length;
-    root.append(toolbar(button(t("assetTypes"), assetTypeForm), el("div", { class: "spacer" }), prices, button(t("newInstrument"), () => instrumentForm(null), "primary")));
+    root.append(toolbar(button(t("assetTypes"), () => assetTypeList()), el("div", { class: "spacer" }), prices, button(t("newInstrument"), () => instrumentForm(null), "primary")));
     const rows = state.instruments.map(v => el("tr", { "data-clickable": "true", onclick: () => instrumentForm(v) },
       el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
       el("td", { text: v.typeName }), el("td", { text: v.currencyCode }),
@@ -435,14 +445,32 @@ async function renderInvestments(refresh = false) {
   }
   replacePage(root, refresh);
 }
-function assetTypeForm() {
-  const form = el("form", { class: "form-grid" }); form.append(field(t("assetTypeName"), "name", "", true, "text", true));
+async function assetTypeList(returnState = null) {
+  state.viewEpoch++;
+  const [types, instruments] = await Promise.all([api("/api/v1/asset-types"), api("/api/v1/instruments")]);
+  if (returnState && returnState.cycle !== drawerCycle) return;
+  state.assetTypes = types.items; state.instruments = instruments.items;
+  const rows = types.items.map(v => el("tr", { "data-clickable": "true", onclick: () => assetTypeForm(v) },
+    el("td", {}, el("strong", { text: v.name })),
+    el("td", { class: "numeric", text: String(instruments.items.filter(i => i.typeId === v.id).length) })));
+  const content = el("div", {}, toolbar(el("div", { class: "spacer" }), button(t("newAssetType"), () => assetTypeForm(null), "primary")),
+    table([t("assetTypeName"), t("instrumentCount")], rows));
+  content.drawerRoute = { kind: "assetTypes" };
+  openDrawer(t("assetTypes"), "INVESTMENT", content, !!returnState);
+  if (returnState) $("#drawer-content").scrollTop = returnState.scrollTop;
+}
+function assetTypeForm(item) {
+  const form = el("form", { class: "form-grid" });
+  form.parentDrawer = captureDrawerParent();
+  form.append(field(t("assetTypeName"), "name", item?.name || "", true, "text", true));
   const error = el("p", { class: "drawer-error" }); form.append(error, actions(async submit => {
-    const fd = new FormData(form); await saveForm(submit, error, "/api/v1/asset-types", "POST", { operationId: uuid(), dataGeneration: state.generation, name: fd.get("name") });
-  })); openDrawer(t("newAssetType"), "INVESTMENT", form);
+    const fd = new FormData(form); await saveForm(submit, error, item ? `/api/v1/asset-types/${item.id}` : "/api/v1/asset-types", item ? "PUT" : "POST", { operationId: uuid(), dataGeneration: state.generation, name: fd.get("name") });
+  })); openDrawer(item ? t("editAssetType") : t("newAssetType"), "INVESTMENT", form);
 }
 function positionForm() {
   const form = el("form", { class: "form-grid" });
+  // Account and search only pick an instrument; leaving this picker never discards a draft.
+  form.isDirty = () => false;
   form.append(selectField(t("account"), "accountId", state.accounts.map(v => ({ value: v.id, label: v.name }))),
     field(t("searchInstrument"), "search", ""));
   const list = el("div", { class: "field full" }); form.append(list);
@@ -454,7 +482,7 @@ function positionForm() {
         const existing = state.positions.find(p => p.accountId === accountId && p.instrumentId === v.id);
         if (existing) return positionDetail(existing.id);
         const account = await api(`/api/v1/accounts/${accountId}`);
-        tradeForm({ id: 0, accountId, instrumentId: v.id, name: v.name, currencyCode: v.currencyCode }, null,
+        tradeForm({ id: 0, accountId, instrumentId: v.id, name: v.name, symbol: v.symbol, currencyCode: v.currencyCode }, null,
           account.cash.filter(c => c.type === "SAVINGS" && c.currencyCode === v.currencyCode));
       })));
   };
@@ -467,11 +495,18 @@ function instrumentForm(item) {
     selectField(t("assetType"), "typeId", state.assetTypes.map(v => ({ value: v.id, label: v.name })), item?.typeId),
     field(t("currency"), "currencyCode", item?.currencyCode || state.session.baseCurrency || "CNY", true, "text", false, !!item?.currencyLocked),
     field(t("price"), "currentPrice", item?.currentPrice || "0", true));
-  const error = el("p", { class: "drawer-error" }); form.append(error, actions(async submit => {
+  const error = el("p", { class: "drawer-error" });
+  const bar = actions(async submit => {
     const fd = new FormData(form); await saveForm(submit, error, item ? `/api/v1/instruments/${item.id}` : "/api/v1/instruments", item ? "PUT" : "POST", {
       operationId: uuid(), dataGeneration: state.generation, expectedRevision: item?.revision ?? null, name: fd.get("name"), symbol: fd.get("symbol"), typeId: Number(fd.get("typeId")), currencyCode: fd.get("currencyCode"), currentPrice: fd.get("currentPrice"), currencyPriceConfirmed: !!item?.currencyLocked
     });
-  })); openDrawer(item ? t("editInstrument") : t("newInstrument"), "INSTRUMENT", form);
+  });
+  // Without an asset type the save would fail as NOT_FOUND; point to the type list instead.
+  if (!state.assetTypes.length) {
+    error.textContent = t("createTypeFirst"); $("[data-save]", bar).disabled = true;
+    bar.prepend(button(t("assetTypes"), () => assetTypeList()));
+  }
+  form.append(error, bar); openDrawer(item ? t("editInstrument") : t("newInstrument"), "INSTRUMENT", form);
 }
 async function positionDetail(id, returnState = null, parentDrawer = captureDrawerParent()) {
   state.viewEpoch++;
@@ -479,11 +514,19 @@ async function positionDetail(id, returnState = null, parentDrawer = captureDraw
   const account = await api(`/api/v1/accounts/${p.accountId}`);
   if (returnState && returnState.cycle !== drawerCycle) return;
   const cash = account.cash.filter(v => v.type === "SAVINGS" && v.currencyCode === p.currencyCode);
-  const summary = el("div", { class: "cards" }, metric(t("quantity"), fmt(p.quantity)), metric(t("marketValue"), fmt(p.marketValue, p.currencyCode)), metric(t("realized"), fmt(p.realized, p.currencyCode), gainClass(p.realized)), metric(t("unrealized"), fmt(p.unrealized, p.currencyCode), gainClass(p.unrealized)));
+  const summary = el("div", { class: "cards" }, metric(t("quantity"), fmtQuantity(p.quantity)), metric(t("marketValue"), fmt(p.marketValue, p.currencyCode)), metric(t("realized"), fmt(p.realized, p.currencyCode), gainClass(p.realized)), metric(t("unrealized"), fmt(p.unrealized, p.currencyCode), gainClass(p.unrealized)));
   summary.append(metric(t("currentPrice"), fmtPrice(p.currentPrice, p.currencyCode)),
-    metric(t("averageCost"), fmt(p.averageCost, p.currencyCode)), metric(t("holdingCost"), fmt(p.remainingCost, p.currencyCode)));
-  const tradeRows = data.trades.map(v => el("tr", { "data-clickable": "true", onclick: () => tradeForm(p, v, cash) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: v.action === "BUY" ? "gain" : "loss", text: v.action === "BUY" ? t("buy") : t("sell") }), el("td", { class: "numeric", text: fmt(v.quantity) }), el("td", { class: "numeric", text: fmt(v.unitPrice, p.currencyCode) }), el("td", { class: "numeric", text: fmt(v.fee, p.currencyCode) }), el("td", { text: v.cashLinked ? "✓" : "—" })));
-  const content = el("div", {}, summary, toolbar(el("div", { class: "spacer" }), button(t("newTrade"), () => tradeForm(p, null, cash), "primary")), table([t("time"), t("direction"), t("quantity"), t("executionPrice"), t("fee"), t("cashLink")], tradeRows));
+    metric(t("averageCost"), fmtPrice(p.averageCost, p.currencyCode)), metric(t("holdingCost"), fmt(p.remainingCost, p.currencyCode)));
+  const tradeRow = v => el("tr", { "data-clickable": "true", onclick: () => tradeForm(p, v, cash) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: v.action === "BUY" ? "gain" : "loss", text: v.action === "BUY" ? t("buy") : t("sell") }), el("td", { class: "numeric", text: fmtQuantity(v.quantity) }), el("td", { class: "numeric", text: fmtPrice(v.unitPrice, p.currencyCode, 8) }), el("td", { class: "numeric", text: fmt(v.fee, p.currencyCode) }), el("td", { text: v.cashLinked ? "✓" : "—" }));
+  const trades = table([t("time"), t("direction"), t("quantity"), t("executionPrice"), t("fee"), t("cashLink")], data.trades.map(tradeRow));
+  let cursor = data.nextCursor;
+  const more = toolbar(el("div", { class: "spacer" }), button(t("loadMore"), async () => {
+    const page = await api(`/api/v1/positions/${id}/trades?pageSize=100&cursor=${encodeURIComponent(cursor)}`);
+    $("tbody", trades).append(...page.items.map(v => bindRow(tradeRow(v))));
+    cursor = page.nextCursor; more.hidden = !cursor;
+  }));
+  more.hidden = !cursor;
+  const content = el("div", {}, summary, toolbar(el("div", { class: "spacer" }), button(t("newTrade"), () => tradeForm(p, null, cash), "primary")), trades, more);
   content.parentDrawer = parentDrawer;
   content.drawerRoute = { kind: "position", id, parentDrawer };
   openDrawer(`${p.name} · ${p.symbol}`, accountName(p.accountId), content, !!returnState);
@@ -547,7 +590,8 @@ async function renderStatistics(refresh = false) {
   replacePage(root, refresh);
 }
 function chart(points) {
-  const valid = points.filter(v => v.value !== null && !v.future); const section = el("section", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: t("history") })));
+  // Pre-baseline days are zero padding marked unreliable; the app skips them as well.
+  const valid = points.filter(v => v.reliable && v.value !== null && !v.future); const section = el("section", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: t("history") })));
   if (!valid.length) { section.append(el("div", { class: "empty", text: t("empty") })); return section; }
   const values = valid.map(v => Number(v.value)), min = Math.min(...values), max = Math.max(...values), span = max - min || 1;
   const coords = valid.map((v, i) => `${(i / Math.max(1, valid.length - 1)) * 100},${94 - ((Number(v.value) - min) / span) * 84}`).join(" ");
@@ -769,6 +813,7 @@ function closeDrawer(force = false, immediate = false) {
       content.parentDrawer = parent.route.parentDrawer || null;
       const retry = () => (parent.route.kind === "position"
         ? positionDetail(parent.route.id, returnState, parent.route.parentDrawer)
+        : parent.route.kind === "assetTypes" ? assetTypeList(returnState)
         : accountDetail(parent.route.id, returnState)).catch(error => {
         if (error.name === "AbortError" || returnState.cycle !== drawerCycle || document.body.dataset.ended) return;
         clear(content); content.append(el("p", { role: "alert", text: t("loadFailed") }), button(t("refresh"), retry));

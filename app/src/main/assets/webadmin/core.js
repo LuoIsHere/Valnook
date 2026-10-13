@@ -111,10 +111,13 @@ function fmt(value, currency = "") {
   const number = decimalText(value, state.locale);
   return number + (currency && number !== "—" ? " " + currency : "");
 }
-function fmtPrice(value, currency = "") {
-  const number = decimalText(value, state.locale, 5, true);
+// Prices default to the stored E5 precision; execution prices pass 8 digits.
+function fmtPrice(value, currency = "", digits = 5) {
+  const number = decimalText(value, state.locale, digits, true);
   return number + (currency && number !== "—" ? " " + currency : "");
 }
+// Quantities are stored at E8 precision and are never rounded for display.
+function fmtQuantity(value) { return decimalText(value, state.locale, 8, true); }
 
 function when(ms) { return ms ? new Intl.DateTimeFormat(state.locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(ms)) : "—"; }
 function epochDay(date) { return Math.floor(new Date(`${date}T00:00:00Z`).getTime() / 86400000); }
@@ -315,4 +318,6 @@ Object.assign(copy["zh-CN"], { updating: "正在更新…" });
 Object.assign(copy.en, { updating: "Updating…" });
 Object.assign(copy["zh-CN"], { resizePanel: "调整侧栏宽度", resizePanelHint: "拖动调整宽度；双击恢复默认。也可使用左右键调整，Enter 恢复默认。" });
 Object.assign(copy.en, { resizePanel: "Resize panel", resizePanelHint: "Drag to resize; double-click to reset. Use arrow keys to resize or Enter to reset." });
-export { el, clear, fmt, fmtPrice, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion };
+Object.assign(copy["zh-CN"], { editAssetType: "编辑资产类型", instrumentCount: "投资标的数", createTypeFirst: "请先创建资产类型，再新增投资标的。" });
+Object.assign(copy.en, { editAssetType: "Edit asset type", instrumentCount: "Instruments", createTypeFirst: "Create an asset type before adding an instrument." });
+export { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion };

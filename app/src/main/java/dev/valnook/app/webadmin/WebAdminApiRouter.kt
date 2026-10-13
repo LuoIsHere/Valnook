@@ -320,11 +320,12 @@ internal class WebAdminApiRouter(
     private suspend fun position(id: Long): WebHttpResponse {
         val value = reads.snapshot().positions.firstOrNull { it.id == id } ?: return failure(404, "NOT_FOUND")
         val trades = sessions.webAdminReads().records(WebRecordFilter(kind = WebRecordKind.TRADE,
-            accountId = value.account_id, childId = id, pageSize = 100)).items
+            accountId = value.account_id, childId = id, pageSize = 100))
         return success(buildJsonObject {
             put("dataGeneration", reads.generation())
             put("position", position(value))
-            put("trades", buildJsonArray { trades.forEach { add(record(it)) } })
+            put("trades", buildJsonArray { trades.items.forEach { add(record(it)) } })
+            put("nextCursor", trades.nextCursor?.let { "${it.businessAtMs}|${it.stableKey}" })
         })
     }
 
@@ -545,7 +546,7 @@ internal class WebAdminApiRouter(
         put("averageCost", profit.average_cost?.let(::decimal)); put("remainingCost", profit.remainingCost?.let(::decimal))
         put("realized", profit.realized?.let(::decimal)); put("unrealized", profit.unrealized?.let(::decimal))
         put("unrealizedPercent", profit.unrealizedPercent?.let(::decimal)); put("chronologyValid", profit.chronology_valid)
-        put("lastActivityAtMs", value.last_activity_at_ms)
+        put("lastActivityAtMs", value.last_activity_at_ms); put("closed", value.isClosed)
     }
 
     private fun record(value: WebRecord) = buildJsonObject {
