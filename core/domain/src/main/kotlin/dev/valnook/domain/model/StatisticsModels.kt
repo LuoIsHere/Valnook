@@ -36,9 +36,15 @@ data class StatisticsPoint(
     val future: Boolean = false,
     val comparisonValue: BigDecimal? = null
 ) {
-    val change: BigDecimal? get() = if (reliable && !future && comparisonValue != null) value?.subtract(comparisonValue) else null
-    val changePercent: BigDecimal? get() = comparisonValue?.takeIf { it.signum() > 0 }?.let {
-        change?.multiply(BigDecimal(100))?.divide(it, 2, java.math.RoundingMode.HALF_UP)
+    // A missing comparison (before history starts) counts as zero.
+    // 没有对比数据（如历史起点之前）按 0 处理。
+    val change: BigDecimal? get() = if (reliable && !future) value?.subtract(comparisonValue ?: BigDecimal.ZERO) else null
+    // From zero: ±100% by direction, 0.00% when unchanged. Otherwise relative to |comparison| so the sign follows the change.
+    // 从 0 开始：按方向记 ±100%，不变记 0.00%；否则以对比值的绝对值为基数，正负号跟随变化方向。
+    val changePercent: BigDecimal? get() = change?.let { delta ->
+        val base = comparisonValue?.abs() ?: BigDecimal.ZERO
+        if (base.signum() == 0) BigDecimal(100 * delta.signum()).setScale(2)
+        else delta.multiply(BigDecimal(100)).divide(base, 2, java.math.RoundingMode.HALF_UP)
     }
 }
 

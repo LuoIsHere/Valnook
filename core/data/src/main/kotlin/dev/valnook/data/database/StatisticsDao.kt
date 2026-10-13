@@ -43,6 +43,10 @@ interface StatisticsDao {
     @Query("UPDATE statistics_state SET earliest_invalidated_epoch_day=NULL WHERE id=1 AND source_revision=:revision")
     suspend fun markValid(revision: Long): Int
 
+    @Query("""UPDATE statistics_state SET rule_version=:ruleVersion,source_revision=source_revision+1,
+        earliest_invalidated_epoch_day=:epochDay WHERE id=1 AND rule_version<:ruleVersion""")
+    suspend fun upgradeRule(ruleVersion: Int, epochDay: Long): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCache(values: List<StatisticsCacheEntity>)
 

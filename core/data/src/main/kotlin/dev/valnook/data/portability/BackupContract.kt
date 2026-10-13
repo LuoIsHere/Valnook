@@ -53,6 +53,8 @@ internal object BackupContract {
     const val POSITION_COST_RULE = InvestmentProfitCalculator.ALGORITHM_VERSION
     const val DEPOSIT_INTEREST_RULE = 1
     const val HISTORICAL_VALUATION_RULE = STATISTICS_RULE_VERSION
+    /** Older rules only differ in derived statistics, which restore always rebuilds. */
+    val RESTORABLE_HISTORICAL_VALUATION_RULES = dev.valnook.data.database.MIN_RESTORABLE_STATISTICS_RULE_VERSION..STATISTICS_RULE_VERSION
 
     val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1")
 

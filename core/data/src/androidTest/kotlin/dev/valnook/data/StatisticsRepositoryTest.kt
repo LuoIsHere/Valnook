@@ -196,7 +196,7 @@ class StatisticsRepositoryTest {
         decimal("320", requireNotNull(repository.loadCurrent().totalAssets))
     }
 
-    @Test fun heldPositionWithoutPastPriceKeepsInvestmentAndTotalUnknown() = runBlocking {
+    @Test fun heldPositionWithoutManualPriceIsValuedAtItsExecutionPrice() = runBlocking {
         db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
         db.statistics().invalidate(octoberFirst.toEpochDay())
         val repository = RoomStatistics(db, clock)
@@ -204,10 +204,64 @@ class StatisticsRepositoryTest {
         decimal("80", requireNotNull(current.availableCash))
         decimal("240", requireNotNull(current.investmentValue))
         decimal("370", requireNotNull(current.totalAssets))
-        val series = repository.loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+        val period = StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)
+        val investment = repository.loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE, period))
+        decimal("200", requireNotNull(investment.points[0].value))
+        decimal("240", requireNotNull(investment.points[1].value))
+        val total = repository.loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS, period))
+        decimal("330", requireNotNull(total.points[0].value))
+        decimal("40", requireNotNull(total.points[1].change))
+    }
+
+    @Test fun backdatedTradeBeforeFirstManualPriceLeavesNoGapAndKeepsDailyChange() = runBlocking {
+        // The instrument is priced today, but its buy was recorded for an earlier day.
+        // 标的今天才有手动价格，但买入记录在更早的日期。
+        db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
+        db.statistics().insertPrice(InstrumentPriceEntity(instrument_id = 1, price_e5 = 12_000_000,
+            currency_code = "CNY", effective_at_ms = clock.millis(), created_at_ms = clock.millis()))
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val series = RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
             StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
-        assertNull(series.points[0].value)
-        decimal("240", requireNotNull(series.points[1].value))
+        assertTrue(series.points.take(2).all { it.reliable && it.value != null })
+        decimal("330", requireNotNull(series.points[0].value))
+        decimal("370", requireNotNull(series.points[1].value))
+        decimal("40", requireNotNull(series.points[1].change))
+        decimal("12.12", requireNotNull(series.points[1].changePercent))
+    }
+
+    @Test fun manualPriceWinsATimestampTieWithAnExecution() = runBlocking {
+        db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
+        db.statistics().insertPrice(InstrumentPriceEntity(instrument_id = 1, price_e5 = 9_000_000,
+            currency_code = "CNY", effective_at_ms = at(OctoberDay.START), created_at_ms = clock.millis()))
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val series = RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        decimal("180", requireNotNull(series.points[0].value))
+    }
+
+    @Test fun olderRuleCacheIsDiscardedAndRecomputedOnce() = runBlocking {
+        db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
+        val revision = db.statistics().state()!!.source_revision
+        // A rule-2 install cached the unpriced day as unknown.
+        // 旧规则（版本 2）把缺价的那天缓存成了未知值。
+        db.openHelper.writableDatabase.execSQL(
+            "UPDATE statistics_state SET rule_version=2,earliest_invalidated_epoch_day=NULL WHERE id=1")
+        db.statistics().insertCache(StatisticsMetric.entries.map { metric ->
+            StatisticsCacheEntity(metric.name, octoberFirst.toEpochDay(), null, reliable = false,
+                source_revision = revision, rule_version = 2, computed_at_ms = clock.millis())
+        })
+        val series = RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        decimal("200", requireNotNull(series.points[0].value))
+        val state = db.statistics().state()!!
+        assertEquals(STATISTICS_RULE_VERSION, state.rule_version)
+        assertEquals(revision + 1, state.source_revision)
+        assertEquals("200", db.statistics().cached(StatisticsMetric.INVESTMENT_VALUE.name, octoberFirst.toEpochDay(),
+            octoberFirst.toEpochDay(), state.source_revision, STATISTICS_RULE_VERSION).single().value_decimal)
+        val upgradedRevision = state.source_revision
+        RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        assertEquals(upgradedRevision, db.statistics().state()!!.source_revision)
     }
 
     @Test fun clearingDerivedCacheRebuildsTheSameValues() = runBlocking {
@@ -341,13 +395,14 @@ class StatisticsRepositoryTest {
         assertEquals(sourceRevision, requireNotNull(db.statistics().state()).source_revision)
     }
 
-    @Test fun daily_changes_use_each_metrics_previous_day_and_missing_baseline_stays_unknown() = runBlocking {
+    @Test fun daily_changes_use_each_metrics_previous_day_and_missing_baseline_counts_from_zero() = runBlocking {
         val repository=RoomStatistics(db,clock)
         val series=StatisticsMetric.entries.associateWith { repository.loadSeries(StatisticsRequest(it,
             StatisticsPeriod(StatisticsGranularity.DAILY,2026,10))) }
         series.values.forEach {
-            assertNull(it.points[0].change)
-            assertNull(it.points[0].changePercent)
+            assertNull(it.points[0].comparisonValue)
+            decimal(it.points[0].value!!.toPlainString(),requireNotNull(it.points[0].change))
+            decimal("100.00",requireNotNull(it.points[0].changePercent))
             assertNull(it.points[2].change)
         }
         decimal("40",requireNotNull(series.getValue(StatisticsMetric.TOTAL_ASSETS).points[1].change))
@@ -386,9 +441,9 @@ class StatisticsRepositoryTest {
             LocalDate.of(2026,9,30).toEpochDay(),2,db.statistics().state()!!.rule_version).isEmpty())
         db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
         db.statistics().invalidate(octoberFirst.toEpochDay())
-        val unavailable=repository.loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+        val executionPriced=repository.loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
             StatisticsPeriod(StatisticsGranularity.DAILY,2026,10)))
-        assertNull(unavailable.points.first().value)
+        decimal("200",requireNotNull(executionPriced.points.first().value))
     }
 
     @Test fun current_chart_point_matches_live_book_and_is_not_cached_as_historical_close() = runBlocking {

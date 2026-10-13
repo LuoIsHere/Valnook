@@ -257,6 +257,38 @@ class BackupPortabilityTest {
         }
     }
 
+    @Test fun previous_statistics_rule_backup_restores_and_upgrades_on_first_read() = runBlocking {
+        val source = database("statistics-rule-v2-source")
+        RoomFinancialCommands(source, clock).execute(SaveAccount(testOperationId(), null, null, "Rule", "",
+            listOf(CashBalanceChange("CNY", 12_345, null, name = "Cash"))))
+        // A v0.0.16 install exported statistics rule 2 in both the manifest and the saved state.
+        // v0.0.16 导出的备份在清单与统计状态中都记录规则版本 2。
+        source.openHelper.writableDatabase.execSQL("UPDATE statistics_state SET rule_version=2 WHERE id=1")
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        val files = linkedMapOf<String, ByteArray>()
+        ZipInputStream(ByteArrayInputStream(output.toByteArray())).use { zip -> while (true) {
+            val entry = zip.nextEntry ?: break
+            files[entry.name] = zip.readBytes()
+        } }
+        val manifest = JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
+        manifest.getJSONObject("rules").put("historicalValuation", 2)
+        files["manifest.json"] = manifest.toString().toByteArray()
+        assertTrue(files.getValue("data/valuation_baselines.jsonl").toString(Charsets.UTF_8).contains("\"ruleVersion\":\"2\""))
+        val previousRule = ByteArrayOutputStream().also { bytes -> ZipOutputStream(bytes).use { zip ->
+            files.forEach { (name, value) -> zip.putNextEntry(ZipEntry(name)); zip.write(value); zip.closeEntry() }
+        } }.toByteArray()
+
+        val target = database("statistics-rule-v2-target")
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(previousRule), "rule-v2.val_backup") {}
+        try { targetEngine.commitRestore(staged) {} } finally { targetEngine.close(staged) }
+        assertEquals(12_345L, RoomOverview(target).snapshot().cash.single().balance_minor)
+        assertEquals(2, target.statistics().state()!!.rule_version)
+        dev.valnook.data.repository.RoomStatistics(target, clock).loadCurrent()
+        assertEquals(dev.valnook.data.database.STATISTICS_RULE_VERSION, target.statistics().state()!!.rule_version)
+    }
+
     @Test fun restore_faults_roll_back_the_complete_original_dataset() = runBlocking {
         val source = database("fault-source")
         RoomFinancialCommands(source, clock).testAccount("replacement")

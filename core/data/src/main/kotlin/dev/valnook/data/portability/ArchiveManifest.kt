@@ -97,7 +97,8 @@ data class ArchiveManifest(
             requireKeys(rules, setOf("positionCost", "depositInterest", "historicalValuation"))
             if (rules.number("positionCost") != BackupContract.POSITION_COST_RULE.toLong() ||
                 rules.number("depositInterest") != BackupContract.DEPOSIT_INTEREST_RULE.toLong() ||
-                rules.number("historicalValuation") != BackupContract.HISTORICAL_VALUATION_RULE.toLong()) incompatible()
+                rules.number("historicalValuation") !in BackupContract.RESTORABLE_HISTORICAL_VALUATION_RULES.let {
+                    it.first.toLong()..it.last.toLong() }) incompatible()
             val features = root.list("requiredFeatures").map { it as? String ?: fail() }
             if (features.toSet().size != features.size) fail()
             if (dataSchemaVersion >= 6 && "wallet-cards-v1" !in features) incompatible()

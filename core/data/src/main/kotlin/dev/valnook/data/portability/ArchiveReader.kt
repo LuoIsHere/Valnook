@@ -409,7 +409,7 @@ internal class ArchiveReader(
             .use { cursor -> while (cursor.moveToNext()) actualCash[cursor.getString(0)] = cursor.getLong(1).toString() }
         if (declaredCash != actualCash) summaryMismatch()
         val state = db.statistics().state()
-        if (state != null && state.rule_version != BackupContract.HISTORICAL_VALUATION_RULE) incompatible()
+        if (state != null && state.rule_version !in BackupContract.RESTORABLE_HISTORICAL_VALUATION_RULES) incompatible()
     }
 
     private fun validateCreditAccounts(db: androidx.sqlite.db.SupportSQLiteDatabase) {

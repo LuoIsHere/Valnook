@@ -5,7 +5,12 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
-const val STATISTICS_RULE_VERSION = 2
+// 3: trade executions back-fill valuation prices before the first manual price.
+// 3：首个手动价格之前，以成交价作为估值价格。
+const val STATISTICS_RULE_VERSION = 3
+
+/** Oldest rule whose saved state can be restored; its derived cache is rebuilt on read. */
+const val MIN_RESTORABLE_STATISTICS_RULE_VERSION = 2
 
 @Entity(
     tableName = "instrument_price_history",

@@ -117,6 +117,14 @@ class RoomStatistics(
             dao.captureDepositBaseline()
             dao.capturePositionBaseline()
         }
+        if (state.rule_version < STATISTICS_RULE_VERSION) {
+            if (!canCommit()) throw DomainException(ErrorCode.SESSION_EXPIRED)
+            // Values cached under an older rule (such as unpriced gaps) are recomputed from the baseline.
+            // 旧规则下缓存的值（例如缺价导致的空值）从统计起点开始重算。
+            dao.clearCache()
+            dao.upgradeRule(STATISTICS_RULE_VERSION, instantDate(state.baseline_at_ms).toEpochDay())
+            state = dao.state()
+        }
         Header(requireNotNull(state), settingsModel(dao.settings(), dao.rates()))
     }
 
@@ -151,7 +159,7 @@ class RoomStatistics(
         if (source.settings.baseCurrency == null) return dates.associateWith { Values(null, null, null) }
         val entriesByCash = source.entries.groupBy { it.cash_account_id }
         val tradesByPosition = source.trades.groupBy { it.investment_id }
-        val pricesByInstrument = source.prices.groupBy { it.instrument_id }
+        val observationsByInstrument = priceObservations(source)
         return dates.distinct().associateWith { date ->
             val cutoff = cutoff(date)
             val creditIds = source.creditProfiles.asSequence().map { it.account_id }.toHashSet()
@@ -178,17 +186,32 @@ class RoomStatistics(
                         trade.quantity_e8 else -trade.quantity_e8
                 }
                 if (quantity > 0) {
-                    val price = pricesByInstrument[position.instrument_id].orEmpty()
-                        .lastOrNull { it.effective_at_ms <= cutoff }
+                    val price = observationsByInstrument[position.instrument_id].orEmpty()
+                        .lastOrNull { it.atMs <= cutoff }
                     if (price == null) investmentKnown = false else {
-                        val original = BigDecimal.valueOf(quantity).movePointLeft(8)
-                            .multiply(BigDecimal.valueOf(price.price_e5).movePointLeft(5))
+                        val original = BigDecimal.valueOf(quantity).movePointLeft(8).multiply(price.price)
                         investment += convertMajor(original, position.currency_code, source.settings)
                     }
                 }
             }
             if (investmentKnown) Values(balanceAccounts + deposits + investment, availableCash, investment)
             else Values(null, availableCash, null)
+        }
+    }
+
+    // Manual prices and trade executions are both valuation observations; the latest at the cutoff wins,
+    // so a position is never unpriced once its first trade exists. A manual price wins a timestamp tie.
+    // 手动价格与成交价都是估值观测，取截止时点前最新的一条；持仓一旦有交易就不会缺价。时间相同时以手动价格为准。
+    private fun priceObservations(source: Source): Map<Long, List<PriceObservation>> {
+        val instrumentByPosition = source.positions.associate { it.id to it.instrument_id }
+        val manual = source.prices.map { PriceObservation(it.instrument_id, it.effective_at_ms,
+            BigDecimal.valueOf(it.price_e5).movePointLeft(5), manual = true) }
+        val executions = source.trades.mapNotNull { trade -> instrumentByPosition[trade.investment_id]?.let { instrument ->
+            PriceObservation(instrument, trade.occurred_at_ms,
+                BigDecimal.valueOf(trade.execution_price_e8).movePointLeft(8), manual = false)
+        } }
+        return (manual + executions).groupBy { it.instrumentId }.mapValues { (_, values) ->
+            values.sortedWith(compareBy<PriceObservation>({ it.atMs }, { it.manual }))
         }
     }
 
@@ -242,6 +265,8 @@ class RoomStatistics(
     )
 
     private data class Header(val state: StatisticsStateEntity, val settings: AppSettings)
+
+    private data class PriceObservation(val instrumentId: Long, val atMs: Long, val price: BigDecimal, val manual: Boolean)
 
     private data class Values(val total: BigDecimal?, val cash: BigDecimal?, val investment: BigDecimal?) {
         fun forMetric(metric: StatisticsMetric): BigDecimal? = when (metric) {
