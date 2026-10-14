@@ -386,6 +386,66 @@ class UiFlowTest {
         shot("cash-entry-unlinked")
     }
 
+    @Test fun rounded_purchase_shows_five_digit_average_cost_with_fee_hint() {
+        runBlocking {
+            val type = createType("合成基金")
+            val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
+                null, "成本基金", "COST", type, "CNY", 6929400)).id
+            val position = graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),
+                account_id, instrument)).id
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), position,
+                Direction.BUY, R.parse_e8("2.309"), R.parse_e8("69.294"), graph.clock.millis() - 1000, false,
+                fee_minor = 10))
+        }
+        // (2.309 x 69.294 + 0.10) / 2.309, not the 160.10 cash settlement divided by 2.309.
+        wait_text("合成账户 A")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值")
+        rule.onNodeWithContentDescription("所有投资品").performClick()
+        wait_text("成本基金")
+        rule.onNodeWithText("成本基金").performClick()
+        wait_text("按账户分别计算成本")
+        rule.onNodeWithText("2.309 份 · 成本 69.33731 CNY /份").assertIsDisplayed()
+        shot("instrument-five-digit-cost")
+        rule.onNodeWithTag("instrument-account-$account_id").performClick()
+        wait_text("交易历史")
+        rule.onNodeWithText("69.33731").assertIsDisplayed()
+        rule.onNodeWithText("成本含手续费").assertIsDisplayed()
+        shot("position-cost-includes-fees")
+    }
+
+    @Test fun sub_cent_profit_displays_as_neutral_zero() {
+        runBlocking {
+            val type = createType("合成基金")
+            // Current price 10.00000 against an execution price of 10.00001 leaves -0.00001 floating.
+            val held = createInvestment(account_id, "微差基金", "TINY", type, "CNY", R.parse_e8("1"),
+                R.parse_e8("10"), R.parse_e8("10.00001"))
+            // Cash settles 0.33 against a 0.333 cost basis, leaving -0.003 realized.
+            val closed = createInvestment(account_id, "清仓基金", "DONE", type, "CNY", R.parse_e8("1"),
+                R.parse_e8("0.333"), R.parse_e8("0.333"))
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(), closed,
+                Direction.SELL, R.parse_e8("1"), R.parse_e8("0.333"), graph.clock.millis(), false))
+            assertEquals(-1, graph.investments.observe_profit(held).first()!!.unrealized!!.signum())
+            assertEquals(-1, graph.investments.observe_profit(closed).first()!!.realized!!.signum())
+        }
+        wait_text("合成账户 A")
+        rule.onNodeWithTag("account-total-$account_id").performClick()
+        rule.onNodeWithText("投资").performClick()
+        wait_text("TINY")
+        rule.onNodeWithText("0.00%").assertIsDisplayed()
+        rule.onAllNodesWithText("+0.00", substring = true).assertCountEquals(0)
+        shot("sub-cent-holding-neutral")
+        rule.onNodeWithContentDescription("返回").performClick()
+        wait_text("合成账户 A")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值")
+        rule.onNodeWithContentDescription("所有投资品").performClick()
+        wait_text("清仓基金")
+        rule.onAllNodesWithText("浮动盈亏 0.00 CNY", substring = true).assertCountEquals(2)
+        rule.onAllNodesWithText("已实现盈亏 0.00 CNY", substring = true).assertCountEquals(2)
+        shot("sub-cent-library-neutral")
+    }
+
     @Test fun buy_cost_profit_and_global_zero_position_reentry() {
         runBlocking {
             val type = createType("合成基金")

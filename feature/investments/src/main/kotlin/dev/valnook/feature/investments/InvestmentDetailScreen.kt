@@ -32,6 +32,8 @@ import dev.valnook.domain.model.*
         item {
             Text(stringResource(R.string.investment_remaining_cost, money(profit.remainingCost, asset.currency)))
             Text(stringResource(R.string.investment_realized_total, money(profit.realized, asset.currency)))
+            Text(stringResource(R.string.investment_cost_includes_fees), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton({ onCreateTrade(Direction.BUY, asset) }, Modifier.weight(1f)) { Text(stringResource(R.string.investment_buy)) }

@@ -36,8 +36,11 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
     value?.setScale(currency.fraction_digits, RoundingMode.HALF_UP)?.toPlainString()?.plus(" " + currency.code) ?: "—"
 @Composable internal fun converted(total: ConvertedTotal): String =
     total.currency?.let { money(total.amount, it) } ?: stringResource(R.string.investment_set_base)
+/** Converted totals follow their displayed rounding; an unknown base currency stays neutral. */
+private fun displayedSign(total: ConvertedTotal): Int =
+    total.currency?.let { displayedSign(total.amount, it.fraction_digits) } ?: 0
 @Composable private fun TotalLine(label: String, total: ConvertedTotal, colorByValue: Boolean = false) {
-    val valueColor = if (colorByValue && total.complete) profitColor(total.amount.signum())
+    val valueColor = if (colorByValue && total.complete) profitColor(displayedSign(total))
         else MaterialTheme.colorScheme.onSurfaceVariant
     SummaryMetric(label, converted(total), valueColor = valueColor)
     val missing = total.missing.mapNotNull {
@@ -113,8 +116,8 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
                         }
                         AccountProfitRow(converted(account.realized),
                             converted(account.floating),
-                            if (account.realized.complete) account.realized.amount.signum() else 0,
-                            if (account.floating.complete) account.floating.amount.signum() else 0,
+                            if (account.realized.complete) displayedSign(account.realized) else 0,
+                            if (account.floating.complete) displayedSign(account.floating) else 0,
                             realizedModifier = Modifier.testTag("account-realized-${account.account.id}"),
                             floatingModifier = Modifier.testTag("account-floating-${account.account.id}"))
                         if (!account.investmentValue.complete || !account.floating.complete || !account.realized.complete)

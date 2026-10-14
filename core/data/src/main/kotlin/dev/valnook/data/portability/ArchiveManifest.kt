@@ -24,7 +24,8 @@ data class ArchiveManifest(
     val producer: AppBuildInfo,
     val files: List<PayloadFileInfo>,
     val requiredFeatures: List<String>,
-    val dataSchemaVersion: Int = BackupContract.DATA_SCHEMA_VERSION
+    val dataSchemaVersion: Int = BackupContract.DATA_SCHEMA_VERSION,
+    val positionCostRule: Int = BackupContract.POSITION_COST_RULE
 ) {
     fun toJson(): String = JSONObject().apply {
         put("format", BackupContract.FORMAT)
@@ -53,7 +54,7 @@ data class ArchiveManifest(
             put("auditEventCount", auditEventCount)
         })
         put("rules", JSONObject().apply {
-            put("positionCost", BackupContract.POSITION_COST_RULE)
+            put("positionCost", positionCostRule)
             put("depositInterest", BackupContract.DEPOSIT_INTEREST_RULE)
             put("historicalValuation", BackupContract.HISTORICAL_VALUATION_RULE)
         })
@@ -95,7 +96,9 @@ data class ArchiveManifest(
             requireKeys(snapshot, setOf("snapshotId", "accountCount", "cashAccountCount", "tradeCount", "auditEventCount"))
             val rules = root.objectValue("rules")
             requireKeys(rules, setOf("positionCost", "depositInterest", "historicalValuation"))
-            if (rules.number("positionCost") != BackupContract.POSITION_COST_RULE.toLong() ||
+            val positionCostRule = rules.number("positionCost")
+            if (positionCostRule !in BackupContract.RESTORABLE_POSITION_COST_RULES.let {
+                    it.first.toLong()..it.last.toLong() } ||
                 rules.number("depositInterest") != BackupContract.DEPOSIT_INTEREST_RULE.toLong() ||
                 rules.number("historicalValuation") !in BackupContract.RESTORABLE_HISTORICAL_VALUATION_RULES.let {
                     it.first.toLong()..it.last.toLong() }) incompatible()
@@ -120,6 +123,7 @@ data class ArchiveManifest(
                 }) fail()
             return ArchiveManifest(
                 dataSchemaVersion = dataSchemaVersion,
+                positionCostRule = positionCostRule.toInt(),
                 backupId = root.string("backupId"),
                 createdAtUtc = creation.string("createdAtUtc"),
                 snapshotAtUtc = creation.string("snapshotAtUtc"),

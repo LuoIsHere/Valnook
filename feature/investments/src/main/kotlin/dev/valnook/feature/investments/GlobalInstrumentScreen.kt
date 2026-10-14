@@ -37,7 +37,8 @@ fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: (
             Text(stringResource(R.string.instrument_cross_account_value, money(summary.marketValue, instrument.currency)), style = MaterialTheme.typography.titleMedium)
             AccountProfitRow(money(summary.realized, instrument.currency),
                 money(summary.floating, instrument.currency),
-                summary.realized?.signum() ?: 0, summary.floating?.signum() ?: 0)
+                displayedSign(summary.realized, instrument.currency.fraction_digits),
+                displayedSign(summary.floating, instrument.currency.fraction_digits))
         }
         item { ActionButton(onEdit) { Text(stringResource(R.string.instrument_edit_action)) } }
         item { Text(stringResource(R.string.instrument_cost_by_account), style = MaterialTheme.typography.titleMedium) }
@@ -60,13 +61,14 @@ fun GlobalInstrumentDetail(vm: PortfolioViewModel, instrumentId: Long, onEdit: (
                 if (position == null) Text(stringResource(R.string.instrument_no_account_history), style = MaterialTheme.typography.bodySmall)
                 else {
                     val profit = InvestmentProfitCalculator.fromReadModel(position)
-                    val average = profit.average_cost?.setScale(8, RoundingMode.HALF_UP)
+                    val average = profit.average_cost?.setScale(5, RoundingMode.HALF_UP)
                         ?.stripTrailingZeros()?.toPlainString()?.plus(" " + instrument.currency.code) ?: "—"
                     Text(stringResource(R.string.instrument_position_cost,
                         DecimalRules.format_e8(position.holding_quantity_e8), average), style = MaterialTheme.typography.bodySmall)
                     AccountProfitRow(money(profit.realized, instrument.currency),
                         money(profit.unrealized, instrument.currency),
-                        profit.realized?.signum() ?: 0, profit.unrealized?.signum() ?: 0)
+                        displayedSign(profit.realized, instrument.currency.fraction_digits),
+                        displayedSign(profit.unrealized, instrument.currency.fraction_digits))
                 }
             }
         }

@@ -79,21 +79,31 @@ class InvestmentProfitCalculatorTest {
         assertTrue(result.remainingCost!!.scale() > 2)
         val closed = Calculator.calculate(asset("0"), listOf(trade(1, Direction.BUY, "0.3", "1.23"),
             trade(2, Direction.SELL, "0.1", "2"), trade(3, Direction.SELL, "0.2", "2")))
-        decimal("0", closed.remainingCost); decimal("0.23", closed.realized)
+        decimal("0", closed.remainingCost); decimal("0.231", closed.realized); displayed("0.23", closed.realized)
     }
     @Test fun historical_sale_before_buy_conflict_is_explicit() {
         val history = listOf(trade(1, Direction.SELL, "5", "120"), trade(2, Direction.BUY, "10", "100"))
         assertFalse(Calculator.calculate(asset("5"), history).chronology_valid)
     }
     @Test fun exact_half_cent_display_is_rounded_only_at_boundary() {
-        val result = Calculator.calculate(asset("2.9925"), listOf(trade(1, Direction.BUY, "3", "0.66666667"),
-            trade(2, Direction.SELL, "0.0075", "2.66666667")))
+        val result = Calculator.calculate(asset("2.99"), listOf(trade(1, Direction.BUY, "3", "0.5"),
+            trade(2, Direction.SELL, "0.01", "2")))
         decimal("0.015", result.realized); displayed("0.02", result.realized)
     }
     @Test fun lifetime_turnover_can_exceed_long_while_each_record_remains_bounded() {
         val history = (1L..4L).map { id -> trade(id, if (id % 2 == 1L) Direction.BUY else Direction.SELL, "1000000000", "90000000") }
         val result = Calculator.calculate(asset("0"), history)
         assertNull(result.average_cost); decimal("0", result.realized); decimal("0", result.remainingCost)
+    }
+    @Test fun cash_rounding_does_not_move_average_cost_off_the_execution_price() {
+        val buy = trade(1, Direction.BUY, "2.309", "69.294")
+        assertEquals(16000L, buy.amount_minor)
+        val held = Calculator.calculate(asset("2.309", price = "69.294"), listOf(buy))
+        decimal("159.999846", held.remainingCost); decimal("69.294", held.average_cost)
+        decimal("0", held.unrealized)
+        val closed = Calculator.calculate(asset("0", price = "69.294"), listOf(buy,
+            trade(2, Direction.SELL, "2.309", "69.294")))
+        decimal("0", closed.remainingCost); decimal("0.000154", closed.realized); displayed("0", closed.realized)
     }
     @Test fun fees_raise_buy_cost_and_reduce_realized_sale_proceeds() {
         val result = Calculator.calculate(asset("5", price = "120"), listOf(

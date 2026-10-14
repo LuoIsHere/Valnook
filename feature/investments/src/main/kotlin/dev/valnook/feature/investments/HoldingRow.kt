@@ -32,11 +32,15 @@ internal fun profitColor(sign: Int): Color = when {
     else -> LocalGainLossPalette.current.neutral
 }
 
+/** Sign of a value after rounding to [digits]; residue that displays as zero stays neutral. */
+internal fun displayedSign(value: BigDecimal?, digits: Int): Int =
+    value?.setScale(digits, RoundingMode.HALF_UP)?.signum() ?: 0
+
 private fun number(value: BigDecimal?, digits: Int): String =
     value?.setScale(digits, RoundingMode.HALF_UP)?.toPlainString() ?: "—"
 
 private fun signed(value: BigDecimal?, digits: Int): String =
-    (if (value?.signum() == 1) "+" else "") + number(value, digits)
+    (if (displayedSign(value, digits) == 1) "+" else "") + number(value, digits)
 
 @Composable
 private fun Metric(primary: String, secondary: String, modifier: Modifier = Modifier,
@@ -58,7 +62,7 @@ fun HoldingRow(asset: Investment, onOpen: (() -> Unit)? = null) {
     val quantity = stringResource(R.string.investment_units, DecimalRules.format_e8(asset.holding_quantity_e8))
     val floating = signed(profit.unrealized, asset.currency.fraction_digits)
     val percentage = profit.unrealizedPercent?.let { signed(it, 2) + "%" } ?: "—"
-    val color = profitColor(profit.unrealized?.signum() ?: 0)
+    val color = profitColor(displayedSign(profit.unrealized, asset.currency.fraction_digits))
     val click = if (onOpen == null) Modifier else Modifier.clickable(role = Role.Button, onClick = onOpen)
     Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
         .then(click).padding(vertical = 6.dp).testTag("holding-${asset.id}"),

@@ -56,7 +56,8 @@ fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, on
                 }
                 AccountProfitRow(money(summary.realized, instrument.currency),
                     money(summary.floating, instrument.currency),
-                    summary.realized?.signum() ?: 0, summary.floating?.signum() ?: 0)
+                    displayedSign(summary.realized, instrument.currency.fraction_digits),
+                    displayedSign(summary.floating, instrument.currency.fraction_digits))
             }
         }
     }

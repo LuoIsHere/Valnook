@@ -51,6 +51,8 @@ internal object BackupContract {
     const val DATA_SCHEMA_VERSION = dev.valnook.domain.portability.BACKUP_DATA_SCHEMA_VERSION
     const val REPORT_FORMAT_VERSION = 2
     const val POSITION_COST_RULE = InvestmentProfitCalculator.ALGORITHM_VERSION
+    /** Rule 4 booked purchases at the rounded cash amount; restore re-derives such positions under the current rule. */
+    val RESTORABLE_POSITION_COST_RULES = 4..POSITION_COST_RULE
     const val DEPOSIT_INTEREST_RULE = 1
     const val HISTORICAL_VALUATION_RULE = STATISTICS_RULE_VERSION
     /** Older rules only differ in derived statistics, which restore always rebuilds. */

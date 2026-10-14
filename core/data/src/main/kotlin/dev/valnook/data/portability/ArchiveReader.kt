@@ -380,9 +380,13 @@ internal class ArchiveReader(
         sql.query("SELECT 1 FROM operations WHERE result_kind IS NULL OR result_id IS NULL LIMIT 1")
             .use { if (it.moveToFirst()) invalid() }
         sql.query("""SELECT 1 FROM investments p WHERE p.opening_quantity_e8!=0 OR p.opening_cost_price_e8 IS NOT NULL
-            OR p.opening_at_ms!=0 OR p.algorithm_version!=${BackupContract.POSITION_COST_RULE} LIMIT 1""")
+            OR p.opening_at_ms!=0 OR p.algorithm_version!=${manifest.positionCostRule} LIMIT 1""")
             .use { if (it.moveToFirst()) incompatible() }
-        validatePositionCosts(sql)
+        val rederived = validatePositionCosts(sql, manifest.positionCostRule)
+        if (manifest.positionCostRule != BackupContract.POSITION_COST_RULE) rederived.forEach { values ->
+            db.openHelper.writableDatabase.execSQL("""UPDATE investments SET remaining_cost=?,realized_profit=?,
+                algorithm_version=${BackupContract.POSITION_COST_RULE} WHERE id=?""", values)
+        }
         sql.query("""SELECT 1 FROM term_deposits WHERE status NOT IN ('OPEN','CLOSED')
             OR start_epoch_day>end_epoch_day OR principal_minor<=0 OR annual_rate_percent_e8<0
             OR (status='OPEN' AND (close_operation_id IS NOT NULL OR closed_at_ms IS NOT NULL))
@@ -436,10 +440,35 @@ internal class ArchiveReader(
             .use { if (it.moveToFirst()) relationship() }
     }
 
-    private fun validatePositionCosts(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+    /** Moving-average chain under one cost rule. Rule 4 booked purchases at the rounded cash amount. */
+    private class CostChain(private val rule: Int) {
+        var remaining: BigDecimal = BigDecimal.ZERO
+        var realized: BigDecimal = BigDecimal.ZERO
+
+        fun buy(quantityE8: Long, priceE8: Long, amount: BigDecimal, fee: BigDecimal) {
+            val cost = if (rule == 4) amount
+                else BigDecimal.valueOf(quantityE8, 8).multiply(BigDecimal.valueOf(priceE8, 8))
+            remaining = remaining.add(cost).add(fee)
+        }
+
+        fun sell(quantityE8: Long, heldE8: Long, amount: BigDecimal, fee: BigDecimal) {
+            val allocated = if (quantityE8 == heldE8) remaining else remaining
+                .multiply(BigDecimal.valueOf(quantityE8))
+                .divide(BigDecimal.valueOf(heldE8), 32, RoundingMode.HALF_UP)
+            realized = realized.add(amount.subtract(fee).subtract(allocated))
+            remaining = if (quantityE8 == heldE8) BigDecimal.ZERO else remaining.subtract(allocated)
+        }
+    }
+
+    /**
+     * Verifies every declared position cost under the archive's rule and returns
+     * `[remaining_cost, realized_profit, id]` re-derived under the current rule.
+     */
+    private fun validatePositionCosts(db: androidx.sqlite.db.SupportSQLiteDatabase, rule: Int): List<Array<Any?>> {
+        val rederived = mutableListOf<Array<Any?>>()
         db.query("""SELECT p.id,p.holding_quantity_e8,p.remaining_cost,p.realized_profit,
             p.chronology_valid,p.position_state,c.fraction_digits,t.id,t.direction,t.quantity_e8,
-            t.amount_minor,t.fee_minor,t.is_deleted
+            t.amount_minor,t.fee_minor,t.is_deleted,t.execution_price_e8
             FROM investments p JOIN instruments i ON i.id=p.instrument_id
             JOIN currencies c ON c.code=i.currency_code
             LEFT JOIN investment_trades t ON t.investment_id=p.id
@@ -452,15 +481,17 @@ internal class ArchiveReader(
             var declaredState = ""
             var fractionDigits = 0
             var quantity = 0L
-            var remaining = BigDecimal.ZERO
-            var realized = BigDecimal.ZERO
+            var declared = CostChain(rule)
+            var latest = CostChain(BackupContract.POSITION_COST_RULE)
             var hasTrade = false
             fun finish() {
                 if (positionId == Long.MIN_VALUE) return
                 val expectedState = if (quantity > 0) "HOLDING" else if (hasTrade) "CLOSED" else "PENDING"
                 if (!declaredValid || quantity != declaredHolding || declaredCost == null || declaredRealized == null ||
-                    remaining.compareTo(declaredCost) != 0 || realized.compareTo(declaredRealized) != 0 ||
+                    declared.remaining.compareTo(declaredCost) != 0 || declared.realized.compareTo(declaredRealized) != 0 ||
                     declaredState != expectedState) summaryMismatch()
+                rederived += arrayOf(latest.remaining.stripTrailingZeros().toPlainString(),
+                    latest.realized.stripTrailingZeros().toPlainString(), positionId)
             }
             while (cursor.moveToNext()) {
                 val current = cursor.getLong(0)
@@ -474,8 +505,8 @@ internal class ArchiveReader(
                     declaredState = cursor.getString(5)
                     fractionDigits = cursor.getInt(6)
                     quantity = 0L
-                    remaining = BigDecimal.ZERO
-                    realized = BigDecimal.ZERO
+                    declared = CostChain(rule)
+                    latest = CostChain(BackupContract.POSITION_COST_RULE)
                     hasTrade = false
                 }
                 if (cursor.isNull(7) || cursor.getInt(12) != 0) continue
@@ -487,19 +518,18 @@ internal class ArchiveReader(
                 val fee = BigDecimal.valueOf(cursor.getLong(11), fractionDigits)
                 if (direction == "BUY") {
                     quantity = checkedAdd(quantity, tradeQuantity)
-                    remaining = remaining.add(amount).add(fee)
+                    declared.buy(tradeQuantity, cursor.getLong(13), amount, fee)
+                    latest.buy(tradeQuantity, cursor.getLong(13), amount, fee)
                 } else if (direction == "SELL") {
                     if (quantity <= 0 || tradeQuantity > quantity) invalid()
-                    val allocated = if (tradeQuantity == quantity) remaining else remaining
-                        .multiply(BigDecimal.valueOf(tradeQuantity))
-                        .divide(BigDecimal.valueOf(quantity), 32, RoundingMode.HALF_UP)
-                    realized = realized.add(amount.subtract(fee).subtract(allocated))
+                    declared.sell(tradeQuantity, quantity, amount, fee)
+                    latest.sell(tradeQuantity, quantity, amount, fee)
                     quantity -= tradeQuantity
-                    remaining = if (quantity == 0L) BigDecimal.ZERO else remaining.subtract(allocated)
                 } else invalid()
             }
             finish()
         }
+        return rederived
     }
 
     private fun portableDecimal(raw: String?): BigDecimal? {

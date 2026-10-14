@@ -12,6 +12,7 @@ import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.data.portability.AppBuildInfo
 import dev.valnook.data.portability.RoomPortabilityEngine
 import dev.valnook.data.transaction.RoomFinancialCommands
+import dev.valnook.domain.calculation.InvestmentProfitCalculator
 import dev.valnook.domain.repository.SaveAccount
 import java.io.File
 import java.io.FileInputStream
@@ -133,7 +134,7 @@ class BackupPerformanceTest {
         raw.execSQL("""INSERT INTO investments(id,savings_account_id,instrument_id,opening_quantity_e8,
             holding_quantity_e8,revision,created_at_ms,updated_at_ms,opening_cost_price_e8,opening_at_ms,
             remaining_cost,realized_profit,chronology_valid,algorithm_version,position_state,last_activity_at_ms)
-            VALUES (1,1,1,0,?,1,1,?,NULL,0,?,'0',1,4,'HOLDING',?)""",
+            VALUES (1,1,1,0,?,1,1,?,NULL,0,?,'0',1,${InvestmentProfitCalculator.ALGORITHM_VERSION},'HOLDING',?)""",
             arrayOf<Any>(count.toLong() * 100_000_000L, count.toLong(), count.toString(), count.toLong()))
         val operation = raw.compileStatement("""INSERT INTO operations(operation_id,kind,request_fingerprint,
             result_kind,result_id,created_at_ms) VALUES (?,?,?,?,?,?)""")

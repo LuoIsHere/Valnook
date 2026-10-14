@@ -7,7 +7,7 @@ import java.math.RoundingMode
 
 /** Independent moving-average cost chain for one account position. Never replay cash here. */
 object InvestmentProfitCalculator {
-    const val ALGORITHM_VERSION = 4
+    const val ALGORITHM_VERSION = 5
     const val ALLOCATION_SCALE = 32
 
     fun calculate(asset: Investment, trades: List<Trade>): InvestmentProfit {
@@ -22,7 +22,7 @@ object InvestmentProfitCalculator {
             val fee = BigDecimal.valueOf(trade.fee_minor, asset.currency.fraction_digits)
             if (trade.direction == Direction.BUY) {
                 quantityE8 = DecimalRules.add(quantityE8, trade.quantity_e8)
-                remainingCost = remainingCost?.add(amount)?.add(fee)
+                remainingCost = remainingCost?.add(buyNotional(trade.quantity_e8, trade.execution_price_e8))?.add(fee)
             } else {
                 if (trade.quantity_e8 > quantityE8 || quantityE8 <= 0) {
                     chronological = false
@@ -43,6 +43,14 @@ object InvestmentProfitCalculator {
         if (quantityE8 != asset.holding_quantity_e8) chronological = false
         return value(quantityE8, asset.current_price_e8, remainingCost, realized, chronological, conflictTradeId)
     }
+
+    /**
+     * Rule 5 books purchases at the unrounded quantity x price, so the average cost equals the execution
+     * price before fees. Cash still settles the amount rounded to the currency; the sub-unit difference
+     * surfaces in realized profit when the units are sold.
+     */
+    fun buyNotional(quantityE8: Long, executionPriceE8: Long): BigDecimal =
+        BigDecimal.valueOf(quantityE8, 8).multiply(BigDecimal.valueOf(executionPriceE8, 8))
 
     fun fromReadModel(asset: Investment): InvestmentProfit = value(
         asset.holding_quantity_e8, asset.current_price_e8,

@@ -78,6 +78,7 @@
     <string name="instrument_no_match">没有匹配的标的</string>
     <string name="instrument_price_per_unit">%1$s %2$s / 份</string>
     <string name="investment_remaining_cost">持仓成本总额 %1$s</string>
+    <string name="investment_cost_includes_fees">成本含手续费</string>
     <string name="investment_realized_total">累计已实现盈亏 %1$s</string>
     <string name="investment_trade_history">交易历史</string>
     <string name="investment_no_trades">暂无交易记录</string>

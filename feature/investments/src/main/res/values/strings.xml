@@ -78,6 +78,7 @@
     <string name="instrument_no_match">No matching instruments</string>
     <string name="instrument_price_per_unit">%1$s %2$s / unit</string>
     <string name="investment_remaining_cost">Remaining cost basis %1$s</string>
+    <string name="investment_cost_includes_fees">Cost includes fees</string>
     <string name="investment_realized_total">Cumulative realized P/L %1$s</string>
     <string name="investment_trade_history">Trade history</string>
     <string name="investment_no_trades">No trade records</string>
