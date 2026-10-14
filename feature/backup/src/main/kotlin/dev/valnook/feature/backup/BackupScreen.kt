@@ -16,6 +16,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.*
@@ -74,7 +75,20 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         if (uri != null) vm.prepareRestore(displayName(context, uri)) { context.contentResolver.openInputStream(uri) }
     }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
+    val listState = rememberLazyListState()
+    // Local feedback follows the description, the create/restore buttons (non-demo) and the Excel button.
+    val feedbackIndex = if (demoMode) 2 else 4
+    val hasFeedback = state.busy || state.completedFile != null || state.preview != null ||
+        state.restoreResult != null || state.error != null
+    LaunchedEffect(state.preview?.candidateId, state.challenge, state.completedFile, state.restoreResult, state.error) {
+        // Bring the feedback back only when the reader has scrolled past all of it, e.g. into the OneDrive list.
+        val visible = listState.layoutInfo.visibleItemsInfo
+        if (hasFeedback && listState.firstVisibleItemIndex > feedbackIndex &&
+            visible.none { (it.key as? String)?.startsWith("feedback-") == true })
+            listState.animateScrollToItem(feedbackIndex)
+    }
+
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item { Text(if (demoMode) stringResource(R.string.backup_demo_description)
             else stringResource(R.string.backup_description), style = MaterialTheme.typography.bodyMedium) }
@@ -96,6 +110,53 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             Text(if (demoMode) stringResource(R.string.backup_export_demo_excel)
                 else stringResource(R.string.backup_export_excel))
         } }
+        if (state.busy) item(key = "feedback-progress") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                CircularProgressIndicator(Modifier.padding(4.dp))
+                Text(stageLabel(state.stage))
+            }
+        }
+        state.completedFile?.let { result -> item(key = "feedback-completed") { Text(stringResource(
+            if (result.outputVerified) R.string.backup_saved_verified else R.string.backup_saved_unverified,
+            result.fileName), Modifier.testTag("backup-completed"), color = MaterialTheme.colorScheme.primary) } }
+        state.preview?.let { preview ->
+            item(key = "feedback-preview-divider") { HorizontalDivider() }
+            item(key = "feedback-preview-title") { Text(stringResource(R.string.backup_restore_preview), Modifier.testTag("backup-restore-preview"),
+                style = MaterialTheme.typography.titleMedium) }
+            item(key = "feedback-preview-source") { PreviewRow(stringResource(R.string.backup_source), preview.sourceName) }
+            item(key = "feedback-preview-created") { PreviewRow(stringResource(R.string.backup_created), preview.createdAtUtc) }
+            item(key = "feedback-preview-versions") { PreviewRow(stringResource(R.string.backup_versions),
+                "${preview.appVersion} · ${preview.internalBuildRevision} · DB ${preview.databaseSchemaVersion} · F${preview.formatVersion}/D${preview.dataSchemaVersion}") }
+            item(key = "feedback-preview-counts") { PreviewRow(stringResource(R.string.backup_counts),
+                "${preview.accountCount} / ${preview.cashAccountCount} / ${preview.tradeCount} / ${preview.auditEventCount}") }
+            item(key = "feedback-preview-warning") { Text(stringResource(R.string.backup_overwrite_warning), color = MaterialTheme.colorScheme.error) }
+            if (!preview.auditCoverageComplete) item(key = "feedback-preview-audit") { Text(stringResource(R.string.backup_audit_incomplete),
+                color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            if (state.challenge == null) item(key = "feedback-preview-actions") { Row(Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                TextButton(vm::cancelRestore) { Text(stringResource(R.string.backup_cancel)) }
+                Button(vm::requestChallenge, enabled = !state.busy, modifier = Modifier.testTag("backup-continue")) {
+                    Text(stringResource(R.string.backup_continue))
+                }
+            } }
+        }
+        state.challenge?.let { challenge ->
+            item(key = "feedback-challenge-code") { Text(stringResource(R.string.backup_confirmation_code, challenge.value),
+                style = MaterialTheme.typography.titleLarge) }
+            item(key = "feedback-challenge-input") { GlassTextField(state.confirmation, vm::updateConfirmation,
+                stringResource(R.string.backup_confirmation_input), Modifier.fillMaxWidth(),
+                enabled = !state.busy, keyboardType = KeyboardType.Number) }
+            item(key = "feedback-challenge-actions") { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                TextButton(vm::cancelRestore) { Text(stringResource(R.string.backup_cancel)) }
+                Button(vm::commitRestore, enabled = !state.busy && state.confirmation.length == 6,
+                    modifier = Modifier.testTag("backup-confirm-restore")) {
+                    Text(stringResource(R.string.backup_confirm_restore))
+                }
+            } }
+        }
+        state.restoreResult?.let { result -> item(key = "feedback-restored") { Text(stringResource(R.string.backup_restored,
+            result.committedAtUtc), color = MaterialTheme.colorScheme.primary) } }
+        state.error?.let { item(key = "feedback-error") { HintMessage(errorLabel(it), Modifier.testTag("backup-error"), isError = true) } }
         if (!demoMode) {
             item { HorizontalDivider() }
             item {
@@ -186,49 +247,12 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                     modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.cloud_revoke)) } }
             }
         }
-        if (state.busy || state.cloudBusy) item {
+        if (state.cloudBusy) item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 CircularProgressIndicator(Modifier.padding(4.dp))
-                Text(if (state.busy) stageLabel(state.stage) else stringResource(R.string.cloud_working))
+                Text(stringResource(R.string.cloud_working))
             }
         }
-        state.completedFile?.let { result -> item { Text(stringResource(
-            if (result.outputVerified) R.string.backup_saved_verified else R.string.backup_saved_unverified,
-            result.fileName), color = MaterialTheme.colorScheme.primary) } }
-        state.preview?.let { preview ->
-            item { HorizontalDivider() }
-            item { Text(stringResource(R.string.backup_restore_preview), style = MaterialTheme.typography.titleMedium) }
-            item { PreviewRow(stringResource(R.string.backup_source), preview.sourceName) }
-            item { PreviewRow(stringResource(R.string.backup_created), preview.createdAtUtc) }
-            item { PreviewRow(stringResource(R.string.backup_versions),
-                "${preview.appVersion} · ${preview.internalBuildRevision} · DB ${preview.databaseSchemaVersion} · F${preview.formatVersion}/D${preview.dataSchemaVersion}") }
-            item { PreviewRow(stringResource(R.string.backup_counts),
-                "${preview.accountCount} / ${preview.cashAccountCount} / ${preview.tradeCount} / ${preview.auditEventCount}") }
-            item { Text(stringResource(R.string.backup_overwrite_warning), color = MaterialTheme.colorScheme.error) }
-            if (!preview.auditCoverageComplete) item { Text(stringResource(R.string.backup_audit_incomplete),
-                color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            if (state.challenge == null) item { Row(Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                TextButton(vm::cancelRestore) { Text(stringResource(R.string.backup_cancel)) }
-                Button(vm::requestChallenge, enabled = !state.busy) { Text(stringResource(R.string.backup_continue)) }
-            } }
-        }
-        state.challenge?.let { challenge ->
-            item { Text(stringResource(R.string.backup_confirmation_code, challenge.value),
-                style = MaterialTheme.typography.titleLarge) }
-            item { GlassTextField(state.confirmation, vm::updateConfirmation,
-                stringResource(R.string.backup_confirmation_input), Modifier.fillMaxWidth(),
-                enabled = !state.busy, keyboardType = KeyboardType.Number) }
-            item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                TextButton(vm::cancelRestore) { Text(stringResource(R.string.backup_cancel)) }
-                Button(vm::commitRestore, enabled = !state.busy && state.confirmation.length == 6) {
-                    Text(stringResource(R.string.backup_confirm_restore))
-                }
-            } }
-        }
-        state.restoreResult?.let { result -> item { Text(stringResource(R.string.backup_restored,
-            result.committedAtUtc), color = MaterialTheme.colorScheme.primary) } }
-        state.error?.let { item { HintMessage(errorLabel(it), isError = true) } }
         state.cloudError?.let { item { HintMessage(cloudErrorLabel(it), isError = true) } }
         if (!demoMode) item {
             Text(stringResource(R.string.cloud_microsoft_attribution),
