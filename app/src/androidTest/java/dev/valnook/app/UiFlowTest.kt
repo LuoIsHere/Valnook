@@ -414,6 +414,21 @@ class UiFlowTest {
         shot("position-cost-includes-fees")
     }
 
+    @Test fun cloud_failure_banner_stays_a_compact_strip_at_the_top() {
+        runBlocking {
+            val state = db.cloudBackup().state()
+            db.cloudBackup().saveState(state.copy(provider = dev.valnook.domain.cloud.CloudProvider.ONEDRIVE.name,
+                pending_banner_event_id = "synthetic-banner",
+                pending_banner_error = dev.valnook.domain.cloud.CloudBackupError.NO_NETWORK.name))
+        }
+        rule.waitUntil(10000) { rule.onAllNodesWithTag("cloud-failure-banner").fetchSemanticsNodes().isNotEmpty() }
+        val banner = rule.onNodeWithTag("cloud-failure-banner").assertIsDisplayed().getUnclippedBoundsInRoot()
+        val root = rule.onRoot().getUnclippedBoundsInRoot()
+        org.junit.Assert.assertTrue("banner height ${banner.bottom - banner.top}", banner.bottom - banner.top < 160.dp)
+        org.junit.Assert.assertTrue("banner top ${banner.top}", banner.top < (root.bottom - root.top) / 4)
+        rule.waitUntil(15000) { rule.onAllNodesWithTag("cloud-failure-banner").fetchSemanticsNodes().isEmpty() }
+        runBlocking { org.junit.Assert.assertNull(db.cloudBackup().state().pending_banner_event_id) }
+    }
     @Test fun sub_cent_profit_displays_as_neutral_zero() {
         runBlocking {
             val type = createType("合成基金")

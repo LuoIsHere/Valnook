@@ -128,8 +128,11 @@ fun ValnookRoot(
                 }
             } else Box(Modifier.fillMaxSize()) {
                 dev.valnook.app.onboarding.OnboardingGate(active.graph.settings, active.graph.settingsWriter, sessions.onboarding) {
-                    SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
-                    CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
+                    // The gate's AnimatedContent passes full-screen min constraints; this Box loosens them for the banner.
+                    Box(Modifier.fillMaxSize()) {
+                        SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
+                        CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
+                    }
                 }
             }
         }
@@ -159,7 +162,7 @@ private fun CloudFailureBanner(
     if (visible) Surface(
         modifier = modifier.fillMaxWidth().padding(
             top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding(),
-            start = Space.md, end = Space.md),
+            start = Space.md, end = Space.md).testTag("cloud-failure-banner"),
         color = MaterialTheme.colorScheme.error,
         contentColor = MaterialTheme.colorScheme.onError,
         tonalElevation = 6.dp,
