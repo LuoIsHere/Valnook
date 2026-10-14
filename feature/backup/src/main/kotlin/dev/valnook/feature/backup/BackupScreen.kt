@@ -218,7 +218,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                         Text(stringResource(R.string.cloud_connect))
                     }
                 }
-                item { CloudStatus(state.cloud.attemptState, state.cloud.lastSuccessAtUtc,
+                item { CloudStatus(state.cloud.attemptState, state.cloud.latestError, state.cloud.lastSuccessAtUtc,
                     state.cloud.nextDueAtUtc, state.cloud.cleanupIncomplete) }
                 item { HorizontalDivider() }
                 item { Text(stringResource(R.string.cloud_backups), style = MaterialTheme.typography.titleMedium) }
@@ -321,10 +321,13 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
     }
 }
 
-@Composable private fun CloudStatus(status: BackupAttemptState, lastSuccess: String?, next: String?,
-    cleanupIncomplete: Boolean) {
+@Composable private fun CloudStatus(status: BackupAttemptState, latestError: CloudBackupError?,
+    lastSuccess: String?, next: String?, cleanupIncomplete: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         PreviewRow(stringResource(R.string.cloud_latest_result), statusLabel(status))
+        if (latestError != null && status in FAILED_ATTEMPTS) Text(cloudFailureReason(latestError),
+            Modifier.testTag("cloud-latest-reason"),
+            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         PreviewRow(stringResource(R.string.cloud_last_success), lastSuccess ?: stringResource(R.string.cloud_never))
         PreviewRow(stringResource(R.string.cloud_next_estimated), next ?: stringResource(R.string.cloud_not_scheduled))
         if (cleanupIncomplete) Text(stringResource(R.string.cloud_cleanup_incomplete),
@@ -373,6 +376,18 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
     PortabilityErrorCode.LIMIT_EXCEEDED, PortabilityErrorCode.WORKBOOK_LIMIT -> stringResource(R.string.backup_error_limit)
     PortabilityErrorCode.STORAGE_FULL -> stringResource(R.string.backup_error_space)
     else -> stringResource(R.string.backup_error_generic)
+}
+
+private val FAILED_ATTEMPTS = setOf(BackupAttemptState.FAILED, BackupAttemptState.PREPARATION_FAILED,
+    BackupAttemptState.UNKNOWN_RESULT)
+
+/** Reason for a finished backup attempt; the failure kinds the coordinator records get their own wording. */
+@Composable private fun cloudFailureReason(error: CloudBackupError): String = when (error) {
+    CloudBackupError.UPLOAD_FAILED -> stringResource(R.string.cloud_reason_upload)
+    CloudBackupError.UPLOAD_UNKNOWN -> stringResource(R.string.cloud_reason_unknown)
+    CloudBackupError.VERIFY_FAILED -> stringResource(R.string.cloud_reason_verify)
+    CloudBackupError.LOCAL_PREPARATION_FAILED, CloudBackupError.LOW_STORAGE -> stringResource(R.string.cloud_reason_prepare)
+    else -> cloudErrorLabel(error)
 }
 
 @Composable private fun cloudErrorLabel(error: CloudBackupError): String = when (error) {

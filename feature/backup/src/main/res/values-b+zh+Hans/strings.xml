@@ -89,4 +89,8 @@
     <string name="cloud_error_config">此构建尚未配置 Microsoft 登录回调，请联系开发者。</string>
     <string name="cloud_error_quota">OneDrive 空间不足，请释放空间后重试。</string>
     <string name="cloud_error_rate">OneDrive 请求过于频繁，请稍后重试。</string>
+    <string name="cloud_reason_upload">上传开始后中断。</string>
+    <string name="cloud_reason_unknown">OneDrive 可能已收到文件；Valnook 会只读核对结果，不会重复上传。</string>
+    <string name="cloud_reason_verify">上传文件未通过验证，已有恢复点已保留。</string>
+    <string name="cloud_reason_prepare">无法准备本地备份包。</string>
 </resources>

@@ -167,6 +167,32 @@ class BackupScreenUiTest {
         org.junit.Assert.assertTrue(error.top >= confirm.bottom)
     }
 
+    @Test fun failed_attempt_shows_its_reason_under_the_latest_result() {
+        val cloudState = MutableStateFlow(CloudBackupRuntimeState(connected = true, accountDisplay = "Test account",
+            attemptState = dev.valnook.domain.cloud.BackupAttemptState.FAILED,
+            latestError = dev.valnook.domain.cloud.CloudBackupError.UPLOAD_FAILED))
+        val cloud = object : CloudBackupService by UnavailableCloudBackupService {
+            override val cloudAllowed = true
+            override fun observeState() = cloudState
+        }
+        val vm = BackupViewModel(UnavailableDataPortability, emptySettings, demo = false, cloudBackup = cloud)
+        rule.setContent { ValnookTheme { BackupScreen(vm, demoMode = false) } }
+        val resources = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext.resources
+        rule.onNodeWithTag("cloud-latest-reason").performScrollTo()
+            .assertTextEquals(resources.getString(dev.valnook.feature.backup.R.string.cloud_reason_upload))
+
+        cloudState.value = cloudState.value.copy(latestError = dev.valnook.domain.cloud.CloudBackupError.DRIVE_PERMISSION)
+        rule.onNodeWithTag("cloud-latest-reason")
+            .assertTextEquals(resources.getString(dev.valnook.feature.backup.R.string.cloud_error_drive_permission))
+
+        cloudState.value = cloudState.value.copy(attemptState = dev.valnook.domain.cloud.BackupAttemptState.SUCCEEDED,
+            latestError = null)
+        rule.onNodeWithTag("cloud-latest-reason").assertDoesNotExist()
+        cloudState.value = cloudState.value.copy(attemptState = dev.valnook.domain.cloud.BackupAttemptState.WAITING_NETWORK,
+            latestError = dev.valnook.domain.cloud.CloudBackupError.NO_NETWORK)
+        rule.onNodeWithTag("cloud-latest-reason").assertDoesNotExist()
+    }
+
     private val emptySettings = object : SettingsRepository { override fun observeSettings() = flowOf(AppSettings()) }
 
     private fun connectedCloud() = object : CloudBackupService by UnavailableCloudBackupService {
