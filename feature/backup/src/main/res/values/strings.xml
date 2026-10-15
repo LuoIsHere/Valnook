@@ -58,7 +58,7 @@
     <string name="cloud_backup_detail">Backup details</string>
     <string name="cloud_expand_detail">Show backup details</string>
     <string name="cloud_collapse_detail">Hide backup details</string>
-    <string name="cloud_drive_created">Drive creation time</string>
+    <string name="cloud_drive_created">Cloud backup creation time</string>
     <string name="cloud_file_size">File size (bytes)</string>
     <string name="cloud_incompatible">This backup can be downloaded, but this app version cannot restore it.</string>
     <string name="cloud_download">Download original</string>

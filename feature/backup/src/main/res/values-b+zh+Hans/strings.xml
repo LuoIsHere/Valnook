@@ -58,7 +58,7 @@
     <string name="cloud_backup_detail">备份详情</string>
     <string name="cloud_expand_detail">显示备份详情</string>
     <string name="cloud_collapse_detail">收起备份详情</string>
-    <string name="cloud_drive_created">Drive 创建时间</string>
+    <string name="cloud_drive_created">云端备份创建时间</string>
     <string name="cloud_file_size">文件大小（字节）</string>
     <string name="cloud_incompatible">可以下载此备份，但当前应用版本无法恢复。</string>
     <string name="cloud_download">下载原始文件</string>
