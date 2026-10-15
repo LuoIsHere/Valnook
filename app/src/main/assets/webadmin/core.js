@@ -9,7 +9,7 @@ const state = {
   viewEpoch: 0, saving: false, pendingRefresh: false, recordFilters: {}, idleDeadline: 0,
   csrf: null, sessionToken: null, socket: null, heartbeat: null, session: null, page: "accounts",
   connecting: null, reconnecting: null, allowReconnect: false,
-  accounts: [], instruments: [], assetTypes: [], positions: [], investmentTab: "instruments",
+  accounts: [], instruments: [], assetTypes: [], positions: [], investmentTab: "instruments", instrumentTypeFilter: "",
   expandedInvestmentAccounts: new Set(),
   recordsCursor: null, recordsHistory: [], locale: navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en", generation: null
 };

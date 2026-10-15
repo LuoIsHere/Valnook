@@ -8,6 +8,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
@@ -27,7 +28,13 @@ fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, on
         return
     }
     var query by rememberSaveable { mutableStateOf("") }
-    val matches = current.instruments.filter { it.instrument.name.contains(query, true) || it.instrument.symbol.contains(query, true) }
+    var typeFilter by rememberSaveable { mutableStateOf<Long?>(null) }
+    // A type deleted while selected falls back to all types.
+    val selectedType = typeFilter?.takeIf { id -> current.types.any { it.id == id } }
+    val matches = current.instruments.filter {
+        (selectedType == null || it.instrument.typeId == selectedType) &&
+            (it.instrument.name.contains(query, true) || it.instrument.symbol.contains(query, true))
+    }
     LazyColumn(Modifier.fillMaxSize().imePadding(), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -41,7 +48,21 @@ fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, on
             }
         }
         item { Field(stringResource(R.string.instrument_search), query, { query = it }) }
-        if (matches.isEmpty()) item { EmptyState(stringResource(if (query.isBlank()) R.string.instrument_empty else R.string.instrument_no_match)) }
+        if (current.hasTypes) item {
+            val counts = current.instruments.groupingBy { it.instrument.typeId }.eachCount()
+            Box(Modifier.testTag("instrument-type-filter")) {
+                ChoiceField(stringResource(R.string.instrument_asset_class), selectedType?.toString().orEmpty(),
+                    listOf("" to stringResource(R.string.instrument_filter_all_types, current.instruments.size)) +
+                        current.types.map { it.id.toString() to
+                            stringResource(R.string.instrument_filter_type_option, it.name, counts[it.id] ?: 0) },
+                    { typeFilter = it.toLongOrNull() })
+            }
+        }
+        if (matches.isEmpty()) item { EmptyState(stringResource(when {
+            query.isNotBlank() -> R.string.instrument_no_match
+            selectedType != null -> R.string.instrument_type_no_match
+            else -> R.string.instrument_empty
+        })) }
         items(matches, key = { it.instrument.id }) { summary ->
             val instrument = summary.instrument
             Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))

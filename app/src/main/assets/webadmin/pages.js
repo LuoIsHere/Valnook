@@ -433,12 +433,24 @@ async function renderInvestments(refresh = false) {
   if (state.investmentTab === "instruments") {
     const prices = button(t("updatePrices"), () => openPriceEditor({ actions, saveForm, openDrawer }));
     prices.disabled = !state.instruments.length;
-    root.append(toolbar(button(t("assetTypes"), () => assetTypeList()), el("div", { class: "spacer" }), prices, button(t("newInstrument"), () => instrumentForm(null), "primary")));
-    const rows = state.instruments.map(v => el("tr", { "data-clickable": "true", onclick: () => instrumentForm(v) },
-      el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
-      el("td", { text: v.typeName }), el("td", { text: v.currencyCode }),
-      el("td", { class: "numeric", text: fmtPrice(v.currentPrice, v.currencyCode) }), el("td", { text: when(v.priceUpdatedAtMs) })));
-    root.append(table([t("nameCode"), t("assetType"), t("currency"), t("price"), t("priceUpdated")], rows));
+    // Filter on the loaded list; a type deleted while selected falls back to all types.
+    if (!state.assetTypes.some(v => String(v.id) === state.instrumentTypeFilter)) state.instrumentTypeFilter = "";
+    const counted = (label, count) => state.locale.startsWith("zh") ? `${label}（${count}）` : `${label} (${count})`;
+    const typeFilter = selectField(t("assetType"), "instrumentTypeFilter", [{ value: "", label: counted(t("all"), state.instruments.length) },
+      ...state.assetTypes.map(v => ({ value: v.id, label: counted(v.name, state.instruments.filter(i => i.typeId === v.id).length) }))], state.instrumentTypeFilter);
+    typeFilter.style.flex = "0 1 240px";
+    const listing = el("div");
+    const showInstruments = () => {
+      const rows = state.instruments.filter(v => !state.instrumentTypeFilter || String(v.typeId) === state.instrumentTypeFilter)
+        .map(v => el("tr", { "data-clickable": "true", onclick: () => instrumentForm(v) },
+          el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
+          el("td", { text: v.typeName }), el("td", { text: v.currencyCode }),
+          el("td", { class: "numeric", text: fmtPrice(v.currentPrice, v.currencyCode) }), el("td", { text: when(v.priceUpdatedAtMs) })));
+      clear(listing); listing.append(table([t("nameCode"), t("assetType"), t("currency"), t("price"), t("priceUpdated")], rows));
+    };
+    typeFilter.querySelector("select").addEventListener("change", event => { state.instrumentTypeFilter = event.target.value; showInstruments(); });
+    root.append(toolbar(button(t("assetTypes"), () => assetTypeList()), typeFilter, el("div", { class: "spacer" }), prices, button(t("newInstrument"), () => instrumentForm(null), "primary")));
+    showInstruments(); root.append(listing);
   } else {
     root.append(toolbar(el("div", { class: "spacer" }), button(t("newPosition"), positionForm, "primary")));
     root.append(investmentGroups({ table, positionDetail }));

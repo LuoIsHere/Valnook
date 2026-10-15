@@ -1082,6 +1082,40 @@ class UiFlowTest {
         }
     }
 
+    @Test fun instrument_library_filters_by_asset_type() {
+        runBlocking {
+            graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),emptyList()))
+            val stock=createType("合成股票")
+            val bond=createType("合成债券")
+            createType("合成空类型")
+            createInvestment(account_id,"甲股票","STKA",stock,"CNY",R.parse_e8("1"),R.parse_e8("10"),R.parse_e8("10"))
+            createInvestment(account_id,"乙股票","STKB",stock,"CNY",R.parse_e8("1"),R.parse_e8("10"),R.parse_e8("10"))
+            createInvestment(account_id,"丙债券","BOND",bond,"CNY",R.parse_e8("1"),R.parse_e8("10"),R.parse_e8("10"))
+        }
+        wait_text("合成账户 A")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值")
+        rule.onNodeWithContentDescription("所有投资品").performClick()
+        wait_text("丙债券")
+        fun shown(name:String)=rule.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty()
+        fun choose(option:String) {
+            rule.onNodeWithContentDescription("资产类型: ",substring=true).performClick()
+            rule.onNodeWithText(option).performClick()
+            rule.waitForIdle()
+        }
+        rule.onNodeWithContentDescription("资产类型: 全部类型（3）").assertExists()
+        choose("合成股票（2）")
+        assertTrue(shown("甲股票")&&shown("乙股票")&&!shown("丙债券"))
+        rule.onNode(hasSetTextAction()).performTextInput("乙")
+        rule.waitForIdle()
+        assertTrue(!shown("甲股票")&&shown("乙股票")&&!shown("丙债券"))
+        rule.onNode(hasSetTextAction()).performTextClearance()
+        choose("合成空类型（0）")
+        assertTrue(shown("该资产类型下暂无标的")&&!shown("甲股票")&&!shown("丙债券"))
+        choose("全部类型（3）")
+        assertTrue(shown("甲股票")&&shown("乙股票")&&shown("丙债券"))
+    }
+
     @Test fun library_menu_gates_instrument_creation_on_asset_types() {
         runBlocking { graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
             listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),java.math.BigDecimal("7"))))) }

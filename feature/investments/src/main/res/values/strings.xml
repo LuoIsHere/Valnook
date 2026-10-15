@@ -76,6 +76,9 @@
     <string name="instrument_search">Search name or symbol</string>
     <string name="instrument_empty">No instruments yet</string>
     <string name="instrument_no_match">No matching instruments</string>
+    <string name="instrument_filter_all_types">All types (%1$d)</string>
+    <string name="instrument_filter_type_option">%1$s (%2$d)</string>
+    <string name="instrument_type_no_match">No instruments of this asset class</string>
     <string name="instrument_price_per_unit">%1$s %2$s / unit</string>
     <string name="investment_remaining_cost">Remaining cost basis %1$s</string>
     <string name="investment_cost_includes_fees">Cost includes fees</string>
