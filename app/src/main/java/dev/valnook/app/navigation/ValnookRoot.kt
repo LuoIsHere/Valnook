@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.padding
@@ -440,7 +441,8 @@ private fun SessionRoot(
                 val direction = LocalLayoutDirection.current
                 val viewportPadding = if (glassTop) PaddingValues(
                     start = padding.calculateLeftPadding(direction), end = padding.calculateRightPadding(direction)) else padding
-                Box(Modifier.fillMaxSize().padding(viewportPadding).consumeWindowInsets(padding)
+                // Edge-to-edge windows are not resized for the keyboard; keep every page viewport above it.
+                Box(Modifier.fillMaxSize().padding(viewportPadding).consumeWindowInsets(padding).imePadding()
                     .then(if (glassTop) Modifier.glassSource(backdrop) else Modifier)
                     .background(MaterialTheme.colorScheme.background).testTag("page-viewport")) {
                     NavDisplay(backStack = stack, onBack = back, sizeTransform = null,
