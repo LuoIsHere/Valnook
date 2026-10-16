@@ -925,7 +925,7 @@ class UiFlowTest {
         }
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
-        rule.onNodeWithText(localized(dev.valnook.app.R.string.nav_edit)).performClick()
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
         rule.waitUntil(5000) { rule.onAllNodes(hasTestTag("subaccount-order-open") and SemanticsMatcher.keyNotDefined(SemanticsProperties.Disabled)).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("subaccount-order-open").performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-${ids[0]}").fetchSemanticsNodes().isNotEmpty() }
@@ -934,13 +934,13 @@ class UiFlowTest {
         rule.onNodeWithTag("subaccount-order-confirm").performClick()
         runBlocking { assertEquals(ids, graph.overview.snapshot().cash.filter { it.account_id == account_id }.map { it.id }) }
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
-        rule.onNodeWithText(localized(dev.valnook.app.R.string.nav_edit)).performClick()
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
         rule.waitUntil(5000) { rule.onAllNodes(hasTestTag("subaccount-order-open") and SemanticsMatcher.keyNotDefined(SemanticsProperties.Disabled)).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("subaccount-order-open").performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-${ids[0]}").fetchSemanticsNodes().isNotEmpty() }
         drag_order_row(ids[0].toString(), ids[1].toString())
         rule.onNodeWithTag("subaccount-order-confirm").performClick()
-        save(localized(dev.valnook.feature.accounts.R.string.account_save))
+        rule.onNodeWithTag("account-edit-save").performClick()
         wait_text("美元现金")
         runBlocking {
             val rows = graph.overview.snapshot().cash.filter { it.account_id == account_id }

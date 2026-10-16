@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
@@ -15,15 +16,16 @@ import dev.valnook.core.designsystem.R
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import java.util.Locale
 
 @Composable fun MonthPager(month: YearMonth, onChange: (YearMonth) -> Unit) {
     val previous = stringResource(R.string.ledger_previous_month)
     val next = stringResource(R.string.ledger_next_month)
+    // Read through the configuration so a language change recomposes the label.
+    val locale = LocalConfiguration.current.locales[0]
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center) {
         MonthArrow(previous, false, { onChange(month.minusMonths(1)) }, month.year > 1)
-        Text(month.format(DateTimeFormatter.ofPattern("yyyy-MM", Locale.getDefault())),
+        Text(month.format(DateTimeFormatter.ofPattern("yyyy-MM", locale)),
             Modifier.padding(horizontal = 16.dp).testTag("ledger-month"), style = MaterialTheme.typography.titleSmall)
         MonthArrow(next, true, { onChange(month.plusMonths(1)) }, month.year < 9999)
     }

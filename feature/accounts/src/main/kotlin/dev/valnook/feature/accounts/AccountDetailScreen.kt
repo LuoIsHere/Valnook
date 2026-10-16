@@ -44,10 +44,10 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
                 val sectionStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 Column(Modifier.fillMaxSize()) {
                     GlassCard(Modifier.padding(horizontal = 16.dp, vertical = Space.sm)) {
-                    Column(Modifier.fillMaxWidth().padding(Space.cardInset),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        if (LocalPageTitle.current != assets.account.name) Text(assets.account.name, style = MaterialTheme.typography.titleMedium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Column(Modifier.fillMaxWidth().padding(Space.cardInset),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (LocalPageTitle.current != assets.account.name) Text(assets.account.name, style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(stringResource(R.string.accounts_total_assets), style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(detailTotal(assets.total), style = MaterialTheme.typography.headlineSmall.copy(
@@ -55,7 +55,7 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
                                 textAlign = TextAlign.Start)
                             if (assets.account.note.isNotBlank()) Text(assets.account.note, style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+                        }
                     }
                     val labels = mapOf(
                         AccountDetailSection.ACCOUNTS to stringResource(R.string.accounts_accounts),

@@ -131,8 +131,8 @@ import java.util.Locale
     val shape=RoundedCornerShape(12.dp)
     Box(Modifier.fillMaxWidth().testTag("input-$label")) {
         if(glass) GlassTextField(value,{},label,Modifier.fillMaxWidth(),enabled=enabled,readOnly=true,
-            trailingIcon={ExpansionChevron(false)}) else
-        OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},
+            trailingIcon={ExpansionChevron(false)})
+        else OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},
             singleLine=true,textStyle=MaterialTheme.typography.bodyLarge,shape=shape,
             enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
             trailingIcon={Canvas(Modifier.size(18.dp)) {
