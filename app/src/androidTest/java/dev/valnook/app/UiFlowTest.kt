@@ -97,10 +97,21 @@ class UiFlowTest {
     }
     private fun localized(resourceId: Int): String = rule.activity.getString(resourceId)
     private fun save(label:String="保存"){
+        finish_input()
+        rule.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
+    }
+    private fun finish_input(){
         val focused=rule.onAllNodes(androidx.compose.ui.test.isFocused() and hasSetTextAction())
         if(focused.fetchSemanticsNodes().isNotEmpty())focused[0].performImeAction()
         rule.waitForIdle()
-        rule.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
+    }
+    /** The account page's edit entry and the account form's save are toolbar icons, not text buttons. */
+    private fun open_account_edit(){
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
+    }
+    private fun save_account(){
+        finish_input()
+        rule.onNodeWithTag("account-edit-save").performClick()
     }
     private fun native_picker(date:Boolean) {
         onView(isAssignableFrom(if(date)DatePicker::class.java else TimePicker::class.java)).perform(object:ViewAction {
@@ -173,18 +184,19 @@ class UiFlowTest {
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
         rule.onNodeWithTag("root-capsule").assertDoesNotExist()
         listOf("账户", "定期", "投资").forEach { rule.onNodeWithText(it).assertExists() }
-        rule.onNodeWithText("编辑").performClick()
+        open_account_edit()
         wait_text("编辑账户")
         rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
-        rule.onNodeWithText("余额").performScrollTo().performTextInput("-1.00")
+        rule.onNodeWithText("账户名称").performScrollTo().performTextReplacement("人民币现金")
+        rule.onNodeWithText("余额").performScrollTo().performTextReplacement("-1.00")
         rule.activityRule.scenario.recreate()
         wait_text("-1.00")
-        save()
+        save_account()
         wait_text("-1.00 CNY")
         runBlocking { assertEquals(-100L, db.cash().cash_one(account_id, "CNY")!!.balance_minor) }
-        rule.onNodeWithText("编辑").performClick()
+        open_account_edit()
         rule.onNodeWithText("余额").performScrollTo().performTextReplacement("20000.00")
-        save()
+        save_account()
         wait_text("20 000.00")
         shot("cash-saved")
         runBlocking { assertEquals(2000000L, db.cash().cash_one(account_id, "CNY")!!.balance_minor) }
@@ -318,17 +330,20 @@ class UiFlowTest {
 
     @Test fun searchable_multi_currency_accounts_and_cash_source_correction() {
         wait_text("合成账户 A")
-        rule.onNodeWithTag("account-total-$account_id").performClick()
+        rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
         for ((code, amount) in listOf("USD" to "100.00", "JPY" to "100", "KWD" to "1.234")) {
-            rule.onNodeWithText("编辑").performClick()
+            open_account_edit()
             rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
             val choices = rule.onAllNodesWithContentDescription("币种:", substring = true)
             choices[choices.fetchSemanticsNodes().lastIndex].performScrollTo().performClick()
             rule.onNodeWithText("搜索代码或币种名称").performTextInput(if (code == "KWD") "科威特" else code)
             rule.onNode(hasText(code) and !hasSetTextAction()).performClick()
+            // A new subaccount needs a name, and its balance field starts with 0.
+            val names = rule.onAllNodesWithText("账户名称")
+            names[names.fetchSemanticsNodes().lastIndex].performScrollTo().performTextReplacement(code)
             val amounts = rule.onAllNodesWithText("余额")
-            amounts[amounts.fetchSemanticsNodes().lastIndex].performScrollTo().performTextInput(amount)
-            save()
+            amounts[amounts.fetchSemanticsNodes().lastIndex].performScrollTo().performTextReplacement(amount)
+            save_account()
             wait_text(code)
         }
         shot("multi-currency")
@@ -352,6 +367,9 @@ class UiFlowTest {
         wait_text("+90.00 USD")
         shot("cash-corrected")
         rule.onNodeWithContentDescription("返回").performClick()
+        // The list shows the note in place of the source label.
+        wait_text("余额调整验证")
+        rule.onNodeWithText("手动余额调整").assertDoesNotExist()
         val tradeId = runBlocking {
             val type = createType("合成基金")
             val instrument = graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(), null,
@@ -512,7 +530,7 @@ class UiFlowTest {
         repeat(6) {
             rule.onNodeWithTag("account-total-$account_id").performClick()
             rule.onNodeWithTag("root-capsule").assertDoesNotExist()
-            rule.onNodeWithText("编辑").performClick()
+            open_account_edit()
             wait_text("编辑账户")
             rule.onNodeWithContentDescription("返回").performClick()
             rule.onNodeWithContentDescription("返回").performClick()
@@ -1098,7 +1116,7 @@ class UiFlowTest {
     @Test fun credit_account_form_and_account_detail_show_limit_billing_and_locked_type() {
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
-        rule.onNodeWithText("编辑").performClick()
+        open_account_edit()
         wait_text("编辑账户")
         rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
         rule.onNodeWithTag("input-账户类型").performScrollTo().performClick()
@@ -1106,20 +1124,16 @@ class UiFlowTest {
         rule.onNodeWithText("账户名称").performScrollTo().performTextReplacement("Visa 测试卡")
         rule.onNodeWithText("余额").performScrollTo().performTextReplacement("-52.00")
         rule.onNodeWithText("信用额度").performScrollTo().performTextInput("50.00")
-        save()
+        save_account()
         wait_text("Visa 测试卡")
         wait_text("信用账户")
         wait_text("欠款")
         wait_text("已超出信用额度 2.00 CNY")
-        rule.onNodeWithText("编辑").performClick()
+        open_account_edit()
         wait_text("Visa 测试卡")
         rule.onNodeWithContentDescription("账户类型: 信用").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("删除账户").performScrollTo().assertIsDisplayed()
-        window_shot("credit-account-form", "保存")
-        rule.onNodeWithText("删除账户").performClick()
-        rule.onNodeWithText("删除这个账户？").assertIsDisplayed()
-        rule.onNodeWithTag("account-delete-confirm").performClick()
-        wait_text("该账户存在余额、历史记录或业务关联，无法删除。")
+        // Deletion now asks for a confirmation code and removes everything; AccountDeletionUiTest covers it.
+        window_shot("credit-account-form")
         rule.onNodeWithContentDescription("返回").performClick()
         runBlocking {
             val credit = graph.overview.snapshot().cash.single { it.account_id == account_id && it.name == "Visa 测试卡" }

@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import dev.valnook.core.designsystem.R
 import dev.valnook.designsystem.RecordListItem
 import dev.valnook.domain.model.CashEntry
@@ -21,10 +22,12 @@ internal fun cash_change_text(entry:CashEntry)=
     CashSource.CASH_SET->R.string.manual_balance_change
 })
 
+/** A note says more than the source label, so it takes the second line when present; the detail page shows both. */
 @Composable fun CashEntryItem(entry:CashEntry,showDivider:Boolean=true,on_open:()->Unit) {
+    val note=entry.note.trim().replace(Regex("\\s+")," ")
     RecordListItem(onClick=on_open,showDivider=showDivider) {
         Text(cash_change_text(entry),style=MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings="tnum"))
-        Text(cash_source_label(entry.source),style=MaterialTheme.typography.bodySmall,
-            color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(note.ifEmpty{cash_source_label(entry.source)},style=MaterialTheme.typography.bodySmall,
+            color=MaterialTheme.colorScheme.onSurfaceVariant,maxLines=1,overflow=TextOverflow.Ellipsis)
     }
 }
