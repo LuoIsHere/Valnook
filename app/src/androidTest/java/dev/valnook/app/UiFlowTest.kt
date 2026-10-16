@@ -888,6 +888,20 @@ class UiFlowTest {
         rule.onNodeWithTag("account-group-add-confirm").performClick()
         rule.waitUntil(5000) { runBlocking { graph.overview.snapshot().accounts.single { it.id == account_id }.groupId == group } }
         shot("account-groups-managed")
+        // Header actions sit at the edge, centred in the drag handles' column, and stay tappable through it.
+        fun centerX(tag: String) = rule.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot.center.x
+        val handleCenter = centerX("sort-handle-account-$second")
+        assertEquals(handleCenter, centerX("account-group-more-$group"), 1f)
+        assertEquals(handleCenter, centerX("account-group-add-${AccountGroup.DEFAULT_ID}"), 1f)
+        val cancel = localized(dev.valnook.feature.accounts.R.string.account_order_cancel)
+        rule.onNodeWithTag("account-group-more-$group").performClick()
+        rule.onNodeWithText(localized(dev.valnook.feature.accounts.R.string.account_group_rename)).performClick()
+        rule.onNodeWithTag("account-group-name").assertExists()
+        rule.onNodeWithText(cancel).performClick()
+        rule.onNodeWithTag("account-group-add-${AccountGroup.DEFAULT_ID}").performClick()
+        rule.onNodeWithTag("account-group-add-confirm").assertExists()
+        rule.onNodeWithText(cancel).performClick()
+        rule.waitForIdle()
 
         rule.onNodeWithTag("account-groups-sort").performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-$group").fetchSemanticsNodes().isNotEmpty() }

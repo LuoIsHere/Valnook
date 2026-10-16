@@ -122,9 +122,8 @@ private fun GroupHeader(section: GroupedAccounts, enabled: Boolean,
             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         IconButton(onAdd, Modifier.testTag("account-group-add-${group.id}").semantics { contentDescription = addLabel },
             enabled = enabled) { Text("＋") }
-        // The default group cannot be renamed or deleted; keep its add button aligned with the others.
-        if (group.isDefault) Spacer(Modifier.size(48.dp))
-        else Box {
+        // The default group cannot be renamed or deleted, so its add button is the one at the edge.
+        if (!group.isDefault) Box {
             IconButton({ menu = true }, Modifier.testTag("account-group-more-${group.id}").semantics { contentDescription = moreLabel },
                 enabled = enabled) { MoreIcon() }
             DropdownMenu(menu, { menu = false }) {

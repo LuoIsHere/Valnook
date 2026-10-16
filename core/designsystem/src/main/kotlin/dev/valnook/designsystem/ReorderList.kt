@@ -13,6 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -20,6 +26,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
@@ -45,7 +53,7 @@ fun SortIcon(modifier: Modifier = Modifier) {
 
 /**
  * Stable keys and a fixed screen-space drag position prevent animated neighbours from pulling the row.
- * Header rows leave the trailing drag strip free, so their actions stay tappable.
+ * Header rows span the full width; the drag strip is cut away over them, so their trailing actions stay tappable.
  */
 @Composable
 fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
@@ -129,8 +137,9 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
             items(order, key = { it }) { key ->
                 val item = byKey[key] ?: return@items
                 if (item.header) {
-                    Box(Modifier.fillMaxWidth().animateItem(fadeInSpec = null, placementSpec = tween(140), fadeOutSpec = null)
-                        .padding(end = 48.dp)) { headerContent?.invoke(item) }
+                    Box(Modifier.fillMaxWidth().animateItem(fadeInSpec = null, placementSpec = tween(140), fadeOutSpec = null)) {
+                        headerContent?.invoke(item)
+                    }
                     return@items
                 }
                 val dragging = dragged == key
@@ -182,7 +191,14 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
             }
         }
         // Keep the gesture owner outside lazy items: scrolling can dispose a moving row's pointer node.
-        Box(Modifier.align(Alignment.CenterEnd).width(48.dp).fillMaxHeight().pointerInput(enabled) {
+        Box(Modifier.align(Alignment.CenterEnd).width(48.dp).fillMaxHeight().graphicsLayer {
+            // A clipped layer is not hit outside its shape, so touches on header rows reach their buttons.
+            val headers = latestItems.filter { it.header }.map { it.key }.toSet()
+            val gaps = listState.layoutInfo.visibleItemsInfo.filter { it.key in headers }
+                .map { it.offset.toFloat()..(it.offset + it.size).toFloat() }
+            clip = gaps.isNotEmpty()
+            shape = StripWithout(gaps)
+        }.pointerInput(enabled) {
             if (!enabled) return@pointerInput
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
@@ -206,5 +222,17 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                     if (dragged != null) { distance = change.position.y - pressedY; reorderAtPointer() }
                 })
         })
+    }
+}
+
+/** The drag strip minus the vertical [gaps] (in the strip's own coordinates). */
+private class StripWithout(private val gaps: List<ClosedFloatingPointRange<Float>>) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val path = Path().apply {
+            fillType = PathFillType.EvenOdd
+            addRect(Rect(Offset.Zero, size))
+            gaps.forEach { addRect(Rect(0f, it.start.coerceIn(0f, size.height), size.width, it.endInclusive.coerceIn(0f, size.height))) }
+        }
+        return Outline.Generic(path)
     }
 }
