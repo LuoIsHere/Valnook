@@ -9,6 +9,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -914,8 +915,20 @@ class UiFlowTest {
         assertTrue(above("accounts-group-$group", "accounts-group-${AccountGroup.DEFAULT_ID}"))
         assertTrue(above("account-total-$account_id", "account-total-$second"))
         rule.onNodeWithTag("accounts-group-total-$group", useUnmergedTree = true).assertTextContains("CNY", substring = true)
+        // Folding animates: on the frame the stored state arrives the rows are still laid out, and leave once it ends.
+        val collapsedLabel = localized(dev.valnook.core.designsystem.R.string.state_collapsed)
+        rule.mainClock.autoAdvance = false
         rule.onNodeWithTag("accounts-group-$group").performClick()
-        rule.waitUntil(5000) { rule.onAllNodesWithTag("account-total-$account_id").fetchSemanticsNodes().isEmpty() }
+        rule.waitUntil(5000) {
+            rule.mainClock.advanceTimeByFrame()
+            rule.onNodeWithTag("accounts-group-$group").fetchSemanticsNode().config
+                .getOrNull(SemanticsProperties.StateDescription) == collapsedLabel
+        }
+        rule.mainClock.advanceTimeBy(48)
+        rule.onNodeWithTag("account-total-$account_id").assertExists()
+        rule.mainClock.advanceTimeBy(400)
+        rule.onNodeWithTag("account-total-$account_id").assertDoesNotExist()
+        rule.mainClock.autoAdvance = true
         shot("accounts-page-groups-collapsed")
 
         rule.onNode(hasText(localized(dev.valnook.app.R.string.nav_investments)) and hasClickAction()).performClick()

@@ -72,22 +72,26 @@ import java.time.LocalDate
         item("month-trend") { header() }
         if (overview.accounts.isEmpty()) item { EmptyState(stringResource(R.string.accounts_empty)) }
         val groups = snapshot?.groups.orEmpty()
-        val accountItems: LazyListScope.(List<AccountAssets>) -> Unit = { rows ->
+        // Rows of a collapsed group stay in the list so folding can animate like an account's own expansion.
+        val accountItems: LazyListScope.(List<AccountAssets>, Boolean) -> Unit = { rows, visible ->
             items(rows, key = { it.account.id }) { row ->
-                AccountOverviewItem(row, snapshot, expandedId == row.account.id,
-                    { expandedId = if (expandedId == row.account.id) null else row.account.id },
-                    onOpen, onOpenCash, onOpenDeposits, onOpenInvestments)
+                AnimatedVisibility(visible, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
+                    exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
+                    AccountOverviewItem(row, snapshot, expandedId == row.account.id,
+                        { expandedId = if (expandedId == row.account.id) null else row.account.id },
+                        onOpen, onOpenCash, onOpenDeposits, onOpenInvestments)
+                }
             }
         }
         // With only the default group the page stays a flat list; empty groups are left out.
-        if (!hasCustomGroups(groups)) accountItems(overview.accounts)
+        if (!hasCustomGroups(groups)) accountItems(overview.accounts, true)
         else sectionsOf(groups, overview.accounts) { it.account.groupId }.filter { it.items.isNotEmpty() }.forEach { section ->
             item(key = "group-${section.group.id}") {
                 AccountGroupHeader(section.group, AssetValuation.sum(section.items.map { it.total }, overview.total.currency)) {
                     onToggleGroup(section.group)
                 }
             }
-            if (!section.group.collapsed) accountItems(section.items)
+            accountItems(section.items, !section.group.collapsed)
         }
     }
 }
