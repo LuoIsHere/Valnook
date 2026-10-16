@@ -291,7 +291,7 @@ private fun SessionRoot(
         WebAdminKey -> stringResource(dev.valnook.feature.webadmin.R.string.webadmin_title)
         is AccountKey -> accountName(current.id)
         is AccountEditKey -> stringResource(R.string.title_edit_account)
-        AccountOrderKey -> stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
+        AccountGroupsKey -> stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
         is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
         is InstrumentKey -> stringResource(R.string.title_instrument_detail)
@@ -322,13 +322,18 @@ private fun SessionRoot(
     var switchFailed by remember { mutableStateOf(false) }
     val addAccountDescription = stringResource(R.string.nav_add_account)
     val instrumentLibraryDescription = stringResource(R.string.nav_instrument_library)
-    val sortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_title)
+    val accountGroupsDescription = stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
+    val subaccountSortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_children)
     var balanceToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.cash.CashBalanceToolbarState?>(null) }
     val updateBalanceToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.cash.CashBalanceToolbarState? -> balanceToolbar=value } }
     var accountEditSave by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountEditToolbarState?>(null) }
     val updateEditSave = remember(graph.sessionId) { { value: dev.valnook.feature.accounts.AccountEditToolbarState? -> accountEditSave = value } }
     var editSortAction by remember(graph.sessionId) { mutableStateOf<(() -> Unit)?>(null) }
     val updateEditSortAction = remember(graph.sessionId) { { action: (() -> Unit)? -> editSortAction = action } }
+    var accountGroupsToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountGroupsToolbarState?>(null) }
+    val updateAccountGroupsToolbar = remember(graph.sessionId) {
+        { value: dev.valnook.feature.accounts.AccountGroupsToolbarState? -> accountGroupsToolbar = value }
+    }
     var navigationToolbar by remember(graph.sessionId) { mutableStateOf<NavigationToolbarState?>(null) }
     val updateNavigationToolbar = remember(graph.sessionId) {
         { value: NavigationToolbarState? -> navigationToolbar = value }
@@ -401,10 +406,11 @@ private fun SessionRoot(
                             {walletToolbar?.delete?.invoke()},Modifier.testTag("wallet-delete"),enabled=walletToolbar?.enabled==true)
                     }
                     NavigationSettingsKey -> NavigationSettingsActions(navigationToolbar)
+                    AccountGroupsKey -> dev.valnook.feature.accounts.AccountGroupsActions(accountGroupsToolbar)
                     AccountsKey, HiddenAccountsKey -> {
-                        IconButton({ open(AccountOrderKey) }, Modifier.testTag("account-order-open").semantics {
-                            contentDescription = sortDescription
-                        }, enabled = accounts.size > 1) { SortIcon() }
+                        IconButton({ open(AccountGroupsKey) }, Modifier.testTag("account-groups-open").semantics {
+                            contentDescription = accountGroupsDescription
+                        }) { dev.valnook.designsystem.GroupsIcon() }
                         IconButton({ open(AccountEditKey()) }, Modifier.semantics {
                             contentDescription = addAccountDescription
                         }) { Text("＋") }
@@ -424,7 +430,7 @@ private fun SessionRoot(
                             { deleteTarget = id to null }, Modifier.testTag("account-delete-open"),
                             enabled = accountEditSave?.enabled == true) }
                         IconButton({ editSortAction?.invoke() },
-                        Modifier.testTag("subaccount-order-open").semantics { contentDescription = sortDescription },
+                        Modifier.testTag("subaccount-order-open").semantics { contentDescription = subaccountSortDescription },
                         enabled = editSortAction != null) { SortIcon() }
                         dev.valnook.feature.accounts.AccountEditSaveAction(accountEditSave)
                     }
@@ -451,7 +457,9 @@ private fun SessionRoot(
                         transitionSpec = { NavigationMotion.forward(offset) },
                         popTransitionSpec = { NavigationMotion.back(offset) },
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
-                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave) { parent, cash -> deleteTarget = parent to cash }
+                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave, updateAccountGroupsToolbar) { parent, cash ->
+                                deleteTarget = parent to cash
+                            }
                             investmentEntries(graph, open, back, accountName)
                             ledgerEntries(graph, open, back, accountName, updateBalanceToolbar)
                             entry<WalletKey> {

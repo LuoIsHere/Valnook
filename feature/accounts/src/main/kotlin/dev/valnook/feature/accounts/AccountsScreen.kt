@@ -31,6 +31,7 @@ import dev.valnook.domain.model.*
 import dev.valnook.domain.command.SubmissionPhase
 import java.math.RoundingMode
 import dev.valnook.domain.money.DecimalRules
+import dev.valnook.domain.calculation.AssetValuation
 import dev.valnook.domain.calculation.CreditBillingCalendar
 import dev.valnook.domain.calculation.CreditBillingFocus
 import dev.valnook.domain.calculation.CreditLimitCalculator
@@ -58,86 +59,122 @@ import java.time.LocalDate
         AccountsState.Loading -> PageLoading()
         AccountsState.Failed -> PageFailure(stringResource(R.string.accounts_load_failed), vm::reload)
         is AccountsState.Ready -> AccountsContent(current.overview, onOpen, current.snapshot,
-            onOpenCash, onOpenDeposits, onOpenInvestments, header)
+            onOpenCash, onOpenDeposits, onOpenInvestments, header, vm::toggleGroup)
     }
 }
 @Composable fun AccountsContent(overview: AssetOverview, onOpen: (Long) -> Unit,
     snapshot: AssetSnapshot? = null, onOpenCash: (Long, Long) -> Unit = { _, _ -> },
-    onOpenDeposits: (Long) -> Unit = {}, onOpenInvestments: (Long) -> Unit = {}, header: @Composable () -> Unit = {}) {
+    onOpenDeposits: (Long) -> Unit = {}, onOpenInvestments: (Long) -> Unit = {}, header: @Composable () -> Unit = {},
+    onToggleGroup: (AccountGroup) -> Unit = {}) {
     var expandedId by rememberSaveable { mutableStateOf<Long?>(null) }
     LazyColumn(Modifier.fillMaxSize().testTag("accounts-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(0.dp)) {
         item("month-trend") { header() }
         if (overview.accounts.isEmpty()) item { EmptyState(stringResource(R.string.accounts_empty)) }
-        items(overview.accounts, key = { it.account.id }) { row ->
-            val isExpanded = expandedId == row.account.id
-            val cashRows = snapshot?.cash?.filter { it.account_id == row.account.id }.orEmpty()
-            val depositCount = snapshot?.deposits?.count { it.account_id == row.account.id && !it.closed } ?: 0
-            val investmentCount = snapshot?.positions?.count { it.account_id == row.account.id && it.holding_quantity_e8 > 0 } ?: 0
-            Column(Modifier.fillMaxWidth().padding(vertical = Space.sm), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Column(Modifier.fillMaxWidth().testTag("account-header-${row.account.id}").padding(vertical = 4.dp)) {
-                    BoxWithConstraints(Modifier.fillMaxWidth()) {
-                        val name: @Composable () -> Unit = {
-                            val expansion = stringResource(if (isExpanded) dev.valnook.core.designsystem.R.string.state_expanded
-                                else dev.valnook.core.designsystem.R.string.state_collapsed)
-                            Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
-                                .testTag("account-toggle-${row.account.id}")
-                                .clickable(role = Role.Button) { expandedId = if (isExpanded) null else row.account.id }
-                                .semantics { stateDescription = expansion },
-                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                AccountAvatar(row.account.icon.symbol, row.account.icon.imageKey, size = 32.dp)
-                                AccountName(row.account.name, MaterialTheme.typography.titleMedium,
-                                    Modifier.weight(1f, fill = false))
-                                ExpansionChevron(isExpanded)
-                            }
-                        }
-                        val amount: @Composable () -> Unit = {
-                            Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
-                                .testTag("account-total-${row.account.id}").clickable(role = Role.Button) { onOpen(row.account.id) },
-                                contentAlignment = Alignment.CenterEnd) {
-                            Text(totalText(row.total),
-                                style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings="tnum"),
-                                color = amountColor(row.total), textAlign = TextAlign.End)
-                            }
-                        }
-                        if (maxWidth < 300.dp || LocalDensity.current.fontScale > 1.3f) {
-                            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                                name()
-                                amount()
-                            }
-                        } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(1.3f)) { name() }
-                            Box(Modifier.weight(1f)) { amount() }
-                        }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Text(row.account.note, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(stringResource(R.string.accounts_available_cash, totalText(row.availableCash)), Modifier.weight(1.3f),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        val groups = snapshot?.groups.orEmpty()
+        val accountItems: LazyListScope.(List<AccountAssets>) -> Unit = { rows ->
+            items(rows, key = { it.account.id }) { row ->
+                AccountOverviewItem(row, snapshot, expandedId == row.account.id,
+                    { expandedId = if (expandedId == row.account.id) null else row.account.id },
+                    onOpen, onOpenCash, onOpenDeposits, onOpenInvestments)
+            }
+        }
+        // With only the default group the page stays a flat list; empty groups are left out.
+        if (!hasCustomGroups(groups)) accountItems(overview.accounts)
+        else sectionsOf(groups, overview.accounts) { it.account.groupId }.filter { it.items.isNotEmpty() }.forEach { section ->
+            item(key = "group-${section.group.id}") {
+                AccountGroupHeader(section.group, AssetValuation.sum(section.items.map { it.total }, overview.total.currency)) {
+                    onToggleGroup(section.group)
+                }
+            }
+            if (!section.group.collapsed) accountItems(section.items)
+        }
+    }
+}
+
+@Composable private fun AccountGroupHeader(group: AccountGroup, total: ConvertedTotal, onToggle: () -> Unit) {
+    val expansion = stringResource(if (group.collapsed) dev.valnook.core.designsystem.R.string.state_collapsed
+        else dev.valnook.core.designsystem.R.string.state_expanded)
+    Row(Modifier.fillMaxWidth().padding(top = Space.md).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .testTag("accounts-group-${group.id}").clickable(role = Role.Button, onClick = onToggle)
+        .semantics { stateDescription = expansion },
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+        Text(accountGroupName(group), Modifier.weight(1f), style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(totalText(total), Modifier.testTag("accounts-group-total-${group.id}"),
+            style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"), color = amountColor(total))
+        ExpansionChevron(!group.collapsed)
+    }
+}
+
+@Composable private fun AccountOverviewItem(row: AccountAssets, snapshot: AssetSnapshot?, isExpanded: Boolean,
+    onToggleExpanded: () -> Unit, onOpen: (Long) -> Unit, onOpenCash: (Long, Long) -> Unit,
+    onOpenDeposits: (Long) -> Unit, onOpenInvestments: (Long) -> Unit) {
+    val cashRows = snapshot?.cash?.filter { it.account_id == row.account.id }.orEmpty()
+    val depositCount = snapshot?.deposits?.count { it.account_id == row.account.id && !it.closed } ?: 0
+    val investmentCount = snapshot?.positions?.count { it.account_id == row.account.id && it.holding_quantity_e8 > 0 } ?: 0
+    Column(Modifier.fillMaxWidth().padding(vertical = Space.sm), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.fillMaxWidth().testTag("account-header-${row.account.id}").padding(vertical = 4.dp)) {
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val name: @Composable () -> Unit = {
+                    val expansion = stringResource(if (isExpanded) dev.valnook.core.designsystem.R.string.state_expanded
+                        else dev.valnook.core.designsystem.R.string.state_collapsed)
+                    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                        .testTag("account-toggle-${row.account.id}")
+                        .clickable(role = Role.Button, onClick = onToggleExpanded)
+                        .semantics { stateDescription = expansion },
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        AccountAvatar(row.account.icon.symbol, row.account.icon.imageKey, size = 32.dp)
+                        AccountName(row.account.name, MaterialTheme.typography.titleMedium,
+                            Modifier.weight(1f, fill = false))
+                        ExpansionChevron(isExpanded)
                     }
                 }
-                if (!row.total.complete) HintMessage(stringResource(R.string.accounts_partial_summary, missingText(row.total)))
-                AnimatedVisibility(isExpanded, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
-                    exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
-                    Column(Modifier.fillMaxWidth().padding(start = Space.sm), verticalArrangement = Arrangement.spacedBy(0.dp)) {
-                        cashRows.filter { it.showOnAccountsPage }.forEach { cash ->
-                            BalanceAccountNativeRow(cash, snapshot?.cash.orEmpty(), "account-cash-${cash.id}") {
-                                onOpenCash(row.account.id, cash.id)
-                            }
-                        }
-                        if (cashRows.isEmpty()) Text(stringResource(R.string.accounts_no_cash),
-                            Modifier.padding(vertical = Space.sm), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (row.account.showDepositSummary) AccountSummaryRow(stringResource(R.string.accounts_deposit_count, depositCount), row.depositValue) {
-                            onOpenDeposits(row.account.id)
-                        }
-                        if (row.account.showInvestmentSummary) AccountSummaryRow(stringResource(R.string.accounts_investment_count, investmentCount), row.investmentValue) {
-                            onOpenInvestments(row.account.id)
-                        }
+                val amount: @Composable () -> Unit = {
+                    Box(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+                        .testTag("account-total-${row.account.id}").clickable(role = Role.Button) { onOpen(row.account.id) },
+                        contentAlignment = Alignment.CenterEnd) {
+                    Text(totalText(row.total),
+                        style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings="tnum"),
+                        color = amountColor(row.total), textAlign = TextAlign.End)
                     }
+                }
+                if (maxWidth < 300.dp || LocalDensity.current.fontScale > 1.3f) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                        name()
+                        amount()
+                    }
+                } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1.3f)) { name() }
+                    Box(Modifier.weight(1f)) { amount() }
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(row.account.note, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.accounts_available_cash, totalText(row.availableCash)), Modifier.weight(1.3f),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.End,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (!row.total.complete) HintMessage(stringResource(R.string.accounts_partial_summary, missingText(row.total)))
+        AnimatedVisibility(isExpanded, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
+            exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
+            Column(Modifier.fillMaxWidth().padding(start = Space.sm), verticalArrangement = Arrangement.spacedBy(0.dp)) {
+                cashRows.filter { it.showOnAccountsPage }.forEach { cash ->
+                    BalanceAccountNativeRow(cash, snapshot?.cash.orEmpty(), "account-cash-${cash.id}") {
+                        onOpenCash(row.account.id, cash.id)
+                    }
+                }
+                if (cashRows.isEmpty()) Text(stringResource(R.string.accounts_no_cash),
+                    Modifier.padding(vertical = Space.sm), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (row.account.showDepositSummary) AccountSummaryRow(stringResource(R.string.accounts_deposit_count, depositCount), row.depositValue) {
+                    onOpenDeposits(row.account.id)
+                }
+                if (row.account.showInvestmentSummary) AccountSummaryRow(stringResource(R.string.accounts_investment_count, investmentCount), row.investmentValue) {
+                    onOpenInvestments(row.account.id)
                 }
             }
         }

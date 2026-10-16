@@ -5,9 +5,9 @@ import androidx.room.*
 import androidx.sqlite.db.SupportSQLiteDatabase
 import dev.valnook.domain.model.Currency
 
-const val DATABASE_SCHEMA_VERSION = 19
+const val DATABASE_SCHEMA_VERSION = 20
 
-@Database(entities = [WalletPrivateIdentity::class,WalletCardEntity::class,WalletImageEntity::class,AccountIconImageEntity::class,AccountEntity::class,CurrencyEntity::class,CashEntity::class,DepositEntity::class,
+@Database(entities = [WalletPrivateIdentity::class,WalletCardEntity::class,WalletImageEntity::class,AccountIconImageEntity::class,AccountGroupEntity::class,AccountEntity::class,CurrencyEntity::class,CashEntity::class,DepositEntity::class,
     CreditAccountProfileEntity::class,
     TypeEntity::class,InstrumentEntity::class,InvestmentEntity::class,TradeEntity::class,OperationEntity::class,MovementEntity::class,CashEntryEntity::class,
     SettingsEntity::class,FxRateEntity::class,InstrumentPriceEntity::class,StatisticsStateEntity::class,
@@ -20,6 +20,7 @@ abstract class ValnookDatabase : RoomDatabase() {
     abstract fun wallet(): WalletDao
     abstract fun ledger(): LedgerDao
     abstract fun accounts(): AccountDao
+    abstract fun accountGroups(): AccountGroupDao
     abstract fun cash(): CashDao
     abstract fun credit(): CreditDao
     abstract fun deposits(): DepositDao
@@ -41,6 +42,7 @@ abstract class ValnookDatabase : RoomDatabase() {
                 val now = System.currentTimeMillis()
                 val day = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault())
                     .toLocalDate().toEpochDay()
+                insertDefaultAccountGroup(db, now)
                 db.execSQL("INSERT INTO statistics_state(id,source_revision,rule_version,baseline_at_ms,earliest_invalidated_epoch_day) VALUES (1,1,$STATISTICS_RULE_VERSION,?,?)",
                     arrayOf(now, day))
                 db.execSQL("INSERT INTO audit_metadata(id,protocol_version,tracking_start_ms,tracking_start_database_version,complete_since_start,legacy_history_before_start) VALUES (1,1,?,9,1,0)", arrayOf(now))
@@ -50,12 +52,12 @@ abstract class ValnookDatabase : RoomDatabase() {
         }
         fun open(context: Context): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")
-                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10,MIGRATION_10_11,MIGRATION_11_12,MIGRATION_12_13,MIGRATION_13_14,MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,MIGRATION_18_19)
+                .addCallback(seed).addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10,MIGRATION_10_11,MIGRATION_11_12,MIGRATION_12_13,MIGRATION_13_14,MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,MIGRATION_18_19,MIGRATION_19_20)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun fromAsset(context: Context, name: String, assetPath: String): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,name)
                 .createFromAsset(assetPath)
-                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10,MIGRATION_10_11,MIGRATION_11_12,MIGRATION_12_13,MIGRATION_13_14,MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,MIGRATION_18_19)
+                .addMigrations(MIGRATION_1_2,MIGRATION_2_3,MIGRATION_3_4,MIGRATION_4_5,MIGRATION_5_6,MIGRATION_6_7,MIGRATION_7_8,MIGRATION_8_9,MIGRATION_9_10,MIGRATION_10_11,MIGRATION_11_12,MIGRATION_12_13,MIGRATION_13_14,MIGRATION_14_15,MIGRATION_15_16,MIGRATION_16_17,MIGRATION_17_18,MIGRATION_18_19,MIGRATION_19_20)
                 .setJournalMode(JournalMode.WRITE_AHEAD_LOGGING).build()
         fun inMemory(context: Context): ValnookDatabase =
             Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(seed).build()

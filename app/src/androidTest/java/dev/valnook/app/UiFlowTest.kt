@@ -857,7 +857,7 @@ class UiFlowTest {
         rule.waitForIdle()
     }
 
-    @Test fun main_account_sort_cancel_save_and_investment_order_are_consistent() {
+    @Test fun account_groups_save_each_change_and_drive_accounts_and_investment_order() {
         val second = runBlocking { graph.overview.snapshot().accounts.single { it.id != account_id }.id }
         runBlocking {
             val type = createType("股票")
@@ -866,30 +866,50 @@ class UiFlowTest {
             val settings = graph.overview.snapshot().settings
             graph.settingsWriter.applyChange(SaveFinancialSettings(settings.revision, Currency.of("CNY"), emptyList()))
         }
+        fun order() = runBlocking { graph.overview.snapshot().accounts.map { it.id } }
+        fun above(upper: String, lower: String) = rule.onNodeWithTag(upper).fetchSemanticsNode().boundsInRoot.top <
+            rule.onNodeWithTag(lower).fetchSemanticsNode().boundsInRoot.top
         wait_text("合成账户 A")
-        rule.onNodeWithTag("account-order-open").assertIsEnabled().performClick()
-        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-$account_id").fetchSemanticsNodes().isNotEmpty() }
-        drag_order_row(account_id.toString(), second.toString())
-        assertTrue(rule.onNodeWithTag("sort-row-$second").fetchSemanticsNode().boundsInRoot.top <
-            rule.onNodeWithTag("sort-row-$account_id").fetchSemanticsNode().boundsInRoot.top)
-        shot("main-account-sort-draft")
+        // Only the default group: the accounts page stays a flat list without headers.
+        rule.onNodeWithTag("accounts-group-${AccountGroup.DEFAULT_ID}").assertDoesNotExist()
+        rule.onNodeWithTag("account-groups-open").performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-account-$account_id").fetchSemanticsNodes().isNotEmpty() }
+        drag_order_row("account-$account_id", "account-$second")
+        rule.waitUntil(5000) { order() == listOf(second, account_id) } // Saved without a confirm button.
+
+        rule.onNodeWithTag("account-groups-add").performClick()
+        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("account-group-name"))).performTextInput("信用卡")
+        rule.onNodeWithTag("account-group-name-confirm").performClick()
+        fun createdGroup() = runBlocking { graph.overview.snapshot().groups.firstOrNull { !it.isDefault }?.id }
+        rule.waitUntil(5000) { createdGroup() != null }
+        val group = createdGroup()!!
+        rule.onNodeWithTag("account-group-add-$group").performClick()
+        rule.onNodeWithTag("account-group-candidate-$account_id").performClick()
+        rule.onNodeWithTag("account-group-add-confirm").performClick()
+        rule.waitUntil(5000) { runBlocking { graph.overview.snapshot().accounts.single { it.id == account_id }.groupId == group } }
+        shot("account-groups-managed")
+
+        rule.onNodeWithTag("account-groups-sort").performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-$group").fetchSemanticsNodes().isNotEmpty() }
+        drag_order_row(group.toString(), AccountGroup.DEFAULT_ID.toString())
+        rule.waitUntil(5000) { order() == listOf(account_id, second) }
+        rule.onNodeWithTag("account-groups-sort-done").performClick()
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
-        runBlocking { assertEquals(listOf(account_id, second), graph.overview.snapshot().accounts.map { it.id }) }
-        rule.onNodeWithTag("account-order-open").performClick()
-        rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-$account_id").fetchSemanticsNodes().isNotEmpty() }
-        drag_order_row(account_id.toString(), second.toString())
-        rule.onNodeWithTag("account-order-save").performClick()
-        rule.waitUntil(5000) { rule.onAllNodesWithTag("account-order-save").fetchSemanticsNodes().isEmpty() }
-        assertTrue(rule.onNodeWithTag("account-total-$second").fetchSemanticsNode().boundsInRoot.top <
-            rule.onNodeWithTag("account-total-$account_id").fetchSemanticsNode().boundsInRoot.top)
+
+        wait_text("信用卡")
+        assertTrue(above("accounts-group-$group", "accounts-group-${AccountGroup.DEFAULT_ID}"))
+        assertTrue(above("account-total-$account_id", "account-total-$second"))
+        rule.onNodeWithTag("accounts-group-total-$group", useUnmergedTree = true).assertTextContains("CNY", substring = true)
+        rule.onNodeWithTag("accounts-group-$group").performClick()
+        rule.waitUntil(5000) { rule.onAllNodesWithTag("account-total-$account_id").fetchSemanticsNodes().isEmpty() }
+        shot("accounts-page-groups-collapsed")
+
         rule.onNode(hasText(localized(dev.valnook.app.R.string.nav_investments)) and hasClickAction()).performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("investment-account-toggle-$second").fetchSemanticsNodes().isNotEmpty() }
-        assertTrue(rule.onNodeWithTag("investment-account-toggle-$second").fetchSemanticsNode().boundsInRoot.top <
-            rule.onNodeWithTag("investment-account-toggle-$account_id").fetchSemanticsNode().boundsInRoot.top)
-        shot("investment-shared-account-order")
+        assertTrue(above("investment-account-toggle-$account_id", "investment-account-toggle-$second"))
         rule.activityRule.scenario.recreate()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("investment-account-toggle-$second").fetchSemanticsNodes().isNotEmpty() }
-        runBlocking { assertEquals(listOf(second, account_id), graph.overview.snapshot().accounts.map { it.id }) }
+        runBlocking { assertTrue(graph.overview.snapshot().groups.single { it.id == group }.collapsed) }
     }
 
     @Test fun subaccount_sort_only_persists_when_account_edit_is_saved() {
@@ -936,12 +956,12 @@ class UiFlowTest {
             sessions.enterDemo()
             val demoOrder = graph.overview.snapshot().accounts.map { it.id }
             assertEquals(12, demoOrder.size)
-            val writer = requireNotNull(graph.accountOrderWriter)
-            writer.saveOrder(demoOrder, demoOrder.reversed())
+            val writer = requireNotNull(graph.accountGroupWriter)
+            writer.reorderAccounts(AccountGroup.DEFAULT_ID, demoOrder.reversed())
             assertEquals(demoOrder.reversed(), graph.overview.snapshot().accounts.map { it.id })
             sessions.exitDemo()
             assertEquals(realOrder, graph.overview.snapshot().accounts.map { it.id })
-            try { writer.saveOrder(demoOrder.reversed(), demoOrder); fail("Expired demo writer") }
+            try { writer.reorderAccounts(AccountGroup.DEFAULT_ID, demoOrder); fail("Expired demo writer") }
             catch (error: DomainException) { assertEquals(ErrorCode.SESSION_EXPIRED, error.code) }
             sessions.enterDemo()
             assertEquals(demoOrder, graph.overview.snapshot().accounts.map { it.id })

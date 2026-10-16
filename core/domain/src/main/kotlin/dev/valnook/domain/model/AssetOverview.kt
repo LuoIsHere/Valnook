@@ -50,7 +50,9 @@ data class AppSettings(val baseCurrency: Currency? = null, val rates: List<FxRat
 /** One transactional snapshot. Totals include all accounts, independently of visible pages. */
 data class AssetSnapshot(val accounts: List<SavingsAccount>, val cash: List<CashAccount>,
     val deposits: List<TermDeposit>, val positions: List<Investment>,
-    val instruments: List<Instrument>, val settings: AppSettings)
+    val instruments: List<Instrument>, val settings: AppSettings,
+    /** In display order; always contains the default group when read from the database. */
+    val groups: List<AccountGroup> = emptyList())
 
 enum class MissingKind { BASE_CURRENCY, EXCHANGE_RATE, CURRENT_COST, HISTORICAL_COST, INVALID_HISTORY }
 data class MissingAmount(val kind: MissingKind, val currencyCode: String? = null, val positionId: Long? = null)

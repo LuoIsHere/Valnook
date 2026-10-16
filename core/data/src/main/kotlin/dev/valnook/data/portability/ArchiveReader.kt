@@ -4,7 +4,10 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.withTransaction
+import dev.valnook.data.database.AccountGroupEntity
 import dev.valnook.data.database.ValnookDatabase
+import dev.valnook.data.database.insertDefaultAccountGroup
+import dev.valnook.domain.model.AccountGroupRules
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.portability.PortabilityErrorCode
 import dev.valnook.domain.portability.PortabilityException
@@ -168,6 +171,8 @@ internal class ArchiveReader(
                 counts[table.path] = loadTable(db, root, table)
             }
             if (dataSchemaVersion < 3) dev.valnook.data.database.initializeAccountDisplayOrder(db.openHelper.writableDatabase)
+            // Archives written before groups existed restore every account into the default group.
+            if (dataSchemaVersion < 8) insertDefaultAccountGroup(db.openHelper.writableDatabase, System.currentTimeMillis())
             counts["data/valuation_baselines.jsonl"] = loadValuationBaselines(db, root)
             counts["data/audit_metadata.json"] = loadAuditMetadata(db, root)
             counts.putAll(loadPreferences(db, root))
@@ -334,6 +339,7 @@ internal class ArchiveReader(
             .use { if (it.moveToFirst()) invalid() }
         sql.query("SELECT 1 FROM cash_accounts WHERE display_order<0 LIMIT 1")
             .use { if (it.moveToFirst()) invalid() }
+        validateAccountGroups(sql)
         sql.query("SELECT id,data,width,height,tint FROM wallet_card_images").use { cursor ->
             while (cursor.moveToNext()) {
                 val image = dev.valnook.domain.model.WalletImage(cursor.getString(0),cursor.getBlob(1),cursor.getInt(2),cursor.getInt(3),cursor.getLong(4))
@@ -414,6 +420,25 @@ internal class ArchiveReader(
         if (declaredCash != actualCash) summaryMismatch()
         val state = db.statistics().state()
         if (state != null && state.rule_version !in BackupContract.RESTORABLE_HISTORICAL_VALUATION_RULES) incompatible()
+    }
+
+    /** The default group must exist with its reserved empty name, and every account must belong to a stored group. */
+    private fun validateAccountGroups(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        var hasDefault = false
+        val orders = mutableSetOf<Long>()
+        db.query("SELECT id,name,display_order FROM account_groups").use { cursor ->
+            while (cursor.moveToNext()) {
+                val name = cursor.getString(1)
+                if (cursor.getLong(0) == AccountGroupEntity.DEFAULT_ID) {
+                    hasDefault = true
+                    if (name.isNotEmpty()) invalid()
+                } else if (runCatching { AccountGroupRules.name(name) }.getOrNull() != name) invalid()
+                if (cursor.getLong(2) < 0 || !orders.add(cursor.getLong(2))) invalid()
+            }
+        }
+        if (!hasDefault) invalid()
+        db.query("SELECT 1 FROM savings_accounts a LEFT JOIN account_groups g ON g.id=a.group_id WHERE g.id IS NULL LIMIT 1")
+            .use { if (it.moveToFirst()) relationship() }
     }
 
     private fun validateCreditAccounts(db: androidx.sqlite.db.SupportSQLiteDatabase) {

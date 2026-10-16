@@ -24,7 +24,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import kotlin.math.abs
 
-data class ReorderItem(val key: String, val title: String, val subtitle: String = "")
+/**
+ * A row of [ReorderList]. Rows only swap with neighbours of the same [section]; a [header] row is drawn by
+ * the list's headerContent and never moves.
+ */
+data class ReorderItem(val key: String, val title: String, val subtitle: String = "",
+    val section: String = "", val header: Boolean = false)
 
 @Composable
 fun SortIcon(modifier: Modifier = Modifier) {
@@ -38,13 +43,17 @@ fun SortIcon(modifier: Modifier = Modifier) {
     }
 }
 
-/** Stable keys and a fixed screen-space drag position prevent animated neighbours from pulling the row. */
+/**
+ * Stable keys and a fixed screen-space drag position prevent animated neighbours from pulling the row.
+ * Header rows leave the trailing drag strip free, so their actions stay tappable.
+ */
 @Composable
 fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
     reorderLabel: String, moveUpLabel: String, moveDownLabel: String,
     modifier: Modifier = Modifier, enabled: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(0.dp),
-    leadingContent: (@Composable (ReorderItem) -> Unit)? = null) {
+    leadingContent: (@Composable (ReorderItem) -> Unit)? = null,
+    headerContent: (@Composable (ReorderItem) -> Unit)? = null) {
     val listState = rememberLazyListState()
     val latestItems by rememberUpdatedState(items)
     val latestReorder by rememberUpdatedState(onReorder)
@@ -63,14 +72,22 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
     LaunchedEffect(items.map { it.key }, dragged) {
         if (dragged == null) order = items.map { it.key }
     }
+    /** Whether [key] may trade places with [neighbour]: both movable rows of one section. */
+    fun swappable(key: String, neighbour: String?): Boolean {
+        val rows = latestItems.associateBy { it.key }
+        val other = neighbour?.let(rows::get) ?: return false
+        return !other.header && other.section == rows[key]?.section
+    }
     fun reorderAtPointer() {
         val key = dragged ?: return
         val info = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key } ?: return
         val from = order.indexOf(key)
         if (from < 0 || info.index != from) return // Wait for the preceding swap to be measured.
         val center = startOffset + distance + info.size / 2f
-        val previous = order.getOrNull(from - 1)?.let { id -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } }
-        val next = order.getOrNull(from + 1)?.let { id -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } }
+        val previous = order.getOrNull(from - 1)?.takeIf { swappable(key, it) }
+            ?.let { id -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } }
+        val next = order.getOrNull(from + 1)?.takeIf { swappable(key, it) }
+            ?.let { id -> listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == id } }
         val target = when {
             previous != null && center < previous.offset + previous.size / 2f - threshold -> from - 1
             next != null && center > next.offset + next.size / 2f + threshold -> from + 1
@@ -111,8 +128,15 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
         LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = contentPadding) {
             items(order, key = { it }) { key ->
                 val item = byKey[key] ?: return@items
+                if (item.header) {
+                    Box(Modifier.fillMaxWidth().animateItem(fadeInSpec = null, placementSpec = tween(140), fadeOutSpec = null)
+                        .padding(end = 48.dp)) { headerContent?.invoke(item) }
+                    return@items
+                }
                 val dragging = dragged == key
                 val index = order.indexOf(key)
+                val canMoveUp = enabled && swappable(key, order.getOrNull(index - 1))
+                val canMoveDown = enabled && swappable(key, order.getOrNull(index + 1))
                 Column(Modifier.fillMaxWidth()
                     .animateItem(fadeInSpec = null, placementSpec = if (dragging) null else tween(140), fadeOutSpec = null)
                     .graphicsLayer {
@@ -136,12 +160,12 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                                 contentDescription = reorderLabel
                                 customActions = listOf(
                                     CustomAccessibilityAction(moveUpLabel) {
-                                        if (enabled && index > 0) latestReorder(order.toMutableList().apply { add(index - 1, removeAt(index)) })
-                                        enabled && index > 0
+                                        if (canMoveUp) latestReorder(order.toMutableList().apply { add(index - 1, removeAt(index)) })
+                                        canMoveUp
                                     },
                                     CustomAccessibilityAction(moveDownLabel) {
-                                        if (enabled && index < order.lastIndex) latestReorder(order.toMutableList().apply { add(index + 1, removeAt(index)) })
-                                        enabled && index < order.lastIndex
+                                        if (canMoveDown) latestReorder(order.toMutableList().apply { add(index + 1, removeAt(index)) })
+                                        canMoveDown
                                     })
                                 if (!enabled) disabled()
                             }) {
@@ -170,6 +194,7 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
         }.pointerInput(enabled) {
             if (!enabled) return@pointerInput
             detectVerticalDragGestures(onDragStart = {
+                if (latestItems.any { it.key == pressedKey && it.header }) return@detectVerticalDragGestures
                 listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == pressedKey }?.let { info ->
                     dragged = pressedKey
                     startOffset = info.offset.toFloat()

@@ -38,7 +38,7 @@ class AppGraph(
         dev.valnook.domain.portability.UnavailableDataPortability,
     val cloudBackup: CloudBackupService = dev.valnook.domain.cloud.UnavailableCloudBackupService,
     val wallet: WalletRepository? = null,
-    val accountOrderWriter: AccountOrderWriter? = null,
+    val accountGroupWriter: AccountGroupWriter? = null,
     val walletPrivate: WalletPrivateRepository? = null
 )
 

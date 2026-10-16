@@ -429,4 +429,65 @@ class MigrationTest {
             }
         } finally { context.deleteDatabase(name) }
     }
+
+    @Test fun v19_to_v20_puts_every_account_in_the_default_group_and_keeps_order() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-groups-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 19).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision,display_order) VALUES (1,'Third','',1,1,1,2)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision,display_order) VALUES (2,'First','',1,1,4,0)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision,display_order) VALUES (3,'Second','',1,1,1,1)")
+                execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (2,'CNY',-123,3,1,5,'Cash','',1,1)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 20, true, MIGRATION_19_20).apply {
+                query("SELECT id,name,display_order,collapsed FROM account_groups").use {
+                    assertTrue(it.moveToFirst())
+                    assertEquals(AccountGroupEntity.DEFAULT_ID, it.getLong(0)); assertEquals("", it.getString(1))
+                    assertEquals(0L, it.getLong(2)); assertEquals(0, it.getInt(3))
+                    assertFalse(it.moveToNext())
+                }
+                query("SELECT id,group_id,revision FROM savings_accounts ORDER BY display_order,id").use {
+                    val rows = generateSequence { if (it.moveToNext()) Triple(it.getLong(0), it.getLong(1), it.getLong(2)) else null }.toList()
+                    assertEquals(listOf(2L, 3L, 1L), rows.map { row -> row.first })
+                    assertTrue(rows.all { row -> row.second == AccountGroupEntity.DEFAULT_ID })
+                    assertEquals(4L, rows.first().third)
+                }
+                query("SELECT balance_minor,revision FROM cash_accounts WHERE id=5").use {
+                    assertTrue(it.moveToFirst()); assertEquals(-123L, it.getLong(0)); assertEquals(3L, it.getLong(1))
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    /** A v0.0.16 install (schema 18) must reach the current schema and open normally. */
+    @Test fun v18_install_upgrades_through_every_step_and_opens_with_room(): Unit = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-v18-chain-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 18).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision,display_order) VALUES (1,'Bank','note',1,1,1,1)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision,display_order) VALUES (2,'Broker','',1,1,1,0)")
+                execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20).close()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
+            try {
+                db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
+                    assertTrue(it.moveToFirst()); assertEquals("ok", it.getString(0))
+                }
+                val snapshot = dev.valnook.data.repository.RoomOverview(db).snapshot()
+                assertEquals(listOf(2L, 1L), snapshot.accounts.map { it.id })
+                assertTrue(snapshot.accounts.all { it.groupId == AccountGroupEntity.DEFAULT_ID })
+                assertEquals(listOf(AccountGroupEntity.DEFAULT_ID), snapshot.groups.map { it.id })
+                assertEquals(4500L, snapshot.cash.single().balance_minor)
+            } finally { db.close() }
+        } finally { context.deleteDatabase(name) }
+    }
 }

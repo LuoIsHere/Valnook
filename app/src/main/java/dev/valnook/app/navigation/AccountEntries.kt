@@ -11,13 +11,14 @@ import dev.valnook.feature.deposits.*
 import dev.valnook.feature.investments.*
 
 internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
-    onEditSortActionChanged: ((() -> Unit)?) -> Unit, onEditSaveChanged: (AccountEditToolbarState?) -> Unit, onDeleteCash: (Long, Long) -> Unit) {
-    entry<AccountOrderKey> {
-        val vm = pageViewModel { AccountOrderViewModel(graph.overview, requireNotNull(graph.accountOrderWriter), createSavedStateHandle()) }
-        AccountOrderScreen(vm, back)
+    onEditSortActionChanged: ((() -> Unit)?) -> Unit, onEditSaveChanged: (AccountEditToolbarState?) -> Unit,
+    onGroupsToolbarChanged: (AccountGroupsToolbarState?) -> Unit, onDeleteCash: (Long, Long) -> Unit) {
+    entry<AccountGroupsKey> {
+        val vm = pageViewModel { AccountGroupsViewModel(graph.overview, requireNotNull(graph.accountGroupWriter)) }
+        AccountGroupsScreen(vm, onGroupsToolbarChanged)
     }
     entry<AccountsKey> {
-        val vm = pageViewModel { AccountsViewModel(graph.overview) }
+        val vm = pageViewModel { AccountsViewModel(graph.overview, graph.accountGroupWriter) }
         AccountsScreen(vm, { open(AccountKey(it)) },
             { accountId, cashId -> open(CashKey(accountId, cashId)) },
             { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },
@@ -26,7 +27,7 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
             })
     }
     entry<HiddenAccountsKey> {
-        val vm = pageViewModel { AccountsViewModel(graph.overview) }
+        val vm = pageViewModel { AccountsViewModel(graph.overview, graph.accountGroupWriter) }
         AccountsScreen(vm, { open(AccountKey(it)) },
             { accountId, cashId -> open(CashKey(accountId, cashId)) },
             { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },

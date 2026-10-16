@@ -57,14 +57,16 @@ object AssetValuation {
                     it.currency to BigDecimal.valueOf(it.balance_minor, it.currency.fraction_digits)
                 }, snapshot.settings))
         }
-        fun total(select: (AccountAssets) -> ConvertedTotal): ConvertedTotal = ConvertedTotal(
-            accounts.fold(BigDecimal.ZERO) { result, account -> result.add(select(account).amount) },
-            snapshot.settings.baseCurrency,
-            accounts.flatMap { select(it).missing }.toSet() +
-                if (snapshot.settings.baseCurrency == null) setOf(MissingAmount(MissingKind.BASE_CURRENCY)) else emptySet())
+        fun total(select: (AccountAssets) -> ConvertedTotal) = sum(accounts.map(select), snapshot.settings.baseCurrency)
         return AssetOverview(accounts, total { it.total }, total { it.cash }, total { it.creditBalance }, total { it.depositValue }, total { it.investmentValue },
             total { it.floating }, total { it.realized }, total { it.availableCash })
     }
+
+    /** Adds totals already converted to [base], keeping every missing amount. */
+    fun sum(totals: List<ConvertedTotal>, base: Currency?): ConvertedTotal = ConvertedTotal(
+        totals.fold(BigDecimal.ZERO) { result, total -> result.add(total.amount) }, base,
+        totals.flatMap { it.missing }.toSet() +
+            if (base == null) setOf(MissingAmount(MissingKind.BASE_CURRENCY)) else emptySet())
 
     fun marketValue(position: Investment): BigDecimal = BigDecimal.valueOf(position.holding_quantity_e8, 8)
         .multiply(BigDecimal.valueOf(position.current_price_e8, 8))

@@ -12,7 +12,7 @@ import java.time.Clock
 class RoomOverview(private val db: ValnookDatabase) : OverviewRepository {
     override fun observeSnapshot(): Flow<AssetSnapshot> = db.invalidationTracker.createFlow(
         "savings_accounts", "cash_accounts", "credit_account_profiles", "term_deposits", "investments", "instruments",
-        "asset_types", "app_settings", "fx_rates"
+        "asset_types", "app_settings", "fx_rates", "account_groups"
     ).map { snapshot() }.flowOn(Dispatchers.IO)
 
     override suspend fun accountIconImage(id: String): ByteArray? = db.accounts().iconImage(id)
@@ -20,12 +20,18 @@ class RoomOverview(private val db: ValnookDatabase) : OverviewRepository {
     override suspend fun snapshot(): AssetSnapshot {
         val rows = db.overview().snapshot()
         val profiles = rows.creditProfiles.associateBy { it.account_id }
-        return AssetSnapshot(rows.accounts.map { SavingsAccount(it.id, it.name, it.note, it.revision, AccountIcon(AccountIconType.valueOf(it.icon_type), it.icon_value), it.show_deposit_summary, it.show_investment_summary) },
+        return AssetSnapshot(rows.accounts.map { SavingsAccount(it.id, it.name, it.note, it.revision, AccountIcon(AccountIconType.valueOf(it.icon_type), it.icon_value), it.show_deposit_summary, it.show_investment_summary, it.group_id) },
             rows.cash.map { CashAccount(it.savings_account_id, Currency.of(it.currency_code), it.balance_minor, it.revision,
                 it.id, it.name, it.note, it.currency_locked, profiles[it.id]?.toModel(), it.include_in_available_cash, it.show_on_accounts_page) },
             rows.deposits.map { it.toModel() }, rows.positions.map { it.toModel() },
-            rows.instruments.map { it.toModel() }, settingsModel(rows.settings, rows.rates))
+            rows.instruments.map { it.toModel() }, settingsModel(rows.settings, rows.rates), accountGroups(rows.groups))
     }
+}
+
+/** Databases created without the seed callback (some tests) have no default row; present one anyway. */
+private fun accountGroups(rows: List<AccountGroupEntity>): List<AccountGroup> {
+    val groups = rows.map { it.toModel() }
+    return if (groups.any { it.isDefault }) groups else listOf(AccountGroup(AccountGroup.DEFAULT_ID, "", 0)) + groups
 }
 
 class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : SettingsRepository, SettingsWriter {

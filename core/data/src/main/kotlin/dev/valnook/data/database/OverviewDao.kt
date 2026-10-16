@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.Flow
 abstract class OverviewDao {
     @Query("SELECT * FROM savings_accounts ORDER BY display_order,id")
     abstract suspend fun allAccounts(): List<AccountEntity>
+    @Query("SELECT * FROM account_groups ORDER BY display_order,id")
+    abstract suspend fun allAccountGroups(): List<AccountGroupEntity>
     @Query("SELECT * FROM cash_accounts ORDER BY savings_account_id,display_order,id")
     abstract suspend fun allCash(): List<CashEntity>
     @Query("SELECT * FROM credit_account_profiles ORDER BY account_id")
@@ -58,7 +60,7 @@ abstract class OverviewDao {
     abstract suspend fun localizeInstruments(english: Boolean)
     @Transaction
     open suspend fun snapshot(): OverviewRows = OverviewRows(allAccounts(), allCash(), allCreditProfiles(), openDeposits(),
-        allPositions(), allInstruments(), settings(), rates())
+        allPositions(), allInstruments(), settings(), rates(), allAccountGroups())
     @Transaction
     open suspend fun settingsSnapshot(): Pair<SettingsEntity?, List<FxRateEntity>> = settings() to rates()
 }
@@ -66,4 +68,5 @@ abstract class OverviewDao {
 data class OverviewRows(val accounts: List<AccountEntity>, val cash: List<CashEntity>,
     val creditProfiles: List<CreditAccountProfileEntity>,
     val deposits: List<DepositEntity>, val positions: List<InvestmentWithType>,
-    val instruments: List<InstrumentWithType>, val settings: SettingsEntity?, val rates: List<FxRateEntity>)
+    val instruments: List<InstrumentWithType>, val settings: SettingsEntity?, val rates: List<FxRateEntity>,
+    val groups: List<AccountGroupEntity>)

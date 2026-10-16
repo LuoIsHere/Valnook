@@ -2,6 +2,7 @@ package dev.valnook.data.transaction
 
 import dev.valnook.data.database.AccountEntity
 import dev.valnook.data.database.ValnookDatabase
+import dev.valnook.data.database.normalizeAccountOrder
 import dev.valnook.data.repository.valid_name
 import dev.valnook.domain.model.CashSource
 import dev.valnook.domain.model.DomainException
@@ -38,9 +39,10 @@ internal class AccountCommandHandler(
             command.cashChanges.mapNotNull { it.cashAccountId }.toSet() != db.cash().accountIds(oldAccount.id).toSet()) {
             throw DomainException(ErrorCode.STALE_RECORD)
         }
+        // A new account joins the default group; the largest order places it last there once normalized.
         val accountId = oldAccount?.id ?: db.accounts().insert_account(AccountEntity(name = accountName,
             note = command.note, created_at_ms = now, updated_at_ms = now,
-            display_order = db.accounts().nextDisplayOrder()))
+            display_order = db.accounts().nextDisplayOrder())).also { db.normalizeAccountOrder() }
 
         db.accounts().setVisibility(accountId, command.showDepositSummary ?: oldAccount?.show_deposit_summary ?: true,
             command.showInvestmentSummary ?: oldAccount?.show_investment_summary ?: true)

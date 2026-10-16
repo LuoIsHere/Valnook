@@ -110,6 +110,7 @@ data class ArchiveManifest(
             if (dataSchemaVersion >= 3 && "account-order-v1" !in features) incompatible()
             if (dataSchemaVersion >= 5 && "account-presentation-v1" !in features) incompatible()
             if (dataSchemaVersion >= 4 && "account-icons-v1" !in features) incompatible()
+            if (dataSchemaVersion >= 8 && "account-groups-v1" !in features) incompatible()
             val files = root.list("files").map { item ->
                 val value = item.asObject()
                 requireKeys(value, setOf("path", "recordCount", "uncompressedBytes", "sha256"))

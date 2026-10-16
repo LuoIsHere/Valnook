@@ -10,7 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.valnook.data.database.*
 import dev.valnook.data.portability.AppBuildInfo
 import dev.valnook.data.portability.RoomPortabilityEngine
-import dev.valnook.data.repository.RoomAccountOrderWriter
+import dev.valnook.data.repository.RoomAccountGroupWriter
 import dev.valnook.data.repository.RoomOverview
 import dev.valnook.data.transaction.RoomFinancialCommands
 import dev.valnook.domain.model.*
@@ -69,38 +69,57 @@ class AccountOrderingDatabaseTest {
         } finally { context.deleteDatabase(name) }
     }
 
-    @Test fun main_order_is_atomic_appends_new_accounts_and_does_not_change_financial_history(): Unit = runBlocking {
+    private suspend fun order(db: ValnookDatabase) = RoomOverview(db).snapshot().accounts.map { it.id }
+    private fun displayOrders(db: ValnookDatabase): List<Long> = db.openHelper.readableDatabase
+        .query("SELECT display_order FROM savings_accounts ORDER BY display_order").use { cursor ->
+            generateSequence { if (cursor.moveToNext()) cursor.getLong(0) else null }.toList()
+        }
+
+    @Test fun group_changes_keep_one_global_order_and_do_not_change_financial_history(): Unit = runBlocking {
         val db = database()
-        val first = account(db, "A"); val second = account(db, "B")
-        val before = RoomOverview(db).snapshot()
+        val a = account(db, "A"); val b = account(db, "B"); val c = account(db, "C")
         val stats = db.statistics().state()
-        val writer = RoomAccountOrderWriter(db)
-        writer.saveOrder(listOf(first, second), listOf(second, first))
-        assertEquals(listOf(second, first), RoomOverview(db).snapshot().accounts.map { it.id })
-        assertEquals(before.accounts.reversed(), RoomOverview(db).snapshot().accounts)
+        val writer = RoomAccountGroupWriter(db, clock)
+        val group = writer.create("Credit")
+        writer.moveAccounts(group, listOf(b))
+        assertEquals(listOf(a, c, b), order(db))
+        writer.reorderGroups(listOf(group, AccountGroup.DEFAULT_ID))
+        assertEquals(listOf(b, a, c), order(db))
+        writer.reorderAccounts(AccountGroup.DEFAULT_ID, listOf(c, a))
+        assertEquals(listOf(b, c, a), order(db))
+        val d = account(db, "D") // New accounts join the end of the default group.
+        assertEquals(listOf(b, c, a, d), order(db))
+        assertEquals(AccountGroup.DEFAULT_ID, RoomOverview(db).snapshot().accounts.single { it.id == d }.groupId)
+        writer.setCollapsed(group, true)
+        assertTrue(RoomOverview(db).snapshot().groups.single { it.id == group }.collapsed)
+        writer.delete(group) // Its accounts return to the end of the default group.
+        assertEquals(listOf(c, a, d, b), order(db))
+        assertEquals(listOf(AccountGroup.DEFAULT_ID), RoomOverview(db).snapshot().groups.map { it.id })
+        assertEquals(listOf(0L, 1L, 2L, 3L), displayOrders(db))
         assertEquals(stats, db.statistics().state())
-        expectError(ErrorCode.OPERATION_CONFLICT) { writer.saveOrder(listOf(second, first), listOf(first, first)) }
-        expectError(ErrorCode.STALE_RECORD) { writer.saveOrder(listOf(first, second), listOf(first, second)) }
-        val third = account(db, "C")
-        assertEquals(listOf(second, first, third), RoomOverview(db).snapshot().accounts.map { it.id })
         assertEquals(0L, count(db, "cash_movements"))
+        expectError(ErrorCode.OPERATION_CONFLICT) { writer.rename(AccountGroup.DEFAULT_ID, "Renamed") }
+        expectError(ErrorCode.OPERATION_CONFLICT) { writer.delete(AccountGroup.DEFAULT_ID) }
+        expectError(ErrorCode.NAME) { writer.create("   ") }
+        expectError(ErrorCode.STALE_RECORD) { writer.reorderAccounts(AccountGroup.DEFAULT_ID, listOf(a, c)) }
+        expectError(ErrorCode.STALE_RECORD) { writer.moveAccounts(group, listOf(a)) }
     }
 
-    @Test fun failed_order_transaction_rolls_back_and_success_survives_reopening(): Unit = runBlocking {
+    @Test fun failed_group_change_rolls_back_and_success_survives_reopening(): Unit = runBlocking {
         val name = "ordering-durability-${operation()}.db"
         var db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addCallback(ValnookDatabase.seed).build()
         try {
             val first = account(db, "A"); val second = account(db, "B")
             db.openHelper.writableDatabase.execSQL("""CREATE TRIGGER reject_order BEFORE UPDATE OF display_order
-                ON savings_accounts WHEN NEW.id=$first BEGIN SELECT RAISE(ABORT,'test fault'); END""")
-            try { RoomAccountOrderWriter(db).saveOrder(listOf(first, second), listOf(second, first)); fail("Expected rollback") }
+                ON savings_accounts WHEN NEW.id=$first AND NEW.display_order=1 BEGIN SELECT RAISE(ABORT,'test fault'); END""")
+            try { RoomAccountGroupWriter(db, clock).reorderAccounts(AccountGroup.DEFAULT_ID, listOf(second, first)); fail("Expected rollback") }
             catch (_: android.database.sqlite.SQLiteException) { }
-            assertEquals(listOf(first, second), RoomOverview(db).snapshot().accounts.map { it.id })
+            assertEquals(listOf(first, second), order(db))
             db.openHelper.writableDatabase.execSQL("DROP TRIGGER reject_order")
-            RoomAccountOrderWriter(db).saveOrder(listOf(first, second), listOf(second, first))
+            RoomAccountGroupWriter(db, clock).reorderAccounts(AccountGroup.DEFAULT_ID, listOf(second, first))
             db.close()
             db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
-            assertEquals(listOf(second, first), RoomOverview(db).snapshot().accounts.map { it.id })
+            assertEquals(listOf(second, first), order(db))
         } finally { db.close(); context.deleteDatabase(name) }
     }
 
@@ -136,12 +155,18 @@ class AccountOrderingDatabaseTest {
         assertEquals(rows, RoomOverview(db).snapshot().cash.filter { it.account_id == parent })
     }
 
-    @Test fun portable_backup_restores_main_and_subaccount_order(): Unit = runBlocking {
+    @Test fun portable_backup_restores_groups_main_and_subaccount_order(): Unit = runBlocking {
         val source = database()
         val first = account(source, "A", listOf(BalanceAccountChange("CNY", 123, null, name = "Z"),
             BalanceAccountChange("USD", 456, null, name = "A")))
         val second = account(source, "B")
-        RoomAccountOrderWriter(source).saveOrder(listOf(first, second), listOf(second, first))
+        val third = account(source, "C")
+        val writer = RoomAccountGroupWriter(source, clock)
+        writer.reorderAccounts(AccountGroup.DEFAULT_ID, listOf(second, first, third))
+        val group = writer.create("Brokers")
+        writer.moveAccounts(group, listOf(third))
+        writer.reorderGroups(listOf(group, AccountGroup.DEFAULT_ID))
+        writer.setCollapsed(group, true)
         val cash = source.overview().allCash().filter { it.savings_account_id == first }
         cash.reversed().forEachIndexed { index, row -> source.cash().setDisplayOrder(first, row.id, index.toLong()) }
         val target = database()
@@ -152,9 +177,11 @@ class AccountOrderingDatabaseTest {
         sourceEngine.createBackup(operation(), bytes) {}
         val staged = targetEngine.prepareRestore(ByteArrayInputStream(bytes.toByteArray()), "ordering.val_backup") {}
         try {
-            assertEquals(4, targetEngine.preview(staged).dataSchemaVersion)
+            assertEquals(dev.valnook.domain.portability.BACKUP_DATA_SCHEMA_VERSION, targetEngine.preview(staged).dataSchemaVersion)
             targetEngine.commitRestore(staged) {}
         } finally { targetEngine.close(staged) }
+        assertEquals(listOf(third, second, first), RoomOverview(target).snapshot().accounts.map { it.id })
+        assertEquals(RoomOverview(source).snapshot().groups, RoomOverview(target).snapshot().groups)
         assertEquals(RoomOverview(source).snapshot().accounts, RoomOverview(target).snapshot().accounts)
         assertEquals(RoomOverview(source).snapshot().cash, RoomOverview(target).snapshot().cash)
     }

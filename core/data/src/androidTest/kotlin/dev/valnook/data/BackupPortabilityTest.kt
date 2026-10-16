@@ -240,7 +240,8 @@ class BackupPortabilityTest {
         val first = commands.execute(SaveAccount(testOperationId(), null, null, "First", "", listOf(
             CashBalanceChange("CNY", -123, null, name = "Z"), CashBalanceChange("USD", 456, null, name = "A")))).id
         val second = commands.execute(SaveAccount(testOperationId(), null, null, "Second", "", emptyList())).id
-        dev.valnook.data.repository.RoomAccountOrderWriter(source).saveOrder(listOf(first, second), listOf(second, first))
+        dev.valnook.data.repository.RoomAccountGroupWriter(source, clock)
+            .reorderAccounts(dev.valnook.domain.model.AccountGroup.DEFAULT_ID, listOf(second, first))
         val output = ByteArrayOutputStream()
         engine(source).createBackup(testOperationId(), output) {}
         for (version in 1..3) {
@@ -255,6 +256,32 @@ class BackupPortabilityTest {
             assertEquals(if (version < 3) listOf("A", "Z") else listOf("Z", "A"), snapshot.cash.map { it.name })
             assertEquals(if (version < 3) listOf(456L, -123L) else listOf(-123L, 456L), snapshot.cash.map { it.balance_minor })
         }
+    }
+
+    /** Archives from before account groups (data schema 7, written by v0.0.16) restore into the default group. */
+    @Test fun schema7_backup_restores_every_account_into_the_default_group_in_order() = runBlocking {
+        val source = database("schema7-groups-source")
+        val commands = RoomFinancialCommands(source, clock)
+        val first = commands.execute(SaveAccount(testOperationId(), null, null, "First", "", emptyList())).id
+        val second = commands.execute(SaveAccount(testOperationId(), null, null, "Second", "", emptyList())).id
+        val third = commands.execute(SaveAccount(testOperationId(), null, null, "Third", "", emptyList())).id
+        val writer = dev.valnook.data.repository.RoomAccountGroupWriter(source, clock)
+        writer.moveAccounts(writer.create("Removed by downgrade"), listOf(first))
+        writer.reorderAccounts(dev.valnook.domain.model.AccountGroup.DEFAULT_ID, listOf(third, second))
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        val target = database("schema7-groups-target")
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(downgradeToLegacySchema(output.toByteArray(), 7)),
+            "schema7.val_backup") {}
+        try {
+            assertEquals(7, targetEngine.preview(staged).dataSchemaVersion)
+            targetEngine.commitRestore(staged) {}
+        } finally { targetEngine.close(staged) }
+        val snapshot = RoomOverview(target).snapshot()
+        assertEquals(listOf(dev.valnook.domain.model.AccountGroup.DEFAULT_ID), snapshot.groups.map { it.id })
+        assertTrue(snapshot.accounts.all { it.groupId == dev.valnook.domain.model.AccountGroup.DEFAULT_ID })
+        assertEquals(listOf(third, second, first), snapshot.accounts.map { it.id })
     }
 
     @Test fun previous_statistics_rule_backup_restores_and_upgrades_on_first_read() = runBlocking {
@@ -607,16 +634,20 @@ class BackupPortabilityTest {
             val entry = zip.nextEntry ?: break
             files[entry.name] = zip.readBytes()
         } }
-        files.remove("data/wallet_cards.jsonl"); files.remove("data/wallet_card_images.jsonl")
+        if (version < 6) { files.remove("data/wallet_cards.jsonl"); files.remove("data/wallet_card_images.jsonl") }
+        if (version < 8) files.remove("data/account_groups.jsonl")
         if(version < 4) files.remove("data/account_icon_images.jsonl")
         if (version == 1) files.remove("data/credit_account_profiles.jsonl")
         listOf("data/accounts.jsonl", "data/cash_accounts.jsonl").forEach { path ->
             files[path] = files.getValue(path).toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
-                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 3) remove("display_order"); if(version < 4) { remove("icon_type"); remove("icon_value") }; if(version < 5) listOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page").forEach { remove(it) } }.toString() }.toByteArray()
+                .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 8) remove("group_id"); if (version < 3) remove("display_order"); if(version < 4) { remove("icon_type"); remove("icon_value") }; if(version < 5) listOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page").forEach { remove(it) } }.toString() }.toByteArray()
         }
         val totals = JSONObject(files.getValue("verification/snapshot_totals.json").toString(Charsets.UTF_8))
-        totals.getJSONObject("recordCounts").remove("data/wallet_cards.jsonl")
-        totals.getJSONObject("recordCounts").remove("data/wallet_card_images.jsonl")
+        if (version < 6) {
+            totals.getJSONObject("recordCounts").remove("data/wallet_cards.jsonl")
+            totals.getJSONObject("recordCounts").remove("data/wallet_card_images.jsonl")
+        }
+        if (version < 8) totals.getJSONObject("recordCounts").remove("data/account_groups.jsonl")
         if(version < 4) totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")
         if (version == 1) totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
         files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
@@ -626,7 +657,9 @@ class BackupPortabilityTest {
             (if (version >= 2) listOf("credit-accounts-v1") else emptyList()) +
             (if (version >= 3) listOf("account-order-v1") else emptyList()) +
             (if (version >= 4) listOf("account-icons-v1") else emptyList()) +
-            (if (version >= 5) listOf("account-presentation-v1") else emptyList())))
+            (if (version >= 5) listOf("account-presentation-v1") else emptyList()) +
+            (if (version >= 6) listOf("wallet-cards-v1") else emptyList()) +
+            (if (version >= 7) listOf("wallet-face-style-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->

@@ -10,7 +10,9 @@ data class AccountEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0, val 
     @ColumnInfo(defaultValue = "'SYMBOL'") val icon_type: String = "SYMBOL",
     @ColumnInfo(defaultValue = "'account_balance'") val icon_value: String = "account_balance",
     @ColumnInfo(defaultValue = "1") val show_deposit_summary: Boolean = true,
-    @ColumnInfo(defaultValue = "1") val show_investment_summary: Boolean = true)
+    @ColumnInfo(defaultValue = "1") val show_investment_summary: Boolean = true,
+    /** Position inside the group is display_order; see normalizeAccountOrder. */
+    @ColumnInfo(defaultValue = "1") val group_id: Long = AccountGroupEntity.DEFAULT_ID)
 
 @Entity(tableName = "account_icon_images")
 data class AccountIconImageEntity(@PrimaryKey val id: String, val data: ByteArray)

@@ -325,11 +325,18 @@ class AppSessionManager @Inject internal constructor(
                 requireMobileWrite(sessionId); source.walletPrivate.dismissWarning()
             }
         },
-        accountOrderWriter = object : AccountOrderWriter {
-            override suspend fun saveOrder(expectedOrder: List<Long>, orderedIds: List<Long>) = writeMutex.withLock {
-                requireMobileWrite(sessionId)
-                dev.valnook.data.repository.RoomAccountOrderWriter(source.database).saveOrder(expectedOrder, orderedIds)
+        accountGroupWriter = object : AccountGroupWriter {
+            private val delegate = dev.valnook.data.repository.RoomAccountGroupWriter(source.database, source.clock)
+            private suspend fun <T> mobile(block: suspend AccountGroupWriter.() -> T): T = writeMutex.withLock {
+                requireMobileWrite(sessionId); delegate.block()
             }
+            override suspend fun create(name: String) = mobile { create(name) }
+            override suspend fun rename(groupId: Long, name: String) = mobile { rename(groupId, name) }
+            override suspend fun delete(groupId: Long) = mobile { delete(groupId) }
+            override suspend fun reorderGroups(orderedIds: List<Long>) = mobile { reorderGroups(orderedIds) }
+            override suspend fun moveAccounts(groupId: Long, accountIds: List<Long>) = mobile { moveAccounts(groupId, accountIds) }
+            override suspend fun reorderAccounts(groupId: Long, orderedIds: List<Long>) = mobile { reorderAccounts(groupId, orderedIds) }
+            override suspend fun setCollapsed(groupId: Long, collapsed: Boolean) = mobile { setCollapsed(groupId, collapsed) }
         }
     )
 

@@ -58,7 +58,7 @@ internal object BackupContract {
     /** Older rules only differ in derived statistics, which restore always rebuilds. */
     val RESTORABLE_HISTORICAL_VALUATION_RULES = dev.valnook.data.database.MIN_RESTORABLE_STATISTICS_RULE_VERSION..STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -74,8 +74,11 @@ internal object BackupContract {
         PortableTable("data/wallet_cards.jsonl", "wallet_cards", listOf(long("id"), text("name"), text("image_key", true), long("bound_cash_account_id", true), long("display_order"), long("created_at_ms"), long("updated_at_ms"), long("revision"), bool("binding_lost"), text("face_style", true)), "display_order,id"),
         PortableTable("data/account_icon_images.jsonl", "account_icon_images", listOf(
             text("id"), PortableColumn("data", PortableKind.BLOB)), "id"),
+        PortableTable("data/account_groups.jsonl", "account_groups", listOf(
+            long("id"), text("name"), long("display_order"), bool("collapsed"), long("created_at_ms"), long("updated_at_ms")
+        ), "display_order,id"),
         PortableTable("data/accounts.jsonl", "savings_accounts", listOf(
-            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision"), long("display_order"), text("icon_type"), text("icon_value"), bool("show_deposit_summary"), bool("show_investment_summary")
+            long("id"), text("name"), text("note"), long("created_at_ms"), long("updated_at_ms"), long("revision"), long("display_order"), text("icon_type"), text("icon_value"), bool("show_deposit_summary"), bool("show_investment_summary"), long("group_id")
         ), "id"),
         PortableTable("data/cash_accounts.jsonl", "cash_accounts", listOf(
             long("savings_account_id"), text("currency_code"), long("balance_minor"), long("revision"),
@@ -158,16 +161,30 @@ internal object BackupContract {
         "verification/snapshot_totals.json"
     )
 
-    fun tablesFor(dataSchemaVersion: Int): List<PortableTable> = (when (dataSchemaVersion) {
-        1, 2, 3 -> tables.filterNot { it.table == "account_icon_images" ||
-            (dataSchemaVersion == 1 && it.table == "credit_account_profiles") }
-            .map { it.copy(columns = it.columns.filterNot { column ->
-                column.name in setOf("icon_type", "icon_value") || (dataSchemaVersion < 3 && column.name == "display_order") }) }
-        4, 5, 6, 7 -> tables
-        else -> emptyList()
-    }).map { table -> if (dataSchemaVersion >= 7) table else table.copy(columns = table.columns.filterNot { it.name == "face_style" }) }.filterNot { dataSchemaVersion < 6 && it.table in setOf("wallet_cards", "wallet_card_images") }.map { table -> if (dataSchemaVersion >= 5) table else table.copy(columns = table.columns.filterNot {
-        it.name in setOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page")
-    }) }
+    /** Data schema version that introduced each table; tables not listed exist since version 1. */
+    private val tableSince = mapOf(
+        "credit_account_profiles" to 2,
+        "account_icon_images" to 4,
+        "wallet_cards" to 6, "wallet_card_images" to 6,
+        "account_groups" to 8
+    )
+
+    /** Data schema version that introduced each column name; columns not listed exist since version 1. */
+    private val columnSince = mapOf(
+        "display_order" to 3,
+        "icon_type" to 4, "icon_value" to 4,
+        "show_deposit_summary" to 5, "show_investment_summary" to 5,
+        "include_in_available_cash" to 5, "show_on_accounts_page" to 5,
+        "face_style" to 7,
+        "group_id" to 8
+    )
+
+    /** The tables and columns an archive of [dataSchemaVersion] contains; empty for unknown versions. */
+    fun tablesFor(dataSchemaVersion: Int): List<PortableTable> {
+        if (dataSchemaVersion !in 1..DATA_SCHEMA_VERSION) return emptyList()
+        return tables.filter { (tableSince[it.table] ?: 1) <= dataSchemaVersion }
+            .map { table -> table.copy(columns = table.columns.filter { (columnSince[it.name] ?: 1) <= dataSchemaVersion }) }
+    }
 
     fun payloadPathsFor(dataSchemaVersion: Int): Set<String> =
         tablesFor(dataSchemaVersion).mapTo(linkedSetOf()) { it.path } + specialPaths
@@ -176,7 +193,7 @@ internal object BackupContract {
     val zipPaths: Set<String> = payloadPaths + "manifest.json"
 
     val importOrder = listOf(
-        "account_icon_images", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "wallet_card_images", "wallet_cards", "investments",
+        "account_icon_images", "account_groups", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "wallet_card_images", "wallet_cards", "investments",
         "term_deposits", "investment_trades", "cash_entries", "cash_movements", "instrument_price_history",
         "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "audit_metadata",
         "audit_events", "audit_event_accounts"
