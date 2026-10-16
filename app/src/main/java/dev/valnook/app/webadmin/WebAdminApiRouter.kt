@@ -87,6 +87,7 @@ internal class WebAdminApiRouter(
             if (method == "DELETE") return deleteBalanceAccount(sessionId, match.groupValues[1].toLong(), request)
         }
         if (method == "POST" && path == "/api/v1/accounts") return saveAccount(sessionId, null, request)
+        accountGroupRoute(sessionId, method, path, request)?.let { return it }
         if (method == "GET" && path == "/api/v1/records") return records(request)
         CASH_ENTRY.matchEntire(path)?.let { if (method == "PUT")
             return editCashEntry(sessionId, it.groupValues[1].toLong(), request) }
@@ -144,12 +145,17 @@ internal class WebAdminApiRouter(
     private suspend fun accounts(): WebHttpResponse {
         val snapshot = reads.snapshot()
         val overview = AssetValuation.calculate(snapshot)
+        // Like the app, an account pointing at a missing group is shown in the default group.
+        val known = snapshot.groups.map { it.id }.toSet()
+        fun groupOf(account: SavingsAccount) = account.groupId.takeIf { it in known } ?: AccountGroup.DEFAULT_ID
+        val sections = overview.accounts.groupBy { groupOf(it.account) }
         return success(buildJsonObject {
             put("dataGeneration", reads.generation())
             put("baseCurrency", snapshot.settings.baseCurrency?.code)
             put("items", buildJsonArray { overview.accounts.forEach { row -> add(buildJsonObject {
                 put("id", row.account.id); put("revision", row.account.revision)
                 put("name", row.account.name); put("note", row.account.note); put("icon", icon(row.account.icon))
+                put("groupId", groupOf(row.account))
                 put("cash", decimal(row.cash.amount)); put("availableCash", decimal(row.availableCash.amount)); put("creditBalance", decimal(row.creditBalance.amount))
                 put("deposits", decimal(row.depositValue.amount))
                 put("investments", decimal(row.investmentValue.amount)); put("total", decimal(row.total.amount))
@@ -157,7 +163,38 @@ internal class WebAdminApiRouter(
                 put("investmentComplete", row.investmentValue.complete && row.realized.complete && row.floating.complete)
                 put("complete", row.total.complete)
             }) } })
+            put("groups", buildJsonArray { snapshot.groups.forEach { group -> add(buildJsonObject {
+                val rows = sections[group.id].orEmpty()
+                val total = AssetValuation.sum(rows.map { it.total }, overview.total.currency)
+                put("id", group.id); put("name", group.name); put("isDefault", group.isDefault)
+                put("collapsed", group.collapsed)
+                put("accountIds", buildJsonArray { rows.forEach { add(it.account.id) } })
+                put("total", decimal(total.amount)); put("complete", total.complete)
+            }) } })
         })
+    }
+
+    /** Group changes are commands like any other web write; the body carries operationId and dataGeneration. */
+    private suspend fun accountGroupRoute(sessionId: String, method: String, path: String,
+        request: WebHttpRequest): WebHttpResponse? {
+        fun id(pattern: Regex) = pattern.matchEntire(path)?.groupValues?.get(1)?.toLong()
+        val group = id(ACCOUNT_GROUP); val members = id(ACCOUNT_GROUP_ACCOUNTS); val order = id(ACCOUNT_GROUP_ORDER)
+        // Parsed only once the route matches, so unknown paths still answer 404.
+        val json by lazy { body(request) }
+        val command = when {
+            method == "POST" && path == "/api/v1/account-groups" ->
+                SaveAccountGroup(json.operationId(), null, json.text("name"))
+            method == "PUT" && path == "/api/v1/account-groups/order" ->
+                ReorderAccountGroups(json.operationId(), json.longs("groupIds"))
+            method == "PUT" && group != null -> SaveAccountGroup(json.operationId(), group, json.text("name"))
+            method == "DELETE" && group != null -> DeleteAccountGroup(json.operationId(), group)
+            method == "POST" && members != null ->
+                MoveAccountsToGroup(json.operationId(), members, json.longs("accountIds"))
+            method == "PUT" && order != null ->
+                ReorderGroupAccounts(json.operationId(), order, json.longs("accountIds"))
+            else -> return null
+        }
+        return save(sessionId, json, command)
     }
 
     private suspend fun account(id: Long): WebHttpResponse {
@@ -592,6 +629,8 @@ internal class WebAdminApiRouter(
     private fun JsonObject.optionalLong(name: String): Long? = this[name]?.let {
         if (it is JsonNull) null else it.jsonPrimitive.longOrNull ?: throw IllegalArgumentException()
     }
+    private fun JsonObject.longs(name: String): List<Long> = (this[name] as? JsonArray ?: throw IllegalArgumentException())
+        .map { it.jsonPrimitive.longOrNull ?: throw IllegalArgumentException() }
     private fun JsonObject.optionalBoolean(name: String): Boolean? = this[name]?.let {
         if (it is JsonNull) null else it.jsonPrimitive.booleanOrNull ?: throw IllegalArgumentException()
     }
@@ -629,6 +668,9 @@ internal class WebAdminApiRouter(
     private companion object {
         val ACCOUNT = Regex("/api/v1/accounts/([0-9]+)")
         val BALANCE_ACCOUNT = Regex("/api/v1/balance-accounts/([0-9]+)")
+        val ACCOUNT_GROUP = Regex("/api/v1/account-groups/([0-9]+)")
+        val ACCOUNT_GROUP_ACCOUNTS = Regex("/api/v1/account-groups/([0-9]+)/accounts")
+        val ACCOUNT_GROUP_ORDER = Regex("/api/v1/account-groups/([0-9]+)/accounts/order")
         val CASH_ENTRY = Regex("/api/v1/cash-entries/([0-9]+)")
         val ASSET_TYPE = Regex("/api/v1/asset-types/([0-9]+)")
         val INSTRUMENT = Regex("/api/v1/instruments/([0-9]+)")

@@ -131,7 +131,9 @@ function bindRow(row) {
 function table(headers, rows) {
   rows.forEach(bindRow);
   const body = el("tbody"); if (!rows.length) body.append(emptyRow(headers.length)); else rows.forEach(row => body.append(row));
-  return el("div", { class: "table-wrap" }, el("table", {}, el("thead", {}, el("tr", {}, ...headers.map((h, i) => el("th", { text: h, scope: "col", class: rows[0]?.children[i]?.classList.contains("numeric") ? "numeric" : "" })))), body));
+  // Section rows span columns, so header alignment follows the first full row.
+  const sample = rows.find(row => row.children.length === headers.length);
+  return el("div", { class: "table-wrap" }, el("table", {}, el("thead", {}, el("tr", {}, ...headers.map((h, i) => el("th", { text: h, scope: "col", class: sample?.children[i]?.classList.contains("numeric") ? "numeric" : "" })))), body));
 }
 function toolbar(...nodes) { return el("div", { class: "toolbar" }, ...nodes); }
 function button(label, click, kind = "secondary") { return el("button", { class: kind, type: "button", text: label, onclick: async event => {
@@ -140,22 +142,142 @@ function button(label, click, kind = "secondary") { return el("button", { class:
 function metric(label, value, cls = "") { return el("div", { class: "metric" }, el("div", { class: "subtle", text: label }), el("div", { class: `value ${cls}`, text: value })); }
 
 async function renderAccounts(refresh = false) {
-  const [data, summary] = await Promise.all([api("/api/v1/accounts"), api("/api/v1/statistics/summary")]); state.accounts = data.items;
+  const [data, summary] = await Promise.all([api("/api/v1/accounts"), api("/api/v1/statistics/summary")]);
+  state.accounts = data.items; state.accountGroups = data.groups;
   const root = el("div");
   root.append(hero(summary, "totalAssets"));
-  root.append(toolbar(el("div", { class: "spacer" }), button(t("newAccount"), () => accountForm(null), "primary")));
-  const rows = data.items.map(item => el("tr", { "data-clickable": "true", "data-account-row": item.id, onclick: () => accountDetail(item.id) },
+  root.append(toolbar(el("div", { class: "spacer" }), button(t("accountGroups"), () => accountGroupList()),
+    button(t("newAccount"), () => accountForm(null), "primary")));
+  const accountRow = item => el("tr", { "data-clickable": "true", "data-account-row": item.id, onclick: () => accountDetail(item.id) },
     el("td", {}, el("div", { class: "account-cell" }, avatar(item.icon), el("div", {}, el("strong", { text: item.name }), el("div", { class: "subtle", text: item.note || "—" })) )),
     el("td", { class: "numeric", text: fmt(item.availableCash ?? item.cash, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.creditBalance, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.deposits, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.investments, data.baseCurrency) }),
     el("td", { class: "numeric", text: fmt(item.total, data.baseCurrency) }),
-    el("td", { text: item.complete ? "—" : "!", title: item.complete ? "" : t("incomplete") })));
-  const accountTable = table([t("account"), t("cash"), t("creditBalance"), t("deposits"), t("investmentValue"), t("totalAssets"), t("complete")], rows);
+    el("td", { text: item.complete ? "—" : "!", title: item.complete ? "" : t("incomplete") }));
+  const accountTable = table([t("account"), t("cash"), t("creditBalance"), t("deposits"), t("investmentValue"), t("totalAssets"), t("complete")],
+    groupedAccountRows(data, accountRow));
   accountTable.classList.add("accounts-table"); root.append(accountTable);
   if (data.items.some(item => !item.complete)) root.append(el("p", { class: "subtle", text: t("incomplete") }));
   replacePage(root, refresh);
+}
+function groupName(group) { return group.isDefault ? t("defaultGroup") : group.name; }
+/** Matches the app: section rows appear once a custom group exists, and empty groups are not shown. */
+function groupedAccountRows(data, accountRow) {
+  if (!data.groups.some(group => !group.isDefault)) return data.items.map(accountRow);
+  const accounts = new Map(data.items.map(item => [item.id, item]));
+  return data.groups.filter(group => group.accountIds.length).flatMap(group => {
+    const rows = group.accountIds.map(id => accountRow(accounts.get(id)));
+    // Collapsing here is a view preference of this browser; the phone keeps its own state.
+    const collapsed = () => state.collapsedAccountGroups.get(group.id) ?? group.collapsed;
+    const toggle = el("button", { type: "button", class: "account-group-toggle", "data-account-group": group.id,
+      onclick: () => { state.collapsedAccountGroups.set(group.id, !collapsed()); apply(); } },
+      el("strong", { text: groupName(group) }), el("span", { class: "expansion-chevron", "aria-hidden": "true" }, "⌄"));
+    const apply = () => { toggle.setAttribute("aria-expanded", String(!collapsed())); rows.forEach(row => { row.hidden = collapsed(); }); };
+    apply();
+    return [el("tr", { class: "account-group-row" }, el("td", {}, toggle), el("td", { colspan: 4 }),
+      el("td", { class: "numeric", text: fmt(group.total, data.baseCurrency) }),
+      el("td", { text: group.complete ? "" : "!", title: group.complete ? "" : t("incomplete") })), ...rows];
+  });
+}
+async function accountGroupList(returnState = null) {
+  state.viewEpoch++;
+  const data = await api("/api/v1/accounts");
+  if (returnState && returnState.cycle !== drawerCycle) return;
+  openDrawer(t("accountGroups"), "ACCOUNT", accountGroupContent(data), !!returnState);
+  if (returnState) $("#drawer-content").scrollTop = returnState.scrollTop;
+}
+function accountGroupContent(data) {
+  state.accounts = data.items; state.accountGroups = data.groups;
+  const accounts = new Map(data.items.map(item => [item.id, item]));
+  // Each arrow swaps one neighbour; data-move lets focus return to the same arrow after the list reloads.
+  const moves = (ids, index, key, path, field) => el("div", { class: "action-group" },
+    ...[[-1, "moveUp", "↑"], [1, "moveDown", "↓"]].map(([step, label, arrow]) => {
+      const target = index + step;
+      return el("button", { type: "button", class: "icon-button", "aria-label": t(label), title: t(label),
+        "data-move": `${key}:${step}`, disabled: target < 0 || target >= ids.length, onclick: () => {
+          const next = ids.slice(); [next[index], next[target]] = [next[target], next[index]];
+          return moveInPlace(path, { [field]: next }, `${key}:${step}`);
+        } }, arrow);
+    }));
+  const groupIds = data.groups.map(group => group.id);
+  const sections = data.groups.map((group, index) => {
+    const rows = group.accountIds.map((id, position) => el("tr", {},
+      el("td", {}, el("div", { class: "account-cell" }, avatar(accounts.get(id).icon), el("strong", { text: accounts.get(id).name }))),
+      el("td", { class: "numeric" }, moves(group.accountIds, position, `a${id}`, `/api/v1/account-groups/${group.id}/accounts/order`, "accountIds"))));
+    return el("section", { class: "section account-group-section", "data-group-id": group.id },
+      el("div", { class: "section-head" }, el("h2", { text: groupName(group) }), el("div", { class: "action-group" },
+        moves(groupIds, index, `g${group.id}`, "/api/v1/account-groups/order", "groupIds"),
+        button(t("addAccounts"), () => addAccountsForm(group, data)),
+        group.isDefault ? null : button(t("rename"), () => groupNameForm(group)),
+        group.isDefault ? null : button(t("delete"), () => deleteGroupForm(group), "secondary danger"))),
+      rows.length ? table([t("account"), t("operation")], rows) : el("p", { class: "empty", text: t("groupEmpty") }));
+  });
+  const content = el("div", { class: "account-groups" }, el("p", { class: "subtle", text: t("accountGroupsHint") }),
+    toolbar(el("div", { class: "spacer" }), button(t("newAccountGroup"), () => groupNameForm(null), "primary")), ...sections);
+  content.drawerRoute = { kind: "accountGroups" };
+  return content;
+}
+/** Saves a reorder without leaving the manager. A lost response is looked up, never resent; the reload shows what is stored. */
+async function moveInPlace(path, body, focusKey) {
+  if (state.saving) return;
+  if (state.socket?.readyState !== WebSocket.OPEN) { notify(t("connectionRequired")); return; }
+  const drawer = $("#drawer-content"), cycle = drawerCycle;
+  const payload = { operationId: uuid(), dataGeneration: state.generation, ...body };
+  state.saving = true; drawer.querySelectorAll("button").forEach(node => { node.disabled = true; });
+  let failure = null;
+  try { await api(path, { method: "PUT", body: JSON.stringify(payload) }); }
+  catch (error) { failure = await api(`/api/v1/operations/${payload.operationId}`).then(() => null, () => error); }
+  finally { state.saving = false; state.pendingRefresh = true; }
+  if (failure) notify(errorMessage(failure));
+  if (document.body.dataset.ended || cycle !== drawerCycle) return;
+  try {
+    const data = await api("/api/v1/accounts");
+    if (cycle !== drawerCycle) return;
+    const scroll = drawer.scrollTop; clear(drawer); drawer.append(accountGroupContent(data)); drawer.scrollTop = scroll;
+    const same = $(`[data-move="${focusKey}"]`, drawer);
+    (same && !same.disabled ? same : $(`[data-move^="${focusKey.split(":")[0]}:"]:not(:disabled)`, drawer))?.focus();
+  } catch (error) { if (error.name !== "AbortError") notify(t("loadFailed")); }
+}
+function groupNameForm(group) {
+  const form = el("form", { class: "form-grid" });
+  form.parentDrawer = captureDrawerParent();
+  const name = field(t("groupName"), "name", group?.name || "", true, "text", true), input = $("input", name);
+  // Matches AccountGroupRules: 1 to 20 characters after trimming, counted as code points.
+  form.validateInputs = () => { const length = [...input.value.trim()].length; input.setCustomValidity(length >= 1 && length <= 20 ? "" : t("groupNameInvalid")); };
+  const error = el("p", { class: "drawer-error" });
+  form.append(name, error, actions(submit => saveForm(submit, error, group ? `/api/v1/account-groups/${group.id}` : "/api/v1/account-groups",
+    group ? "PUT" : "POST", { operationId: uuid(), dataGeneration: state.generation, name: input.value })));
+  openDrawer(group ? t("renameAccountGroup") : t("newAccountGroup"), "ACCOUNT", form);
+}
+function deleteGroupForm(group) {
+  const form = el("form", { class: "form-grid" });
+  form.parentDrawer = captureDrawerParent();
+  const error = el("p", { class: "drawer-error full" });
+  const bar = actions(submit => saveForm(submit, error, `/api/v1/account-groups/${group.id}`, "DELETE",
+    { operationId: uuid(), dataGeneration: state.generation }));
+  $("[data-save]", bar).textContent = t("delete");
+  form.append(el("p", { class: "full", text: t("deleteGroupMessage").replace("{name}", group.name).replace("{n}", group.accountIds.length) }), error, bar);
+  openDrawer(t("deleteAccountGroup"), "ACCOUNT", form);
+}
+/** Lists the accounts of every other group; choosing one moves it, since an account belongs to one group only. */
+function addAccountsForm(group, data) {
+  const form = el("form", { class: "form-grid" });
+  form.parentDrawer = captureDrawerParent();
+  const names = new Map(data.groups.map(value => [value.id, groupName(value)]));
+  const candidates = data.items.filter(item => item.groupId !== group.id);
+  const boxes = candidates.map(item => el("input", { name: "account", type: "checkbox", value: item.id }));
+  const chosen = () => boxes.filter(box => box.checked).map(box => Number(box.value));
+  const error = el("p", { class: "drawer-error full" });
+  const bar = actions(submit => saveForm(submit, error, `/api/v1/account-groups/${group.id}/accounts`, "POST",
+    { operationId: uuid(), dataGeneration: state.generation, accountIds: chosen() }));
+  const confirm = $("[data-save]", bar); confirm.textContent = t("add"); confirm.disabled = !boxes.length;
+  form.validateInputs = () => boxes[0]?.setCustomValidity(chosen().length ? "" : t("addAccountsHint"));
+  form.append(el("p", { class: "full subtle", text: t(candidates.length ? "addAccountsHint" : "noOtherAccounts") }),
+    ...candidates.map((item, index) => el("label", { class: "check-field full" }, boxes[index],
+      el("span", { text: t("accountOrigin").replace("{name}", item.name).replace("{group}", names.get(item.groupId)) }))), error, bar);
+  openDrawer(t("addAccountsTo").replace("{name}", groupName(group)), "ACCOUNT", form);
 }
 async function accountDetail(id, returnState = null) {
   state.viewEpoch++;
@@ -826,6 +948,7 @@ function closeDrawer(force = false, immediate = false) {
       const retry = () => (parent.route.kind === "position"
         ? positionDetail(parent.route.id, returnState, parent.route.parentDrawer)
         : parent.route.kind === "assetTypes" ? assetTypeList(returnState)
+        : parent.route.kind === "accountGroups" ? accountGroupList(returnState)
         : accountDetail(parent.route.id, returnState)).catch(error => {
         if (error.name === "AbortError" || returnState.cycle !== drawerCycle || document.body.dataset.ended) return;
         clear(content); content.append(el("p", { role: "alert", text: t("loadFailed") }), button(t("refresh"), retry));

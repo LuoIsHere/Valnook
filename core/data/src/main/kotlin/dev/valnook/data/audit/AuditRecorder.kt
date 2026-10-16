@@ -21,6 +21,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         if (command is UpdateInstrumentPrices) return priceBatchJson(command).toString()
         if (command is SaveAccount) return command.accountId?.let(::accountAggregateJson)?.toString()
         if (command is DeleteBalanceAccount) return balanceAccountJson(command.balanceAccountId)?.toString()
+        if (command is AccountGroupCommand) return groupLayoutJson().toString()
         val target = targetFor(command) ?: return null
         return rowJson(target.first, target.second)?.toString()
     }
@@ -36,6 +37,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is UpdateInstrumentPrices -> priceBatchJson(command)
             is SaveAccount -> accountAggregateJson(result.id)
             is DeleteBalanceAccount, is DeleteAccount -> null
+            is AccountGroupCommand -> groupLayoutJson()
             else -> rowJson(tableForResult(result.kind), result.id)
         }
         val context = contextSnapshot(result)
@@ -127,6 +129,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is RecordInvestmentTrade -> null
         is EditInvestmentTrade -> "investment_trades" to command.trade_id
         is DeleteInvestmentTrade -> "investment_trades" to command.trade_id
+        is AccountGroupCommand -> null
     }
 
     private fun tableForResult(kind: String): String = when (kind) {
@@ -144,8 +147,9 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
 
     private fun actionFor(command: FinancialCommand): String = when (command) {
         is SaveAssetType -> if (command.typeId == null) "CREATE" else "UPDATE"
+        is SaveAccountGroup -> if (command.groupId == null) "CREATE" else "UPDATE"
         is SaveAccount -> if (command.accountId == null) "CREATE" else "UPDATE"
-        is DeleteBalanceAccount, is DeleteAccount -> "DELETE"
+        is DeleteBalanceAccount, is DeleteAccount, is DeleteAccountGroup -> "DELETE"
         is SaveInstrument -> if (command.instrumentId == null) "CREATE" else "UPDATE"
         is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade -> "CREATE"
         is DeleteInvestmentTrade -> "DELETE"
@@ -188,6 +192,9 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is EditCashEntry -> accountForCashEntry(command.entry_id)?.let(accounts::add)
             is CloseTermDeposit -> accountForDeposit(command.deposit_id)?.let(accounts::add)
             is EditTermDeposit -> accountForDeposit(command.deposit_id)?.let(accounts::add)
+            is MoveAccountsToGroup -> accounts.addAll(command.accountIds)
+            is ReorderGroupAccounts -> accounts.addAll(command.orderedIds)
+            is SaveAccountGroup, is DeleteAccountGroup, is ReorderAccountGroups -> Unit
         }
         db.openHelper.readableDatabase.query(
             "SELECT DISTINCT savings_account_id FROM cash_movements WHERE operation_id=?",
@@ -295,6 +302,23 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             arrayOf(id.toString())).use { cursor -> while (cursor.moveToNext()) rows.put(cursorObject(cursor)) }
         account.put("balance_accounts", rows)
         return account
+    }
+
+    /** Groups in order with their accounts in order; one value makes before/after of any group change comparable. */
+    private fun groupLayoutJson(): JSONObject {
+        val database = db.openHelper.readableDatabase
+        val groups = JSONArray()
+        database.query("SELECT id,name,display_order FROM account_groups ORDER BY display_order,id").use { cursor ->
+            while (cursor.moveToNext()) groups.put(cursorObject(cursor))
+        }
+        for (index in 0 until groups.length()) {
+            val group = groups.getJSONObject(index)
+            val accounts = JSONArray()
+            database.query("SELECT id FROM savings_accounts WHERE group_id=? ORDER BY display_order,id",
+                arrayOf(group.getString("id"))).use { cursor -> while (cursor.moveToNext()) accounts.put(cursor.getLong(0).toString()) }
+            group.put("accounts", accounts)
+        }
+        return JSONObject().put("groups", groups)
     }
 
     private fun balanceAccountJson(id: Long): JSONObject? = queryObject(db.openHelper.readableDatabase,

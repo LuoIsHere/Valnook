@@ -54,6 +54,11 @@ internal object CommandFingerprint {
                 command.quantity_e8,command.execution_price_e8,command.occurred_at_ms,command.cash_linked,
                 command.cashAccountId,command.fee_minor)
             is DeleteInvestmentTrade -> listOf("TRADE_DELETE",command.trade_id,command.expected_revision)
+            is SaveAccountGroup -> listOf("GROUP_SAVE", command.groupId, command.name.trim())
+            is DeleteAccountGroup -> listOf("GROUP_DELETE", command.groupId)
+            is ReorderAccountGroups -> listOf("GROUP_ORDER") + command.orderedIds
+            is MoveAccountsToGroup -> listOf("GROUP_MOVE", command.groupId) + command.accountIds
+            is ReorderGroupAccounts -> listOf("GROUP_ACCOUNT_ORDER", command.groupId) + command.orderedIds
             is EditCashEntry -> listOf("CASH_EDIT",command.entry_id,command.expected_revision,command.delta_minor,
                 command.occurred_at_ms,command.note.trim())
         }

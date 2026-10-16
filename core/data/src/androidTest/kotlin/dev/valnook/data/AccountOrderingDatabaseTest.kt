@@ -105,6 +105,34 @@ class AccountOrderingDatabaseTest {
         expectError(ErrorCode.STALE_RECORD) { writer.moveAccounts(group, listOf(a)) }
     }
 
+    @Test fun group_commands_are_receipted_audited_and_advance_the_generation(): Unit = runBlocking {
+        val db = database()
+        val a = account(db, "A"); val b = account(db, "B")
+        val commands = RoomFinancialCommands(db, clock)
+        fun events() = db.openHelper.readableDatabase.query(
+            "SELECT action,entity_kind,source,changed_fields_json FROM audit_events WHERE entity_kind='ACCOUNT_GROUP' ORDER BY recorded_at_ms,rowid")
+            .use { cursor -> generateSequence { if (cursor.moveToNext()) List(4) { cursor.getString(it) } else null }.toList() }
+        val generation = db.audit().generation()
+        val create = SaveAccountGroup(operation(), null, "Cards")
+        val group = commands.execute(create, CommandSource.WEB_ADMIN).id
+        assertEquals(group, commands.execute(create, CommandSource.WEB_ADMIN).id) // A replay returns the receipt.
+        assertEquals(2L, count(db, "account_groups"))
+        commands.execute(MoveAccountsToGroup(operation(), group, listOf(b)), CommandSource.WEB_ADMIN)
+        commands.execute(ReorderAccountGroups(operation(), listOf(group, AccountGroup.DEFAULT_ID)))
+        assertEquals(listOf(b, a), order(db))
+        expectError(ErrorCode.OPERATION_CONFLICT) { commands.execute(create.copy(name = "Other")) }
+        commands.execute(DeleteAccountGroup(operation(), group))
+        assertEquals(listOf(a, b), order(db))
+        assertEquals(generation + 4, db.audit().generation())
+        assertEquals(listOf(listOf("CREATE", "ACCOUNT_GROUP", "WEB_ADMIN", "[\"groups\"]"),
+            listOf("UPDATE", "ACCOUNT_GROUP", "WEB_ADMIN", "[\"groups\"]"),
+            listOf("UPDATE", "ACCOUNT_GROUP", "USER", "[\"groups\"]"),
+            listOf("DELETE", "ACCOUNT_GROUP", "USER", "[\"groups\"]")), events())
+        RoomAccountGroupWriter(db, clock).setCollapsed(AccountGroup.DEFAULT_ID, true) // View state only.
+        assertEquals(generation + 4, db.audit().generation())
+        assertEquals(0L, count(db, "cash_movements"))
+    }
+
     @Test fun failed_group_change_rolls_back_and_success_survives_reopening(): Unit = runBlocking {
         val name = "ordering-durability-${operation()}.db"
         var db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addCallback(ValnookDatabase.seed).build()

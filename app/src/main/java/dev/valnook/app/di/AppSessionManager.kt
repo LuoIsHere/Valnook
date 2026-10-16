@@ -326,7 +326,7 @@ class AppSessionManager @Inject internal constructor(
             }
         },
         accountGroupWriter = object : AccountGroupWriter {
-            private val delegate = dev.valnook.data.repository.RoomAccountGroupWriter(source.database, source.clock)
+            private val delegate = dev.valnook.data.repository.RoomAccountGroupWriter(source.database, source.clock, source.commands)
             private suspend fun <T> mobile(block: suspend AccountGroupWriter.() -> T): T = writeMutex.withLock {
                 requireMobileWrite(sessionId); delegate.block()
             }

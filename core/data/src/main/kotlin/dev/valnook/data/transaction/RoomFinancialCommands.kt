@@ -19,6 +19,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     private val instruments = InstrumentCommandHandler(db, cash, fault)
     private val positions = PositionCommandHandler(db, cash, fault)
     private val types = AssetTypeWriter(db.instruments())
+    private val groups = AccountGroupCommandHandler(db)
     private val audit = AuditRecorder(db, clock)
     private val deletion = AccountDeletionHandler(db, clock, fault)
     override suspend fun previewAccountDeletion(accountId: Long, balanceAccountId: Long?) =
@@ -67,6 +68,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is RecordInvestmentTrade -> positions.record(command, now)
                 is EditInvestmentTrade -> positions.edit(command, now)
                 is DeleteInvestmentTrade -> positions.delete(command, now)
+                is AccountGroupCommand -> groups.execute(command, now)
             }
             fault(TransactionPoint.BEFORE_RECEIPT)
             invalidatedDay?.let { db.statistics().invalidate(it) }
@@ -84,7 +86,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             is UpdateInstrumentPrices -> if (command.changes.any {
                 db.instruments().instrument(it.instrumentId)?.current_price_e5 != it.priceE5
             }) day(now) else null
-            is SaveAssetType, is CreateInvestmentPosition -> null
+            is SaveAssetType, is CreateInvestmentPosition, is AccountGroupCommand -> null
             is SaveInstrument -> {
                 val old = command.instrumentId?.let { db.instruments().instrument(it) }
                 if (old == null || old.current_price_e5 != command.currentPriceE5 ||

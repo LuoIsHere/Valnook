@@ -10,7 +10,7 @@ const state = {
   csrf: null, sessionToken: null, socket: null, heartbeat: null, session: null, page: "accounts",
   connecting: null, reconnecting: null, allowReconnect: false,
   accounts: [], instruments: [], assetTypes: [], positions: [], investmentTab: "instruments", instrumentTypeFilter: "",
-  expandedInvestmentAccounts: new Set(),
+  expandedInvestmentAccounts: new Set(), accountGroups: [], collapsedAccountGroups: new Map(),
   recordsCursor: null, recordsHistory: [], locale: navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en", generation: null
 };
 const copy = {
@@ -236,6 +236,24 @@ Object.assign(copy.en, {
   saveAll: "Save all", priceInvalid: "Enter a nonnegative price with up to 5 decimal places within the supported range.",
   priceConflict: "This instrument changed or no longer exists. Refresh and review the price.", cleared: "No holdings / Closed positions",
   nameCode: "Name / Symbol", marketQuantity: "Market value / Quantity", priceCost: "Price / Cost"
+});
+Object.assign(copy["zh-CN"], {
+  accountGroups: "分类管理", accountGroupsHint: "所有改动都会立即保存。分类的展开和折叠只在本浏览器生效。",
+  defaultGroup: "默认", newAccountGroup: "新增分类", renameAccountGroup: "重命名分类", deleteAccountGroup: "删除分类",
+  groupName: "分类名称", groupNameInvalid: "分类名称需为 1–20 个字符。", rename: "重命名",
+  deleteGroupMessage: "删除「{name}」后，其中的 {n} 个账户会移回「默认」。", addAccounts: "添加账户",
+  addAccountsTo: "添加账户到「{name}」", addAccountsHint: "选中的账户会从原分类移入此分类。", add: "添加",
+  noOtherAccounts: "其他分类中没有账户", groupEmpty: "该分类暂无账户", accountOrigin: "{name}（{group}）",
+  moveUp: "上移", moveDown: "下移", expand: "展开", collapse: "折叠"
+});
+Object.assign(copy.en, {
+  accountGroups: "Account groups", accountGroupsHint: "Every change is saved immediately. Expanding or collapsing a group only applies in this browser.",
+  defaultGroup: "Default", newAccountGroup: "New group", renameAccountGroup: "Rename group", deleteAccountGroup: "Delete group",
+  groupName: "Group name", groupNameInvalid: "Group names must be 1–20 characters.", rename: "Rename",
+  deleteGroupMessage: "Deleting “{name}” moves its {n} account(s) back to Default.", addAccounts: "Add accounts",
+  addAccountsTo: "Add accounts to “{name}”", addAccountsHint: "Selected accounts move here from their current group.", add: "Add",
+  noOtherAccounts: "No accounts in other groups", groupEmpty: "No accounts in this group", accountOrigin: "{name} ({group})",
+  moveUp: "Move up", moveDown: "Move down", expand: "Expand", collapse: "Collapse"
 });
 // Presentation only: animations never send activity, delay writes, or interpolate monetary values.
 const motionPreference = matchMedia("(prefers-reduced-motion: reduce)");

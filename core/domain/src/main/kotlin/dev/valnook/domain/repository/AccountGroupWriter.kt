@@ -18,3 +18,18 @@ interface AccountGroupWriter {
     suspend fun reorderAccounts(groupId: Long, orderedIds: List<Long>)
     suspend fun setCollapsed(groupId: Long, collapsed: Boolean)
 }
+
+/**
+ * Group changes from the app and the web admin share the command pipeline, so both get operation receipts,
+ * audit events and a new data generation. Collapsing a group is view state and stays outside it.
+ */
+sealed interface AccountGroupCommand : FinancialCommand
+
+/** Creates a group when [groupId] is null, otherwise renames it. */
+data class SaveAccountGroup(override val operation_id: String, val groupId: Long?, val name: String) : AccountGroupCommand
+data class DeleteAccountGroup(override val operation_id: String, val groupId: Long) : AccountGroupCommand
+data class ReorderAccountGroups(override val operation_id: String, val orderedIds: List<Long>) : AccountGroupCommand
+data class MoveAccountsToGroup(override val operation_id: String, val groupId: Long,
+    val accountIds: List<Long>) : AccountGroupCommand
+data class ReorderGroupAccounts(override val operation_id: String, val groupId: Long,
+    val orderedIds: List<Long>) : AccountGroupCommand

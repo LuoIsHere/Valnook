@@ -257,6 +257,69 @@ class WebAdminEndToEndTest {
         }
     }
 
+    @Test fun account_groups_are_listed_and_managed_over_http() = runBlocking<Unit> {
+        val commands = RoomFinancialCommands(database, java.time.Clock.systemUTC())
+        fun id() = UUID.randomUUID().toString()
+        val first = commands.execute(SaveAccount(id(), null, null, "Grouped A", "", emptyList())).id
+        val second = commands.execute(SaveAccount(id(), null, null, "Grouped B", "", emptyList())).id
+        web.start()
+        val endpoint = URI(requireNotNull(web.state.value.url))
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
+            body = JSONObject().put("code", web.state.value.pairingCode).toString())
+        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf = JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint, origin, cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            var generation = database.audit().generation()
+            fun send(method: String, path: String, body: JSONObject) = http(endpoint, method, path, origin = origin,
+                cookie = cookie, csrf = csrf, body = body.put("dataGeneration", body.optLong("dataGeneration", generation))
+                    .put("operationId", body.optString("operationId").ifEmpty { id() }).toString())
+            fun save(method: String, path: String, body: JSONObject): JSONObject {
+                val response = send(method, path, body)
+                assertEquals(response.body, 200, response.status)
+                return JSONObject(response.body).also { assertTrue(it.getLong("dataGeneration") > generation); generation = it.getLong("dataGeneration") }
+            }
+            fun ids(values: org.json.JSONArray) = List(values.length()) { values.getLong(it) }
+            fun listed() = JSONObject(http(endpoint, "GET", "/api/v1/accounts", cookie = cookie).body)
+            fun groups() = listed().getJSONArray("groups").let { values -> List(values.length()) { values.getJSONObject(it) } }
+
+            val create = JSONObject().put("name", " Brokers ")
+            val group = save("POST", "/api/v1/account-groups", create).getLong("id")
+            save("POST", "/api/v1/account-groups/$group/accounts", JSONObject().put("accountIds", org.json.JSONArray().put(second).put(first)))
+            groups().single { it.getLong("id") == group }.let {
+                assertEquals("Brokers", it.getString("name")); assertFalse(it.getBoolean("isDefault"))
+                assertEquals(listOf(second, first), ids(it.getJSONArray("accountIds"))); assertEquals("0", it.getString("total"))
+            }
+            listed().getJSONArray("items").let { items -> List(items.length()) { items.getJSONObject(it) } }
+                .filter { it.getLong("id") in setOf(first, second) }.forEach { assertEquals(group, it.getLong("groupId")) }
+
+            save("PUT", "/api/v1/account-groups/$group/accounts/order", JSONObject().put("accountIds", org.json.JSONArray().put(first).put(second)))
+            val order = listOf(group) + groups().map { it.getLong("id") }.filter { it != group }
+            save("PUT", "/api/v1/account-groups/order", JSONObject().put("groupIds", org.json.JSONArray(order)))
+            save("PUT", "/api/v1/account-groups/$group", JSONObject().put("name", "Cards"))
+            groups().first().let {
+                assertEquals(group, it.getLong("id")); assertEquals("Cards", it.getString("name"))
+                assertEquals(listOf(first, second), ids(it.getJSONArray("accountIds")))
+            }
+            // The account list itself follows the grouped order.
+            assertEquals(listOf(first, second), listed().getJSONArray("items").let { items -> List(items.length()) { items.getJSONObject(it).getLong("id") } }.take(2))
+
+            val replay = send("POST", "/api/v1/account-groups", create)
+            assertEquals(409, replay.status) // Its generation is stale; the receipt still answers.
+            val receipt = JSONObject(http(endpoint, "GET", "/api/v1/operations/${create.getString("operationId")}", cookie = cookie).body)
+            assertEquals(group, receipt.getLong("id"))
+            assertEquals(409, send("PUT", "/api/v1/account-groups/${AccountGroup.DEFAULT_ID}", JSONObject().put("name", "X")).status)
+            assertEquals(400, send("POST", "/api/v1/account-groups", JSONObject().put("name", "   ")).status)
+            assertEquals(409, send("PUT", "/api/v1/account-groups/order", JSONObject().put("groupIds", org.json.JSONArray().put(group))).status)
+            assertEquals(404, http(endpoint, "GET", "/api/v1/account-groups/$group", cookie = cookie).status)
+
+            save("DELETE", "/api/v1/account-groups/$group", JSONObject())
+            assertTrue(groups().none { it.getLong("id") == group })
+            assertEquals(listOf(first, second), ids(groups().single { it.getBoolean("isDefault") }.getJSONArray("accountIds")).takeLast(2))
+        }
+    }
+
     @Test fun batch_price_transaction_rolls_back_and_retries_without_changing_costs() = runBlocking<Unit> {
         val clock = java.time.Clock.systemUTC()
         val commands = RoomFinancialCommands(database, clock)

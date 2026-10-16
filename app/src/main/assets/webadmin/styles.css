@@ -62,3 +62,9 @@
 .toast{background:var(--surface);color:var(--text);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)}
 .drawer[inert]{pointer-events:none}.drawer-actions button{transition:background .18s,transform .18s}.cash-editor-card summary:after{transition:opacity .2s}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+.account-group-row td{padding:16px 18px 8px;background:color-mix(in srgb,var(--soft) 25%,transparent)}
+.account-group-toggle{display:inline-flex;align-items:center;gap:8px;padding:4px 0;border:0;background:transparent;color:var(--muted)}
+.account-group-toggle[aria-expanded=true] .expansion-chevron{transform:rotate(180deg)}
+.account-group-section .section-head h2{min-width:0;overflow-wrap:anywhere}
+.account-group-section .section-head .action-group{flex-wrap:wrap;flex-shrink:1}
+.account-group-section td:last-child .action-group .icon-button{font-size:18px}
