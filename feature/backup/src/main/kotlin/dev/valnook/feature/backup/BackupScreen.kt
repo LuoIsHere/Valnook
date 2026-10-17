@@ -124,7 +124,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             item(key = "feedback-preview-title") { Text(stringResource(R.string.backup_restore_preview), Modifier.testTag("backup-restore-preview"),
                 style = MaterialTheme.typography.titleMedium) }
             item(key = "feedback-preview-source") { PreviewRow(stringResource(R.string.backup_source), preview.sourceName) }
-            item(key = "feedback-preview-created") { PreviewRow(stringResource(R.string.backup_created), preview.createdAtUtc) }
+            item(key = "feedback-preview-created") { PreviewRow(stringResource(R.string.backup_created), backupTimeText(preview.createdAtUtc)) }
             item(key = "feedback-preview-versions") { PreviewRow(stringResource(R.string.backup_versions),
                 "${preview.appVersion} · ${preview.internalBuildRevision} · DB ${preview.databaseSchemaVersion} · F${preview.formatVersion}/D${preview.dataSchemaVersion}") }
             item(key = "feedback-preview-counts") { PreviewRow(stringResource(R.string.backup_counts),
@@ -155,7 +155,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             } }
         }
         state.restoreResult?.let { result -> item(key = "feedback-restored") { Text(stringResource(R.string.backup_restored,
-            result.committedAtUtc), color = MaterialTheme.colorScheme.primary) } }
+            backupTimeText(result.committedAtUtc)), color = MaterialTheme.colorScheme.primary) } }
         state.error?.let { item(key = "feedback-error") { HintMessage(errorLabel(it), Modifier.testTag("backup-error"), isError = true) } }
         if (!demoMode) {
             item { HorizontalDivider() }
@@ -283,7 +283,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         .testTag("cloud-backup-${value.fileId}").padding(vertical = Space.sm),
         horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text(value.snapshotCreatedAtUtc.ifBlank { value.driveCreatedAtUtc }, maxLines = 1,
+            Text(backupTimeText(value.snapshotCreatedAtUtc.ifBlank { value.driveCreatedAtUtc }), maxLines = 1,
                 overflow = TextOverflow.Ellipsis)
             Text(value.fileName, style = MaterialTheme.typography.bodySmall, maxLines = 1,
                 overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -304,8 +304,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
     Column(Modifier.fillMaxWidth().testTag("cloud-backup-detail-${value.fileId}")
         .padding(start = Space.md, end = Space.md, bottom = Space.md),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        PreviewRow(stringResource(R.string.backup_created), value.snapshotCreatedAtUtc)
-        PreviewRow(stringResource(R.string.cloud_drive_created), value.driveCreatedAtUtc)
+        PreviewRow(stringResource(R.string.backup_created), backupTimeText(value.snapshotCreatedAtUtc))
+        PreviewRow(stringResource(R.string.cloud_drive_created), backupTimeText(value.driveCreatedAtUtc))
         PreviewRow(stringResource(R.string.cloud_file_size), value.byteCount.toString())
         PreviewRow(stringResource(R.string.backup_versions),
             "${value.appVersion} · ${value.internalBuildRevision} · DB ${value.databaseSchemaVersion} · F${value.formatVersion}/D${value.dataSchemaVersion}")
@@ -328,8 +328,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         if (latestError != null && status in FAILED_ATTEMPTS) Text(cloudFailureReason(latestError),
             Modifier.testTag("cloud-latest-reason"),
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        PreviewRow(stringResource(R.string.cloud_last_success), lastSuccess ?: stringResource(R.string.cloud_never))
-        PreviewRow(stringResource(R.string.cloud_next_estimated), next ?: stringResource(R.string.cloud_not_scheduled))
+        PreviewRow(stringResource(R.string.cloud_last_success), lastSuccess?.let(::backupTimeText) ?: stringResource(R.string.cloud_never))
+        PreviewRow(stringResource(R.string.cloud_next_estimated), next?.let(::backupTimeText) ?: stringResource(R.string.cloud_not_scheduled))
         if (cleanupIncomplete) Text(stringResource(R.string.cloud_cleanup_incomplete),
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
     }
