@@ -55,10 +55,14 @@ class WalletUiTest {
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
         bitmap.recycle()
     }
+    private val copied=java.util.concurrent.atomic.AtomicReference<android.content.ClipData?>()
     private fun root(feedback:androidx.compose.ui.hapticfeedback.HapticFeedback?=null){
         rule.runOnUiThread{rule.activity.setContent{
-            if(feedback==null)ValnookRoot(rule.activity.sessions,rule.activity.webAdmin)
-            else CompositionLocalProvider(androidx.compose.ui.platform.LocalHapticFeedback provides feedback){ValnookRoot(rule.activity.sessions,rule.activity.webAdmin)}
+            // A visible emulator's host clipboard sync replaces system clips within milliseconds, so record the app's clip itself.
+            CompositionLocalProvider(LocalWalletClipboard provides {_,clip->copied.set(clip)}) {
+                if(feedback==null)ValnookRoot(rule.activity.sessions,rule.activity.webAdmin)
+                else CompositionLocalProvider(androidx.compose.ui.platform.LocalHapticFeedback provides feedback){ValnookRoot(rule.activity.sessions,rule.activity.webAdmin)}
+            }
         }};rule.waitForIdle()
         rule.waitUntil(15000){rule.onAllNodesWithTag("nav-wallet").fetchSemanticsNodes().isNotEmpty()}
     }
@@ -77,19 +81,12 @@ class WalletUiTest {
         return id
     }
     private fun copiedClip(tag:String):android.content.ClipData {
-        val clipboard=rule.activity.getSystemService(android.content.ClipboardManager::class.java)
-        val copied=java.util.concurrent.atomic.AtomicReference<android.content.ClipData?>()
-        // Observe our actual system clipboard write before emulator host clipboard synchronization can replace it.
-        // 核验应用实际写入系统剪贴板的事件，避免可见模拟器的主机剪贴板同步随后替换元数据。
-        val listener=android.content.ClipboardManager.OnPrimaryClipChangedListener {
-            clipboard.primaryClip?.takeIf { it.description.label=="Valnook" }?.let{copied.compareAndSet(null,it)}
-        }
-        rule.runOnUiThread{clipboard.addPrimaryClipChangedListener(listener)}
-        try {
-            rule.onNodeWithTag(tag,useUnmergedTree=true).performClick()
-            rule.waitUntil(5000){copied.get()!=null}
-            return copied.get()!!
-        } finally { rule.runOnUiThread{clipboard.removePrimaryClipChangedListener(listener)} }
+        // Check the clip the app hands to the clipboard; the emulator's host sync would replace a system clip before it can be read.
+        // 核验应用交给剪贴板的内容；可见模拟器的主机剪贴板同步会在读取前替换系统剪贴板。
+        copied.set(null)
+        rule.onNodeWithTag(tag,useUnmergedTree=true).performClick()
+        rule.waitUntil(5000){copied.get()!=null}
+        return copied.get()!!.also{assertEquals("Valnook",it.description.label)}
     }
     @Test fun private_back_edits_encrypts_formats_and_returns_without_extra_toolbar() {
         val id=openPrivateCard()

@@ -66,6 +66,7 @@ import kotlin.math.sin
     val back = state.content
     val angle = state.angle.value
     val context=LocalContext.current
+    val writeClip=LocalWalletClipboard.current
     // This outer node retains exactly the same shared-element bounds on both faces.
     Box(modifier.widthIn(max=440.dp).fillMaxWidth().aspectRatio(WalletRules.ASPECT)) {
         val edge = Color((back?.edgeColor ?: 0xff858b94L).toInt())
@@ -83,7 +84,7 @@ import kotlin.math.sin
             else Box(Modifier.fillMaxSize().graphicsLayer{rotationY=180f}
                 .shadow(5.dp,shape).clip(shape)) {
                 // Keep control slots during rotation so the number never changes size when motion ends.
-                WalletCardBack(back,Modifier.fillMaxSize(),state::edit,{value->state.reportCopy(copyPrivateValue(context,value))},
+                WalletCardBack(back,Modifier.fillMaxSize(),state::edit,{value->state.reportCopy(copyPrivateValue(context,value,writeClip))},
                     actionsEnabled=enabled&&!state.angle.isRunning&&!state.editing&&!state.loading)
             }
         }
@@ -201,12 +202,17 @@ import kotlin.math.sin
     }
 }
 
-private fun copyPrivateValue(context:android.content.Context,value:String):Boolean = try {
+/** Writes a copied private value. UI tests record the clip here: an emulator's host clipboard sync replaces system clips within milliseconds. */
+val LocalWalletClipboard=staticCompositionLocalOf<(android.content.Context,android.content.ClipData)->Unit> {
+    { context,clip->context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(clip) }
+}
+
+private fun copyPrivateValue(context:android.content.Context,value:String,write:(android.content.Context,android.content.ClipData)->Unit):Boolean = try {
     // Explicit user action only. The clipboard is outside our encrypted vault; never copy on load/flip/save.
     // 仅允许主动点击复制。剪贴板不属于加密存储，禁止加载、翻面、保存时自动复制，也不记录复制值。
     val clip=android.content.ClipData.newPlainText("Valnook",value)
     clip.description.extras=android.os.PersistableBundle().apply{putBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE,true)}
-    context.getSystemService(android.content.ClipboardManager::class.java).setPrimaryClip(clip)
+    write(context,clip)
     true
 } catch (_: Exception) {
     // Never put exception messages or field values in feedback/logs.
