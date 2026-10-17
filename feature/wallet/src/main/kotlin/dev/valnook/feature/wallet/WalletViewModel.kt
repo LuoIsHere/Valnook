@@ -30,6 +30,8 @@ class WalletViewModel(val sessionId: String, val repository: WalletRepository,
     val draft=MutableStateFlow<WalletDraft?>(null)
     val busy=MutableStateFlow(false)
     val operationFailed=MutableStateFlow(false)
+    /** Why the last change failed, when the repository said so. */
+    val failure=MutableStateFlow<ErrorCode?>(null)
     val bounds=MutableStateFlow(LedgerBounds(null,null))
     val ledger=MutableStateFlow(WalletLedger(YearMonth.parse(saved["wallet-month"] ?: YearMonth.now(clock).toString())))
     var zone: ZoneId = ZoneId.systemDefault(); private set
@@ -124,8 +126,8 @@ class WalletViewModel(val sessionId: String, val repository: WalletRepository,
     fun reorder(expected: List<Long>, ids: List<Long>)=mutate { repository.reorder(expected,ids); mutableCards.value=repository.observeCards().first() }
     private fun mutate(action:suspend ()->Unit) {
         if(busy.value)return
-        busy.value=true;operationFailed.value=false
+        busy.value=true;operationFailed.value=false;failure.value=null
         viewModelScope.launch { try{action()}catch(c:CancellationException){throw c}
-            catch(_:Exception){operationFailed.value=true}finally{busy.value=false} }
+            catch(e:Exception){failure.value=(e as? DomainException)?.code;operationFailed.value=true}finally{busy.value=false} }
     }
 }

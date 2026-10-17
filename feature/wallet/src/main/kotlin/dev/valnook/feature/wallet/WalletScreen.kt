@@ -184,7 +184,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     cards?.firstOrNull{it.id==deleting}?.let { card ->
         AnimatedGlassDialog(true,{if(!busy)deleting=null}) {GlassCard{Column(Modifier.padding(24.dp)){
             Text(wording("Delete this card?","删除这张卡片？"),style=MaterialTheme.typography.titleLarge)
-            Text(wording("The card and any private back details are deleted. The linked account and its records are kept.","只删除卡片及其本机私密背面内容，不删除绑定账户及其记录。"),Modifier.padding(vertical=16.dp))
+            Text(wording("The card and any private back details are deleted. Its face stays in Settings › Card faces, and the linked account and its records are kept.","只删除卡片及其本机私密背面内容；卡面保留在“设置 › 卡面库”，不删除绑定账户及其记录。"),Modifier.padding(vertical=16.dp))
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
                 TextButton({deleting=null},enabled=!busy){Text(wording("Cancel","取消"))}
                 TextButton({deleting=null;vm.delete(card)},enabled=!busy,modifier=Modifier.testTag("wallet-delete-confirm")){Text(wording("Delete","删除"),color=MaterialTheme.colorScheme.error)}

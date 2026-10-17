@@ -289,6 +289,7 @@ private fun SessionRoot(
         ClearDataKey -> stringResource(R.string.title_clear_data)
         BackupKey -> stringResource(dev.valnook.feature.backup.R.string.backup_title)
         WebAdminKey -> stringResource(dev.valnook.feature.webadmin.R.string.webadmin_title)
+        WalletFaceLibraryKey -> stringResource(R.string.title_card_faces)
         is AccountKey -> accountName(current.id)
         is AccountEditKey -> stringResource(R.string.title_edit_account)
         AccountGroupsKey -> stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
@@ -333,6 +334,10 @@ private fun SessionRoot(
     var accountGroupsToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountGroupsToolbarState?>(null) }
     val updateAccountGroupsToolbar = remember(graph.sessionId) {
         { value: dev.valnook.feature.accounts.AccountGroupsToolbarState? -> accountGroupsToolbar = value }
+    }
+    var walletFacesToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.wallet.WalletFaceLibraryToolbar?>(null) }
+    val updateWalletFacesToolbar = remember(graph.sessionId) {
+        { value: dev.valnook.feature.wallet.WalletFaceLibraryToolbar? -> walletFacesToolbar = value }
     }
     var navigationToolbar by remember(graph.sessionId) { mutableStateOf<NavigationToolbarState?>(null) }
     val updateNavigationToolbar = remember(graph.sessionId) {
@@ -407,6 +412,7 @@ private fun SessionRoot(
                     }
                     NavigationSettingsKey -> NavigationSettingsActions(navigationToolbar)
                     AccountGroupsKey -> dev.valnook.feature.accounts.AccountGroupsActions(accountGroupsToolbar)
+                    WalletFaceLibraryKey -> dev.valnook.feature.wallet.WalletFaceLibraryActions(walletFacesToolbar)
                     AccountsKey, HiddenAccountsKey -> {
                         IconButton({ open(AccountGroupsKey) }, Modifier.testTag("account-groups-open").semantics {
                             contentDescription = accountGroupsDescription
@@ -512,7 +518,13 @@ private fun SessionRoot(
                                     }, { open(ClearDataKey) }, { open(NavigationSettingsKey) }, { open(BackupKey) },
                                     { open(WebAdminKey) },
                                     { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID,
-                                    themeMode, onThemeChange, onAbout = { open(AboutKey) })
+                                    themeMode, onThemeChange, onAbout = { open(AboutKey) },
+                                    onCardFaces = { open(WalletFaceLibraryKey) })
+                            }
+                            entry<WalletFaceLibraryKey> {
+                                dev.valnook.feature.wallet.WalletFaceLibraryScreen(pageViewModel {
+                                    dev.valnook.feature.wallet.WalletFaceLibraryViewModel(requireNotNull(graph.wallet))
+                                }, walletOverview.cache, updateWalletFacesToolbar)
                             }
                             entry<AboutKey> {
                                 dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME) { open(PrivacyPolicyKey) }

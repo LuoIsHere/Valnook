@@ -96,7 +96,8 @@ fun SettingsHome(
     internalBuildId: String,
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     onThemeChange: suspend (AppThemeMode) -> Boolean = { false },
-    onAbout: () -> Unit = {}
+    onAbout: () -> Unit = {},
+    onCardFaces: () -> Unit = {}
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var appearancePicker by rememberSaveable { mutableStateOf<String?>(null) }
@@ -136,6 +137,10 @@ fun SettingsHome(
         }
         item {
             GlassCard {
+            SettingEntry(stringResource(R.string.settings_card_faces),
+                stringResource(R.string.settings_card_faces_summary), onCardFaces,
+                Modifier.testTag("settings-card-faces"))
+            HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             SettingEntry(stringResource(R.string.settings_backup_export),
                 if (demoMode) stringResource(R.string.settings_backup_export_demo_summary)
                 else stringResource(R.string.settings_backup_export_summary), onBackupExport,

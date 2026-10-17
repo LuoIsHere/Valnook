@@ -40,6 +40,7 @@ import java.util.zip.ZipOutputStream
 import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -628,6 +629,31 @@ class BackupPortabilityTest {
         assertEquals("Legacy bank",RoomOverview(target).snapshot().accounts.single().name)
     }
 
+    @Test fun schema8_backup_names_each_face_after_its_card() = runBlocking {
+        val source = database("schema8-faces-source")
+        val wallet = dev.valnook.data.repository.RoomWallet(source, clock)
+        val bitmap = android.graphics.Bitmap.createBitmap(400, 252, android.graphics.Bitmap.Config.ARGB_8888)
+        val bytes = ByteArrayOutputStream().also { out ->
+            bitmap.eraseColor(0xff446688.toInt()); check(bitmap.compress(android.graphics.Bitmap.CompressFormat.WEBP_LOSSY, 90, out)); bitmap.recycle()
+        }.toByteArray()
+        val image = dev.valnook.domain.model.WalletImage(dev.valnook.domain.model.WalletImageFormat.digest(bytes), bytes, 400, 252, 0xff446688L)
+        val card = wallet.save(null, null, "Travel", null, image.key, image)
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        val target = database("schema8-faces-target")
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(downgradeToLegacySchema(output.toByteArray(), 8)),
+            "schema8.val_backup") {}
+        try {
+            assertEquals(8, targetEngine.preview(staged).dataSchemaVersion)
+            targetEngine.commitRestore(staged) {}
+        } finally { targetEngine.close(staged) }
+        val face = dev.valnook.data.repository.RoomWallet(target, clock).observeFaces().first().single()
+        assertEquals("Travel", face.label)
+        assertEquals(target.wallet().card(card)!!.updated_at_ms, face.addedAtMs)
+        assertEquals(listOf("Travel"), face.cardNames)
+    }
+
     private fun downgradeToLegacySchema(bytes: ByteArray, version: Int = 1): ByteArray {
         val files = linkedMapOf<String, ByteArray>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> while (true) {
@@ -637,6 +663,9 @@ class BackupPortabilityTest {
         if (version < 6) { files.remove("data/wallet_cards.jsonl"); files.remove("data/wallet_card_images.jsonl") }
         if (version < 8) files.remove("data/account_groups.jsonl")
         if(version < 4) files.remove("data/account_icon_images.jsonl")
+        if (version in 6..8) files["data/wallet_card_images.jsonl"] = files.getValue("data/wallet_card_images.jsonl").toString(Charsets.UTF_8)
+            .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
+                JSONObject(line).apply { remove("label"); remove("added_at_ms") }.toString() + "\n" }.toByteArray()
         if (version == 1) files.remove("data/credit_account_profiles.jsonl")
         listOf("data/accounts.jsonl", "data/cash_accounts.jsonl").forEach { path ->
             files[path] = files.getValue(path).toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
@@ -659,14 +688,15 @@ class BackupPortabilityTest {
             (if (version >= 4) listOf("account-icons-v1") else emptyList()) +
             (if (version >= 5) listOf("account-presentation-v1") else emptyList()) +
             (if (version >= 6) listOf("wallet-cards-v1") else emptyList()) +
-            (if (version >= 7) listOf("wallet-face-style-v1") else emptyList())))
+            (if (version >= 7) listOf("wallet-face-style-v1") else emptyList()) +
+            (if (version >= 8) listOf("account-groups-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->
             val row = fileRows.getJSONObject(index)
             val path = row.getString("path")
             if (path in files) {
-                if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl")) {
+                if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl", "data/wallet_card_images.jsonl")) {
                     val value = files.getValue(path)
                     row.put("uncompressedBytes", value.size)
                     row.put("sha256", MessageDigest.getInstance("SHA-256").digest(value)

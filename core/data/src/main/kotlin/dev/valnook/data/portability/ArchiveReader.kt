@@ -173,6 +173,8 @@ internal class ArchiveReader(
             if (dataSchemaVersion < 3) dev.valnook.data.database.initializeAccountDisplayOrder(db.openHelper.writableDatabase)
             // Archives written before groups existed restore every account into the default group.
             if (dataSchemaVersion < 8) insertDefaultAccountGroup(db.openHelper.writableDatabase, System.currentTimeMillis())
+            // Archives written before the face library name and date each face after the card that uses it.
+            if (dataSchemaVersion < 9) dev.valnook.data.database.backfillWalletFaceLibrary(db.openHelper.writableDatabase)
             counts["data/valuation_baselines.jsonl"] = loadValuationBaselines(db, root)
             counts["data/audit_metadata.json"] = loadAuditMetadata(db, root)
             counts.putAll(loadPreferences(db, root))
@@ -340,10 +342,14 @@ internal class ArchiveReader(
         sql.query("SELECT 1 FROM cash_accounts WHERE display_order<0 LIMIT 1")
             .use { if (it.moveToFirst()) invalid() }
         validateAccountGroups(sql)
-        sql.query("SELECT id,data,width,height,tint FROM wallet_card_images").use { cursor ->
+        sql.query("SELECT id,data,width,height,tint,label,added_at_ms FROM wallet_card_images").use { cursor ->
             while (cursor.moveToNext()) {
                 val image = dev.valnook.domain.model.WalletImage(cursor.getString(0),cursor.getBlob(1),cursor.getInt(2),cursor.getInt(3),cursor.getLong(4))
                 if (!dev.valnook.data.image.WalletImages.valid(image)) invalid()
+                // Only a face no card used before the library existed can be left without a name.
+                val label = cursor.getString(5)
+                if ((label.isNotEmpty() && runCatching { dev.valnook.domain.model.WalletRules.name(label) }.getOrNull() != label) ||
+                    cursor.getLong(6) < 0) invalid()
             }
         }
         sql.query("SELECT face_style,image_key FROM wallet_cards WHERE face_style IS NOT NULL").use { cursor ->

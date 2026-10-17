@@ -37,14 +37,17 @@ import kotlinx.coroutines.*
     val snapshot by vm.snapshot.collectAsStateWithLifecycle()
     val cards by vm.cards.collectAsStateWithLifecycle()
     var choosing by rememberSaveable { mutableStateOf(false) }
+    var pickingFace by rememberSaveable { mutableStateOf(false) }
+    val failure by vm.failure.collectAsStateWithLifecycle()
     var uri by rememberSaveable { mutableStateOf<String?>(null) }
     val context=LocalContext.current
-    val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    val focus=androidx.compose.ui.platform.LocalFocusManager.current
     val picker=rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()){selected->
         if(selected!=null){runCatching{context.contentResolver.takePersistableUriPermission(selected,Intent.FLAG_GRANT_READ_URI_PERMISSION)};uri=selected.toString()}
     }
     AnimatedGlassDialog(true,{if(!busy&&uri==null)vm.draft.value=null}) {
+        // The dialog is its own window: only its focus manager and keyboard controller reach the name field.
+        val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        val focus=androidx.compose.ui.platform.LocalFocusManager.current
         GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)
             .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Text(if(value.id==null)wording("Add card","添加卡片")else wording("Edit card","编辑卡片"),style=MaterialTheme.typography.titleLarge)
@@ -52,12 +55,13 @@ import kotlinx.coroutines.*
             OutlinedTextField(value.name,{vm.draft.value=value.copy(name=it)},label={Text(wording("Card name","卡片名称"))},
                 singleLine=true,enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("wallet-name"),
                 supportingText={Text(wording("1–40 characters · only shown outside the card","1–40 个字符，仅在卡面外显示"))})
-            Row {
+            FlowRow {
                 TextButton({focus.clearFocus();keyboard?.hide();picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=!busy,modifier=Modifier.testTag("wallet-photo")){Text(wording("Choose image","选择图片"))}
+                TextButton({focus.clearFocus();keyboard?.hide();pickingFace=true},enabled=!busy,modifier=Modifier.testTag("wallet-face-library-pick")){Text(wording("From card faces","从卡面库选择"))}
                 if(value.imageKey!=null||value.image!=null)TextButton({vm.draft.value=value.copy(imageKey=null,image=null)},enabled=!busy){Text(wording("Remove image","移除图片"))}
             }
             WalletFacePicker(value.faceStyle, !busy, value.imageKey!=null||value.image!=null) { style -> vm.draft.value=value.copy(faceStyle=style,imageKey=null,image=null) }
-            Text(wording("Use a blank or redacted card face. Images stay on this device and are included in your backups.","建议使用空白或已遮挡敏感信息的卡面。图片在本机处理，并随完整备份保存。"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(wording("Use a blank or redacted card face. Images stay on this device and are included in your backups. Applied images are kept in Settings › Card faces.","建议使用空白或已遮挡敏感信息的卡面。图片在本机处理，并随完整备份保存；应用过的图片会保留在“设置 › 卡面库”。"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             val account=snapshot?.cash?.firstOrNull{it.id==value.boundId}
             val parent=snapshot?.accounts?.firstOrNull{it.id==account?.account_id}
             TextButton({choosing=true},enabled=!busy,modifier=Modifier.testTag("wallet-bind")) {
@@ -65,7 +69,8 @@ import kotlinx.coroutines.*
             }
             if(value.boundId!=null&&cards.orEmpty().any{it.id!=value.id&&it.boundCashAccountId==value.boundId})
                 Text(wording("These cards show all records from the same subaccount.","这些卡片将展示同一子账户的全部记录。"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            if(error) HintMessage(wording("Could not save. Your draft is kept; retry or reopen if the card changed elsewhere.","保存失败，已保留填写内容。请重试；若卡片已被其他操作修改，请重新编辑。"),isError=true)
+            if(error) HintMessage(if(failure==ErrorCode.WALLET_FACE_LIBRARY_FULL)faceErrorText(failure)
+                else wording("Could not save. Your draft is kept; retry or reopen if the card changed elsewhere.","保存失败，已保留填写内容。请重试；若卡片已被其他操作修改，请重新编辑。"),isError=true)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
                 TextButton({vm.draft.value=null},enabled=!busy){Text(wording("Cancel","取消"))}
                 Button({focus.clearFocus();keyboard?.hide();vm.save()},enabled=!busy&&runCatching{WalletRules.name(value.name)}.isSuccess,modifier=Modifier.testTag("wallet-save")){
@@ -87,18 +92,26 @@ import kotlinx.coroutines.*
             }
         } }
     }
+    if(pickingFace) {
+        val faces by remember(vm){vm.repository.observeFaces()}.collectAsStateWithLifecycle(null)
+        WalletFacePickerDialog(faces,cache,value.image?.key?:value.imageKey,{face->
+            vm.draft.value=vm.draft.value?.copy(imageKey=face.key,image=null,faceStyle=null);pickingFace=false
+        }){pickingFace=false}
+    }
     uri?.let { selected->WalletCrop(selected,{image->vm.draft.value=vm.draft.value?.copy(imageKey=image.key,image=image,faceStyle=null)}){
         runCatching{context.contentResolver.releasePersistableUriPermission(Uri.parse(selected),Intent.FLAG_GRANT_READ_URI_PERMISSION)};uri=null
     } }
 }
 
-@Composable private fun WalletCrop(uri:String,onImage:(WalletImage)->Unit,onClose:()->Unit) {
+@Composable internal fun WalletCrop(uri:String,onImage:(WalletImage)->Unit,onClose:()->Unit) {
     val context=LocalContext.current;val scope=rememberCoroutineScope()
     var source by remember(uri){mutableStateOf<Bitmap?>(null)}
     var failed by remember { mutableStateOf(false) };var busy by remember { mutableStateOf(false) }
     var zoom by rememberSaveable{mutableFloatStateOf(1f)}
     var x by rememberSaveable{mutableFloatStateOf(0f)};var y by rememberSaveable{mutableFloatStateOf(0f)}
-    LaunchedEffect(uri){try{source=withContext(Dispatchers.IO){WalletImageCodec.read(context,Uri.parse(uri))}}
+    // Store the image on the main thread: the effect may resume wherever the decode finished.
+    LaunchedEffect(uri){try{val bitmap=withContext(Dispatchers.IO){WalletImageCodec.read(context,Uri.parse(uri))}
+        withContext(Dispatchers.Main.immediate){source=bitmap}}
         catch(c:CancellationException){throw c}catch(_:Exception){failed=true}}
     AnimatedGlassDialog(true,{if(!busy)onClose()}) {
         GlassCard { Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {

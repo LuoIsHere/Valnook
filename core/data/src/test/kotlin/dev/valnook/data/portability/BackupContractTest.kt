@@ -31,6 +31,13 @@ class BackupContractTest {
         assertTrue("face_style" !in columns(6, "wallet_cards") && "face_style" in columns(7, "wallet_cards"))
     }
 
+    @Test fun face_library_columns_start_at_version_nine() {
+        val image = setOf("id", "data", "width", "height", "tint")
+        assertEquals(image, columns(8, "wallet_card_images"))
+        assertEquals(image + setOf("label", "added_at_ms"), columns(9, "wallet_card_images"))
+        assertEquals(columns(8, "savings_accounts"), columns(9, "savings_accounts"))
+    }
+
     @Test fun unknown_versions_have_no_tables() {
         assertTrue(BackupContract.tablesFor(0).isEmpty())
         assertTrue(BackupContract.tablesFor(BackupContract.DATA_SCHEMA_VERSION + 1).isEmpty())

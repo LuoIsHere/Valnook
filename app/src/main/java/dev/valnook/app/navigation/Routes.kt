@@ -10,6 +10,7 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data object AccountGroupsKey : NavKey
 @Serializable data object WalletKey : NavKey
 @Serializable data object HiddenWalletKey : NavKey
+@Serializable data object WalletFaceLibraryKey : NavKey
 @Serializable data object InvestmentsKey : NavKey
 @Serializable data object StatisticsKey : NavKey
 @Serializable data object SettingsKey : NavKey

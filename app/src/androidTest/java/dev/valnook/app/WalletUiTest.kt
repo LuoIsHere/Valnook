@@ -534,6 +534,89 @@ class WalletUiTest {
             save("wallet-imported-face")
         }finally{file.delete()}
     }
+    private fun faceImage(color:Int):dev.valnook.domain.model.WalletImage {
+        val bitmap=Bitmap.createBitmap(1000,631,Bitmap.Config.ARGB_8888);bitmap.eraseColor(color)
+        return WalletImageCodec.encode(bitmap,1f,0f,0f).also{bitmap.recycle()}
+    }
+    @Test fun face_library_uploads_with_a_name_saves_the_file_and_deletes_only_unused_faces() {
+        val used=card("Daily card",color=0xff3d5a6c.toInt())
+        val usedKey=requireNotNull(runBlocking{wallet.observeCards().first()}.single{it.id==used}.imageKey)
+        val source=java.io.File(rule.activity.cacheDir,"face-fixture-${UUID.randomUUID()}.png")
+        val exported=java.io.File(rule.activity.cacheDir,"face-export-${UUID.randomUUID()}.webp")
+        Bitmap.createBitmap(900,600,Bitmap.Config.ARGB_8888).apply{eraseColor(0xff8a6d3b.toInt());source.outputStream().use{compress(Bitmap.CompressFormat.PNG,100,it)};recycle()}
+        val registry=object:androidx.activity.result.ActivityResultRegistry(){
+            override fun <I,O> onLaunch(requestCode:Int,contract:androidx.activity.result.contract.ActivityResultContract<I,O>,input:I,options:androidx.core.app.ActivityOptionsCompat?) {
+                val target=if(contract is androidx.activity.result.contract.ActivityResultContracts.CreateDocument)exported else source
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    dispatchResult(requestCode,android.app.Activity.RESULT_OK,android.content.Intent().setData(android.net.Uri.fromFile(target)))
+                }
+            }
+        }
+        val owner=object:androidx.activity.result.ActivityResultRegistryOwner{override val activityResultRegistry=registry}
+        val vm=rule.runOnUiThread{WalletFaceLibraryViewModel(wallet)}
+        try {
+            rule.runOnUiThread{rule.activity.setContent{CompositionLocalProvider(androidx.activity.compose.LocalActivityResultRegistryOwner provides owner){ValnookTheme{
+                var toolbar by remember{mutableStateOf<WalletFaceLibraryToolbar?>(null)}
+                Column(Modifier.fillMaxSize().systemBarsPadding()){Row{WalletFaceLibraryActions(toolbar)}
+                    Box(Modifier.weight(1f)){WalletFaceLibraryScreen(vm,WalletImageCache(wallet)){toolbar=it}}}
+            }}}}
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-$usedKey").fetchSemanticsNodes().isNotEmpty()}
+            rule.onNodeWithTag("wallet-face-delete-$usedKey").assertIsNotEnabled()
+            rule.onNodeWithTag("wallet-face-add").performClick()
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-crop").fetchSemanticsNodes().isNotEmpty()}
+            rule.onNodeWithTag("wallet-crop-confirm").performClick()
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-name").fetchSemanticsNodes().isNotEmpty()}
+            rule.onNodeWithTag("wallet-face-save").assertIsNotEnabled()
+            rule.onNodeWithTag("wallet-face-name").performTextInput("  Travel  ")
+            save("wallet-face-name")
+            rule.onNodeWithTag("wallet-face-save").performClick()
+            rule.waitUntil(10000){runBlocking{wallet.observeFaces().first()}.size==2}
+            val added=runBlocking{wallet.observeFaces().first()}.single{it.key!=usedKey}
+            assertEquals("Travel",added.label);assertFalse(added.inUse)
+            assertEquals(listOf("Daily card"),runBlocking{wallet.observeFaces().first()}.single{it.key==usedKey}.cardNames)
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-name").fetchSemanticsNodes().isEmpty()}
+            rule.onNodeWithTag("wallet-face-${added.key}").assertExists()
+            save("wallet-face-library")
+            rule.onNodeWithTag("wallet-face-export-${added.key}").performClick()
+            rule.waitUntil(10000){exported.length()>0L&&!vm.busy.value}
+            assertArrayEquals(runBlocking{wallet.image(added.key)}!!.bytes,exported.readBytes())
+            rule.onNodeWithTag("wallet-face-delete-${added.key}").assertIsEnabled().performClick()
+            rule.onNodeWithTag("wallet-face-delete-confirm").performClick()
+            rule.waitUntil(10000){runBlocking{wallet.observeFaces().first()}.size==1}
+            assertNull(runBlocking{wallet.image(added.key)})
+            assertNotNull(runBlocking{wallet.image(usedKey)})
+        } finally { source.delete();exported.delete() }
+    }
+    @Test fun settings_opens_the_face_library_and_the_editor_applies_a_library_face() {
+        val id=card("Swap card",color=0xff2f4f4f.toInt())
+        val oldKey=requireNotNull(runBlocking{wallet.observeCards().first()}.single().imageKey)
+        val spare=faceImage(0xffa0522d.toInt());runBlocking{wallet.addFace("Spare face",spare)}
+        root();rule.onNodeWithTag("nav-wallet").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick();rule.waitForIdle()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("wallet-edit").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-library-pick").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("wallet-face-library-pick").performScrollTo().performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-pick-${spare.key}").fetchSemanticsNodes().isNotEmpty()}
+        save("wallet-face-picker")
+        rule.onNodeWithTag("wallet-face-pick-${spare.key}").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-pick-${spare.key}").fetchSemanticsNodes().isEmpty()}
+        rule.onNodeWithTag("wallet-save").performScrollTo().performClick()
+        rule.waitUntil(10000){runBlocking{wallet.observeCards().first()}.single().imageKey==spare.key}
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-name").fetchSemanticsNodes().isEmpty()}
+        rule.onNodeWithContentDescription(rule.activity.getString(dev.valnook.app.R.string.nav_back)).performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("nav-settings").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("nav-settings").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("settings-card-faces").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("settings-card-faces").performScrollTo().performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-$oldKey").fetchSemanticsNodes().isNotEmpty()}
+        rule.onAllNodesWithTag("root-toolbar").assertCountEquals(1)
+        rule.onNode(hasTestTag("root-toolbar") and hasAnyDescendant(hasTestTag("wallet-face-add"))).assertExists()
+        rule.onNodeWithTag("wallet-face-delete-$oldKey").assertIsEnabled()
+        rule.onNodeWithTag("wallet-face-delete-${spare.key}").assertIsNotEnabled()
+        save("wallet-face-library-settings")
+    }
     @Test fun bundled_demo_has_cards_and_rejects_expired_session_writes() {
         val original=wallet;card("Real collection")
         root();switchDemo(true)

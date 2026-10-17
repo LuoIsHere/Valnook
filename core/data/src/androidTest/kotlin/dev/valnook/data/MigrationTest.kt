@@ -9,6 +9,7 @@ import dev.valnook.data.database.*
 import dev.valnook.data.transaction.RoomFinancialCommands
 import dev.valnook.domain.model.Direction
 import dev.valnook.domain.repository.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import java.util.UUID
 import org.junit.*
@@ -464,6 +465,41 @@ class MigrationTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    @Test fun v20_to_v21_names_each_face_after_its_first_card_and_keeps_cards_unchanged(): Unit = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-faces-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 20).apply {
+                execSQL("INSERT INTO wallet_card_images(id,data,width,height,tint) VALUES ('shared',x'01',1000,631,1)")
+                execSQL("INSERT INTO wallet_card_images(id,data,width,height,tint) VALUES ('orphan',x'02',1000,631,2)")
+                execSQL("INSERT INTO wallet_cards(id,name,image_key,bound_cash_account_id,display_order,created_at_ms,updated_at_ms,revision,binding_lost,face_style) VALUES (1,'Second','shared',NULL,1,10,50,2,0,NULL)")
+                execSQL("INSERT INTO wallet_cards(id,name,image_key,bound_cash_account_id,display_order,created_at_ms,updated_at_ms,revision,binding_lost,face_style) VALUES (2,'First','shared',NULL,0,20,80,1,0,NULL)")
+                execSQL("INSERT INTO wallet_cards(id,name,image_key,bound_cash_account_id,display_order,created_at_ms,updated_at_ms,revision,binding_lost,face_style) VALUES (3,'Plain',NULL,NULL,2,30,30,1,0,NULL)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 21, true, MIGRATION_20_21).apply {
+                query("SELECT id,label,added_at_ms,tint FROM wallet_card_images ORDER BY id").use {
+                    assertTrue(it.moveToFirst()); assertEquals("orphan", it.getString(0)); assertEquals("", it.getString(1)); assertEquals(0L, it.getLong(2))
+                    assertTrue(it.moveToNext()); assertEquals("shared", it.getString(0)); assertEquals("First", it.getString(1)); assertEquals(50L, it.getLong(2))
+                    assertEquals(1L, it.getLong(3)); assertFalse(it.moveToNext())
+                }
+                query("SELECT id,name,image_key,updated_at_ms,revision FROM wallet_cards ORDER BY id").use {
+                    val rows = generateSequence { if (it.moveToNext()) listOf(it.getLong(0), it.getString(1), it.getString(2), it.getLong(3), it.getLong(4)) else null }.toList()
+                    assertEquals(listOf(listOf(1L, "Second", "shared", 50L, 2L), listOf(2L, "First", "shared", 80L, 1L), listOf(3L, "Plain", null, 30L, 1L)), rows)
+                }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
+            try {
+                val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
+                assertEquals(listOf("shared", "orphan"), faces.map { it.key })
+                assertEquals(listOf("First", "Second"), faces.first().cardNames)
+                assertFalse(faces.last().inUse)
+            } finally { db.close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
     /** A v0.0.16 install (schema 18) must reach the current schema and open normally. */
     @Test fun v18_install_upgrades_through_every_step_and_opens_with_room(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
@@ -476,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {

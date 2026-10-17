@@ -310,6 +310,13 @@ class AppSessionManager @Inject internal constructor(
             override suspend fun reorder(expected: List<Long>, ordered: List<Long>) = writeMutex.withLock {
                 requireMobileWrite(sessionId); delegate.reorder(expected,ordered)
             }
+            override fun observeFaces() = delegate.observeFaces()
+            override suspend fun addFace(label: String, image: dev.valnook.domain.model.WalletImage) = writeMutex.withLock {
+                requireMobileWrite(sessionId); delegate.addFace(label,image)
+            }
+            override suspend fun deleteFace(key: String) = writeMutex.withLock {
+                requireMobileWrite(sessionId); delegate.deleteFace(key)
+            }
         },
         walletPrivate = if(mode == DataMode.DEMO) null else object : dev.valnook.domain.repository.WalletPrivateRepository {
             override suspend fun read(cardId: Long) = writeMutex.withLock {

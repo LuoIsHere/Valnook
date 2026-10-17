@@ -3,9 +3,15 @@ package dev.valnook.data.database
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
+/** A face in the library; [label] names it there and [added_at_ms] orders it, newest first. */
 @Entity(tableName = "wallet_card_images")
 data class WalletImageEntity(@PrimaryKey val id: String, val data: ByteArray,
-    val width: Int, val height: Int, val tint: Long)
+    val width: Int, val height: Int, val tint: Long,
+    @ColumnInfo(defaultValue = "''") val label: String = "",
+    @ColumnInfo(defaultValue = "0") val added_at_ms: Long = 0)
+
+/** Library rows without the image bytes. */
+data class WalletFaceRow(val id: String, val label: String, val width: Int, val height: Int, val tint: Long, val added_at_ms: Long)
 
 @Entity(tableName = "wallet_cards", foreignKeys = [
     ForeignKey(entity = WalletImageEntity::class, parentColumns = ["id"], childColumns = ["image_key"], onDelete = ForeignKey.RESTRICT),
@@ -25,9 +31,14 @@ interface WalletDao {
     @Insert suspend fun insert(card: WalletCardEntity): Long
     @Update suspend fun update(card: WalletCardEntity): Int
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertImage(image: WalletImageEntity)
+    @Query("SELECT id,label,width,height,tint,added_at_ms FROM wallet_card_images ORDER BY added_at_ms DESC,id")
+    fun observeFaces(): Flow<List<WalletFaceRow>>
+    @Query("SELECT COUNT(*) FROM wallet_card_images") suspend fun imageCount(): Int
+    @Query("SELECT EXISTS(SELECT 1 FROM wallet_card_images WHERE id=:id)") suspend fun hasImage(id: String): Boolean
+    @Query("SELECT COUNT(*) FROM wallet_cards WHERE image_key=:id") suspend fun imageUseCount(id: String): Int
+    @Query("DELETE FROM wallet_card_images WHERE id=:id") suspend fun deleteImage(id: String): Int
     @Query("DELETE FROM wallet_cards WHERE id=:id AND revision=:revision") suspend fun delete(id: Long, revision: Long): Int
     @Query("UPDATE wallet_cards SET display_order=:position WHERE id=:id") suspend fun position(id: Long, position: Long)
-    @Query("DELETE FROM wallet_card_images WHERE id NOT IN (SELECT image_key FROM wallet_cards WHERE image_key IS NOT NULL)") suspend fun collectImages()
     @Query("UPDATE wallet_cards SET bound_cash_account_id=NULL,binding_lost=1,revision=revision+1,updated_at_ms=:now WHERE bound_cash_account_id=:id")
     suspend fun unbind(id: Long, now: Long)
 }

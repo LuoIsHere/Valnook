@@ -23,6 +23,9 @@ class WalletViewModelTest {
         override suspend fun save(id:Long?,expectedRevision:Long?,name:String,cashAccountId:Long?,imageKey:String?,image:WalletImage?,faceStyle:dev.valnook.domain.model.WalletFaceStyle?)=error("unused")
         override suspend fun delete(id:Long,expectedRevision:Long)=error("unused")
         override suspend fun reorder(expected:List<Long>,ordered:List<Long>)=error("unused")
+        override fun observeFaces()=flowOf(emptyList<dev.valnook.domain.model.WalletFace>())
+        override suspend fun addFace(label:String,image:WalletImage)=error("unused")
+        override suspend fun deleteFace(key:String)=error("unused")
     }
     private val snapshot=AssetSnapshot(emptyList(),emptyList(),emptyList(),emptyList(),emptyList(),AppSettings())
     private val overview=object:OverviewRepository {

@@ -69,7 +69,7 @@ enum class ErrorCode { CURRENCY, FORMAT, PRECISION, OVERFLOW, POSITIVE, DATE, IN
     WRONG_CASH_ACCOUNT, CASH_ACCOUNT_IN_USE, SESSION_EXPIRED, WEB_ADMIN_ACTIVE, MAINTENANCE_ACTIVE,
     INVALID_ACCOUNT_TYPE, INVALID_CREDIT_LIMIT, INVALID_STATEMENT_DAY, INVALID_DUE_RULE,
     CREDIT_SOURCE_INVALID, CREDIT_SOURCE_CURRENCY, CREDIT_SOURCE_PARENT, CREDIT_SOURCE_CHAIN, CREDIT_SOURCE_CYCLE,
-    CREDIT_LIMIT_IN_USE, BALANCE_ACCOUNT_IN_USE }
+    CREDIT_LIMIT_IN_USE, BALANCE_ACCOUNT_IN_USE, WALLET_FACE_IN_USE, WALLET_FACE_DUPLICATE, WALLET_FACE_LIBRARY_FULL }
 class DomainException(val code: ErrorCode) : IllegalArgumentException(code.name)
 data class SavingsAccount(val id: Long, val name: String, val note: String, val revision: Long = 1, val icon: AccountIcon = AccountIcon(),
     val showDepositSummary: Boolean = true, val showInvestmentSummary: Boolean = true,

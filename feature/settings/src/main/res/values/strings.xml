@@ -58,6 +58,8 @@
     <string name="settings_backup_export">Backup &amp; export</string>
     <string name="settings_backup_export_summary">Local and OneDrive backup, restore, and Excel export</string>
     <string name="settings_backup_export_demo_summary">Export the synthetic demo workbook</string>
+    <string name="settings_card_faces">Card faces</string>
+    <string name="settings_card_faces_summary">View, upload, save and delete wallet card faces</string>
     <string name="settings_webadmin">Web administration</string>
     <string name="settings_webadmin_summary">Manage this device from a browser on the same LAN</string>
     <string name="settings_hidden_pages">Hidden pages</string>

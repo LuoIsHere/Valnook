@@ -58,7 +58,7 @@ internal object BackupContract {
     /** Older rules only differ in derived statistics, which restore always rebuilds. */
     val RESTORABLE_HISTORICAL_VALUATION_RULES = dev.valnook.data.database.MIN_RESTORABLE_STATISTICS_RULE_VERSION..STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1", "wallet-face-library-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -70,7 +70,7 @@ internal object BackupContract {
     // card numbers, expiry, CVV1/2, back/edge colors or private warning preferences to any export contract.
     // 安全边界：卡背数据（含配色）、密文文件、本机关联和提示偏好一律不备份/导出；禁止自动枚举全部表。
     val tables = listOf(
-        PortableTable("data/wallet_card_images.jsonl", "wallet_card_images", listOf(text("id"), PortableColumn("data", PortableKind.BLOB), long("width"), long("height"), long("tint")), "id"),
+        PortableTable("data/wallet_card_images.jsonl", "wallet_card_images", listOf(text("id"), PortableColumn("data", PortableKind.BLOB), long("width"), long("height"), long("tint"), text("label"), long("added_at_ms")), "id"),
         PortableTable("data/wallet_cards.jsonl", "wallet_cards", listOf(long("id"), text("name"), text("image_key", true), long("bound_cash_account_id", true), long("display_order"), long("created_at_ms"), long("updated_at_ms"), long("revision"), bool("binding_lost"), text("face_style", true)), "display_order,id"),
         PortableTable("data/account_icon_images.jsonl", "account_icon_images", listOf(
             text("id"), PortableColumn("data", PortableKind.BLOB)), "id"),
@@ -176,7 +176,8 @@ internal object BackupContract {
         "show_deposit_summary" to 5, "show_investment_summary" to 5,
         "include_in_available_cash" to 5, "show_on_accounts_page" to 5,
         "face_style" to 7,
-        "group_id" to 8
+        "group_id" to 8,
+        "label" to 9, "added_at_ms" to 9
     )
 
     /** The tables and columns an archive of [dataSchemaVersion] contains; empty for unknown versions. */
