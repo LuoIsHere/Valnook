@@ -24,6 +24,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import kotlin.math.roundToInt
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -100,6 +102,8 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
             val detailTop=with(LocalDensity.current){LocalPageTopSpace.current.toPx()}
             val stackWidth=(maxWidth-48.dp).coerceAtMost(440.dp)
             val detailScale=stackWidth.coerceAtMost(maxHeight*.7f)/stackWidth
+            // The overview holds scrolled cards at this edge, so the back cards start from it, not from their slots.
+            val stackTop=remember(selected,viewportHeight){overviewScroll.layoutInfo.beforeContentPadding.toFloat()}
             val selectedTop=remember(selected,viewportHeight) {
                 val info=overviewScroll.layoutInfo
                 val item=info.visibleItemsInfo.firstOrNull{it.index==selectedLayer}
@@ -132,7 +136,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
                                     val back=selected!=null&&layer<selectedLayer
                                     val fold=if(back)motion.backFold else 0f
                                     val scale=1f+(detailScale-1f)*fold
-                                    val originalTop=selectedTop-(selectedLayer-layer)*peek
+                                    val originalTop=(selectedTop-(selectedLayer-layer)*peek).coerceAtLeast(stackTop)
                                     alpha=1f
                                     transformOrigin=TransformOrigin(0f,0f)
                                     scaleX=scale;scaleY=scale
@@ -277,13 +281,22 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
                 lookup[id]?.let { card ->
                     val dragIndex=order.indexOf(dragging)
                     val gap=when {dragIndex<0||id==dragging->0f;index<dragIndex->-opening;else->opening}
-                    val slot by animateFloatAsState(index*peek+gap,
+                    // Same spring for both parts, so their sum moves exactly like one animated slot.
+                    val slot by animateFloatAsState(index*peek,
                         spring(dampingRatio=.92f,stiffness=480f),label="wallet-slot")
+                    val opened by animateFloatAsState(gap,
+                        spring(dampingRatio=.92f,stiffness=480f),label="wallet-opening")
                     val priority=original.indexOf(id)
+                    // The drag opening shifts held cards too instead of being absorbed by the top edge.
+                    fun held()=if(id==settling)releasePosition.value else slot
+                    fun position()=when(id){dragging->dragPosition();settling->releasePosition.value;else->slot+opened}
                     Box(Modifier.width(width).zIndex(index.toFloat())
+                        // Hold cards under the toolbar so the cards below slide over them; the dragged card follows the finger.
+                        .offset{IntOffset(0,if(id==dragging)0 else walletPinOffset(held(),scrollPosition()).roundToInt())}
                         .graphicsLayer {
-                            val position=when(id){dragging->dragPosition();settling->releasePosition.value;else->slot}
-                            translationY=position-index*peek
+                            translationY=position()-index*peek
+                            // Fully covered cards would only stack their shadows at the top edge.
+                            alpha=if(dragging==null&&settling==null&&index<order.lastIndex&&walletPinCovered(held(),scrollPosition(),peek))0f else 1f
                         }
                         .pointerInput(id,busy,peek) {
                             if(!busy)detectDragGesturesAfterLongPress(onDragStart=start@{

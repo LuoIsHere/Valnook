@@ -506,6 +506,33 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-card-$middle",useUnmergedTree=true).performTouchInput{click(androidx.compose.ui.geometry.Offset(center.x,20f))}
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isNotEmpty()}
     }
+    @Test fun scrolled_cards_hold_under_the_toolbar_and_the_held_card_opens() {
+        // Enough cards for the stack to scroll on a phone-sized screen.
+        (1..16).forEach{card("Card $it",color=0xff000000.toInt() or ((40+it*10)*0x010101))}
+        root();rule.onNodeWithTag("nav-wallet").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}
+        // The overview draws the last stored card at the top of the stack.
+        val stack=runBlocking{wallet.observeCards().first()}.map{it.id}.reversed()
+        fun top(id:Long)=rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot.top
+        val peek=with(rule.density){60.dp.toPx()}
+        val edge=top(stack[0])
+        assertTrue(rule.onNodeWithTag("root-toolbar").fetchSemanticsNode().boundsInRoot.bottom<=edge)
+        rule.onNodeWithTag("wallet-stack").performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.ScrollBy){it(0f,peek*1.5f)}
+        rule.waitForIdle();save("wallet-stack-held")
+        assertEquals(edge,top(stack[0]),2f)
+        assertEquals(edge,top(stack[1]),2f)
+        assertEquals(edge+peek*.5f,top(stack[2]),2f)
+        // Only the held card's exposed lip sits above the next card.
+        rule.onNodeWithTag("wallet-card-${stack[1]}",useUnmergedTree=true).performTouchInput{click(androidx.compose.ui.geometry.Offset(center.x,peek*.25f))}
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isNotEmpty()}
+        val held=runBlocking{wallet.observeCards().first()}.first{it.id==stack[1]}.name
+        rule.onNode(hasText(held) and hasAnyAncestor(hasTestTag("root-toolbar"))).assertExists()
+        rule.onNodeWithContentDescription(rule.activity.getString(dev.valnook.app.R.string.nav_back)).performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isEmpty()}
+        rule.waitForIdle()
+        assertEquals(edge,top(stack[1]),2f)
+        assertEquals(edge+peek*.5f,top(stack[2]),2f)
+    }
     @Test fun photo_crop_rotate_save_survives_source_removal() {
         val file=java.io.File(rule.activity.cacheDir,"wallet-fixture-${UUID.randomUUID()}.png")
         val source=Bitmap.createBitmap(900,600,Bitmap.Config.ARGB_8888);source.eraseColor(0xff69818b.toInt())
