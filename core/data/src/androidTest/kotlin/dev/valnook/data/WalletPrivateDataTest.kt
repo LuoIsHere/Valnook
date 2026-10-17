@@ -28,7 +28,7 @@ class WalletPrivateDataTest {
     private lateinit var wallet:RoomWallet
     private lateinit var vault:LocalWalletPrivateRepository
     private val directoryName="wallet-private-test-${UUID.randomUUID()}"
-    private val fixture=WalletPrivateContent("TEST-ONLY-1234567890123456789012345678","PRIVATE-EXP","9876","8765",0xff1234abL,0xffa1b2c3L,showNumberSpacing=false)
+    private val fixture=WalletPrivateContent("TEST-ONLY-1234567890123456789012345678","PRIVATE-EXP","9876","8765",0xff1234abL,0xffa1b2c3L,showNumberSpacing=false,holder="PRIVATE HOLDER")
     @Before fun prepare(){
         db=Room.inMemoryDatabaseBuilder(context,ValnookDatabase::class.java).addCallback(ValnookDatabase.seed).build()
         wallet=RoomWallet(db,clock);vault=LocalWalletPrivateRepository(context,db,directoryName=directoryName)
@@ -82,7 +82,7 @@ class WalletPrivateDataTest {
         val token=db.walletPrivateIdentity().token(id)!!
         val file=File(context.noBackupFilesDir,"$directoryName/$token.bin")
         val encrypted=file.readBytes()
-        listOf(fixture.number,fixture.expiry,fixture.cvv1,fixture.cvv2).forEach { marker->
+        listOf(fixture.number,fixture.expiry,fixture.cvv1,fixture.cvv2,fixture.holder).forEach { marker->
             assertFalse("Sensitive value found in stored file",encrypted.toString(Charsets.UTF_8).contains(marker))
         }
         val key=java.security.KeyStore.getInstance("AndroidKeyStore").apply{load(null)}
@@ -99,10 +99,11 @@ class WalletPrivateDataTest {
         }
         val plaintext=decrypt(token)
         try { DataInputStream(ByteArrayInputStream(plaintext)).use { input->
-            assertEquals(2,input.readInt());assertEquals(fixture.number,input.readUTF());assertEquals(fixture.expiry,input.readUTF())
+            assertEquals(3,input.readInt());assertEquals(fixture.number,input.readUTF());assertEquals(fixture.expiry,input.readUTF())
             assertEquals(fixture.cvv1,input.readUTF());assertEquals(fixture.cvv2,input.readUTF())
             assertEquals(fixture.backColor,input.readLong());assertEquals(fixture.edgeColor,input.readLong())
-            assertEquals(1L,input.readLong());assertFalse(input.readBoolean());assertEquals(0,input.available())
+            assertEquals(1L,input.readLong());assertFalse(input.readBoolean());assertEquals(fixture.holder,input.readUTF())
+            assertEquals(0,input.available())
         } } finally { plaintext.fill(0) }
         val wrong=runCatching{decrypt(UUID.randomUUID().toString())}.exceptionOrNull()
         assertTrue("Wrong card must fail authentication",wrong is javax.crypto.AEADBadTagException)
@@ -124,29 +125,45 @@ class WalletPrivateDataTest {
         assertTrue(runCatching{vault.save(id,fixture)}.isFailure)
         assertArrayEquals(original,file.readBytes())
     }
-    @Test fun legacy_encrypted_records_default_to_spacing_and_require_valid_cvv_on_next_save()=runBlocking {
-        val id=card();val saved=vault.save(id,fixture)
+    /** Replaces a card's ciphertext with [write]'s plaintext, encrypted the way an older app version stored it. */
+    private suspend fun writeLegacyRecord(id:Long,write:DataOutputStream.()->Unit) {
         val token=db.walletPrivateIdentity().token(id)!!
-        val file=File(context.noBackupFilesDir,"$directoryName/$token.bin")
         val key=java.security.KeyStore.getInstance("AndroidKeyStore").apply{load(null)}
             .getKey("${context.packageName}.$directoryName",null) as javax.crypto.SecretKey
-        val bytes=ByteArrayOutputStream().apply { DataOutputStream(this).use { out->
-            out.writeInt(1);out.writeUTF(saved.number);out.writeUTF(saved.expiry)
-            out.writeUTF("OLD-CVV");out.writeUTF("")
-            out.writeLong(saved.backColor);out.writeLong(saved.edgeColor);out.writeLong(saved.revision)
-        } }.toByteArray()
+        val bytes=ByteArrayOutputStream().apply { DataOutputStream(this).use(write) }.toByteArray()
         try {
             val cipher=javax.crypto.Cipher.getInstance("AES/GCM/NoPadding").apply {
                 init(javax.crypto.Cipher.ENCRYPT_MODE,key);updateAAD(token.toByteArray(Charsets.UTF_8))
             }
-            file.writeBytes(byteArrayOf(1)+cipher.iv+cipher.doFinal(bytes))
+            File(context.noBackupFilesDir,"$directoryName/$token.bin").writeBytes(byteArrayOf(1)+cipher.iv+cipher.doFinal(bytes))
         } finally { bytes.fill(0) }
+    }
+    @Test fun legacy_encrypted_records_default_to_spacing_and_require_valid_cvv_on_next_save()=runBlocking {
+        val id=card();val saved=vault.save(id,fixture)
+        writeLegacyRecord(id) {
+            writeInt(1);writeUTF(saved.number);writeUTF(saved.expiry)
+            writeUTF("OLD-CVV");writeUTF("")
+            writeLong(saved.backColor);writeLong(saved.edgeColor);writeLong(saved.revision)
+        }
         val legacy=vault.read(id)
-        assertTrue(legacy.showNumberSpacing);assertEquals("OLD-CVV",legacy.cvv1)
+        assertTrue(legacy.showNumberSpacing);assertEquals("OLD-CVV",legacy.cvv1);assertEquals("",legacy.holder)
         assertTrue(runCatching{vault.save(id,legacy)}.isFailure)
         val updated=vault.save(id,legacy.copy(cvv1="0004",showNumberSpacing=false))
         assertEquals(updated,LocalWalletPrivateRepository(context,db,directoryName=directoryName).read(id))
         assertFalse(updated.showNumberSpacing);assertEquals("0004",updated.cvv1)
+    }
+    @Test fun version_two_records_read_without_a_holder_and_save_one_as_version_three()=runBlocking {
+        val id=card();val saved=vault.save(id,fixture)
+        writeLegacyRecord(id) {
+            writeInt(2);writeUTF(saved.number);writeUTF(saved.expiry);writeUTF(saved.cvv1);writeUTF(saved.cvv2)
+            writeLong(saved.backColor);writeLong(saved.edgeColor);writeLong(saved.revision);writeBoolean(false)
+        }
+        val legacy=vault.read(id)
+        assertEquals(saved.copy(holder=""),legacy)
+        val updated=vault.save(id,legacy.copy(holder="LI LEI"))
+        assertEquals(updated,LocalWalletPrivateRepository(context,db,directoryName=directoryName).read(id))
+        assertEquals("LI LEI",updated.holder)
+        assertTrue(runCatching{vault.save(id,updated.copy(holder="A".repeat(27)))}.isFailure)
     }
     @Test fun backup_and_workbook_exclude_values_colors_identity_and_ciphertext()=runBlocking {
         val id=card();vault.save(id,fixture);vault.dismissWarning()
@@ -155,7 +172,7 @@ class WalletPrivateDataTest {
         val workbook=ByteArrayOutputStream();engine().exportWorkbook(UUID.randomUUID().toString(),AppLanguage.ENGLISH,false,workbook){}
         listOf(unpack(out.toByteArray()),unpack(workbook.toByteArray())).forEach { entries ->
             val all=entries.entries.joinToString("\n"){"${it.key}\n${it.value}"}
-            listOf(fixture.number,fixture.expiry,fixture.cvv1,fixture.cvv2,fixture.backColor.toString(),fixture.edgeColor.toString(),token,
+            listOf(fixture.number,fixture.expiry,fixture.cvv1,fixture.cvv2,fixture.holder,fixture.backColor.toString(),fixture.edgeColor.toString(),token,
                 "local_wallet_identity","wallet-private","backColor","edgeColor","showNumberSpacing").forEach { assertFalse("Export contains private marker",all.contains(it)) }
         }
         assertFalse(BackupContract.tables.any{it.table=="local_wallet_identity"})

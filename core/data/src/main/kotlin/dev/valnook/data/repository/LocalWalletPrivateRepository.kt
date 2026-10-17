@@ -24,7 +24,7 @@ import javax.crypto.spec.GCMParameterSpec
 
 /**
  * SECURITY: No network/export capability. Only linkage UUIDs enter Room; all values stay in this vault.
- * 安全边界：卡号、有效期、CVV 和配色只能进入此加密存储，禁止写入普通数据库、日志或导出模型。
+ * 安全边界：卡号、有效期、CVV、持卡人和配色只能进入此加密存储，禁止写入普通数据库、日志或导出模型。
  * `persistent=false` is exclusively for isolated tests/disabled demo sessions; never use it as a crypto fallback.
  * persistent=false 仅用于隔离测试及不提供卡背功能的演示会话；真实模式始终加密，失败必须报错。
  */
@@ -84,22 +84,24 @@ class LocalWalletPrivateRepository(
 
     private fun encode(value: WalletPrivateContent): ByteArray = ByteArrayOutputStream().use { buffer ->
         DataOutputStream(buffer).use { out ->
-            out.writeInt(2)
+            out.writeInt(3)
             out.writeUTF(value.number); out.writeUTF(value.expiry); out.writeUTF(value.cvv1); out.writeUTF(value.cvv2)
             out.writeLong(value.backColor); out.writeLong(value.edgeColor); out.writeLong(value.revision)
             out.writeBoolean(value.showNumberSpacing)
+            out.writeUTF(value.holder)
         }
         buffer.toByteArray()
     }
     private fun decode(bytes: ByteArray): WalletPrivateContent = try {
         DataInputStream(ByteArrayInputStream(bytes)).use { input ->
             val version = input.readInt()
-            check(version in 1..2)
-            // Device-only format upgrade: keep v1 readable without exposing or truncating old values.
-            // 仅升级本机密文格式；旧版默认显示间隔，旧 CVV 保留，新保存严格校验，不进入任何导出。
+            check(version in 1..3)
+            // Device-only format upgrade: keep v1/v2 readable without exposing or truncating old values.
+            // 仅升级本机密文格式；旧版默认显示间隔、持卡人为空，旧 CVV 保留，新保存严格校验，不进入任何导出。
             WalletPrivateContent(input.readUTF(), input.readUTF(), input.readUTF(), input.readUTF(),
                 input.readLong(), input.readLong(), input.readLong(),
-                if(version >= 2) input.readBoolean() else true)
+                if(version >= 2) input.readBoolean() else true,
+                if(version >= 3) input.readUTF() else "")
                 .validated(legacyCvv = version == 1).also { check(input.available() == 0) }
         }
     } finally { bytes.fill(0) }

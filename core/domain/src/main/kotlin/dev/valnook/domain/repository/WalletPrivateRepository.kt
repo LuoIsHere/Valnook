@@ -14,7 +14,8 @@ data class WalletPrivateContent(
     val backColor: Long = 0xff41464fL,
     val edgeColor: Long = 0xff858b94L,
     val revision: Long = 0,
-    val showNumberSpacing: Boolean = true
+    val showNumberSpacing: Boolean = true,
+    val holder: String = ""
 ) {
     override fun toString() = "WalletPrivateContent([redacted])"
     // Legacy decoding alone may preserve old CVVs; every new save uses the strict default.
@@ -22,7 +23,8 @@ data class WalletPrivateContent(
     fun validated(legacyCvv: Boolean = false): WalletPrivateContent {
         require(number.codePointCount(0, number.length) <= 38 && number.none { it.isISOControl() })
         require(expiry.length <= 16 && cvv1.length <= 16 && cvv2.length <= 16)
-        require(listOf(expiry, cvv1, cvv2).none { text -> text.any { it.isISOControl() } })
+        require(holder.codePointCount(0, holder.length) <= WALLET_HOLDER_MAX)
+        require(listOf(expiry, cvv1, cvv2, holder).none { text -> text.any { it.isISOControl() } })
         require(legacyCvv || (walletCvvValid(cvv1) && walletCvvValid(cvv2)))
         require(backColor in 0xff000000L..0xffffffffL && edgeColor in 0xff000000L..0xffffffffL)
         return this
@@ -35,6 +37,9 @@ interface WalletPrivateRepository {
     suspend fun warningDismissed(): Boolean
     suspend fun dismissWarning()
 }
+
+/** The name field length on a card's magnetic stripe. */
+const val WALLET_HOLDER_MAX = 26
 
 /** Formatting never changes the stored value or treats card numbers as numeric values. */
 fun walletCvvValid(value: String): Boolean = value.length <= 4 && value.all { it in '0'..'9' }

@@ -101,26 +101,45 @@ import kotlin.math.sin
                 size.width*.85f,Offset(size.width*.15f,-size.height*.3f))
         }
         val lines=walletNumberLines(value.number,value.showNumberSpacing)
-        Row(Modifier.align(Alignment.Center).offset(y=if(lines.size>1)(-8).dp else 0.dp)
-            .fillMaxWidth().padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {
-            BoxWithConstraints(Modifier.weight(1f)) {
-                val style=privateFittedStyle(lines,maxWidth,25f)
-                Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally) {
-                    lines.forEachIndexed { index,line ->
-                        Text(line,color=ink,style=style,maxLines=1,softWrap=false,textAlign=TextAlign.Center,
-                            modifier=Modifier.fillMaxWidth().testTag("wallet-private-number-line-$index"))
+        val number:@Composable (Modifier,androidx.compose.ui.unit.Dp?)->Unit={ modifier,height ->
+            Row(modifier.fillMaxWidth().padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {
+                BoxWithConstraints(Modifier.weight(1f)) {
+                    val style=privateFittedStyle(lines,maxWidth,25f,height)
+                    Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally) {
+                        lines.forEachIndexed { index,line ->
+                            Text(line,color=ink,style=style,maxLines=1,softWrap=false,textAlign=TextAlign.Center,
+                                modifier=Modifier.fillMaxWidth().testTag("wallet-private-number-line-$index"))
+                        }
                     }
                 }
+                if(copy!=null&&value.number.isNotEmpty()) PrivateCopyButton(wording("Copy card number","复制卡号"),"wallet-copy-number",ink,actionsEnabled){copy(value.number)}
             }
-            if(copy!=null&&value.number.isNotEmpty()) PrivateCopyButton(wording("Copy card number","复制卡号"),"wallet-copy-number",ink,actionsEnabled){copy(value.number)}
         }
-        Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(horizontal=24.dp,vertical=20.dp),
-            horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            // These three labels intentionally stay English on both locales, matching a physical card.
-            // 这三个标签在中文界面也保留英文；不要当成漏翻译，也不要改动用户填写的值。
-            if(value.expiry.isNotEmpty()) BackField("VALID THRU",value.expiry,ink,Modifier.weight(1.3f,fill=false).widthIn(max=136.dp),"expiry",copy,actionsEnabled)
-            if(value.cvv1.isNotEmpty()) BackField("CVV1",value.cvv1,ink,Modifier.weight(1f,fill=false).widthIn(max=96.dp),"cvv1",copy,actionsEnabled)
-            if(value.cvv2.isNotEmpty()) BackField("CVV2",value.cvv2,ink,Modifier.weight(1f,fill=false).widthIn(max=96.dp),"cvv2",copy,actionsEnabled)
+        // These labels intentionally stay English on both locales, matching a physical card.
+        // 这些标签在中文界面也保留英文；不要当成漏翻译，也不要改动用户填写的值。
+        val fields:@Composable (Modifier)->Unit={ modifier ->
+            Row(modifier.fillMaxWidth().padding(horizontal=24.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                if(value.expiry.isNotEmpty()) BackField("VALID THRU",value.expiry,ink,Modifier.weight(1.3f,fill=false).widthIn(max=136.dp),"expiry",copy,actionsEnabled)
+                if(value.cvv1.isNotEmpty()) BackField("CVV1",value.cvv1,ink,Modifier.weight(1f,fill=false).widthIn(max=96.dp),"cvv1",copy,actionsEnabled)
+                if(value.cvv2.isNotEmpty()) BackField("CVV2",value.cvv2,ink,Modifier.weight(1f,fill=false).widthIn(max=96.dp),"cvv2",copy,actionsEnabled)
+            }
+        }
+        if(value.holder.isEmpty()) {
+            number(Modifier.align(Alignment.Center).offset(y=if(lines.size>1)(-8).dp else 0.dp),null)
+            fields(Modifier.align(Alignment.BottomCenter).padding(vertical=20.dp))
+        } else {
+            // The cardholder takes the bottom-left corner; the other fields move up and the number centres in
+            // what is left below the edit button, shrinking if a small card leaves too little height.
+            // 52.dp clears the edit button: 4.dp padding plus its 48.dp touch target.
+            Column(Modifier.fillMaxSize().padding(top=52.dp,bottom=12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
+                    number(Modifier,maxHeight)
+                }
+                fields(Modifier)
+                Row(Modifier.fillMaxWidth().padding(horizontal=24.dp)) {
+                    BackField("CARDHOLDER",value.holder,ink,Modifier.widthIn(max=260.dp),"holder",copy,actionsEnabled)
+                }
+            }
         }
         val editLabel=wording("Edit private card details","编辑卡片背面")
         if(edit!=null) IconButton(edit,Modifier.align(Alignment.TopStart).padding(4.dp).testTag("wallet-private-edit")
@@ -132,30 +151,39 @@ import kotlin.math.sin
     }
 }
 
+/** The copy button sits beside both lines, so its 48.dp touch target no longer pushes the value away from its label. */
 @Composable private fun BackField(label:String,value:String,ink:Color,modifier:Modifier,tag:String,copy:((String)->Unit)?,enabled:Boolean) {
-    Column(modifier,verticalArrangement=Arrangement.spacedBy(3.dp)) {
-        Text(label,color=ink.copy(alpha=.62f),fontSize=9.sp,letterSpacing=.7.sp,maxLines=1)
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-            BoxWithConstraints(Modifier.weight(1f)) {
+    Row(modifier,verticalAlignment=Alignment.CenterVertically) {
+        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(1.dp)) {
+            Text(label,color=ink.copy(alpha=.62f),fontSize=8.sp,lineHeight=10.sp,letterSpacing=.6.sp,maxLines=1)
+            BoxWithConstraints(Modifier.fillMaxWidth()) {
                 Text(value,color=ink,style=privateFittedStyle(listOf(value),maxWidth,13f),maxLines=1,softWrap=false,modifier=Modifier.fillMaxWidth())
             }
-            if(copy!=null&&value.isNotEmpty()) PrivateCopyButton(if(tag=="expiry")wording("Copy expiry date","复制有效期")else wording("Copy $label","复制 $label"),"wallet-copy-$tag",ink,enabled){copy(value)}
         }
+        if(copy!=null&&value.isNotEmpty()) PrivateCopyButton(when(tag) {
+            "expiry" -> wording("Copy expiry date","复制有效期")
+            "holder" -> wording("Copy cardholder name","复制持卡人")
+            else -> wording("Copy $label","复制 $label")
+        },"wallet-copy-$tag",ink,enabled){copy(value)}
     }
 }
 
-@Composable private fun privateFittedStyle(lines:List<String>,width:androidx.compose.ui.unit.Dp,maximum:Float):TextStyle {
+/** Largest size up to [maximum] at which every line fits [width] and, when given, all lines stack within [height]. */
+@Composable private fun privateFittedStyle(lines:List<String>,width:androidx.compose.ui.unit.Dp,maximum:Float,
+    height:androidx.compose.ui.unit.Dp?=null):TextStyle {
     val measurer=rememberTextMeasurer()
     val pixels=with(LocalDensity.current){width.toPx()}.toInt()-4
+    val heightPixels=height?.let{with(LocalDensity.current){it.toPx()}.toInt()}
     // Use the exact rendered typography, including letter spacing. Binary search handles nonlinear font scaling.
     // 使用与渲染完全相同的字体/字距测量；大字体非线性缩放时禁止按比例推算，避免末位被裁切。
     val base=MaterialTheme.typography.bodyLarge.copy(fontFamily=FontFamily.Monospace,letterSpacing=0.sp)
-    return remember(lines,pixels,base,maximum,measurer) {
+    return remember(lines,pixels,heightPixels,base,maximum,measurer) {
         var lower=1f;var upper=maximum
         repeat(12) {
             val candidate=(lower+upper)/2
             val style=base.copy(fontSize=candidate.sp,lineHeight=(candidate*1.3f).sp)
-            if(lines.all{measurer.measure(it,style,softWrap=false,maxLines=1).size.width<=pixels})lower=candidate else upper=candidate
+            val sizes=lines.map{measurer.measure(it,style,softWrap=false,maxLines=1).size}
+            if(sizes.all{it.width<=pixels}&&(heightPixels==null||sizes.sumOf{it.height}<=heightPixels))lower=candidate else upper=candidate
         }
         base.copy(fontSize=lower.sp,lineHeight=(lower*1.3f).sp)
     }

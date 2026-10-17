@@ -28,6 +28,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.WalletRules
+import dev.valnook.domain.repository.WALLET_HOLDER_MAX
 import dev.valnook.domain.repository.WalletPrivateContent
 import dev.valnook.domain.repository.walletCvvValid
 
@@ -67,8 +68,8 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
             GlassCard { Column(Modifier.heightIn(max=maximumHeight)
                 .verticalScroll(rememberScrollState()).padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
                 Text(wording("Private card details","卡片背面隐私提示"),style=MaterialTheme.typography.titleLarge)
-                Text(wording("Card numbers, expiry dates, CVV1 and CVV2 are sensitive. Disclosure may cause financial loss.",
-                    "卡号、有效期、CVV1 和 CVV2 属于敏感信息，泄露可能造成财产损失。"))
+                Text(wording("Card numbers, cardholder names, expiry dates, CVV1 and CVV2 are sensitive. Disclosure may cause financial loss.",
+                    "卡号、持卡人姓名、有效期、CVV1 和 CVV2 属于敏感信息，泄露可能造成财产损失。"))
                 Text(wording("Details entered here are encrypted only on this device, using Android Keystore to manage keys and AES-GCM to encrypt content. They are not uploaded, included in local or OneDrive cloud backups or file exports, or accessible through web management.",
                     "您填写的背面内容仅加密保存在本设备，使用 Android Keystore 管理密钥，并通过 AES-GCM 加密内容。不会上传至服务器，不会纳入本地备份、OneDrive 等云备份或其他文件导出，网页管理也无法访问。"))
                 Text(wording("Uninstalling, clearing app data or successfully replacing data from a backup makes these details unrecoverable. Enable your device's app lock for Valnook where available.",
@@ -148,6 +149,8 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
                 Box(Modifier.weight(1f)){PrivateInput("CVV1",value.cvv1,"wallet-private-cvv1",!state.saving,cvv=true){state.updateDraft(value.copy(cvv1=it))}}
                 Box(Modifier.weight(1f)){PrivateInput("CVV2",value.cvv2,"wallet-private-cvv2",!state.saving,cvv=true){state.updateDraft(value.copy(cvv2=it))}}
             }
+            PrivateInput(wording("Cardholder","持卡人"),value.holder,"wallet-private-holder",!state.saving,
+                maxCodePoints=WALLET_HOLDER_MAX){state.updateDraft(value.copy(holder=it))}
             Text(wording("Encrypted on this device only · excluded from backups and file exports","仅本机加密保存 · 不纳入备份或文件导出"),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
@@ -159,14 +162,22 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     }
 }
 
-@Composable private fun PrivateInput(label:String,value:String,tag:String,enabled:Boolean,cvv:Boolean=false,change:(String)->Unit) {
+/** [maxCodePoints] counts characters as WalletPrivateContent.validated does; other text fields keep the 16-unit limit. */
+@Composable private fun PrivateInput(label:String,value:String,tag:String,enabled:Boolean,cvv:Boolean=false,
+    maxCodePoints:Int?=null,change:(String)->Unit) {
     val invalid=cvv&&!walletCvvValid(value)
     OutlinedTextField(value,{
+        val cleaned=it.filterNot(Char::isISOControl)
         if(cvv) { if(walletCvvValid(it))change(it) }
-        else if(it.length<=16)change(it.filterNot(Char::isISOControl))
+        else if(maxCodePoints!=null) { if(cleaned.codePointCount(0,cleaned.length)<=maxCodePoints)change(cleaned) }
+        else if(it.length<=16)change(cleaned)
     },Modifier.fillMaxWidth().testTag(tag),label={Text(label)},singleLine=true,enabled=enabled,
         keyboardOptions=KeyboardOptions(keyboardType=if(cvv)KeyboardType.NumberPassword else KeyboardType.Text),
-        isError=invalid,supportingText=if(cvv){{Text(wording("Up to 4 digits · optional","最多 4 位数字，可留空"))}}else null)
+        isError=invalid,supportingText=when {
+            cvv -> {{Text(wording("Up to 4 digits · optional","最多 4 位数字，可留空"))}}
+            maxCodePoints!=null -> {{Text(wording("Up to $maxCodePoints characters · optional","最多 $maxCodePoints 个字符，可留空"))}}
+            else -> null
+        })
 }
 
 @Composable private fun PrivatePalette(value:WalletPrivateContent,change:(WalletPrivateContent)->Unit,enabled:Boolean) {

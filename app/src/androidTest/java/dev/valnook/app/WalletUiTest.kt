@@ -256,6 +256,69 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
         rule.onNodeWithTag("wallet-private-number").performScrollTo().assertExists()
     }
+    @Test fun private_holder_sits_bottom_left_and_lifts_other_fields_on_a_narrow_large_type_card() {
+        val id=card("Private holder")
+        val holder="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        val content=WalletPrivateContent(number="12345678901234567890123456789012345678",expiry="01/29",cvv1="001",cvv2="002",holder=holder)
+        runBlocking{graph.walletPrivate!!.save(id,content)}
+        val vm=rule.runOnUiThread{WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle(),privateRepository=graph.walletPrivate)}
+        rule.runOnUiThread{vm.select(id)}
+        for(dark in listOf(false,true)) {
+            var toolbar:WalletToolbar?=null
+            rule.runOnUiThread { rule.activity.setContent { key(dark) {
+                val density=LocalDensity.current
+                CompositionLocalProvider(LocalDensity provides Density(density.density,1.5f)) {
+                    ValnookTheme(dark_theme=dark){Box(Modifier.width(320.dp).height(660.dp)) {
+                        WalletScreen(vm,{toolbar=it},{_,_,_->},{_,_->},walletCashSlots)
+                    }}
+                }
+            } } }
+            rule.waitUntil(10000){toolbar?.flip!=null}
+            rule.runOnUiThread{toolbar!!.flip!!.invoke()}
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-edit",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+            val face=rule.onNodeWithTag("wallet-card-back",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+            fun bounds(text:String)=rule.onNodeWithText(text,useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+            fun assertFits(node:androidx.compose.ui.test.SemanticsNodeInteraction)=node.performSemanticsAction(
+                androidx.compose.ui.semantics.SemanticsActions.GetTextLayoutResult){action->
+                val layouts=mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+                assertTrue(action(layouts));assertFalse("Card text overflows",layouts.single().hasVisualOverflow)
+            }
+            val name=bounds(holder);val expiry=bounds("01/29");val edit=rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+            val number=walletNumberLines(content.number).mapIndexed { index,line->
+                assertFits(rule.onNodeWithTag("wallet-private-number-line-$index",useUnmergedTree=true));bounds(line)
+            }
+            rule.onNodeWithTag("wallet-card-back",useUnmergedTree=true).captureToImage().asAndroidBitmap().let { bitmap->
+                PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-private-holder-${if(dark)"dark" else "light"}.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
+            }
+            assertFits(rule.onNodeWithText(holder,useUnmergedTree=true))
+            (number+listOf(name,expiry)).forEach { assertTrue("$it outside $face",face.contains(it.topLeft)&&face.contains(it.bottomRight)) }
+            // Bottom-left holder, then the lifted fields, then the number, which stays clear of the edit button.
+            assertTrue("holder $name in $face",name.left<face.center.x&&name.bottom>face.bottom-face.height/4)
+            // A field's value sits right under its label; the copy button must not push them apart.
+            val label=bounds("CARDHOLDER")
+            assertTrue("label $label far from value $name",name.top-label.bottom<=with(rule.density){4.dp.toPx()})
+            assertTrue("fields $expiry above holder $name",expiry.bottom<=name.top)
+            assertTrue("number ${number.last()} above fields $expiry",number.last().bottom<=expiry.top)
+            assertTrue("edit $edit above number ${number.first()}",edit.bottom<=number.first().top)
+            rule.onNodeWithTag("wallet-copy-holder",useUnmergedTree=true).assertExists()
+        }
+    }
+    @Test fun private_holder_is_limited_to_26_characters_saved_encrypted_and_copyable() {
+        val id=openPrivateCard()
+        rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        val input=rule.onNodeWithTag("wallet-private-holder").performScrollTo()
+        input.performTextInput("A".repeat(27)) // Rejected as a whole: the field stays empty.
+        input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText,
+            androidx.compose.ui.text.AnnotatedString("")))
+        input.performTextInput("LI LEI")
+        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-holder").fetchSemanticsNodes().isEmpty()}
+        rule.onNodeWithText("LI LEI",useUnmergedTree=true).assertExists()
+        rule.onNodeWithText("CARDHOLDER",useUnmergedTree=true).assertExists()
+        rule.onNodeWithTag("wallet-copy-holder",useUnmergedTree=true).assertExists()
+        assertEquals("LI LEI",runBlocking{graph.walletPrivate!!.read(id)}.holder)
+    }
     @Test fun demo_has_no_flip_capability_and_previous_private_session_is_revoked() {
         val old=graph.walletPrivate!!;val id=card("Local private")
         runBlocking{old.save(id,WalletPrivateContent(number="TEST-ONLY"))}

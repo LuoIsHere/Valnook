@@ -30,6 +30,11 @@ class WalletPrivateContentTest {
         assertTrue(runCatching{value.copy(number="*".repeat(39)).validated()}.isFailure)
         assertTrue(runCatching{value.copy(number="a\nb").validated()}.isFailure)
         assertEquals(value.copy(number="😀".repeat(38)),value.copy(number="😀".repeat(38)).validated())
+        assertEquals(value.copy(holder="张".repeat(26)),value.copy(holder="张".repeat(26)).validated())
+        assertEquals(value.copy(holder="😀".repeat(26)),value.copy(holder="😀".repeat(26)).validated())
+        assertTrue(runCatching{value.copy(holder="A".repeat(27)).validated()}.isFailure)
+        assertTrue(runCatching{value.copy(holder="LI	LEI").validated()}.isFailure)
+        assertFalse(value.copy(holder="LI LEI").toString().contains("LI LEI"))
         assertFalse(value.toString().contains("001"))
         assertFalse(value.toString().contains(value.number))
     }
