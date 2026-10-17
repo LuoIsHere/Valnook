@@ -116,11 +116,12 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     // 文案需中英同步；卡号中的符号、前导零和颜色值不能随语言转换。
     var palette by remember { mutableStateOf(false) }
     var tooLong by remember { mutableStateOf(false) }
-    val keyboard=LocalSoftwareKeyboardController.current
-    val focus=LocalFocusManager.current
     val editLabel=wording("Card back colors","卡片背面配色")
     val maximumHeight=with(LocalDensity.current){LocalWindowInfo.current.containerSize.height.toDp()}*.85f
     AnimatedGlassDialog(true,state::cancelEdit,properties=PrivateDialogProperties) {
+        // The dialog is its own window: only its focus manager and keyboard controller reach the fields.
+        val keyboard=LocalSoftwareKeyboardController.current
+        val focus=LocalFocusManager.current
         GlassCard { Column(Modifier.heightIn(max=maximumHeight)
             .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {

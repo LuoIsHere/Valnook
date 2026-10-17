@@ -184,7 +184,10 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
         rule.onNodeWithTag("wallet-private-warning-skip").performScrollTo().performClick()
         rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
+        rule.onNodeWithTag("wallet-private-number").performScrollTo().performClick().assertIsFocused()
         rule.onNodeWithTag("wallet-private-palette").performClick()
+        // The palette button must clear focus inside the editor dialog window, not the activity window.
+        rule.onNodeWithTag("wallet-private-number").assertIsNotFocused()
         rule.onNodeWithTag("wallet-private-color").performScrollTo().performTextReplacement("556677")
         rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
         rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==1L}
