@@ -1,0 +1,8 @@
+root = true
+
+# Match .gitattributes so new files are created with the line endings Git stores.
+[*]
+end_of_line = lf
+
+[*.{bat,cmd}]
+end_of_line = crlf
