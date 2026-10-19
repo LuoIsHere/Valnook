@@ -530,6 +530,41 @@ class WalletUiTest {
         assertEquals(edge,top(stack[1]),2f)
         assertEquals(edge+peek*.5f,top(stack[2]),2f)
     }
+    @Test fun navigation_bar_slides_out_and_back_with_the_card_detail() {
+        val id=card("Detail card")
+        root();rule.onNodeWithTag("nav-wallet").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}
+        fun capsuleTop()=rule.onAllNodesWithTag("root-capsule").fetchSemanticsNodes().singleOrNull()?.boundsInRoot?.top
+        val rest=capsuleTop()!!
+        val height=rule.onNodeWithTag("root-capsule").fetchSemanticsNode().boundsInRoot.height
+        fun advanceUntil(what:String,condition:()->Boolean) {
+            repeat(90){ if(condition())return; rule.mainClock.advanceTimeByFrame() }
+            fail("Navigation bar never $what")
+        }
+        rule.mainClock.autoAdvance=false
+        try {
+            rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick()
+            advanceUntil("slid out"){capsuleTop()?.let{it>rest+1f}==true}
+            advanceUntil("left"){capsuleTop()==null}
+            rule.mainClock.autoAdvance=true
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isNotEmpty()}
+            rule.waitForIdle()
+            rule.onNodeWithTag("root-capsule").assertDoesNotExist()
+            rule.mainClock.autoAdvance=false
+            rule.onNodeWithContentDescription(rule.activity.getString(R.string.nav_back)).performClick()
+            // The bar is more than halfway back while the card is still returning, not after it.
+            advanceUntil("slid in"){capsuleTop()?.let{it>rest+1f&&it<rest+height/2f}==true}
+            rule.onNodeWithTag("wallet-detail").assertExists()
+            save("wallet-navigation-returning")
+            rule.onNodeWithTag("nav-settings").performClick()
+            rule.mainClock.advanceTimeBy(1500)
+        } finally { rule.mainClock.autoAdvance=true }
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isEmpty()}
+        rule.waitForIdle()
+        assertEquals(rest,capsuleTop()!!,1f)
+        // A tap during the return must not leave Wallet.
+        rule.onNodeWithTag("wallet-stack").assertExists()
+    }
     @Test fun photo_crop_rotate_save_survives_source_removal() {
         val file=java.io.File(rule.activity.cacheDir,"wallet-fixture-${UUID.randomUUID()}.png")
         val source=Bitmap.createBitmap(900,600,Bitmap.Config.ARGB_8888);source.eraseColor(0xff69818b.toInt())

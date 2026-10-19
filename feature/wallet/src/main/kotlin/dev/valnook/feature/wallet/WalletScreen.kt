@@ -35,7 +35,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineStart
 
 data class WalletToolbar(val title:String,val detail:Boolean,val back:()->Unit,val add:()->Unit,val edit:()->Unit,val delete:()->Unit,val enabled:Boolean,val scrolled:Boolean,
-    val flip:(()->Unit)?=null,val flipped:Boolean=false,val flipLoading:Boolean=false)
+    val flip:(()->Unit)?=null,val flipped:Boolean=false,val flipLoading:Boolean=false,
+    /** False once the card starts returning, so the navigation bar comes back with it rather than after it. */
+    val navigationHidden:Boolean=detail)
 internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
 
 @Composable fun WalletScreen(vm:WalletViewModel,onToolbar:(WalletToolbar?)->Unit,
@@ -84,7 +86,8 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
         onToolbar(WalletToolbar(toolbarTitle,selected!=null,{latestReturn()},{vm.edit()},
             {privateScope.launch { privateState.front();vm.currentCard?.let{vm.edit(it)} }},{deleting=vm.selected.value},
             !busy&&!returning&&!preparingReturn&&!scene.isRunning&&!privateState.editing,scrolled,
-            if(privateState.available)privateState::flip else null,privateState.desiredBack,privateState.loading))
+            if(privateState.available)privateState::flip else null,privateState.desiredBack,privateState.loading,
+            selected!=null&&!returning))
         onDispose{onToolbar(null)}
     }
     BackHandler(selected!=null && draft==null&&!privateState.editing){returnToOverview()}

@@ -17,4 +17,11 @@ internal object NavigationMotion {
             fadeOut(tween(90))
 
     fun no_preview():ContentTransform=EnterTransition.None togetherWith ExitTransition.None
+
+    // The navigation bar leaves and returns with the wallet card detail instead of popping.
+    fun bar_enter():EnterTransition =
+        fadeIn(tween(320,easing=FastOutSlowInEasing))+slideInVertically(tween(320,easing=FastOutSlowInEasing)){it}
+
+    fun bar_exit():ExitTransition =
+        fadeOut(tween(180))+slideOutVertically(tween(220,easing=FastOutSlowInEasing)){it}
 }

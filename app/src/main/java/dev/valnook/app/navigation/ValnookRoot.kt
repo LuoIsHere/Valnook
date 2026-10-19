@@ -2,6 +2,7 @@ package dev.valnook.app.navigation
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -271,6 +272,7 @@ private fun SessionRoot(
     }
     val walletCurrent = current == WalletKey || current == HiddenWalletKey
     val walletDetail = walletCurrent && walletToolbar?.detail == true
+    val walletNavigationHidden = walletCurrent && walletToolbar?.navigationHidden == true
     val title = when (current) {
         WalletKey, HiddenWalletKey -> walletToolbar?.title ?: stringResource(R.string.nav_wallet)
         AccountsKey -> stringResource(R.string.nav_accounts)
@@ -584,8 +586,14 @@ private fun SessionRoot(
                 }
             }
         }
-        if (showCapsule) FloatingNavigationBar(current, settings.navigation.visibleInOrder, selectRoot,
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
-                .testTag("floating-navigation-overlay"), backdrop)
+        // Sub-pages and the keyboard still remove the bar at once; only wallet card details animate it.
+        if (current.isRoot() && !keyboardOpen) AnimatedVisibility(!walletNavigationHidden,
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            enter = NavigationMotion.bar_enter(), exit = NavigationMotion.bar_exit()) {
+            // Taps wait until the card has returned, like the wallet toolbar actions.
+            FloatingNavigationBar(current, settings.navigation.visibleInOrder, { if (!walletDetail) selectRoot(it) },
+                Modifier.fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
+                    .testTag("floating-navigation-overlay"), backdrop)
+        }
     }
 }
