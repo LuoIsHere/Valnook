@@ -610,15 +610,22 @@ function positionForm() {
   const list = el("div", { class: "field full" }); form.append(list);
   const render = () => {
     const query = form.elements.search.value.trim().toLowerCase();
-    list.replaceChildren(...state.instruments.filter(v => `${v.name} ${v.symbol} ${v.currencyCode}`.toLowerCase().includes(query)).map(v =>
-      button(`${v.name} · ${v.symbol} · ${v.currencyCode}`, async () => {
+    list.replaceChildren(...state.instruments.filter(v => `${v.name} ${v.symbol} ${v.currencyCode}`.toLowerCase().includes(query)).map(v => {
+      const pick = button("", async () => {
         const accountId = Number(form.elements.accountId.value);
         const existing = state.positions.find(p => p.accountId === accountId && p.instrumentId === v.id);
         if (existing) return positionDetail(existing.id);
         const account = await api(`/api/v1/accounts/${accountId}`);
         tradeForm({ id: 0, accountId, instrumentId: v.id, name: v.name, symbol: v.symbol, currencyCode: v.currencyCode }, null,
           account.cash.filter(c => c.type === "SAVINGS" && c.currencyCode === v.currencyCode));
-      })));
+      });
+      // Symbols line up on the left and names on the right; a long name is cut, never the symbol.
+      pick.classList.add("instrument-pick");
+      pick.title = `${v.name} · ${v.symbol} · ${v.currencyCode}`; pick.setAttribute("aria-label", pick.title);
+      pick.replaceChildren(el("span", { class: "pick-symbol" }, el("span", { text: v.symbol }), el("span", { class: "subtle", text: v.currencyCode })),
+        el("span", { class: "pick-name", text: v.name }));
+      return pick;
+    }));
   };
   form.elements.search.addEventListener("input", render); render();
   openDrawer(t("newPosition"), "INVESTMENT", form);
