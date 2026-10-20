@@ -74,6 +74,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     }}
     var deleting by rememberSaveable { mutableStateOf<Long?>(null) }
     var detailScrolled by remember { mutableStateOf(false) }
+    var detailGlowFade by remember { mutableFloatStateOf(1f) }
     val overviewScrolled by remember(overviewScroll){derivedStateOf{overviewScroll.firstVisibleItemIndex>0||overviewScroll.firstVisibleItemScrollOffset>0}}
     var collapsedTitle by remember { mutableStateOf<String?>(null) }
     val title=wording("Wallet","卡包")
@@ -97,6 +98,8 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     SharedTransitionLayout(Modifier.testTag("wallet-scene")) {
         val progress={if(returning)closingScene.value else scene.value}
         val frame={if(selected==null)WalletSceneFrame(0f,0f,1f)else walletSceneFrame(progress(),returning)}
+        // Read `returning` and the progress together while drawing, so the hand-over never mixes old and new phases.
+        val glow={walletGlow(progress(),returning)}
         val selectedLayer=cards.orEmpty().lastIndex-cards.orEmpty().indexOfFirst{it.id==selected}
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val viewportHeight=with(LocalDensity.current){maxHeight.toPx()}
@@ -154,6 +157,9 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
                                     shape=if(back)WalletStackVisibleShape(true,(1f-fold)/scale)else visibleFace
                                     clip=selected!=null&&card.id!=selected
                                 }
+                        },cardGlow={card->
+                            // The returning card takes over the detail card's glow and fades it with the same motion.
+                            if(card.id==selected)({glow()*detailGlowFade})else null
                         })
                     }
                 }
@@ -165,7 +171,8 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
                             rememberSharedContentState("${vm.sessionId}:${card.id}"),visible=!returning,
                             zIndexInOverlay=(cards.orEmpty().lastIndex-cards.orEmpty().indexOfFirst{it.id==card.id}).toFloat(),
                             boundsTransform={_,_->if(returning)tween(WalletReturnCardDuration,delayMillis=WalletReturnCardDelay,easing=WalletSelectionEasing)else tween(WalletEnterDuration,easing=WalletSelectionEasing)}),
-                        frame,returnToOverview,!busy&&!returning&&!preparingReturn&&!scene.isRunning,returning,progress,privateState)
+                        frame,returnToOverview,!busy&&!returning&&!preparingReturn&&!scene.isRunning,returning,progress,privateState,
+                        glow,{detailGlowFade=it})
                 }
             }
             AnimatedVisibility(privateState.copyNotice != null,
@@ -204,7 +211,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
 
 @Composable private fun WalletStack(cards:List<WalletCard>,busy:Boolean,cache:WalletImageCache,
     select:(Long)->Unit,reorder:(List<Long>,List<Long>)->Unit,list:LazyListState,add:()->Unit,
-    cardModifier:@Composable (WalletCard)->Modifier) {
+    cardModifier:@Composable (WalletCard)->Modifier,cardGlow:(WalletCard)->(()->Float)?) {
     if(cards.isEmpty()) {
         Column(Modifier.fillMaxSize().padding(pageContentPadding()).padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
             Text(wording("A place for your cards","为喜欢的卡片留个位置"),style=MaterialTheme.typography.headlineSmall)
@@ -316,7 +323,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
                         .clip(RoundedCornerShape(18.dp))
                         .clickable(interactionSource=remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                             indication=null,enabled=!busy&&dragging==null&&settling==null){select(id)}) {
-                        WalletCardView(card,cache,cardModifier(card))
+                        WalletCardView(card,cache,cardModifier(card),glow=cardGlow(card))
                     }
                 }
             }

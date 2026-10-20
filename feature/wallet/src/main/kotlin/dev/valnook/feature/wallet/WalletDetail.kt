@@ -9,7 +9,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.*
@@ -28,7 +29,8 @@ import java.time.*
 @Composable internal fun WalletDetail(vm:WalletViewModel,card:WalletCard,cache:WalletImageCache,cashSlots:WalletCashSlots,
     onEntry:(Long,Long,Long)->Unit,onBalance:(Long,Long)->Unit,edit:()->Unit,
     onTitle:(String?)->Unit,onScrolled:(Boolean)->Unit,cardModifier:Modifier,frame:()->WalletSceneFrame,
-    onReturn:()->Unit,returnEnabled:Boolean,returning:Boolean,progress:()->Float,privateState:WalletPrivateState) {
+    onReturn:()->Unit,returnEnabled:Boolean,returning:Boolean,progress:()->Float,privateState:WalletPrivateState,
+    glow:()->Float,onGlowFade:(Float)->Unit) {
     key(card.id,card.boundCashAccountId) {
         val snapshot by vm.snapshot.collectAsStateWithLifecycle()
         val ledger by vm.ledger.collectAsStateWithLifecycle()
@@ -38,6 +40,8 @@ import java.time.*
         val parent=snapshot?.accounts?.firstOrNull{it.id==account?.account_id}
         val names=snapshot?.cash.orEmpty().associate { cash->cash.id to listOf(snapshot?.accounts?.firstOrNull{it.id==cash.account_id}?.name,cash.name).filterNotNull().joinToString(" · ") }
         var collapse by rememberSaveable { mutableFloatStateOf(0f) }
+        // The card glow fades out over the first tenth of the header collapse.
+        fun glowFade()=(1f-collapse/.1f).coerceIn(0f,1f)
         DisposableEffect(privateState) {
             privateState.expand={
                 if(collapse>0f)androidx.compose.animation.core.animate(collapse,0f,
@@ -49,7 +53,7 @@ import java.time.*
         var chooseMonth by rememberSaveable { mutableStateOf(false) }
         val localTitle=if(collapse>.5f)account?.name?:card.name else card.name
         val scrolled by remember{derivedStateOf{collapse>0f||list.firstVisibleItemIndex>0||list.firstVisibleItemScrollOffset>0}}
-        SideEffect{onTitle(localTitle);onScrolled(scrolled)}
+        SideEffect{onTitle(localTitle);onScrolled(scrolled);onGlowFade(glowFade())}
         DisposableEffect(card.id){onDispose{onTitle(null);onScrolled(false)}}
         BoxWithConstraints(Modifier.fillMaxSize().testTag("wallet-detail").pointerInput(returnEnabled){
             if(!returnEnabled)awaitPointerEventScope {
@@ -76,14 +80,20 @@ import java.time.*
             var shownMonth by rememberSaveable { mutableStateOf(ledger.month.toString()) }
             LaunchedEffect(ledger.month){if(shownMonth!=ledger.month.toString()){list.scrollToItem(0);shownMonth=ledger.month.toString()}}
             Column(Modifier.fillMaxSize().nestedScroll(nested).padding(top=LocalPageTopSpace.current,bottom=LocalPageBottomSpace.current)) {
-                Box(Modifier.fillMaxWidth().height(headerHeight*(1-collapse)).clipToBounds(),contentAlignment=Alignment.TopCenter) {
+                // At rest the card's glow spreads on every side. As the header starts to collapse the glow fades out
+                // while the bottom clip closes in, so the card never shows below the header and nothing is cut abruptly.
+                Box(Modifier.fillMaxWidth().height(headerHeight*(1-collapse)).drawWithContent {
+                    clipRect(-size.width,-size.height,size.width*2,size.height+64.dp.toPx()*glowFade()){this@drawWithContent.drawContent()}
+                },contentAlignment=Alignment.TopCenter) {
                     WalletFlippingCard(card,cache,privateState,cardModifier.width(width).requiredHeight(width/WalletRules.ASPECT).graphicsLayer {
                         translationY=-headerPx*collapse*.25f
-                        val visible=(1-collapse*1.25f).coerceIn(0f,1f)
+                        // Stay opaque until the glow has faded: a translucent layer composites offscreen at the card's
+                        // bounds and would cut the glow down to a rectangle. Still gone at 80% collapse, as before.
+                        val visible=((.8f-collapse)/.7f).coerceIn(0f,1f)
                         alpha=if(returning)maxOf(visible,(progress()*4).coerceIn(0f,1f))else visible
                     }.semantics{contentDescription=card.name}.clickable(interactionSource=remember{androidx.compose.foundation.interaction.MutableInteractionSource()},
                         indication=null,enabled=returnEnabled&&collapse<.8f&&privateState.angle.value==0f&&!privateState.desiredBack,
-                        onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled)
+                        onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled,{glow()*glowFade()})
                 }
                 GlassSurface(Modifier.fillMaxWidth().weight(1f,fill=false).padding(horizontal=16.dp).then(panelMotion),RoundedCornerShape(24.dp)) {
                     LazyColumn(Modifier.fillMaxWidth().testTag("wallet-ledger"),state=list,

@@ -565,6 +565,105 @@ class WalletUiTest {
         // A tap during the return must not leave Wallet.
         rule.onNodeWithTag("wallet-stack").assertExists()
     }
+    @Test fun detail_glow_spreads_the_edge_colour_and_follows_the_card_in_and_out() {
+        // Red left half, blue right half: each side of the card must glow in its own edge colour.
+        val id=runBlocking{
+            val bitmap=Bitmap.createBitmap(1000,631,Bitmap.Config.ARGB_8888);bitmap.eraseColor(0xffd02828.toInt())
+            android.graphics.Canvas(bitmap).drawRect(500f,0f,1000f,631f,android.graphics.Paint().apply{color=0xff2848d0.toInt()})
+            val image=WalletImageCodec.encode(bitmap,1f,0f,0f);bitmap.recycle()
+            wallet.save(null,null,"Glow",null,image.key,image)
+        }
+        val vm=rule.runOnUiThread{WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle(),null,graph.walletPrivate)}
+        val gap=with(rule.density){10.dp.toPx()}
+        var toolbar:WalletToolbar?=null
+        // The last pass collapses the detail header first: its glow fades, and the returning card must not flash it back.
+        for((theme,dark,collapsed) in listOf(Triple("light",false,false),Triple("dark",true,false),Triple("collapsed",false,true))) {
+            rule.runOnUiThread{rule.activity.setContent{key(dark){ValnookTheme(dark_theme=dark){WalletScreen(vm,{toolbar=it}, {_,_,_->},{_,_->},walletCashSlots)}}}}
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+            rule.waitForIdle()
+            val bounds=rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+            val x=(bounds.left-gap).toInt();val right=(bounds.right+gap).toInt();val y=bounds.center.y.toInt()
+            // Draw the scene itself: the private back sets FLAG_SECURE, which blanks system screenshots.
+            val scene=rule.onNodeWithTag("wallet-scene").fetchSemanticsNode().boundsInRoot
+            fun pixel(px:Int,py:Int)=rule.onNodeWithTag("wallet-scene").captureToImage().asAndroidBitmap()
+                .let{shot->shot.getPixel(px-scene.left.toInt(),py-scene.top.toInt()).also{shot.recycle()}}
+            fun tone(c:Int,channel:(Int)->Int)=channel(c)-(android.graphics.Color.red(c)+android.graphics.Color.green(c)+android.graphics.Color.blue(c)-channel(c))/2f
+            // Red light just outside the card's left edge, measured on screen against the page background.
+            fun redness()=tone(pixel(x,y),android.graphics.Color::red)
+            fun blueness()=tone(pixel(right,y),android.graphics.Color::blue)
+            val base=redness();val baseBlue=blueness()
+            fun sample(count:Int)=List(count){ repeat(2){rule.mainClock.advanceTimeByFrame()};redness()-base }
+            rule.mainClock.autoAdvance=false
+            val enter:List<Float>;val leave:List<Float>
+            try {
+                rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick()
+                enter=sample(24)
+                save("wallet-glow-detail-$theme")
+                val blue=blueness()-baseBlue
+                assertTrue("The right side glows blue, not red: $theme blue=$blue",blue>8f)
+                if(theme=="light") {
+                    // Flipping hands the face glow to the back's edge-colour glow while the card is edge-on.
+                    // A fixed point sees the glow sweep past with the turning card, so check the hand-over instead.
+                    rule.runOnUiThread{requireNotNull(requireNotNull(toolbar).flip)()}
+                    val turning=sample(3)
+                    rule.onNodeWithTag("wallet-scene").captureToImage().asAndroidBitmap().let { shot->
+                        PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-glow-flip-turning.png").use{shot.compress(Bitmap.CompressFormat.PNG,100,it)};shot.recycle()
+                    }
+                    val toBack=turning+sample(27)
+                    rule.runOnUiThread{requireNotNull(requireNotNull(toolbar).flip)()}
+                    val toFront=sample(30)
+                    val flip="toBack=$toBack toFront=$toFront"
+                    android.util.Log.i("WalletGlowTest",flip)
+                    assertTrue("The face glow leaves only while the card is edge-on: $flip",toBack.any{kotlin.math.abs(it)<=1f})
+                    assertTrue("The back keeps no face glow: $flip",toBack.last()<=2f)
+                    assertTrue("The face glow returns only while the card is edge-on: $flip",toFront.any{kotlin.math.abs(it)<=1f})
+                    assertEquals(enter.last(),toFront.last(),6f)
+                    // A small scroll starts collapsing the header: the glow fades, but is never cut to the card's rectangle.
+                    val slop=with(rule.density){12.dp.toPx()};val step=with(rule.density){10.dp.toPx()}
+                    rule.onNodeWithTag("wallet-ledger").performTouchInput{down(center);moveBy(androidx.compose.ui.geometry.Offset(0f,-slop))}
+                    repeat(2){rule.mainClock.advanceTimeByFrame()}
+                    val atSlop=redness()-base
+                    rule.onNodeWithTag("wallet-ledger").performTouchInput{moveBy(androidx.compose.ui.geometry.Offset(0f,-step))}
+                    repeat(2){rule.mainClock.advanceTimeByFrame()}
+                    val scrolled=redness()-base
+                    rule.onNodeWithTag("wallet-scene").captureToImage().asAndroidBitmap().let { shot->
+                        PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-glow-scrolling.png").use{shot.compress(Bitmap.CompressFormat.PNG,100,it)};shot.recycle()
+                    }
+                    rule.onNodeWithTag("wallet-ledger").performTouchInput{moveBy(androidx.compose.ui.geometry.Offset(0f,step+slop));up()}
+                    repeat(30){rule.mainClock.advanceTimeByFrame()}
+                    val restored=redness()-base
+                    val scroll="atSlop=$atSlop scrolled=$scrolled restored=$restored peak=${enter.last()}"
+                    android.util.Log.i("WalletGlowTest",scroll)
+                    assertTrue("A slight collapse dims the glow without cutting it off: $scroll",scrolled>enter.last()*.15f&&scrolled<enter.last())
+                    assertEquals("Scrolling back restores the glow: $scroll",enter.last(),restored,6f)
+                }
+                if(collapsed) {
+                    rule.mainClock.autoAdvance=true
+                    rule.onNodeWithTag("wallet-ledger").performTouchInput{swipeUp()};rule.waitForIdle()
+                    rule.mainClock.autoAdvance=false
+                }
+                rule.runOnUiThread{requireNotNull(toolbar).back()}
+                leave=listOf(redness()-base)+sample(30)
+            } finally { rule.mainClock.autoAdvance=true }
+            rule.waitUntil(10000){vm.selected.value==null}
+            val peak=enter.last()
+            val trace="$theme enter=$enter leave=$leave"
+            android.util.Log.i("WalletGlowTest",trace)
+            if(collapsed) {
+                assertTrue("The detail card should glow before collapsing: $trace",peak>8f)
+                assertTrue("A collapsed header keeps the glow off through the return: $trace",leave.all{it<=6f})
+                continue
+            }
+            assertTrue("The detail card should glow: $trace",peak>8f)
+            assertTrue("The glow rises with the card: $trace",enter.zipWithNext().all{(a,b)->b>=a-4f})
+            assertTrue("The glow fades with the card: $trace",leave.zipWithNext().all{(a,b)->b<=a+4f})
+            // Continuous from the stack, through the hand-over to the returning card, back to the stack.
+            (listOf(0f)+enter+leave).zipWithNext().forEach{(a,b)->
+                assertTrue("The glow must not jump: $trace",kotlin.math.abs(b-a)<=peak*.4f)
+            }
+            assertTrue("The stack card has no glow: $trace",leave.last()<=4f)
+        }
+    }
     @Test fun photo_crop_rotate_save_survives_source_removal() {
         val file=java.io.File(rule.activity.cacheDir,"wallet-fixture-${UUID.randomUUID()}.png")
         val source=Bitmap.createBitmap(900,600,Bitmap.Config.ARGB_8888);source.eraseColor(0xff69818b.toInt())

@@ -73,11 +73,10 @@ class WalletImageCache(private val repository: WalletRepository) {
 }
 
 @Composable internal fun WalletCardView(card:WalletCard,cache:WalletImageCache,modifier:Modifier=Modifier,
-    preview:WalletImage?=null,raised:Boolean=false) {
+    preview:WalletImage?=null,raised:Boolean=false,glow:(()->Float)?=null) {
     var tint by remember(card.imageKey,preview?.key) { mutableLongStateOf(card.imageKey?.let{cache.peek(it)?.tint}?:0xff555555L) }
-    BoxWithConstraints(modifier.widthIn(max=440.dp).fillMaxWidth().aspectRatio(WalletRules.ASPECT)
-        .shadow(if(raised)16.dp else 5.dp,RoundedCornerShape(18.dp),clip=false,ambientColor=Color(tint.toInt()),spotColor=Color(tint.toInt()))
-        .clip(RoundedCornerShape(18.dp)).testTag("wallet-card-${card.id}")) {
+    val shape=RoundedCornerShape(18.dp)
+    BoxWithConstraints(modifier.widthIn(max=440.dp).fillMaxWidth().aspectRatio(WalletRules.ASPECT)) {
         val density=androidx.compose.ui.platform.LocalDensity.current
         val edge=with(density){maxWidth.roundToPx()}.coerceAtMost(1600)
         val initialImage=remember(card.imageKey,preview?.key,edge){card.imageKey?.let{cache.peek(it,edge)}}
@@ -86,15 +85,37 @@ class WalletImageCache(private val repository: WalletRepository) {
                 else card.imageKey?.let { runCatching { cache.load(it,edge) }.getOrNull() }
             value?.let { tint=it.tint }
         }
-        val surface=MaterialTheme.colorScheme.surfaceContainerHigh
-        Canvas(Modifier.matchParentSize()) {
-            drawRect(Brush.linearGradient(listOf(surface,lerp(surface,Color.White,.08f),surface),Offset.Zero,Offset(size.width,size.height)))
-            if(card.imageKey==null) {
-                drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha=.11f),Color.Transparent)),size.width*.7f,Offset(size.width*.18f,-size.height*.3f))
-                drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha=.045f),Color.Transparent)),size.width*.65f,Offset(size.width,size.height*1.1f))
-            }
+        glow?.let { WalletGlow(it,shape,Modifier.matchParentSize()) { WalletCardFace(card,image) } }
+        Box(Modifier.matchParentSize()
+            .shadow(if(raised)16.dp else 5.dp,shape,clip=false,ambientColor=Color(tint.toInt()),spotColor=Color(tint.toInt()))
+            .clip(shape).testTag("wallet-card-${card.id}")) {
+            WalletCardFace(card,image)
         }
-        if(card.imageKey==null)card.faceStyle?.let { WalletFaceCanvas(it,Modifier.matchParentSize()) }
-        image?.let { Image(it.bitmap,contentDescription=null,modifier=Modifier.fillMaxSize(),contentScale=ContentScale.Crop) }
     }
+}
+
+@Composable private fun BoxScope.WalletCardFace(card:WalletCard,image:WalletDecoded?) {
+    val surface=MaterialTheme.colorScheme.surfaceContainerHigh
+    Canvas(Modifier.matchParentSize()) {
+        drawRect(Brush.linearGradient(listOf(surface,lerp(surface,Color.White,.08f),surface),Offset.Zero,Offset(size.width,size.height)))
+        if(card.imageKey==null) {
+            drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha=.11f),Color.Transparent)),size.width*.7f,Offset(size.width*.18f,-size.height*.3f))
+            drawCircle(Brush.radialGradient(listOf(Color.White.copy(alpha=.045f),Color.Transparent)),size.width*.65f,Offset(size.width,size.height*1.1f))
+        }
+    }
+    if(card.imageKey==null)card.faceStyle?.let { WalletFaceCanvas(it,Modifier.matchParentSize()) }
+    image?.let { Image(it.bitmap,contentDescription=null,modifier=Modifier.fillMaxSize(),contentScale=ContentScale.Crop) }
+}
+
+/**
+ * A blurred, slightly larger copy of a card face behind it, so each part of the card spreads its own edge colour.
+ * [strength] is read while drawing: 0 hides the glow, 1 shows it fully.
+ */
+@Composable internal fun WalletGlow(strength:()->Float,shape:Shape,modifier:Modifier,face:@Composable BoxScope.()->Unit) {
+    val peak=if(MaterialTheme.colorScheme.background.luminance()<.5f).225f else .175f
+    // One layer: an alpha on a separate parent layer would composite offscreen at the layer size and cut the blur off.
+    Box(modifier.graphicsLayer{
+        scaleX=1.06f;scaleY=1.06f;alpha=strength().coerceIn(0f,1f)*peak
+        val radius=28.dp.toPx();renderEffect=BlurEffect(radius,radius,TileMode.Decal);clip=false
+    }.clip(shape),content=face)
 }

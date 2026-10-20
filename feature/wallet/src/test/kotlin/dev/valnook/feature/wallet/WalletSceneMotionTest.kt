@@ -34,4 +34,17 @@ class WalletSceneMotionTest {
         assertEquals(1f,finished.frontOffset,.0001f)
         assertEquals(0f,finished.panelOffset,.0001f)
     }
+
+    @Test fun glow_waits_for_the_fold_and_hands_over_without_a_jump() {
+        val opening=(0..100).map{walletGlow(it/100f,false)}
+        // Dark while the upper cards are still folding (up to ~250ms of 560ms), fully lit when the card arrives.
+        assertTrue(opening.take(46).all{it==0f})
+        assertEquals(1f,opening.last(),0f)
+        assertTrue(opening.zipWithNext().all{(a,b)->b>=a&&b-a<=.03f})
+        val leaving=(0..100).map{walletGlow(it/100f,true)}
+        // The returning card starts exactly where the detail card was, then fades out in ~220ms of 620ms.
+        assertEquals(opening.last(),leaving.first(),0f)
+        assertTrue(leaving.drop(35).all{it==0f})
+        assertTrue(leaving.zipWithNext().all{(a,b)->b<=a&&a-b<=.05f})
+    }
 }

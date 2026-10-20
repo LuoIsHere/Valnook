@@ -60,7 +60,7 @@ import kotlin.math.sin
 }
 
 @Composable internal fun WalletFlippingCard(card: WalletCard, cache: WalletImageCache,
-    state: WalletPrivateState, modifier: Modifier, enabled: Boolean) {
+    state: WalletPrivateState, modifier: Modifier, enabled: Boolean, glow: () -> Float) {
     val shape = RoundedCornerShape(18.dp)
     val density = LocalDensity.current.density
     val back = state.content
@@ -80,12 +80,15 @@ import kotlin.math.sin
             rotationY=angle
             cameraDistance=14f*density
         }) {
-            if(angle<90f || back==null) WalletCardView(card,cache)
-            else Box(Modifier.fillMaxSize().graphicsLayer{rotationY=180f}
-                .shadow(5.dp,shape).clip(shape)) {
-                // Keep control slots during rotation so the number never changes size when motion ends.
-                WalletCardBack(back,Modifier.fillMaxSize(),state::edit,{value->state.reportCopy(copyPrivateValue(context,value,writeClip))},
-                    actionsEnabled=enabled&&!state.angle.isRunning&&!state.editing&&!state.loading)
+            if(angle<90f || back==null) WalletCardView(card,cache,glow=glow)
+            else Box(Modifier.fillMaxSize().graphicsLayer{rotationY=180f}) {
+                // The back's text would blur into noise, so it glows with its edge colour instead.
+                WalletGlow(glow,shape,Modifier.matchParentSize()) { Box(Modifier.matchParentSize().background(edge)) }
+                Box(Modifier.matchParentSize().shadow(5.dp,shape).clip(shape)) {
+                    // Keep control slots during rotation so the number never changes size when motion ends.
+                    WalletCardBack(back,Modifier.fillMaxSize(),state::edit,{value->state.reportCopy(copyPrivateValue(context,value,writeClip))},
+                        actionsEnabled=enabled&&!state.angle.isRunning&&!state.editing&&!state.loading)
+                }
             }
         }
     }
