@@ -143,12 +143,12 @@ internal class GoogleDriveRestApi : CloudDriveApi {
     override suspend fun metadata(accessToken: String, fileId: String): RemoteBackupFile =
         parseFile(requestJson("GET", "$FILES/${encode(fileId)}?fields=$FILE_FIELDS", accessToken))
 
-    override suspend fun markVerified(accessToken: String, fileId: String,
+    override suspend fun markVerified(accessToken: String, verified: RemoteBackupFile,
         appProperties: Map<String, String>,
         beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile {
         beforeRemoteSideEffect()
         val body = JSONObject().put("appProperties", JSONObject(appProperties))
-        return parseFile(requestJson("PATCH", "$FILES/${encode(fileId)}?fields=$FILE_FIELDS",
+        return parseFile(requestJson("PATCH", "$FILES/${encode(verified.id)}?fields=$FILE_FIELDS",
             accessToken, body.toString()))
     }
 

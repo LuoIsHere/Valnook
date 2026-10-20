@@ -90,6 +90,21 @@ class CloudBackupCoordinatorTest {
         assertTrue(drive.uploadedBytes > 0)
     }
 
+    @Test fun successful_backup_lists_the_folder_once_and_shows_what_rotation_left() = runBlocking {
+        connect()
+        repeat(5) { drive.seedVerified(it + 1) }
+        val before = drive.listCalls
+
+        coordinator.manualBackup()
+
+        // Six managed files in pages of two: one listing is three pages.
+        assertEquals(3, drive.listCalls - before)
+        val backups = coordinator.observeState().first().backups.map { it.fileId }
+        assertEquals(5, backups.size)
+        assertFalse("old-1" in backups)
+        assertTrue("new-1" in backups)
+    }
+
     @Test fun gd2_failed_verification_preserves_all_five_existing_restore_points() = runBlocking {
         connect()
         repeat(5) { drive.seedVerified(it + 1) }
@@ -292,6 +307,8 @@ class CloudBackupCoordinatorTest {
         val state = coordinator.observeState().first()
         assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
         assertTrue(state.cleanupIncomplete)
+        // Rotation stopped part way, so the list is read again from the drive.
+        assertEquals(6, state.backups.size)
         assertEquals(6, drive.files.count { !it.trashed && it.properties["verificationState"] == "verified" })
         assertTrue(drive.trashedIds.isEmpty())
     }
@@ -388,11 +405,11 @@ class CloudBackupCoordinatorTest {
             return result
         }
         override suspend fun metadata(accessToken: String, fileId: String) = files.first { it.id == fileId }
-        override suspend fun markVerified(accessToken: String, fileId: String,
+        override suspend fun markVerified(accessToken: String, verified: RemoteBackupFile,
             appProperties: Map<String, String>,
             beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile {
             beforeRemoteSideEffect()
-            val index = files.indexOfFirst { it.id == fileId }
+            val index = files.indexOfFirst { it.id == verified.id }
             val value = files[index].copy(properties = appProperties)
             files[index] = value
             return value

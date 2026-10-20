@@ -112,17 +112,24 @@ internal class OneDriveRestApi(
     }
 
     override suspend fun verify(accessToken: String, file: RemoteBackupFile, expectedSha256: String, expectedSize: Long) {
-        super.verify(accessToken, file, expectedSha256, expectedSize)
-        if (metadata(accessToken, file.id).version != file.version) invalid()
+        // Read exactly the version [file] describes; a newer version fails here instead of being checked by mistake.
+        val version = file.version ?: invalid()
+        try {
+            verifyBytes(expectedSha256, expectedSize) {
+                downloadContent(accessToken, "${Ref.file(file.id).itemUrl}/content", it, version)
+            }
+        } catch (error: DriveRequestException) {
+            if (error.statusCode == 412) invalid()
+            throw error
+        }
     }
 
-    override suspend fun markVerified(accessToken: String, fileId: String, appProperties: Map<String, String>,
+    override suspend fun markVerified(accessToken: String, verified: RemoteBackupFile, appProperties: Map<String, String>,
         beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile {
-        val current = metadata(accessToken, fileId)
-        // Recheck bytes here as well: callers cannot publish a verified marker without proof.
-        verify(accessToken, current, appProperties.getValue("archiveSha256"), current.size)
-        writeMetadata(accessToken, Ref.file(fileId), appProperties, current.version, beforeRemoteSideEffect)
-        return metadata(accessToken, fileId)
+        // The marker names the checked version. If the archive changes at any time after the check, even during
+        // the download redirect, its eTag no longer matches and metadata() reports it unverified.
+        writeMetadata(accessToken, Ref.file(verified.id), appProperties, verified.version ?: invalid(), beforeRemoteSideEffect)
+        return metadata(accessToken, verified.id)
     }
 
     override suspend fun listPage(accessToken: String, folderId: String, pageToken: String?): RemoteBackupPage {

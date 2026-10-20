@@ -367,12 +367,13 @@ class CloudBackupCoordinator internal constructor(
             store.update { it.copy(attempt_state = BackupAttemptState.VERIFYING.name, updated_at_ms = now) }
             val verified = try {
                 assertRemote(uploaded, attempt)
+                // The only byte check of this upload. The marker is bound to the checked version, and the state
+                // returned after marking shows whether that still holds.
                 drive.verify(token, uploaded, attempt.archive_sha256, attempt.archive_size)
-                val marked = drive.markVerified(token, uploaded.id,
+                val confirmed = drive.markVerified(token, uploaded,
                     uploaded.properties + ("verificationState" to "verified")) {
                     assertGeneration(actual, cycleId, automatic)
                 }
-                val confirmed = drive.metadata(token, marked.id)
                 assertRemote(confirmed, attempt)
                 if (confirmed.properties["verificationState"] != "verified") verifyFailed()
                 confirmed
@@ -492,8 +493,9 @@ class CloudBackupCoordinator internal constructor(
     ): CloudBackupAttemptEntity {
         assertGeneration(generation, cycleId, automatic)
         var cleanupIncomplete = false
+        var remaining: List<RemoteBackupFile>? = null
         try {
-            rotate(token, folderId, generation, cycleId, automatic)
+            remaining = rotate(token, folderId, generation, cycleId, automatic)
         } catch (error: CloudBackupException) {
             if (error.error == CloudBackupError.SESSION_EXPIRED) throw error
             cleanupIncomplete = true
@@ -510,7 +512,8 @@ class CloudBackupCoordinator internal constructor(
             state = BackupAttemptState.SUCCEEDED.name, error = null)
         store.saveAttempt(finished)
         try {
-            val values = listManaged(token, folderId).map { it.toDescriptor(portability.buildInfo()) }
+            // A complete rotation already knows what is left; list again only when it stopped part way.
+            val values = (remaining ?: listManaged(token, folderId)).map { it.toDescriptor(portability.buildInfo()) }
             assertGeneration(generation, cycleId, automatic)
             remote.value = values
         } catch (cancelled: CancellationException) {
@@ -523,15 +526,19 @@ class CloudBackupCoordinator internal constructor(
         return finished
     }
 
+    /** Trashes verified backups beyond the retention count and returns the managed backups left. */
     private suspend fun rotate(token: String, folderId: String, generation: Generation,
-        cycleId: String, automatic: Boolean) {
-        val valid = listManaged(token, folderId).filter {
+        cycleId: String, automatic: Boolean): List<RemoteBackupFile> {
+        val managed = listManaged(token, folderId)
+        val valid = managed.filter {
             it.properties["verificationState"] == "verified"
         }.sortedWith(compareByDescending<RemoteBackupFile> { it.createdTime }.thenByDescending { it.id })
-        valid.drop(CLOUD_BACKUP_RETENTION_COUNT).forEach { old ->
+        val trashed = valid.drop(CLOUD_BACKUP_RETENTION_COUNT).map { old ->
             assertGeneration(generation, cycleId, automatic)
             drive.trash(token, old.id) { assertGeneration(generation, cycleId, automatic) }
-        }
+            old.id
+        }.toSet()
+        return managed.filterNot { it.id in trashed }
     }
 
     private suspend fun reconcileUnknown(token: String, folderId: String, generation: Generation,
@@ -546,19 +553,19 @@ class CloudBackupCoordinator internal constructor(
         try { drive.verify(token, found, attempt.archive_sha256, attempt.archive_size) }
         catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { return null }
-        val verified = when (found.properties["verificationState"]) {
-            "verified" -> found
-            "uploaded-unverified" -> try {
-                drive.markVerified(token, found.id,
+        val confirmed = try {
+            when (found.properties["verificationState"]) {
+                // Already marked: reread it, so a change after the listing is still caught.
+                "verified" -> drive.metadata(token, found.id)
+                "uploaded-unverified" -> drive.markVerified(token, found,
                     found.properties + ("verificationState" to "verified")) {
                     assertGeneration(generation, cycleId, automatic)
                 }
-            } catch (_: Exception) {
-                return null
+                else -> return null
             }
-            else -> return null
+        } catch (_: Exception) {
+            return null
         }
-        val confirmed = try { drive.metadata(token, verified.id) } catch (_: Exception) { return null }
         if (runCatching { assertRemote(confirmed, attempt) }.isFailure ||
             confirmed.properties["verificationState"] != "verified") return null
         return attempt.copy(drive_file_id = confirmed.id, state = BackupAttemptState.VERIFYING.name,

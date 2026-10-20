@@ -82,6 +82,8 @@ class OneDriveRestApiTest {
             coordinator.manualBackup()
             val state = coordinator.observeState().first()
             assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
+            // One byte check per backup: the archive is downloaded once, not again when marking it verified.
+            assertEquals(1, server.requests.count { it.url == "https://download.test/archive" })
             val descriptor = state.backups.single()
             assertEquals("verified", descriptor.verificationState)
             val download = coordinator.stageForRestore(descriptor.fileId)
@@ -107,7 +109,7 @@ class OneDriveRestApiTest {
         val file = upload(api, root.id)
         assertEquals("uploaded-unverified", file.properties["verificationState"])
         api.verify("synthetic", file, file.properties.getValue("archiveSha256"), file.size)
-        val verified = api.markVerified("synthetic", file.id, file.properties + ("verificationState" to "verified")) {}
+        val verified = api.markVerified("synthetic", file, file.properties + ("verificationState" to "verified")) {}
         assertEquals("verified", verified.properties["verificationState"])
         assertEquals(file.id, api.listPage("synthetic", root.id, null).files.single().id)
         val output = ByteArrayOutputStream()
@@ -122,11 +124,23 @@ class OneDriveRestApiTest {
     @Test fun changed_remote_version_invalidates_verified_marker_and_corruption_is_rejected() = runBlocking {
         val server = FakeGraph(); val api = OneDriveRestApi(server)
         val file = upload(api, api.resolveOrCreateFolder("synthetic").id)
-        api.markVerified("synthetic", file.id, file.properties + ("verificationState" to "verified")) {}
+        api.markVerified("synthetic", file, file.properties + ("verificationState" to "verified")) {}
         server.version = "changed"
         server.archive = byteArrayOf(9, 9)
         assertEquals("uploaded-unverified", api.metadata("synthetic", file.id).properties["verificationState"])
         expectCloud(CloudBackupError.VERIFY_FAILED) { api.verify("synthetic", file, file.properties.getValue("archiveSha256"), file.size) }
+    }
+
+    @Test fun verified_marker_is_bound_to_the_checked_version() = runBlocking {
+        val server = FakeGraph(); val api = OneDriveRestApi(server)
+        val file = upload(api, api.resolveOrCreateFolder("synthetic").id)
+        api.verify("synthetic", file, file.properties.getValue("archiveSha256"), file.size)
+        val downloads = server.requests.count { it.url == "https://download.test/archive" }
+        server.version = "changed after the check"
+        val marked = api.markVerified("synthetic", file, file.properties + ("verificationState" to "verified")) {}
+        assertEquals("uploaded-unverified", marked.properties["verificationState"])
+        assertEquals(downloads, server.requests.count { it.url == "https://download.test/archive" })
+        assertEquals("v1", JSONObject(server.meta.toString(Charsets.UTF_8)).getString("archiveETag"))
     }
 
     @Test fun late_disconnect_guard_prevents_remote_writes() = runBlocking {
@@ -147,14 +161,14 @@ class OneDriveRestApiTest {
         catch (error: DriveRequestException) { assertTrue(error.outcomeUnknown) }
         val found = api.listPage("synthetic", root.id, null).files.single()
         assertEquals("synthetic-attempt", found.properties["attemptId"])
-        val verified = api.markVerified("synthetic", found.id, found.properties + ("verificationState" to "verified")) {}
+        val verified = api.markVerified("synthetic", found, found.properties + ("verificationState" to "verified")) {}
         assertEquals("verified", verified.properties["verificationState"])
     }
 
     @Test fun retention_refuses_directory_containing_unrelated_user_file() = runBlocking {
         val server = FakeGraph(); val api = OneDriveRestApi(server)
         val file = upload(api, api.resolveOrCreateFolder("synthetic").id)
-        api.markVerified("synthetic", file.id, file.properties + ("verificationState" to "verified")) {}
+        api.markVerified("synthetic", file, file.properties + ("verificationState" to "verified")) {}
         server.unrelatedFile = true
         expectCloud(CloudBackupError.DRIVE_PERMISSION) { api.trash("synthetic", file.id) {} }
         assertFalse(server.deleted)
@@ -258,7 +272,8 @@ class OneDriveRestApiTest {
                 path == "${base}archive" && request.method == "DELETE" -> { assertEquals(version, request.headers["If-Match"]); deleted = true; response(204) }
                 path == "${base}meta" && request.method == "DELETE" -> response(204)
                 path == "${base}backup:/snapshot.val_backup" || path == "${base}archive" -> response(value = item("archive", "snapshot.val_backup", "backup"))
-                path == "${base}archive/content" -> response(302, headers = mapOf("Location" to "https://download.test/archive"))
+                path == "${base}archive/content" -> request.headers["If-Match"]?.takeIf { it != version }?.let { response(412) }
+                    ?: response(302, headers = mapOf("Location" to "https://download.test/archive"))
                 request.url == "https://download.test/archive" -> { output!!.write(archive); CloudHttpResponse(200, emptyMap(), byteArrayOf()) }
                 path == "${base}backup/children" -> response(value = JSONObject().put("value", JSONArray()
                     .put(item("archive", "snapshot.val_backup", "backup")).put(item("meta", "metadata.json", "backup"))
