@@ -81,6 +81,11 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
                 dao.localizeCashNames(english)
                 dao.localizeTypes(english)
                 dao.localizeInstruments(english)
+                dao.localizeCashNotes(english)
+                dao.localizeEntryNotes(english)
+                dao.localizeGroups(english)
+                dao.localizeWalletCards(english)
+                dao.localizeWalletFaces(english)
             }
             if (change is SaveFinancialSettings) {
                 dao.clearRates()

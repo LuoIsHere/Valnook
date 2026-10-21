@@ -58,6 +58,32 @@ abstract class OverviewDao {
         WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='INSTRUMENT' AND d.entity_id=instruments.id
         AND d.field_name='NAME' AND instruments.name IN (d.zh_hans,d.english))""")
     abstract suspend fun localizeInstruments(english: Boolean)
+    @Query("""UPDATE cash_accounts SET note=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='CASH' AND d.entity_id=cash_accounts.id AND d.field_name='NOTE')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='CASH' AND d.entity_id=cash_accounts.id
+        AND d.field_name='NOTE' AND cash_accounts.note IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeCashNotes(english: Boolean)
+    @Query("""UPDATE cash_entries SET note=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='ENTRY' AND d.entity_id=cash_entries.id AND d.field_name='NOTE')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='ENTRY' AND d.entity_id=cash_entries.id
+        AND d.field_name='NOTE' AND cash_entries.note IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeEntryNotes(english: Boolean)
+    @Query("""UPDATE account_groups SET name=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='GROUP' AND d.entity_id=account_groups.id AND d.field_name='NAME')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='GROUP' AND d.entity_id=account_groups.id
+        AND d.field_name='NAME' AND account_groups.name IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeGroups(english: Boolean)
+    @Query("""UPDATE wallet_cards SET name=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='CARD' AND d.entity_id=wallet_cards.id AND d.field_name='NAME')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='CARD' AND d.entity_id=wallet_cards.id
+        AND d.field_name='NAME' AND wallet_cards.name IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeWalletCards(english: Boolean)
+    /** Faces are keyed by their digest, so their labels are matched by rowid. */
+    @Query("""UPDATE wallet_card_images SET label=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='FACE' AND d.entity_id=wallet_card_images.rowid AND d.field_name='LABEL')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='FACE' AND d.entity_id=wallet_card_images.rowid
+        AND d.field_name='LABEL' AND wallet_card_images.label IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeWalletFaces(english: Boolean)
     @Transaction
     open suspend fun snapshot(): OverviewRows = OverviewRows(allAccounts(), allCash(), allCreditProfiles(), openDeposits(),
         allPositions(), allInstruments(), settings(), rates(), allAccountGroups())

@@ -48,7 +48,7 @@ class BackupScreenUiTest {
     @Test fun prebuilt_demo_database_upgrades_without_cloud_connection() = kotlinx.coroutines.runBlocking {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val name = "onedrive-demo-check-${java.util.UUID.randomUUID()}.db"
-        val database = dev.valnook.data.database.ValnookDatabase.fromAsset(context, name, "database/valnook-demo-v12.db")
+        val database = dev.valnook.data.database.ValnookDatabase.fromAsset(context, name, "database/valnook-demo-v21.db")
         try {
             org.junit.Assert.assertEquals(dev.valnook.data.database.DATABASE_SCHEMA_VERSION, database.openHelper.readableDatabase.version)
             org.junit.Assert.assertNull(database.cloudBackup().state().account_reference)

@@ -1,12 +1,23 @@
 package dev.valnook.app.di
 
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
+import dev.valnook.domain.model.AccountGroup
+import dev.valnook.domain.model.AccountIcon
+import dev.valnook.domain.model.AccountIconChange
+import dev.valnook.domain.model.AccountIconType
 import dev.valnook.domain.model.AppSettings
+import dev.valnook.domain.model.BalanceAccountType
+import dev.valnook.domain.model.CashAccount
+import dev.valnook.domain.model.CreditAccountInput
+import dev.valnook.domain.model.CreditDueRule
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.model.Direction
 import dev.valnook.domain.model.FxRate
-import dev.valnook.domain.model.BalanceAccountType
-import dev.valnook.domain.model.CreditAccountInput
-import dev.valnook.domain.model.CreditDueRule
+import dev.valnook.domain.model.WalletImageFormat
 import dev.valnook.domain.money.DecimalRules as R
 import dev.valnook.domain.repository.CashBalanceChange
 import dev.valnook.domain.repository.CloseTermDeposit
@@ -14,406 +25,671 @@ import dev.valnook.domain.repository.CreateInvestmentPosition
 import dev.valnook.domain.repository.EditCashEntry
 import dev.valnook.domain.repository.EditInvestmentTrade
 import dev.valnook.domain.repository.EditTermDeposit
+import dev.valnook.domain.repository.MoveAccountsToGroup
 import dev.valnook.domain.repository.OpenTermDeposit
 import dev.valnook.domain.repository.RecordInvestmentTrade
+import dev.valnook.domain.repository.ReorderAccountGroups
 import dev.valnook.domain.repository.SaveAccount
+import dev.valnook.domain.repository.SaveAccountGroup
 import dev.valnook.domain.repository.SaveAssetType
-import dev.valnook.domain.repository.SaveInstrument
 import dev.valnook.domain.repository.SaveFinancialSettings
 import dev.valnook.domain.repository.SaveGainLossColors
+import dev.valnook.domain.repository.SaveInstrument
 import dev.valnook.domain.repository.SaveLanguage
 import dev.valnook.domain.repository.SetCashBalance
+import kotlinx.coroutines.flow.first
+import java.io.ByteArrayOutputStream
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Clock
 import java.time.LocalDate
-import java.time.ZoneId
+import java.time.YearMonth
+import java.util.Random
 import java.util.UUID
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.sin
 
+/**
+ * The ledger of one ordinary household member, kept for about ten years: a salary card, a mortgage card, savings
+ * with time deposits, foreign cash for trips, Alipay and WeChat, two brokers and the housing fund. Detail grows
+ * towards today, as it does when someone starts by recording quarterly totals and later records every bill.
+ * Every record goes through the app's own commands; dates are relative to the clock, so it can run on any day.
+ */
 internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Clock) {
-    private data class DemoStock(val name: String, val symbol: String, val market: String,
-        val currency: String, val price: BigDecimal)
-    private data class DemoCash(val currency: String, val balanceMinor: Long, val name: String)
-    private data class DemoAccount(val name: String, val note: String, val cash: List<DemoCash>)
+    private val today = LocalDate.now(clock)
+    private val start = LocalDate.of(today.year - 9, 1, 3)
+    private val random = Random(20261020)
 
     suspend fun seed(displayPreferences: AppSettings) {
-        var stored = graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),listOf(
-            FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.2")),
-            FxRate(Currency.of("HKD"), Currency.of("CNY"), BigDecimal("0.92"))
+        var stored = graph.settingsWriter.applyChange(SaveFinancialSettings(0, Currency.of("CNY"), listOf(
+            FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.12")),
+            FxRate(Currency.of("HKD"), Currency.of("CNY"), BigDecimal("0.915")),
+            FxRate(Currency.of("EUR"), Currency.of("CNY"), BigDecimal("8.28")),
+            FxRate(Currency.of("JPY"), Currency.of("CNY"), BigDecimal("0.0472"))
         )))
-        if(stored.language!=displayPreferences.language) stored=graph.settingsWriter.applyChange(
-            SaveLanguage(stored.revision,displayPreferences.language))
-        if(stored.gainLossColors!=displayPreferences.gainLossColors) graph.settingsWriter.applyChange(
-            SaveGainLossColors(stored.revision,displayPreferences.gainLossColors))
+        if (stored.language != displayPreferences.language) stored = graph.settingsWriter.applyChange(
+            SaveLanguage(stored.revision, displayPreferences.language))
+        if (stored.gainLossColors != displayPreferences.gainLossColors) graph.settingsWriter.applyChange(
+            SaveGainLossColors(stored.revision, displayPreferences.gainLossColors))
 
-        val bankSpecs = listOf(
-            DemoAccount("招商银行", "银行账户 · 工资与日常支出", listOf(
-                DemoCash("CNY", 500_000L, "招商银行活期"), DemoCash("USD", 20_000L, "美元储蓄"))),
-            DemoAccount("中国工商银行", "银行账户 · 家庭日常开支", listOf(
-                DemoCash("CNY", 400_000L, "工商银行活期"))),
-            DemoAccount("中国银行", "银行账户 · 跨境资金", listOf(
-                DemoCash("CNY", 300_000L, "中国银行活期"), DemoCash("HKD", 100_000L, "港币储蓄"))),
-            DemoAccount("中国建设银行", "银行账户 · 家庭储备", listOf(
-                DemoCash("CNY", 400_000L, "建设银行活期"))),
-            DemoAccount("交通银行", "银行账户 · 交通与出行", listOf(
-                DemoCash("CNY", 200_000L, "交通银行活期"))),
-            DemoAccount("汇丰银行", "银行账户 · 外币往来", listOf(
-                DemoCash("USD", 25_000L, "美元往来账户"), DemoCash("HKD", 250_000L, "港币往来账户")))
+        val accounts = createAccounts()
+        seedCredit(accounts)
+        seedGroups(accounts)
+        val instruments = seedInstruments()
+        seedCashHistory(accounts)
+        seedInvestments(accounts, instruments)
+        seedDeposits(accounts)
+    }
+
+    // ---- Accounts --------------------------------------------------------------------------------------------
+
+    private data class Opening(val currency: String, val name: String, val amount: String, val date: LocalDate,
+        val includeInAvailableCash: Boolean = true, val showOnAccountsPage: Boolean = true)
+
+    private suspend fun createAccounts(): Map<String, Long> {
+        suspend fun account(name: String, note: String, icon: AccountIconChange, vararg cash: Opening,
+            showDeposits: Boolean = true, showInvestments: Boolean = true): Pair<String, Long> {
+            val id = graph.commands.execute(SaveAccount(id(), null, null, name, note, cash.map {
+                CashBalanceChange(it.currency, minor(it.amount, it.currency), null, name = it.name,
+                    includeInAvailableCash = it.includeInAvailableCash, showOnAccountsPage = it.showOnAccountsPage)
+            }, icon, showDeposits, showInvestments)).id
+            // The opening balance is the first ledger entry; date it to when recording started.
+            cash.forEach { opening ->
+                val row = cashByName(id, opening.name)
+                val entry = graph.cashPages.cashAccountPage(row.id, null, 10).singleOrNull() ?: return@forEach
+                graph.commands.execute(EditCashEntry(id(), entry.id, entry.revision, entry.delta_minor,
+                    at(opening.date, 9), "期初余额"))
+            }
+            return name to id
+        }
+        fun symbol(value: String) = AccountIconChange(AccountIcon(AccountIconType.SYMBOL, value))
+        return mapOf(
+            account(CMB, "工资卡 · 日常收支", symbol("account_balance"),
+                Opening("CNY", "招行储蓄卡", "38000.00", start),
+                Opening("USD", "招行美元", "1200.00", start.plusYears(2).withMonth(6))),
+            account(ICBC, "房贷还款 · 家庭信用卡", symbol("credit_card"),
+                Opening("CNY", "工行储蓄卡", "12000.00", start)),
+            account(CCB, "储蓄与定期", symbol("savings"),
+                Opening("CNY", "建行储蓄卡", "60000.00", start, includeInAvailableCash = false)),
+            account(BOC, "外币 · 出境旅行", symbol("currency_exchange"),
+                Opening("CNY", "中行储蓄卡", "5000.00", start.plusYears(1)),
+                Opening("USD", "中行美元", "2000.00", start.plusYears(2).withMonth(6)),
+                Opening("HKD", "中行港币", "12000.00", start.plusYears(2).withMonth(6), showOnAccountsPage = false),
+                Opening("JPY", "中行日元", "0", start.plusYears(6).withMonth(3)),
+                Opening("EUR", "中行欧元", "0", start.plusYears(8).withMonth(4)), showDeposits = true),
+            account(ALIPAY, "余额与基金理财", symbol("account_balance_wallet"),
+                Opening("CNY", "支付宝余额", "2000.00", start.plusYears(1).withMonth(3))),
+            account(WECHAT, "零钱 · 红包与转账", symbol("payments"),
+                Opening("CNY", "微信零钱", "200.00", start.plusYears(2))),
+            account(HTSC, "A 股与 ETF 定投", symbol("trending_up"),
+                Opening("CNY", "华泰资金", "50000.00", start)),
+            account(FUTU, "港股与美股", symbol("show_chart"),
+                Opening("HKD", "富途港币", "100000.00", start.plusYears(3).withMonth(5)),
+                Opening("USD", "富途美元", "5000.00", start.plusYears(2).withMonth(3))),
+            account(FUND, "公积金 · 不计入可用现金", symbol("apartment"),
+                Opening("CNY", "公积金账户", "23000.00", start, includeInAvailableCash = false)),
+            account(FAMILY, "家中现金与教育储蓄", photoIcon(),
+                Opening("CNY", "家中现金", "6000.00", start.plusYears(2)), showInvestments = false)
         )
-        val brokerSpecs = listOf("中信证券", "华泰证券", "广发证券", "中金财富", "富途证券", "盈透证券")
-            .mapIndexed { index, name ->
-                DemoAccount(name, "证券账户 · ${listOf("A 股与长期持有", "稳健组合", "价值投资", "多市场组合", "港美股交易", "海外长期持有")[index]}", listOf(
-                    DemoCash("CNY", listOf(240_000L, 60_000L, 90_000L, 902_000L, 70_000L, 259_000L)[index], "人民币交易资金"),
-                    DemoCash("USD", listOf(180_000L, 35_000L, 72_600L, 114_200L, 115_000L, 30_000L)[index], "美元交易资金"),
-                    DemoCash("HKD", listOf(1_000_000L, 1_810_000L, 475_000L, 1_175_000L, 686_000L, 80_000L)[index], "港币交易资金")
-                ))
-            }
-        suspend fun createAccounts(specs: List<DemoAccount>) = specs.map { spec ->
-            graph.commands.execute(SaveAccount(id(), null, null, spec.name, spec.note, spec.cash.map { cash ->
-                CashBalanceChange(cash.currency, cash.balanceMinor, null, name = cash.name,
-                    includeInAvailableCash = spec.name != "中国建设银行",
-                    showOnAccountsPage = !(spec.name == "中国银行" && cash.currency == "HKD"))
-            })).id
-        }
-        val bankAccounts = createAccounts(bankSpecs)
-        val brokerAccounts = createAccounts(brokerSpecs)
-        seedCreditAccounts(bankAccounts)
-        val tradeCashByAccountCurrency = graph.overview.snapshot().cash
-            .filter { it.type == BalanceAccountType.SAVINGS }
-            .associateBy { it.account_id to it.currency.code }
-
-        val typeNames = listOf("A股股票", "港股股票", "美股股票")
-        val types = typeNames.map { graph.commands.execute(SaveAssetType(id(), null, it)).id }
-        val stocks = listOf(
-            DemoStock("贵州茅台", "600519.SH", "A股股票", "CNY", BigDecimal("1468.20")),
-            DemoStock("宁德时代", "300750.SZ", "A股股票", "CNY", BigDecimal("238.50")),
-            DemoStock("中国平安", "601318.SH", "A股股票", "CNY", BigDecimal("57.40")),
-            DemoStock("招商银行", "600036.SH", "A股股票", "CNY", BigDecimal("42.15")),
-            DemoStock("比亚迪", "002594.SZ", "A股股票", "CNY", BigDecimal("312.60")),
-            DemoStock("美的集团", "000333.SZ", "A股股票", "CNY", BigDecimal("76.35")),
-            DemoStock("五粮液", "000858.SZ", "A股股票", "CNY", BigDecimal("129.80")),
-            DemoStock("隆基绿能", "601012.SH", "A股股票", "CNY", BigDecimal("19.72")),
-            DemoStock("中信证券", "600030.SH", "A股股票", "CNY", BigDecimal("28.44")),
-            DemoStock("长江电力", "600900.SH", "A股股票", "CNY", BigDecimal("29.16")),
-            DemoStock("紫金矿业", "601899.SH", "A股股票", "CNY", BigDecimal("19.38")),
-            DemoStock("中国移动", "600941.SH", "A股股票", "CNY", BigDecimal("112.30")),
-            DemoStock("海天味业", "603288.SH", "A股股票", "CNY", BigDecimal("45.62")),
-            DemoStock("迈瑞医疗", "300760.SZ", "A股股票", "CNY", BigDecimal("267.80")),
-            DemoStock("恒瑞医药", "600276.SH", "A股股票", "CNY", BigDecimal("51.25")),
-            DemoStock("万华化学", "600309.SH", "A股股票", "CNY", BigDecimal("83.90")),
-            DemoStock("立讯精密", "002475.SZ", "A股股票", "CNY", BigDecimal("43.18")),
-            DemoStock("京东方A", "000725.SZ", "A股股票", "CNY", BigDecimal("4.26")),
-            DemoStock("中国神华", "601088.SH", "A股股票", "CNY", BigDecimal("42.70")),
-            DemoStock("三一重工", "600031.SH", "A股股票", "CNY", BigDecimal("18.64")),
-            DemoStock("腾讯控股", "0700.HK", "港股股票", "HKD", BigDecimal("598.00")),
-            DemoStock("阿里巴巴-W", "9988.HK", "港股股票", "HKD", BigDecimal("158.40")),
-            DemoStock("美团-W", "3690.HK", "港股股票", "HKD", BigDecimal("112.70")),
-            DemoStock("小米集团-W", "1810.HK", "港股股票", "HKD", BigDecimal("52.35")),
-            DemoStock("汇丰控股", "0005.HK", "港股股票", "HKD", BigDecimal("104.20")),
-            DemoStock("友邦保险", "1299.HK", "港股股票", "HKD", BigDecimal("78.55")),
-            DemoStock("香港交易所", "0388.HK", "港股股票", "HKD", BigDecimal("432.60")),
-            DemoStock("中国移动", "0941.HK", "港股股票", "HKD", BigDecimal("86.80")),
-            DemoStock("比亚迪股份", "1211.HK", "港股股票", "HKD", BigDecimal("318.40")),
-            DemoStock("中国海洋石油", "0883.HK", "港股股票", "HKD", BigDecimal("20.82")),
-            DemoStock("中国平安", "2318.HK", "港股股票", "HKD", BigDecimal("58.65")),
-            DemoStock("工商银行", "1398.HK", "港股股票", "HKD", BigDecimal("6.31")),
-            DemoStock("建设银行", "0939.HK", "港股股票", "HKD", BigDecimal("7.82")),
-            DemoStock("理想汽车-W", "2015.HK", "港股股票", "HKD", BigDecimal("98.30")),
-            DemoStock("网易-S", "9999.HK", "港股股票", "HKD", BigDecimal("219.40")),
-            DemoStock("京东集团-SW", "9618.HK", "港股股票", "HKD", BigDecimal("132.60")),
-            DemoStock("快手-W", "1024.HK", "港股股票", "HKD", BigDecimal("74.15")),
-            DemoStock("中芯国际", "0981.HK", "港股股票", "HKD", BigDecimal("68.90")),
-            DemoStock("药明生物", "2269.HK", "港股股票", "HKD", BigDecimal("31.75")),
-            DemoStock("长和", "0001.HK", "港股股票", "HKD", BigDecimal("53.20")),
-            DemoStock("Apple", "AAPL", "美股股票", "USD", BigDecimal("258.40")),
-            DemoStock("Microsoft", "MSFT", "美股股票", "USD", BigDecimal("518.70")),
-            DemoStock("NVIDIA", "NVDA", "美股股票", "USD", BigDecimal("188.25")),
-            DemoStock("Alphabet", "GOOGL", "美股股票", "USD", BigDecimal("326.10")),
-            DemoStock("Amazon", "AMZN", "美股股票", "USD", BigDecimal("242.80")),
-            DemoStock("Meta Platforms", "META", "美股股票", "USD", BigDecimal("742.30")),
-            DemoStock("Tesla", "TSLA", "美股股票", "USD", BigDecimal("451.20")),
-            DemoStock("Berkshire Hathaway", "BRK.B", "美股股票", "USD", BigDecimal("521.40")),
-            DemoStock("JPMorgan Chase", "JPM", "美股股票", "USD", BigDecimal("318.60")),
-            DemoStock("Visa", "V", "美股股票", "USD", BigDecimal("378.90")),
-            DemoStock("Eli Lilly", "LLY", "美股股票", "USD", BigDecimal("1098.20")),
-            DemoStock("Walmart", "WMT", "美股股票", "USD", BigDecimal("129.75")),
-            DemoStock("Exxon Mobil", "XOM", "美股股票", "USD", BigDecimal("118.30")),
-            DemoStock("Mastercard", "MA", "美股股票", "USD", BigDecimal("612.40")),
-            DemoStock("Broadcom", "AVGO", "美股股票", "USD", BigDecimal("356.70")),
-            DemoStock("Netflix", "NFLX", "美股股票", "USD", BigDecimal("1242.50")),
-            DemoStock("Costco", "COST", "美股股票", "USD", BigDecimal("1018.60")),
-            DemoStock("Johnson & Johnson", "JNJ", "美股股票", "USD", BigDecimal("204.35")),
-            DemoStock("Procter & Gamble", "PG", "美股股票", "USD", BigDecimal("171.80")),
-            DemoStock("AMD", "AMD", "美股股票", "USD", BigDecimal("268.45"))
-        )
-        val typeByName = typeNames.zip(types).toMap()
-        val instruments = stocks.map { stock ->
-            graph.commands.execute(SaveInstrument(id(), null, null, stock.name, stock.symbol,
-                requireNotNull(typeByName[stock.market]), stock.currency,
-                R.parse_units(stock.price.toPlainString(), 5))).id
-        }
-        val stockById = instruments.zip(stocks).toMap()
-
-        val today = LocalDate.now(clock)
-        val historyStart = LocalDate.of(today.year - 8, 1, 5)
-        val pairs = buildList {
-            brokerAccounts.forEachIndexed { accountIndex, accountId ->
-                repeat(4) { offset -> add(accountId to instruments[(accountIndex * 7 + offset * 13) % instruments.size]) }
-            }
-        }
-        pairs.forEachIndexed { positionIndex, (accountId, instrumentId) ->
-            val stock = requireNotNull(stockById[instrumentId])
-            val positionStart = historyStart.plusDays(((positionIndex * 19) % 500).toLong())
-            val openingFactor = BigDecimal("0.74").add(BigDecimal.valueOf(((positionIndex * 7) % 19).toLong(), 2))
-            val openingPrice = R.parse_e8(stock.price.multiply(openingFactor)
-                .setScale(2, java.math.RoundingMode.HALF_UP).toPlainString())
-            val openingQuantity = demoQuantity(stock.currency, positionIndex, opening = true)
-            val positionId = graph.commands.execute(
-                CreateInvestmentPosition(id(), accountId, instrumentId)
-            ).id
-            graph.commands.execute(RecordInvestmentTrade(id(), positionId, Direction.BUY,
-                openingQuantity, openingPrice, at(positionStart), true,
-                requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id))
-            repeat(9) { tradeIndex ->
-                val closedFixture = positionIndex % 10 == 0
-                val direction = if (closedFixture && tradeIndex == 0) Direction.SELL
-                    else if (closedFixture) if (tradeIndex % 2 == 1) Direction.BUY else Direction.SELL
-                    else if (tradeIndex % 2 == 0) Direction.BUY else Direction.SELL
-                val pairIndex = if (closedFixture) (tradeIndex - 1).coerceAtLeast(0) / 2 else tradeIndex / 2
-                val quantity = if (closedFixture && tradeIndex == 0) openingQuantity
-                    else demoQuantity(stock.currency, positionIndex * 3 + pairIndex, opening = false)
-                val factor = BigDecimal("0.86").add(BigDecimal.valueOf(((positionIndex + tradeIndex) % 15).toLong(), 2))
-                val price = R.parse_e8(stock.price.multiply(factor)
-                    .setScale(2, java.math.RoundingMode.HALF_UP).toPlainString())
-                val fee = demoFee(stock.currency, positionIndex, tradeIndex)
-                val cashLinked = positionIndex % 4 != 3 || tradeIndex % 3 != 0
-                val cashAccountId = if (cashLinked)
-                    requireNotNull(tradeCashByAccountCurrency[accountId to stock.currency]).id else null
-                graph.commands.execute(RecordInvestmentTrade(id(), positionId, direction,
-                    quantity, price, at(positionStart.plusDays((tradeIndex + 1) * 260L)),
-                    cashLinked,
-                    cashAccountId, fee))
-            }
-        }
-
-        repeat(24) { index ->
-            val closed = index % 4 == 0
-            val startDate = if (closed) today.minusYears(8).plusMonths(index * 3L)
-                else today.minusYears(5).plusMonths(index * 2L)
-            val endDate = if (closed) startDate.plusYears(1) else startDate.plusYears(7)
-            val depositId = graph.commands.execute(OpenTermDeposit(id(), bankAccounts[index % bankAccounts.size],
-                listOf("CNY", "USD", "HKD")[index % 3], 10_000L + index * 1_000L,
-                R.parse_e8((2 + index % 4).toString()), startDate.toEpochDay(), endDate.toEpochDay(), false)).id
-            if (closed) graph.commands.execute(CloseTermDeposit(id(), depositId, false))
-        }
-        seedLifecycleExamples(bankAccounts.first(), brokerAccounts.first(),
-            instruments.zip(stocks).associate { (instrumentId, stock) ->
-            stock.symbol to instrumentId
-        })
     }
 
-    private suspend fun seedCreditAccounts(accounts: List<Long>) {
-        suspend fun create(accountId: Long, name: String, balanceMinor: Long, limitMinor: Long?,
-            statementDay: Int, dueRule: CreditDueRule, sourceId: Long? = null): Long {
-            val snapshot = graph.overview.snapshot()
-            val owner = snapshot.accounts.single { it.id == accountId }
-            return graph.commands.execute(SaveAccount(id(), accountId, owner.revision, owner.name, owner.note,
-                listOf(CashBalanceChange("CNY", balanceMinor, null, name = name,
-                    note = "演示信用账户", type = BalanceAccountType.CREDIT,
-                    credit = CreditAccountInput(limitMinor, statementDay, dueRule, sourceId))))).id.let {
-                graph.overview.snapshot().cash.filter { row -> row.account_id == accountId && row.name == name }.single().id
-            }
+    private suspend fun seedCredit(accounts: Map<String, Long>) {
+        suspend fun card(account: String, name: String, limit: String?, statementDay: Int, due: CreditDueRule,
+            opened: LocalDate, source: String? = null, note: String = "") {
+            val owner = graph.overview.snapshot().accounts.single { it.id == accounts.getValue(account) }
+            val sourceId = source?.let { cashByName(owner.id, it).id }
+            graph.commands.execute(SaveAccount(id(), owner.id, owner.revision, owner.name, owner.note,
+                listOf(CashBalanceChange("CNY", 0, null, name = name, note = note, type = BalanceAccountType.CREDIT,
+                    credit = CreditAccountInput(limit?.let { minor(it, "CNY") }, statementDay, due, sourceId)))))
+            val entry = graph.cashPages.cashAccountPage(cashByName(owner.id, name).id, null, 10).singleOrNull()
+            if (entry != null) graph.commands.execute(EditCashEntry(id(), entry.id, entry.revision, entry.delta_minor,
+                at(opened, 9), "开卡"))
         }
-        create(accounts[0], "招商银行 Visa", -238_456L, 2_000_000L, 12, CreditDueRule.AfterStatementDays(20))
-        create(accounts[0], "招商银行 Mastercard", 12_840L, 1_000_000L, 5, CreditDueRule.FixedDayOfMonth(20))
-        val sharedRoot = create(accounts[1], "工商银行共享额度主卡", -365_000L, 5_000_000L, 25,
-            CreditDueRule.AfterStatementDays(20))
-        create(accounts[1], "工商银行附属卡 · 家庭", -92_000L, null, 25, CreditDueRule.AfterStatementDays(20), sharedRoot)
-        create(accounts[1], "工商银行附属卡 · 出行", 30_000L, null, 31, CreditDueRule.FixedDayOfMonth(5), sharedRoot)
-        create(accounts[1], "工商银行附属卡 · 网购", -46_000L, null, 31, CreditDueRule.FixedDayOfMonth(31), sharedRoot)
-        create(accounts[3], "建设银行 Visa", -323_000L, 300_000L, 18, CreditDueRule.AfterStatementDays(15))
-        create(accounts[4], "交通银行银联信用卡", -168_652L, 3_000_000L, 25, CreditDueRule.AfterStatementDays(20))
-        create(accounts[5], "汇丰银行 Mastercard", -82_900L, 2_500_000L, 12, CreditDueRule.FixedDayOfMonth(5))
-        create(accounts[2], "中国银行信用卡", 0L, 0L, 28, CreditDueRule.AfterStatementDays(18))
+        card(CMB, "招行 Visa 全币种", "50000", 7, CreditDueRule.AfterStatementDays(18), start.plusYears(5), note = "境外消费返现")
+        card(CMB, "招行经典白", "30000", 15, CreditDueRule.FixedDayOfMonth(3), start.plusYears(7), note = "年费刷 6 次免")
+        card(ICBC, "工行信用卡主卡", "40000", 25, CreditDueRule.AfterStatementDays(20), start.plusYears(2))
+        card(ICBC, "工行附属卡 · 家人", null, 25, CreditDueRule.AfterStatementDays(20), start.plusYears(4),
+            source = "工行信用卡主卡", note = "与主卡共享额度")
+        card(CCB, "建行龙卡", "10000", 18, CreditDueRule.AfterStatementDays(15), start.plusYears(8))
     }
 
-    private suspend fun seedLifecycleExamples(
-        bankAccountId: Long,
-        brokerAccountId: Long,
-        instrumentBySymbol: Map<String, Long>
-    ) {
-        seedCashLifecycle(bankAccountId)
-        val snapshot = graph.overview.snapshot()
-        val cnyCashId = snapshot.cash.single {
-            it.account_id == bankAccountId &&
-            it.type == BalanceAccountType.SAVINGS && it.currency.code == "CNY"
-        }.id
-        val usdCashId = snapshot.cash.single {
-            it.account_id == brokerAccountId && it.currency.code == "USD" && it.name == "美元交易资金"
-        }.id
-        seedDepositLifecycle(bankAccountId, cnyCashId)
-        seedInvestmentLifecycle(brokerAccountId, usdCashId, requireNotNull(instrumentBySymbol["AAPL"]),
-            requireNotNull(instrumentBySymbol["META"]))
+    private suspend fun seedGroups(accounts: Map<String, Long>) {
+        suspend fun group(name: String, members: List<String>): Long {
+            val group = graph.commands.execute(SaveAccountGroup(id(), null, name)).id
+            graph.commands.execute(MoveAccountsToGroup(id(), group, members.map(accounts::getValue)))
+            return group
+        }
+        val banks = group(GROUP_BANKS, listOf(CMB, ICBC, CCB, BOC))
+        val daily = group(GROUP_DAILY, listOf(ALIPAY, WECHAT))
+        val investing = group(GROUP_INVESTING, listOf(HTSC, FUTU))
+        // The housing fund and the family cash stay in the default group, listed last.
+        graph.commands.execute(ReorderAccountGroups(id(), listOf(banks, daily, investing, AccountGroup.DEFAULT_ID)))
     }
 
-    private suspend fun seedCashLifecycle(accountId: Long) {
-        data class TimelineEntry(val date: LocalDate, val deltaMinor: Long, val note: String)
-        val entries = listOf(
-            TimelineEntry(LocalDate.of(2016, 3, 1), 500_000L, "长期账本 · 初始资金修正"),
-            TimelineEntry(LocalDate.of(2018, 8, 17), -350_000L, "长期账本 · 大额支出"),
-            TimelineEntry(LocalDate.of(2020, 4, 9), 823_457L, "长期账本 · 资金转入"),
-            TimelineEntry(LocalDate.of(2022, 11, 23), -168_000L, "长期账本 · 账户划转"),
-            TimelineEntry(LocalDate.of(2024, 6, 14), 1_200_000L, "长期账本 · 年中入金"),
-            TimelineEntry(LocalDate.of(2026, 9, 18), -273_525L, "长期账本 · 近期调整")
-        )
-        entries.forEachIndexed { index, value ->
-            val current = graph.overview.snapshot().cash.single {
-                it.account_id == accountId && it.type == BalanceAccountType.SAVINGS &&
-                    it.currency.code == "CNY"
+    // ---- Cash ledgers ----------------------------------------------------------------------------------------
+
+    private suspend fun seedCashHistory(accounts: Map<String, Long>) {
+        val salary = cashByName(accounts.getValue(CMB), "招行储蓄卡").id
+        val cmbUsd = cashByName(accounts.getValue(CMB), "招行美元").id
+        val visa = cashByName(accounts.getValue(CMB), "招行 Visa 全币种").id
+        val white = cashByName(accounts.getValue(CMB), "招行经典白").id
+        val mortgage = cashByName(accounts.getValue(ICBC), "工行储蓄卡").id
+        val icbcMain = cashByName(accounts.getValue(ICBC), "工行信用卡主卡").id
+        val icbcFamily = cashByName(accounts.getValue(ICBC), "工行附属卡 · 家人").id
+        val reserve = cashByName(accounts.getValue(CCB), "建行储蓄卡").id
+        val dragon = cashByName(accounts.getValue(CCB), "建行龙卡").id
+        val alipay = cashByName(accounts.getValue(ALIPAY), "支付宝余额").id
+        val wechat = cashByName(accounts.getValue(WECHAT), "微信零钱").id
+        val htsc = cashByName(accounts.getValue(HTSC), "华泰资金").id
+        val futuHkd = cashByName(accounts.getValue(FUTU), "富途港币").id
+        val futuUsd = cashByName(accounts.getValue(FUTU), "富途美元").id
+        val housing = cashByName(accounts.getValue(FUND), "公积金账户").id
+        val home = cashByName(accounts.getValue(FAMILY), "家中现金").id
+        val detailed = YearMonth.from(today).minusMonths(33)
+
+        // Early years: quarterly totals, as recorded when the app was first used.
+        months(YearMonth.from(start), detailed.minusMonths(1)).filter { it.monthValue % 3 == 0 }.forEach { month ->
+            val end = month.atEndOfMonth()
+            adjust(salary, amount(3000, 9000), end, "季度结余")
+            adjust(mortgage, amount(-400, 600), end, "季度结余")
+            adjust(reserve, amount(2000, 5000), end, "转入储蓄")
+            adjust(housing, 13_500_00, end.withDayOfMonth(15), "公积金缴存 · 季度")
+            if (month.year >= start.year + 1) adjust(alipay, amount(-300, 500), end, "季度结余")
+            if (month.year >= start.year + 4) {
+                adjust(salary, -3_000_00, end.withDayOfMonth(1), "转入支付宝")
+                adjust(alipay, 3_000_00, end.withDayOfMonth(1), "招行转入 · 基金定投")
             }
-            val result = graph.commands.execute(SetCashBalance(id(), accountId, "CNY",
-                current.balance_minor + value.deltaMinor, current.revision, current.id))
-            if (index == 0) {
-                graph.commands.execute(EditCashEntry(id(), result.id, 1, 475_000L,
-                    at(LocalDate.of(2016, 2, 15)), "长期账本 · 第一次修正"))
-                graph.commands.execute(EditCashEntry(id(), result.id, 2, 515_000L,
-                    at(LocalDate.of(2016, 2, 28)), "长期账本 · 第二次修正"))
-                graph.commands.execute(EditCashEntry(id(), result.id, 3, value.deltaMinor,
-                    at(value.date), value.note))
-            } else {
-                graph.commands.execute(EditCashEntry(id(), result.id, 1, value.deltaMinor,
-                    at(value.date), value.note))
+            if (month.year >= start.year + 2) adjust(wechat, amount(-150, 200), end, "季度结余")
+        }
+        years(start.year + 3, detailed.year - 1).forEach { year ->
+            adjust(housing, -36_000_00, LocalDate.of(year, 1, 20), "还贷提取")
+            adjust(home, -2_000_00, LocalDate.of(year, 1, 28), "春节红包")
+            adjust(home, 2_000_00, LocalDate.of(year, 2, 20), "取现备用")
+        }
+        years(start.year, detailed.year - 1).forEach { year ->
+            adjust(htsc, 12_000_00, LocalDate.of(year, 1, 6), "银证转入")
+        }
+        adjust(salary, -9_000_00, LocalDate.of(start.year + 4, 5, 18), "家用大件 · 冰箱")
+        adjust(salary, 12_000_00, LocalDate.of(start.year + 5, 11, 2), "理财到期赎回")
+
+        // The last 34 months: every salary, transfer and card statement.
+        months(detailed, YearMonth.from(today)).forEach { month ->
+            val pay = when (month.year - detailed.year) { 0 -> 23_500_00L; 1 -> 25_000_00L; else -> 26_800_00L }
+            day(month, 10)?.let { adjust(salary, pay, it, "工资") }
+            if (month.monthValue == 2) day(month, 8)?.let { adjust(salary, pay * 2, it, "年终奖") }
+            day(month, 15)?.let { adjust(housing, 5_640_00, it, "公积金缴存") }
+            if (month.monthValue == 1) day(month, 20)?.let { adjust(housing, -36_000_00, it, "还贷提取") }
+
+            // Statements post on the statement day and are repaid on the due day from the same bank.
+            val visaBill = amount(2_600, 7_400)
+            day(month, 7)?.let { adjust(visa, -visaBill, it, "本期账单") }
+            day(month, 25)?.let {
+                adjust(visa, visaBill, it, "还款")
+                adjust(salary, -visaBill, it, "还招行信用卡")
+            }
+            // The second card is rarely used and has no bill this month.
+            val whiteBill = if (month < YearMonth.from(today)) amount(300, 1_600) else 0L
+            day(month, 15)?.let { adjust(white, -whiteBill, it, "本期账单") }
+            day(month.plusMonths(1), 3)?.let {
+                adjust(white, whiteBill, it, "还款")
+                adjust(salary, -whiteBill, it, "还招行信用卡")
+            }
+            val icbcBill = amount(1_200, 3_200)
+            val familyBill = amount(400, 1_500)
+            day(month, 25)?.let {
+                adjust(icbcMain, -icbcBill, it, "本期账单")
+                adjust(icbcFamily, -familyBill, it, "本期账单")
+            }
+            val repayment = day(month.plusMonths(1), 14)
+            val monthlyMortgage = 6_820_45L
+            day(month, 12)?.let {
+                val transfer = monthlyMortgage + 3_500_00L
+                adjust(salary, -transfer, it, "转工行 · 房贷与信用卡")
+                adjust(mortgage, transfer, it, "招行转入")
+            }
+            day(month, 15)?.let { adjust(mortgage, -monthlyMortgage, it, "房贷月供") }
+            repayment?.let {
+                adjust(icbcMain, icbcBill, it, "还款")
+                adjust(icbcFamily, familyBill, it, "还款")
+                adjust(mortgage, -(icbcBill + familyBill), it, "还工行信用卡")
+            }
+            day(month, 16)?.let {
+                adjust(salary, -2_800_00, it, "转入支付宝")
+                adjust(alipay, 2_800_00, it, "招行转入")
+            }
+            day(month, 20)?.let { adjust(salary, -amount(3_000, 5_000), it, "家用转账") }
+            if (month.monthValue % 3 == 1) day(month, 5)?.let {
+                adjust(salary, -6_000_00, it, "银证转账 · 华泰")
+                adjust(htsc, 6_000_00, it, "银证转入")
+            }
+            if (month.monthValue == 6) day(month, 28)?.let { adjust(reserve, 20_000_00, it, "转入储蓄") }
+            if (month.monthValue == 1) {
+                day(month, 26)?.let {
+                    adjust(salary, -3_000_00, it, "取现 · 春节")
+                    adjust(home, 3_000_00, it, "取现备用")
+                }
+                day(month, 27)?.let { adjust(home, -3_000_00, it, "春节红包") }
+            }
+            if (month.monthValue == 9) day(month, 1)?.let { adjust(home, -1_200_00, it, "开学杂费") }
+            if (month < YearMonth.from(today).minusMonths(4)) {
+                day(month, 28)?.let {
+                    adjust(alipay, -amount(1_300, 2_100), it, "月度消费")
+                    adjust(wechat, amount(-200, 300), it, "月度结余")
+                }
             }
         }
 
-        val snapshot = graph.overview.snapshot()
-        val account = snapshot.accounts.single { it.id == accountId }
-        val cny = snapshot.cash.single {
-            it.account_id == accountId && it.type == BalanceAccountType.SAVINGS &&
-                it.currency.code == "CNY"
+        // The latest four months, recorded as they happen.
+        dailySpending(alipay, wechat, today.minusMonths(4).withDayOfMonth(1))
+
+        // Credit cards: spending since the last statement, a refund that leaves a credit balance, and a large
+        // purchase that takes the new card close to its limit.
+        adjust(visa, -amount(300, 900), today.minusDays(2), "超市")
+        adjust(icbcMain, -2_315_60, today.minusDays(3), "加油与超市")
+        adjust(icbcFamily, -1_048_00, today.minusDays(4), "网购")
+        adjust(white, 86_00, today.minusDays(5), "退款 · 网购退货")
+        val dragonStart = YearMonth.from(start.plusYears(8))
+        months(dragonStart, YearMonth.from(today).minusMonths(1)).forEach { month ->
+            val bill = amount(200, 800)
+            day(month, 18)?.let { adjust(dragon, -bill, it, "本期账单") }
+            day(month.plusMonths(1), 2)?.let {
+                adjust(dragon, bill, it, "还款")
+                adjust(reserve, -bill, it, "还建行信用卡")
+            }
         }
-        graph.commands.execute(SaveAccount(id(), accountId, account.revision, account.name,
-            "银行账户 · 含长期现金与存单样本", listOf(CashBalanceChange(
-                "CNY", cny.balance_minor, cny.revision, cny.id,
-                name = "人民币长期资金", note = "2016 年起的多次修正记录"
-            ))))
+        adjust(dragon, -7_999_00, today.minusDays(9).coerceAtLeast(today.withDayOfMonth(1)), "家电 · 洗烘套装")
+        adjust(dragon, -936_20, today.minusDays(1), "加油")
+
+        // Trips: currency exchanged from the salary card and spent abroad.
+        trip(salary, cmbUsd, "USD", 7_10, LocalDate.of(start.year + 2, 7, 3), 1_500_00, "美国出差")
+        val bocCny = cashByName(accounts.getValue(BOC), "中行储蓄卡").id
+        val bocUsd = cashByName(accounts.getValue(BOC), "中行美元").id
+        val bocHkd = cashByName(accounts.getValue(BOC), "中行港币").id
+        val bocJpy = cashByName(accounts.getValue(BOC), "中行日元").id
+        val bocEur = cashByName(accounts.getValue(BOC), "中行欧元").id
+        adjust(bocCny, 30_000_00, LocalDate.of(start.year + 2, 3, 10), "招行转入")
+        adjust(salary, -30_000_00, LocalDate.of(start.year + 2, 3, 10), "转中行")
+        trip(bocCny, bocHkd, "HKD", 88, LocalDate.of(start.year + 2, 8, 2), 8_000_00, "香港旅行")
+        trip(bocCny, bocJpy, "JPY", 5, LocalDate.of(start.year + 6, 3, 18), 280_000, "日本旅行")
+        trip(bocCny, bocEur, "EUR", 790, LocalDate.of(start.year + 8, 4, 22), 2_400_00, "欧洲旅行")
+        adjust(bocUsd, 1_800_00, LocalDate.of(start.year + 7, 11, 5), "外币汇入")
+        adjust(bocCny, 12_000_00, LocalDate.of(start.year + 8, 3, 30), "招行转入")
+        adjust(salary, -12_000_00, LocalDate.of(start.year + 8, 3, 30), "转中行")
+        adjust(futuHkd, 60_000_00, LocalDate.of(start.year + 4, 2, 8), "入金")
+        adjust(futuUsd, 2_500_00, LocalDate.of(start.year + 6, 5, 12), "换汇入金")
+        adjust(futuUsd, 4_000_00, LocalDate.of(start.year + 8, 1, 9), "换汇入金")
+
+        // Corrections: an entry typed wrong and fixed later keeps its revision history.
+        val bonus = graph.cashPages.cashAccountPage(salary, null, 400).first { it.note == "年终奖" }
+        graph.commands.execute(EditCashEntry(id(), bonus.id, bonus.revision, bonus.delta_minor + 1_000_00,
+            bonus.occurred_at_ms, "年终奖 · 含绩效补发"))
+        val corrected = graph.cashPages.cashAccountPage(salary, null, 400).first { it.id == bonus.id }
+        graph.commands.execute(EditCashEntry(id(), corrected.id, corrected.revision, corrected.delta_minor,
+            corrected.occurred_at_ms + 86_400_000L, "年终奖 · 含绩效补发（到账日更正）"))
     }
 
-    private suspend fun seedDepositLifecycle(accountId: Long, cnyCashId: Long) {
-        val closed = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 1_280_000L,
-            R.parse_e8("3.25"), LocalDate.of(2017, 1, 15).toEpochDay(),
-            LocalDate.of(2018, 1, 15).toEpochDay(), true, cnyCashId)).id
-        graph.commands.execute(EditTermDeposit(id(), closed, 1, 1_320_000L, R.parse_e8("3.35"),
-            LocalDate.of(2017, 2, 1).toEpochDay(), LocalDate.of(2018, 2, 1).toEpochDay(),
-            true, null, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), closed, 2, 1_305_000L, R.parse_e8("3.45"),
-            LocalDate.of(2017, 1, 20).toEpochDay(), LocalDate.of(2018, 1, 20).toEpochDay(),
-            true, null, cnyCashId))
-        graph.commands.execute(CloseTermDeposit(id(), closed, true, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), closed, 4, 1_298_000L, R.parse_e8("3.50"),
-            LocalDate.of(2017, 1, 18).toEpochDay(), LocalDate.of(2018, 1, 18).toEpochDay(),
-            true, true, cnyCashId, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), closed, 5, 1_292_000L, R.parse_e8("3.55"),
-            LocalDate.of(2017, 1, 16).toEpochDay(), LocalDate.of(2018, 1, 16).toEpochDay(),
-            true, true, cnyCashId, cnyCashId))
-
-        val open = graph.commands.execute(OpenTermDeposit(id(), accountId, "CNY", 1_750_000L,
-            R.parse_e8("2.60"), LocalDate.of(2024, 5, 6).toEpochDay(),
-            LocalDate.of(2028, 5, 6).toEpochDay(), true, cnyCashId)).id
-        graph.commands.execute(EditTermDeposit(id(), open, 1, 1_820_000L, R.parse_e8("2.75"),
-            LocalDate.of(2024, 5, 8).toEpochDay(), LocalDate.of(2028, 5, 8).toEpochDay(),
-            true, null, cnyCashId))
-        graph.commands.execute(EditTermDeposit(id(), open, 2, 1_850_000L, R.parse_e8("2.85"),
-            LocalDate.of(2024, 5, 10).toEpochDay(), LocalDate.of(2028, 5, 10).toEpochDay(),
-            true, null, cnyCashId))
-    }
-
-    private suspend fun seedInvestmentLifecycle(
-        accountId: Long,
-        usdCashId: Long,
-        appleInstrumentId: Long,
-        metaInstrumentId: Long
-    ) {
-        val apple = graph.commands.execute(CreateInvestmentPosition(id(), accountId, appleInstrumentId)).id
-        val firstBuy = graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.BUY,
-            R.parse_e8("12"), R.parse_e8("120"), at(LocalDate.of(2018, 5, 2)), true,
-            usdCashId, 495)).id
-        graph.commands.execute(EditInvestmentTrade(id(), firstBuy, 1, Direction.BUY,
-            R.parse_e8("12.5"), R.parse_e8("119"), at(LocalDate.of(2018, 5, 3)), true,
-            usdCashId, 525))
-        graph.commands.execute(EditInvestmentTrade(id(), firstBuy, 2, Direction.BUY,
-            R.parse_e8("13"), R.parse_e8("118.75"), at(LocalDate.of(2018, 5, 4)), true,
-            usdCashId, 565))
-        graph.commands.execute(EditInvestmentTrade(id(), firstBuy, 3, Direction.BUY,
-            R.parse_e8("12.75"), R.parse_e8("118.20"), at(LocalDate.of(2018, 5, 4)), true,
-            usdCashId, 535))
-
-        val secondBuy = graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.BUY,
-            R.parse_e8("7.25"), R.parse_e8("145.80"), at(LocalDate.of(2020, 9, 18)), true,
-            usdCashId, 610)).id
-        graph.commands.execute(EditInvestmentTrade(id(), secondBuy, 1, Direction.BUY,
-            R.parse_e8("7.5"), R.parse_e8("144.90"), at(LocalDate.of(2020, 9, 21)), true,
-            usdCashId, 625))
-        graph.commands.execute(EditInvestmentTrade(id(), secondBuy, 2, Direction.BUY,
-            R.parse_e8("7.8"), R.parse_e8("145.15"), at(LocalDate.of(2020, 9, 22)), true,
-            usdCashId, 640))
-
-        val firstSell = graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.SELL,
-            R.parse_e8("5"), R.parse_e8("190.25"), at(LocalDate.of(2023, 7, 11)), true,
-            usdCashId, 330)).id
-        graph.commands.execute(EditInvestmentTrade(id(), firstSell, 1, Direction.SELL,
-            R.parse_e8("4.8"), R.parse_e8("191.80"), at(LocalDate.of(2023, 7, 12)), true,
-            usdCashId, 340))
-        graph.commands.execute(EditInvestmentTrade(id(), firstSell, 2, Direction.SELL,
-            R.parse_e8("4.75"), R.parse_e8("192.20"), at(LocalDate.of(2023, 7, 13)), true,
-            usdCashId, 345))
-        graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.BUY,
-            R.parse_e8("2.5"), R.parse_e8("220.40"), at(LocalDate.of(2025, 2, 14)), true,
-            usdCashId, 420))
-        graph.commands.execute(RecordInvestmentTrade(id(), apple, Direction.SELL,
-            R.parse_e8("3.25"), R.parse_e8("255.60"), at(LocalDate.of(2026, 8, 24)), true,
-            usdCashId, 365))
-
-        val meta = graph.commands.execute(CreateInvestmentPosition(id(), accountId, metaInstrumentId)).id
-        val metaBuy = graph.commands.execute(RecordInvestmentTrade(id(), meta, Direction.BUY,
-            R.parse_e8("8"), R.parse_e8("135"), at(LocalDate.of(2019, 3, 7)), true,
-            usdCashId, 520)).id
-        graph.commands.execute(EditInvestmentTrade(id(), metaBuy, 1, Direction.BUY,
-            R.parse_e8("8.5"), R.parse_e8("134.50"), at(LocalDate.of(2019, 3, 8)), true,
-            usdCashId, 545))
-        graph.commands.execute(EditInvestmentTrade(id(), metaBuy, 2, Direction.BUY,
-            R.parse_e8("8.4"), R.parse_e8("134.80"), at(LocalDate.of(2019, 3, 11)), true,
-            usdCashId, 535))
-        val metaSell = graph.commands.execute(RecordInvestmentTrade(id(), meta, Direction.SELL,
-            R.parse_e8("8.4"), R.parse_e8("224.30"), at(LocalDate.of(2022, 6, 20)), true,
-            usdCashId, 410)).id
-        graph.commands.execute(EditInvestmentTrade(id(), metaSell, 1, Direction.SELL,
-            R.parse_e8("8.4"), R.parse_e8("226.10"), at(LocalDate.of(2022, 6, 21)), true,
-            usdCashId, 425))
-        graph.commands.execute(EditInvestmentTrade(id(), metaSell, 2, Direction.SELL,
-            R.parse_e8("8.4"), R.parse_e8("225.75"), at(LocalDate.of(2022, 6, 22)), true,
-            usdCashId, 415))
-    }
-
-    private fun at(date: LocalDate): Long = date.atTime(10, 30).atZone(clock.zone).toInstant().toEpochMilli()
-
-    private fun demoQuantity(currency: String, index: Int, opening: Boolean): Long {
-        val values = when (currency) {
-            "CNY" -> if (opening) listOf("2", "5", "8", "12", "20") else listOf("1", "2", "3", "5", "8")
-            "HKD" -> if (opening) listOf("5", "10", "18", "25", "40") else listOf("2", "5", "8", "12", "20")
-            else -> if (opening) listOf("0.2", "0.5", "0.8", "1.2", "2") else listOf("0.1", "0.2", "0.35", "0.5", "0.8")
-        }
-        return R.parse_e8(values[index.mod(values.size)])
-    }
-
-    private fun demoFee(currency: String, positionIndex: Int, tradeIndex: Int): Long {
-        if ((positionIndex + tradeIndex) % 13 == 0) return 0
-        val variation = positionIndex * 37L + tradeIndex * 53L
-        return when (currency) {
-            "CNY" -> 500L + variation % 1_600L
-            "HKD" -> 1_000L + variation % 2_500L
-            else -> 35L + variation % 450L
+    /** Small Alipay and WeChat payments, most days, with the usual notes; some carry no note at all. */
+    private suspend fun dailySpending(alipay: Long, wechat: Long, from: LocalDate) {
+        val alipayNotes = listOf("早餐", "午餐", "超市", "打车", "地铁", "水电燃气", "话费充值", "外卖", "网购", "")
+        val wechatNotes = listOf("咖啡", "便利店", "停车", "水果", "早餐", "")
+        var date = from
+        while (date <= today) {
+            if (random.nextInt(10) < 8) {
+                adjust(alipay, -amount(12, 128), date, alipayNotes[random.nextInt(alipayNotes.size)], hour = 12)
+            }
+            if (random.nextInt(10) < 4) {
+                adjust(wechat, -amount(6, 48), date, wechatNotes[random.nextInt(wechatNotes.size)], hour = 18)
+            }
+            if (date.dayOfMonth == 1) adjust(wechat, 500_00, date, "支付宝转入", hour = 8)
+            if (date.dayOfMonth == 1) adjust(alipay, -500_00, date, "转入微信", hour = 8)
+            if (date.dayOfMonth == 21) adjust(wechat, 200_00, date, "红包 · 生日", hour = 20)
+            date = date.plusDays(1)
         }
     }
+
+    private suspend fun trip(source: Long, target: Long, currency: String, rateCnyPerHundred: Long,
+        date: LocalDate, foreignMinor: Long, note: String) {
+        val cnyMinor = foreignMinor * rateCnyPerHundred / if (currency == "JPY") 1 else 100
+        adjust(source, -cnyMinor, date.minusDays(5), "换汇 · $note")
+        adjust(target, foreignMinor, date.minusDays(5), "换汇")
+        adjust(target, -foreignMinor * 7 / 10, date.plusDays(4), "$note · 消费")
+    }
+
+    // ---- Investments -----------------------------------------------------------------------------------------
+
+    private suspend fun seedInstruments(): Map<String, Long> {
+        val types = DEMO_TYPES.associateWith { graph.commands.execute(SaveAssetType(id(), null, it)).id }
+        return DEMO_INSTRUMENTS.associate { item ->
+            item.symbol to graph.commands.execute(SaveInstrument(id(), null, null, item.name, item.symbol,
+                types.getValue(item.type), item.currency, R.parse_units(item.price, 5))).id
+        }
+    }
+
+    private suspend fun seedInvestments(accounts: Map<String, Long>, instruments: Map<String, Long>) {
+        val htsc = accounts.getValue(HTSC)
+        val futu = accounts.getValue(FUTU)
+        val alipay = accounts.getValue(ALIPAY)
+        val htscCash = cashByName(htsc, "华泰资金").id
+        val hkd = cashByName(futu, "富途港币").id
+        val usd = cashByName(futu, "富途美元").id
+        val alipayCash = cashByName(alipay, "支付宝余额").id
+        suspend fun position(account: Long, symbol: String) =
+            graph.commands.execute(CreateInvestmentPosition(id(), account, instruments.getValue(symbol))).id
+
+        // A monthly ETF plan since the second year: early buys were recorded without linking cash.
+        val etf = position(htsc, "510300.SH")
+        months(YearMonth.from(start.plusYears(1)), YearMonth.from(today)).forEach { month ->
+            val date = day(month, 3) ?: return@forEach
+            trade(etf, "510300.SH", Direction.BUY, "300", date, htscCash.takeIf { month.year >= start.year + 3 })
+            if (month == YearMonth.of(start.year + 4, 7) || month == YearMonth.of(start.year + 8, 2)) {
+                trade(etf, "510300.SH", Direction.SELL, "3000", date.plusDays(12), htscCash)
+            }
+        }
+        position(htsc, "600036.SH").let {
+            trade(it, "600036.SH", Direction.BUY, "1000", LocalDate.of(start.year + 2, 4, 11), htscCash)
+            trade(it, "600036.SH", Direction.BUY, "500", LocalDate.of(start.year + 5, 10, 25), htscCash)
+        }
+        position(htsc, "600900.SH").let {
+            trade(it, "600900.SH", Direction.BUY, "1000", LocalDate.of(start.year + 3, 6, 15), htscCash)
+            trade(it, "600900.SH", Direction.SELL, "300", LocalDate.of(start.year + 8, 3, 18), htscCash)
+        }
+        position(htsc, "601318.SH").let {
+            trade(it, "601318.SH", Direction.BUY, "500", LocalDate.of(start.year + 1, 3, 20), null)
+            trade(it, "601318.SH", Direction.SELL, "500", LocalDate.of(start.year + 4, 2, 22), htscCash)
+        }
+        position(htsc, "019740.SH").let {
+            trade(it, "019740.SH", Direction.BUY, "200", LocalDate.of(start.year + 7, 3, 20), htscCash)
+        }
+        // Added to the list while waiting for a better price; no trade yet.
+        position(htsc, "600519.SH")
+
+        position(futu, "0700.HK").let {
+            trade(it, "0700.HK", Direction.BUY, "100", LocalDate.of(start.year + 3, 7, 8), hkd)
+            trade(it, "0700.HK", Direction.BUY, "100", LocalDate.of(start.year + 5, 10, 24), hkd)
+        }
+        position(futu, "1810.HK").let {
+            trade(it, "1810.HK", Direction.BUY, "2000", LocalDate.of(start.year + 4, 3, 9), hkd)
+            trade(it, "1810.HK", Direction.SELL, "1000", LocalDate.of(start.year + 8, 6, 17), hkd)
+        }
+        position(futu, "3690.HK").let {
+            trade(it, "3690.HK", Direction.BUY, "200", LocalDate.of(start.year + 4, 2, 17), hkd)
+            trade(it, "3690.HK", Direction.SELL, "200", LocalDate.of(start.year + 6, 5, 23), hkd)
+        }
+        position(futu, "AAPL").let { apple ->
+            val first = trade(apple, "AAPL", Direction.BUY, "10", LocalDate.of(start.year + 3, 8, 12), usd)
+            // The first buy was entered with the wrong price and quantity, then corrected twice.
+            val trade = requireNotNull(graph.investments.get_trade(first))
+            graph.commands.execute(EditInvestmentTrade(id(), first, trade.revision, Direction.BUY, R.parse_e8("12"),
+                trade.execution_price_e8 + R.parse_e8("1.5"), trade.occurred_at_ms, true, usd, trade.fee_minor))
+            graph.commands.execute(EditInvestmentTrade(id(), first, trade.revision + 1, Direction.BUY, R.parse_e8("10"),
+                trade.execution_price_e8, trade.occurred_at_ms, true, usd, trade.fee_minor + 50))
+            trade(apple, "AAPL", Direction.BUY, "5", LocalDate.of(start.year + 5, 6, 14), usd)
+            trade(apple, "AAPL", Direction.SELL, "3", LocalDate.of(start.year + 7, 12, 9), usd)
+            trade(apple, "AAPL", Direction.BUY, "3", LocalDate.of(start.year + 8, 4, 7), usd)
+        }
+        position(futu, "NVDA").let {
+            trade(it, "NVDA", Direction.BUY, "2", LocalDate.of(start.year + 6, 1, 18), usd)
+            trade(it, "NVDA", Direction.BUY, "1.5", LocalDate.of(start.year + 7, 9, 10), usd)
+        }
+        position(futu, "VOO").let { voo ->
+            // Fractional shares: a fixed 500 USD every quarter.
+            months(YearMonth.of(start.year + 8, 1), YearMonth.from(today)).filter { it.monthValue % 3 == 1 }
+                .forEach { month -> day(month, 15)?.let { date ->
+                    val units = BigDecimal("500").divide(price("VOO", date), 8, RoundingMode.DOWN)
+                    trade(voo, "VOO", Direction.BUY, units.toPlainString(), date, usd)
+                } }
+        }
+        position(futu, "META").let {
+            trade(it, "META", Direction.BUY, "6", LocalDate.of(start.year + 2, 3, 7), usd)
+            trade(it, "META", Direction.SELL, "6", LocalDate.of(start.year + 5, 6, 21), usd)
+        }
+
+        // Alipay funds: a monthly plan, and one lump sum bought near a peak and half sold later.
+        val blueChip = position(alipay, "005827")
+        months(YearMonth.of(start.year + 4, 1), YearMonth.from(today)).forEach { month ->
+            day(month, 8)?.let { date ->
+                val units = BigDecimal("1000").divide(price("005827", date), 2, RoundingMode.DOWN)
+                trade(blueChip, "005827", Direction.BUY, units.toPlainString(), date, alipayCash)
+            }
+        }
+        adjust(alipayCash, 20_000_00, LocalDate.of(start.year + 4, 2, 9), "招行转入 · 基金")
+        adjust(cashByName(accounts.getValue(CMB), "招行储蓄卡").id, -20_000_00, LocalDate.of(start.year + 4, 2, 9), "转入支付宝 · 基金")
+        position(alipay, "161725").let {
+            val date = LocalDate.of(start.year + 4, 2, 10)
+            val units = BigDecimal("20000").divide(price("161725", date), 2, RoundingMode.DOWN)
+            trade(it, "161725", Direction.BUY, units.toPlainString(), date, alipayCash)
+            trade(it, "161725", Direction.SELL, units.divide(BigDecimal(2), 2, RoundingMode.DOWN).toPlainString(),
+                LocalDate.of(start.year + 7, 9, 26), alipayCash)
+        }
+    }
+
+    /** Records a trade at the demo price of that day and returns its id. */
+    private suspend fun trade(position: Long, symbol: String, direction: Direction, quantity: String,
+        date: LocalDate, cash: Long?): Long {
+        val item = DEMO_INSTRUMENTS.single { it.symbol == symbol }
+        val unit = price(symbol, date)
+        val notional = unit.multiply(BigDecimal(quantity))
+        val fee = when {
+            random.nextInt(12) == 0 -> BigDecimal.ZERO
+            item.type == "基金" && item.currency == "CNY" && symbol.length == 6 ->
+                notional.multiply(BigDecimal("0.0015"))
+            item.type == "基金" && item.currency == "CNY" -> notional.multiply(BigDecimal("0.0001")).max(BigDecimal("0.1"))
+            item.currency == "CNY" -> notional.multiply(BigDecimal("0.00025")).max(BigDecimal("5"))
+            item.currency == "HKD" -> notional.multiply(BigDecimal("0.0003")).add(BigDecimal("15"))
+            else -> BigDecimal("0.99").add(BigDecimal(quantity).multiply(BigDecimal("0.005")))
+        }.let { minor(it.setScale(2, RoundingMode.HALF_UP).toPlainString(), item.currency) }
+        return graph.commands.execute(RecordInvestmentTrade(id(), position, direction, R.parse_e8(quantity),
+            R.parse_e8(unit.toPlainString()), at(date, 10), cash != null, cash, fee)).id
+    }
+
+    // ---- Deposits --------------------------------------------------------------------------------------------
+
+    private suspend fun seedDeposits(accounts: Map<String, Long>) {
+        val ccb = accounts.getValue(CCB)
+        val reserve = cashByName(ccb, "建行储蓄卡").id
+        suspend fun open(account: Long, currency: String, principal: String, rate: String, from: LocalDate,
+            to: LocalDate, cash: Long?) = graph.commands.execute(OpenTermDeposit(id(), account, currency,
+            minor(principal, currency), R.parse_e8(rate), from.toEpochDay(), to.toEpochDay(), cash != null, cash)).id
+
+        // Matured and closed back into the savings card, one of them corrected after a typing mistake.
+        val fiveYears = open(ccb, "CNY", "60000", "3.25", LocalDate.of(start.year + 1, 3, 12),
+            LocalDate.of(start.year + 6, 3, 12), reserve)
+        graph.commands.execute(EditTermDeposit(id(), fiveYears, 1, minor("60000", "CNY"), R.parse_e8("3.575"),
+            LocalDate.of(start.year + 1, 3, 12).toEpochDay(), LocalDate.of(start.year + 6, 3, 12).toEpochDay(),
+            true, null, reserve))
+        graph.commands.execute(CloseTermDeposit(id(), fiveYears, true, reserve))
+        val oneYear = open(ccb, "CNY", "20000", "1.95", LocalDate.of(start.year + 5, 6, 20),
+            LocalDate.of(start.year + 6, 6, 20), reserve)
+        graph.commands.execute(CloseTermDeposit(id(), oneYear, true, reserve))
+        // A ladder still running.
+        open(ccb, "CNY", "100000", "2.35", LocalDate.of(start.year + 7, 3, 15), LocalDate.of(start.year + 10, 3, 15), reserve)
+        open(ccb, "CNY", "50000", "1.45", LocalDate.of(start.year + 8, 11, 5), LocalDate.of(start.year + 9, 11, 5), reserve)
+        open(ccb, "CNY", "20000", "1.30", today.minusMonths(4).withDayOfMonth(1),
+            today.minusMonths(4).withDayOfMonth(1).plusMonths(6), reserve)
+
+        val boc = accounts.getValue(BOC)
+        open(boc, "USD", "3000", "4.00", today.minusMonths(10).withDayOfMonth(10),
+            today.minusMonths(10).withDayOfMonth(10).plusYears(1), cashByName(boc, "中行美元").id)
+        // Matured last month and not yet handled, so it shows as due.
+        open(boc, "HKD", "5000", "2.80", today.minusMonths(4).withDayOfMonth(1).minusDays(1),
+            today.minusMonths(1).withDayOfMonth(1).minusDays(1), cashByName(boc, "中行港币").id)
+
+        val family = accounts.getValue(FAMILY)
+        open(family, "CNY", "50000", "2.75", LocalDate.of(start.year + 5, 9, 1), LocalDate.of(start.year + 10, 9, 1), null)
+    }
+
+    // ---- Helpers ---------------------------------------------------------------------------------------------
+
+    private suspend fun cashByName(accountId: Long, name: String): CashAccount =
+        graph.cash.observe_cash(accountId).first().single { it.name == name }
+
+    /** Records a balance change through the app, dated to [date]. */
+    private suspend fun adjust(cashId: Long, delta: Long, date: LocalDate, note: String, hour: Int = 9) {
+        if (delta == 0L || date > today) return
+        val cash = requireNotNull(graph.cash.observeCashAccount(cashId).first())
+        val result = graph.commands.execute(SetCashBalance(id(), cash.account_id, cash.currency.code,
+            cash.balance_minor + delta, cash.revision, cash.id, cash.name, cash.note))
+        graph.commands.execute(EditCashEntry(id(), result.id, 1, delta, at(date, hour), note))
+    }
+
+    private fun amount(fromYuan: Int, toYuan: Int): Long =
+        (fromYuan * 100L) + (random.nextDouble() * (toYuan - fromYuan) * 100).toLong()
+
+    private fun months(from: YearMonth, to: YearMonth): List<YearMonth> =
+        generateSequence(from) { it.plusMonths(1) }.takeWhile { it <= to }.toList()
+
+    private fun years(from: Int, to: Int): IntRange = from..to
+
+    private fun day(month: YearMonth, day: Int): LocalDate? =
+        month.atDay(minOf(day, month.lengthOfMonth())).takeIf { it <= today && it >= start }
+
+    private fun at(date: LocalDate, hour: Int): Long = date.atTime(hour, 30).atZone(clock.zone).toInstant().toEpochMilli()
+        .coerceAtMost(clock.millis())
+
+    private fun price(symbol: String, date: LocalDate): BigDecimal = demoPrice(symbol, date, today)
 
     private fun id(): String = UUID.randomUUID().toString()
+
+    /** A 256 px account photo: a soft gradient with a house outline, standing in for a family picture. */
+    private fun photoIcon(): AccountIconChange {
+        val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawPaint(Paint().apply {
+            shader = LinearGradient(0f, 0f, 256f, 256f, 0xffe9b38a.toInt(), 0xff7a8fb1.toInt(), Shader.TileMode.CLAMP)
+        })
+        val line = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xf2ffffff.toInt(); strokeWidth = 14f
+            style = Paint.Style.STROKE; strokeJoin = Paint.Join.ROUND }
+        canvas.drawPath(android.graphics.Path().apply {
+            moveTo(64f, 132f); lineTo(128f, 76f); lineTo(192f, 132f)
+            moveTo(84f, 120f); lineTo(84f, 188f); lineTo(172f, 188f); lineTo(172f, 120f)
+        }, line)
+        canvas.drawCircle(196f, 64f, 18f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xfffff3d6.toInt() })
+        val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 90, it); it.toByteArray() }
+        bitmap.recycle()
+        return AccountIconChange(AccountIcon(AccountIconType.IMAGE, WalletImageFormat.digest(bytes)), bytes)
+    }
+
+    internal data class DemoInstrument(val symbol: String, val name: String, val english: String, val type: String,
+        val currency: String, val price: String, val listed: Int)
+
+    companion object {
+        const val CMB = "招商银行"
+        const val ICBC = "中国工商银行"
+        const val CCB = "中国建设银行"
+        const val BOC = "中国银行"
+        const val ALIPAY = "支付宝"
+        const val WECHAT = "微信"
+        const val HTSC = "华泰证券"
+        const val FUTU = "富途证券"
+        const val FUND = "住房公积金"
+        const val FAMILY = "家庭备用金"
+        const val GROUP_BANKS = "银行卡"
+        const val GROUP_DAILY = "日常"
+        const val GROUP_INVESTING = "投资"
+
+        val DEMO_TYPES = listOf("A股股票", "港股股票", "美股股票", "基金", "债券", "黄金")
+
+        /** [DemoInstrument.listed] is the year offset from the start of the ledger when prices begin. */
+        val DEMO_INSTRUMENTS = listOf(
+            DemoInstrument("600519.SH", "贵州茅台", "Kweichow Moutai", "A股股票", "CNY", "1468.20", 0),
+            DemoInstrument("600036.SH", "招商银行", "China Merchants Bank", "A股股票", "CNY", "42.15", 0),
+            DemoInstrument("600900.SH", "长江电力", "China Yangtze Power", "A股股票", "CNY", "29.16", 0),
+            DemoInstrument("601318.SH", "中国平安", "Ping An Insurance", "A股股票", "CNY", "57.40", 0),
+            DemoInstrument("300750.SZ", "宁德时代", "CATL", "A股股票", "CNY", "238.50", 1),
+            DemoInstrument("600941.SH", "中国移动", "China Mobile", "A股股票", "CNY", "112.30", 5),
+            DemoInstrument("0700.HK", "腾讯控股", "Tencent", "港股股票", "HKD", "598.00", 0),
+            DemoInstrument("1810.HK", "小米集团-W", "Xiaomi", "港股股票", "HKD", "52.35", 1),
+            DemoInstrument("3690.HK", "美团-W", "Meituan", "港股股票", "HKD", "112.70", 1),
+            DemoInstrument("0005.HK", "汇丰控股", "HSBC Holdings", "港股股票", "HKD", "104.20", 0),
+            DemoInstrument("AAPL", "Apple", "Apple", "美股股票", "USD", "258.40", 0),
+            DemoInstrument("NVDA", "NVIDIA", "NVIDIA", "美股股票", "USD", "188.25", 0),
+            DemoInstrument("MSFT", "Microsoft", "Microsoft", "美股股票", "USD", "518.70", 0),
+            DemoInstrument("META", "Meta Platforms", "Meta Platforms", "美股股票", "USD", "742.30", 0),
+            DemoInstrument("510300.SH", "沪深300ETF", "CSI 300 ETF", "基金", "CNY", "4.124", 0),
+            DemoInstrument("005827", "易方达蓝筹精选混合", "E Fund Blue Chip Fund", "基金", "CNY", "1.4521", 1),
+            DemoInstrument("161725", "招商中证白酒指数", "CMF CSI Liquor Index Fund", "基金", "CNY", "0.8936", 0),
+            DemoInstrument("VOO", "Vanguard S&P 500 ETF", "Vanguard S&P 500 ETF", "基金", "USD", "598.12", 0),
+            DemoInstrument("019740.SH", "24国债01", "China Government Bond 2401", "债券", "CNY", "101.235", 7)
+        )
+
+        // A getter: it joins maps declared further down.
+        val ENGLISH: Map<String, String> get() = mapOf(
+            CMB to "China Merchants Bank", ICBC to "ICBC", CCB to "China Construction Bank", BOC to "Bank of China",
+            ALIPAY to "Alipay", WECHAT to "WeChat", HTSC to "Huatai Securities", FUTU to "Futu Securities",
+            FUND to "Housing fund", FAMILY to "Family reserve",
+            "工资卡 · 日常收支" to "Salary card · daily spending",
+            "房贷还款 · 家庭信用卡" to "Mortgage payments · family credit cards",
+            "储蓄与定期" to "Savings and time deposits",
+            "外币 · 出境旅行" to "Foreign currency · travel",
+            "余额与基金理财" to "Balance and mutual funds",
+            "零钱 · 红包与转账" to "Change · gifts and transfers",
+            "A 股与 ETF 定投" to "A-shares and a monthly ETF plan",
+            "港股与美股" to "Hong Kong and US stocks",
+            "公积金 · 不计入可用现金" to "Housing fund · not in available cash",
+            "家中现金与教育储蓄" to "Cash at home and education savings",
+            "招行储蓄卡" to "CMB debit card", "招行美元" to "CMB USD", "招行 Visa 全币种" to "CMB Visa",
+            "招行经典白" to "CMB Classic White", "工行储蓄卡" to "ICBC debit card", "工行信用卡主卡" to "ICBC credit card",
+            "工行附属卡 · 家人" to "ICBC supplementary · family", "建行储蓄卡" to "CCB debit card",
+            "建行龙卡" to "CCB Long Card", "中行储蓄卡" to "BOC debit card", "中行美元" to "BOC USD",
+            "中行港币" to "BOC HKD", "中行日元" to "BOC JPY", "中行欧元" to "BOC EUR",
+            "支付宝余额" to "Alipay balance", "微信零钱" to "WeChat change", "华泰资金" to "Huatai cash",
+            "富途港币" to "Futu HKD", "富途美元" to "Futu USD", "公积金账户" to "Housing fund account",
+            "家中现金" to "Cash at home",
+            "A股股票" to "China A-shares", "港股股票" to "Hong Kong stocks", "美股股票" to "US stocks",
+            "基金" to "Funds", "债券" to "Bonds", "黄金" to "Gold",
+            GROUP_BANKS to "Bank cards", GROUP_DAILY to "Everyday", GROUP_INVESTING to "Investing",
+            "境外消费返现" to "Cashback abroad", "年费刷 6 次免" to "Fee waived after 6 purchases a year",
+            "与主卡共享额度" to "Shares the primary card's limit"
+        ) + DEMO_INSTRUMENTS.associate { it.name to it.english } + ENTRY_ENGLISH
+
+        /** Ledger notes, in both languages. Every note the seeder writes must be listed here. */
+        val ENTRY_ENGLISH = mapOf(
+            "期初余额" to "Opening balance", "开卡" to "Card opened", "季度结余" to "Quarterly net",
+            "转入储蓄" to "Moved to savings", "公积金缴存 · 季度" to "Housing fund · quarterly",
+            "转入支付宝" to "To Alipay", "招行转入 · 基金定投" to "From CMB · fund plan", "还贷提取" to "Withdrawn for the mortgage",
+            "春节红包" to "Spring Festival red envelopes", "取现备用" to "Cash withdrawn for home", "银证转入" to "From the bank",
+            "家用大件 · 冰箱" to "Household · fridge", "理财到期赎回" to "Wealth product redeemed", "工资" to "Salary",
+            "年终奖" to "Year-end bonus", "公积金缴存" to "Housing fund contribution", "本期账单" to "Statement",
+            "还款" to "Repayment", "还招行信用卡" to "CMB credit card repayment",
+            "转工行 · 房贷与信用卡" to "To ICBC · mortgage and cards", "招行转入" to "From CMB", "房贷月供" to "Mortgage payment",
+            "还工行信用卡" to "ICBC credit card repayment", "家用转账" to "Household transfer", "银证转账 · 华泰" to "To Huatai",
+            "取现 · 春节" to "Cash · Spring Festival", "开学杂费" to "School fees", "月度消费" to "Monthly spending",
+            "月度结余" to "Monthly net", "早餐" to "Breakfast", "午餐" to "Lunch", "超市" to "Supermarket", "打车" to "Taxi",
+            "地铁" to "Metro", "水电燃气" to "Utilities", "话费充值" to "Phone top-up", "外卖" to "Food delivery",
+            "网购" to "Online shopping", "咖啡" to "Coffee", "便利店" to "Convenience store", "停车" to "Parking",
+            "水果" to "Fruit", "支付宝转入" to "From Alipay", "转入微信" to "To WeChat", "红包 · 生日" to "Birthday red envelope",
+            "加油与超市" to "Fuel and supermarket", "退款 · 网购退货" to "Refund · online return",
+            "还建行信用卡" to "CCB credit card repayment", "家电 · 洗烘套装" to "Appliances · washer and dryer",
+            "加油" to "Fuel", "换汇" to "Currency exchange", "转中行" to "To BOC", "外币汇入" to "Foreign remittance received",
+            "入金" to "Deposit", "换汇入金" to "Exchanged and deposited", "招行转入 · 基金" to "From CMB · funds",
+            "转入支付宝 · 基金" to "To Alipay · funds", "年终奖 · 含绩效补发" to "Year-end bonus · with performance pay",
+            "年终奖 · 含绩效补发（到账日更正）" to "Year-end bonus · with performance pay (date corrected)"
+        ) + listOf("美国出差" to "US business trip", "香港旅行" to "Hong Kong trip", "日本旅行" to "Japan trip",
+            "欧洲旅行" to "Europe trip").flatMap { (zh, en) ->
+            listOf("换汇 · $zh" to "Currency exchange · $en", "$zh · 消费" to "$en · spending")
+        }
+
+        private fun minor(amount: String, currency: String): Long =
+            R.parse_units(amount, Currency.of(currency).fraction_digits)
+
+        /**
+         * A smooth synthetic price path that ends exactly at the current price: a yearly drift and a slow wave, so
+         * charts, trades and history agree. Rounded to the instrument's quoting precision.
+         */
+        fun demoPrice(symbol: String, date: LocalDate, today: LocalDate): BigDecimal {
+            val item = DEMO_INSTRUMENTS.single { it.symbol == symbol }
+            val seed = abs(symbol.hashCode())
+            val growth = 1.02 + (seed % 9) / 100.0
+            val wave = .08 + (seed / 9 % 10) / 100.0
+            val period = 1.6 + (seed / 90 % 25) / 10.0
+            val phase = (seed / 2250 % 628) / 100.0
+            val years = (today.toEpochDay() - date.toEpochDay()) / 365.25
+            val factor = growth.pow(-years) * (1 + wave * sin(2 * PI * years / period + phase)) / (1 + wave * sin(phase))
+            val scale = BigDecimal(item.price).scale()
+            return BigDecimal(item.price).multiply(BigDecimal(factor)).setScale(scale, RoundingMode.HALF_UP)
+                .max(BigDecimal.ONE.movePointLeft(scale))
+        }
+    }
 }

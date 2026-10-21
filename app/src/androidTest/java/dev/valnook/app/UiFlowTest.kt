@@ -1019,14 +1019,19 @@ class UiFlowTest {
         runBlocking {
             val realOrder = graph.overview.snapshot().accounts.map { it.id }
             sessions.enterDemo()
-            val demoOrder = graph.overview.snapshot().accounts.map { it.id }
-            assertEquals(12, demoOrder.size)
+            val demo = graph.overview.snapshot()
+            val demoOrder = demo.accounts.map { it.id }
+            assertEquals(10, demoOrder.size)
+            // The demo sorts its accounts into groups; reorder the largest one.
+            val group = demo.groups.maxBy { group -> demo.accounts.count { it.groupId == group.id } }
+            val members = demo.accounts.filter { it.groupId == group.id }.map { it.id }
+            assertTrue(members.size > 2)
             val writer = requireNotNull(graph.accountGroupWriter)
-            writer.reorderAccounts(AccountGroup.DEFAULT_ID, demoOrder.reversed())
-            assertEquals(demoOrder.reversed(), graph.overview.snapshot().accounts.map { it.id })
+            writer.reorderAccounts(group.id, members.reversed())
+            assertEquals(members.reversed(), graph.overview.snapshot().accounts.filter { it.groupId == group.id }.map { it.id })
             sessions.exitDemo()
             assertEquals(realOrder, graph.overview.snapshot().accounts.map { it.id })
-            try { writer.reorderAccounts(AccountGroup.DEFAULT_ID, demoOrder); fail("Expired demo writer") }
+            try { writer.reorderAccounts(group.id, members); fail("Expired demo writer") }
             catch (error: DomainException) { assertEquals(ErrorCode.SESSION_EXPIRED, error.code) }
             sessions.enterDemo()
             assertEquals(demoOrder, graph.overview.snapshot().accounts.map { it.id })

@@ -1,6 +1,12 @@
 package dev.valnook.app
 
-import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RadialGradient
+import android.graphics.Shader
+import android.util.Log
 import androidx.room.Room
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -9,56 +15,68 @@ import dev.valnook.app.di.AppGraph
 import dev.valnook.app.di.DemoDataSeeder
 import dev.valnook.app.di.createDatabaseGraph
 import dev.valnook.app.di.currentBuildInfo
+import dev.valnook.data.database.InstrumentPriceEntity
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.calculation.AssetValuation
+import dev.valnook.domain.model.AccountGroup
 import dev.valnook.domain.model.AppSettings
+import dev.valnook.domain.model.BalanceAccountType
+import dev.valnook.domain.model.CreditAccountInput
+import dev.valnook.domain.model.CreditDueRule
+import dev.valnook.domain.model.WalletFaceBackground
+import dev.valnook.domain.model.WalletFaceGeometry
+import dev.valnook.domain.model.WalletFaceStyle
+import dev.valnook.domain.model.WalletImage
+import dev.valnook.domain.model.WalletImageFormat
+import dev.valnook.domain.repository.CashBalanceChange
+import dev.valnook.domain.repository.DeleteBalanceAccount
+import dev.valnook.domain.repository.DeletionConfirmation
+import dev.valnook.domain.repository.SaveAccount
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.ByteArrayOutputStream
+import java.math.BigDecimal
 import java.time.Clock
 import java.time.Instant
-import java.time.ZoneId
 import java.time.LocalDate
 import java.time.YearMonth
-import java.math.BigDecimal
-import dev.valnook.data.database.InstrumentPriceEntity
+import java.time.ZoneId
+import java.util.UUID
 
+/**
+ * Builds the bundled demo database `valnook-demo-v21.db` from [DemoDataSeeder], adds the wallet, the price history
+ * and the English labels, checks that the ledger reads like a real one, and writes the file to test storage.
+ */
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
     @Test
-    fun exportRoomV12DemoDatabase() = runBlocking {
+    fun exportDemoDatabase() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(EXPORT_DATABASE_NAME)
-        val clock = Clock.fixed(Instant.parse("2026-10-02T04:00:00Z"), ZoneId.of("Asia/Hong_Kong"))
+        val clock = Clock.fixed(Instant.parse("2026-10-20T04:00:00Z"), ZoneId.of("Asia/Shanghai"))
         val database = Room.databaseBuilder(context, ValnookDatabase::class.java, EXPORT_DATABASE_NAME)
             .addCallback(ValnookDatabase.seed)
             .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)
             .build()
         try {
-            val raw = createDatabaseGraph(context,database,clock,currentBuildInfo(), persistentPrivateCards = false)
-            val graph = AppGraph("demo-asset-generator",raw.accounts,raw.cash,raw.deposits,
-                raw.investments,raw.commands,raw.clock,raw.overview,
-                dev.valnook.data.repository.RoomStatistics(database, clock),raw.settings,raw.settingsWriter,
-                raw.instruments,raw.cashPages,raw.depositPages)
+            val raw = createDatabaseGraph(context, database, clock, currentBuildInfo(), persistentPrivateCards = false)
+            val graph = AppGraph("demo-asset-generator", raw.accounts, raw.cash, raw.deposits,
+                raw.investments, raw.commands, raw.clock, raw.overview,
+                dev.valnook.data.repository.RoomStatistics(database, clock), raw.settings, raw.settingsWriter,
+                raw.instruments, raw.cashPages, raw.depositPages)
             DemoDataSeeder(graph, clock).seed(AppSettings())
-            enrichHistoricalSources(database, clock)
-            seedWallet(database, clock)
-            val snapshot = graph.overview.snapshot()
-            assertEquals(12, snapshot.accounts.size)
-            assertEquals(37, snapshot.cash.size)
-            assertEquals(10, snapshot.cash.count { it.creditProfile != null })
-            assertEquals(60, snapshot.instruments.size)
-            assertEquals(26, snapshot.positions.size)
-            val totalAssets = AssetValuation.calculate(snapshot).total.amount
-            assertTrue(totalAssets >= BigDecimal("100000"))
-            assertTrue(totalAssets < BigDecimal("200000"))
-            assertLifecycleFixtures(database)
+            seedWallet(database, graph, clock)
+            dev.valnook.data.repository.RoomAccountGroupWriter(database, clock).setCollapsed(AccountGroup.DEFAULT_ID, true)
+            enrichHistory(database, clock)
+            insertLabels(database)
+            check(database, graph)
         } finally {
             database.close()
         }
-
         val source = context.getDatabasePath(EXPORT_DATABASE_NAME)
         PlatformTestStorageRegistry.getInstance().openOutputFile(ASSET_FILE_NAME).use { output ->
             source.inputStream().use { input -> input.copyTo(output) }
@@ -66,46 +84,104 @@ class DemoDatabaseAssetGeneratorTest {
         assertTrue(source.length() > 0)
     }
 
-    private suspend fun seedWallet(database: ValnookDatabase, clock: Clock) {
-        val repository=dev.valnook.data.repository.RoomWallet(database,clock)
-        val cash=dev.valnook.data.repository.RoomOverview(database).snapshot().cash
-        val commands=dev.valnook.data.transaction.RoomFinancialCommands(database,clock)
-        cash.filter { it.creditProfile==null }.take(1).forEach { account ->
-            commands.execute(dev.valnook.domain.repository.SetCashBalance(java.util.UUID.randomUUID().toString(),account.account_id,
-                account.currency.code,account.balance_minor+13500,account.revision,account.id,account.name,account.note))
-            commands.execute(dev.valnook.domain.repository.SetCashBalance(java.util.UUID.randomUUID().toString(),account.account_id,
-                account.currency.code,account.balance_minor+11100,account.revision+1,account.id,account.name,account.note))
-        }
-        val savings=cash.first{it.creditProfile==null}.id
-        val credit=cash.first{it.creditProfile!=null}.id
-        val bindings=List<Long?>(15){index->when(index){0,4->savings;1,7->credit;2,8,14->null;else->cash[(index*3)%cash.size].id}}
-        val colors=listOf(0xff687983,0xff888078,0xff363a42,0xff8b929a,0xff778681,
-            0xff817788,0xff9a897b,0xff506474,0xff8c9090,0xff736e68,
-            0xff697877,0xff7c7d8e,0xffa09284,0xff57606a,0xff727579).map{it.toInt()}
-        val names=listOf("晨雾 · Mist","砂岩 · Sandstone","夜幕 · Dusk","雾银 · Silver","苔影 · Moss",
-            "暮紫 · Mauve","暖沙 · Sand","深湾 · Bay","月岩 · Moonstone","烟棕 · Umber",
-            "静湖 · Lake","蓝灰 · Slate","晨光 · Dawn","石墨 · Graphite","薄雾 · Haze")
-        colors.forEachIndexed { index,color ->
-            val style=dev.valnook.domain.model.WalletFaceStyle(
-                background=dev.valnook.domain.model.WalletFaceBackground.entries[index%3],
-                geometry=dev.valnook.domain.model.WalletFaceGeometry.entries[index%6],
-                base=color.toLong() and 0xffffffffL,
-                secondary=0xff303740L,accent=0xffe4e8edL)
-            repository.save(null,null,names[index],bindings[index],null,faceStyle=style)
-        }
+    /** Sixteen everyday cards: bank cards bound to their accounts, a few unbound cards and one closed card. */
+    private suspend fun seedWallet(database: ValnookDatabase, graph: AppGraph, clock: Clock) {
+        val wallet = dev.valnook.data.repository.RoomWallet(database, clock)
+        val cash = graph.overview.snapshot().cash
+        fun bound(name: String) = cash.single { it.name == name }.id
+        val sunflower = photo(0xfff2c14e, 0xffd9534f, 0xfffff4d6)
+        val mountains = photo(0xff3b5b7a, 0xff9fb8c8, 0xffeaf2f6, mountains = true)
+        val sunset = photo(0xff6b4c7a, 0xfff08a5d, 0xfffde2c9)
+        wallet.addFace("纸纹", photo(0xffe6e1d8, 0xffbfb7a8, 0xffffffff))
+        wallet.addFace("极光", photo(0xff12324a, 0xff3fbf9f, 0xffb8f2e6))
+        fun style(background: WalletFaceBackground, geometry: WalletFaceGeometry, base: Long, secondary: Long,
+            accent: Long) = WalletFaceStyle(background, geometry, base, secondary, accent)
+        suspend fun card(name: String, binding: Long?, face: WalletImage? = null, style: WalletFaceStyle? = null) =
+            wallet.save(null, null, name, binding, face?.key, face, style)
+        card("招行储蓄卡", bound("招行储蓄卡"), face = sunflower)
+        card("招行 Visa", bound("招行 Visa 全币种"),
+            style = style(WalletFaceBackground.LINEAR, WalletFaceGeometry.DIAGONAL, 0xff1d2b4f, 0xff0d1426, 0xffc9a86a))
+        card("招行经典白", bound("招行经典白"),
+            style = style(WalletFaceBackground.SOLID, WalletFaceGeometry.NONE, 0xffe9e6df, 0xffc8c3b8, 0xff3a3a3a))
+        card("工行储蓄卡", bound("工行储蓄卡"),
+            style = style(WalletFaceBackground.RADIAL, WalletFaceGeometry.CIRCLES, 0xff9b2c2c, 0xff5a1818, 0xfff3d9a4))
+        card("工行信用卡", bound("工行信用卡主卡"),
+            style = style(WalletFaceBackground.LINEAR, WalletFaceGeometry.RINGS, 0xff7a1f2b, 0xff2b0d12, 0xffe8c37c))
+        card("工行附属卡", bound("工行附属卡 · 家人"),
+            style = style(WalletFaceBackground.LINEAR, WalletFaceGeometry.RINGS, 0xffb3545f, 0xff5c2229, 0xfff6dcc0))
+        card("建行储蓄卡", bound("建行储蓄卡"),
+            style = style(WalletFaceBackground.SOLID, WalletFaceGeometry.BLOCKS, 0xff1f4e8c, 0xff123058, 0xffdfe8f3))
+        card("建行龙卡", bound("建行龙卡"), face = mountains)
+        card("中行外币卡", bound("中行美元"),
+            style = style(WalletFaceBackground.RADIAL, WalletFaceGeometry.ARC, 0xff8c1d24, 0xff3d0b0f, 0xffe4e8ed))
+        card("公交卡", null,
+            style = style(WalletFaceBackground.LINEAR, WalletFaceGeometry.DIAGONAL, 0xff2e7d5b, 0xff164030, 0xffd9f2e6))
+        card("社保卡", null,
+            style = style(WalletFaceBackground.SOLID, WalletFaceGeometry.BLOCKS, 0xff4f7fb8, 0xff2c4a70, 0xffffffff))
+        card("图书馆借书证", null,
+            style = style(WalletFaceBackground.RADIAL, WalletFaceGeometry.CIRCLES, 0xff8a6d4b, 0xff4a3826, 0xfff2e3cc))
+        card("超市会员卡", null,
+            style = style(WalletFaceBackground.LINEAR, WalletFaceGeometry.NONE, 0xff5b6770, 0xff2f363b, 0xffe4e8ed))
+        // The work badge and the building pass were printed with the same artwork.
+        card("公司工卡", null, face = sunset)
+        card("小区门禁卡", null, face = sunset)
+
+        // A cancelled card: its balance account was deleted, so the wallet keeps the card but loses the binding.
+        val boc = graph.overview.snapshot().accounts.single { it.name == DemoDataSeeder.BOC }
+        graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), boc.id, boc.revision, boc.name, boc.note,
+            listOf(CashBalanceChange("CNY", 0, null, name = "中行信用卡", type = BalanceAccountType.CREDIT,
+                credit = CreditAccountInput(5_000_00, 5, CreditDueRule.AfterStatementDays(20), null)))))
+        val closed = graph.overview.snapshot().cash.single { it.name == "中行信用卡" }
+        card("中行信用卡（已注销）", closed.id,
+            style = style(WalletFaceBackground.LINEAR, WalletFaceGeometry.ARC, 0xff6e6e73, 0xff3a3a3d, 0xffd0d0d4))
+        val preview = graph.commands.previewAccountDeletion(boc.id, closed.id)
+        graph.commands.execute(DeleteBalanceAccount(UUID.randomUUID().toString(), boc.id, closed.id, preview.revision,
+            DeletionConfirmation(preview.ticket, preview.code)))
     }
 
-    private suspend fun enrichHistoricalSources(database: ValnookDatabase, clock: Clock) {
+    /** A static card photo: a soft gradient with a few shapes, at the card's aspect ratio. */
+    private fun photo(base: Long, glow: Long, light: Long, mountains: Boolean = false): WalletImage {
+        val width = 1586
+        val height = 1000
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.drawPaint(Paint().apply {
+            shader = LinearGradient(0f, 0f, width.toFloat(), height.toFloat(), base.toInt(), glow.toInt(), Shader.TileMode.CLAMP)
+        })
+        canvas.drawCircle(width * .78f, height * .28f, height * .55f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(width * .78f, height * .28f, height * .55f, (light and 0x00ffffffL or 0x99000000L).toInt(),
+                (light and 0x00ffffffL).toInt(), Shader.TileMode.CLAMP)
+        })
+        if (mountains) {
+            val path = android.graphics.Path().apply {
+                moveTo(0f, height * .78f); lineTo(width * .22f, height * .52f); lineTo(width * .4f, height * .7f)
+                lineTo(width * .62f, height * .44f); lineTo(width * .86f, height * .68f); lineTo(width.toFloat(), height * .58f)
+                lineTo(width.toFloat(), height.toFloat()); lineTo(0f, height.toFloat()); close()
+            }
+            canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = (base.toInt() and 0x00ffffff) or 0xcc000000.toInt() })
+        } else {
+            val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 6f
+                color = (light.toInt() and 0x00ffffff) or 0x55000000 }
+            repeat(5) { canvas.drawCircle(width * .15f, height * 1.05f, height * (.35f + it * .14f), stroke) }
+        }
+        val bytes = ByteArrayOutputStream().use { bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, 82, it); it.toByteArray() }
+        bitmap.recycle()
+        val tint = 0xff000000L or (((base shr 16 and 0xff) + (glow shr 16 and 0xff)) / 2 shl 16) or
+            (((base shr 8 and 0xff) + (glow shr 8 and 0xff)) / 2 shl 8) or (((base and 0xff) + (glow and 0xff)) / 2)
+        return WalletImage(WalletImageFormat.digest(bytes), bytes, width, height, tint)
+    }
+
+    /**
+     * Records were written today with their real dates; give accounts and deposits matching creation times,
+     * restart statistics from the first day of the ledger and add the price history the charts read.
+     */
+    private suspend fun enrichHistory(database: ValnookDatabase, clock: Clock) {
         val zone = clock.zone
         val today = LocalDate.now(clock)
-        val baseline = LocalDate.of(today.year - 10, 1, 1)
-        val baselineMs = baseline.atStartOfDay(zone).toInstant().toEpochMilli()
+        val start = LocalDate.of(today.year - 9, 1, 1)
+        val startMs = start.atStartOfDay(zone).toInstant().toEpochMilli()
         val sql = database.openHelper.writableDatabase
-        sql.execSQL("UPDATE cash_accounts SET created_at_ms=?,updated_at_ms=MAX(updated_at_ms,?)",
-            arrayOf(baselineMs, baselineMs))
-        sql.execSQL("""UPDATE cash_entries SET occurred_at_ms=? + (id % 55) * 86400000
-            WHERE source_kind='CASH_SET' AND note NOT LIKE '长期账本%'""", arrayOf(baselineMs))
-        sql.execSQL("""UPDATE term_deposits SET created_at_ms=start_epoch_day*86400000,
+        sql.execSQL("""UPDATE term_deposits SET created_at_ms=start_epoch_day*86400000+32400000,
             closed_at_ms=CASE WHEN status='CLOSED' THEN end_epoch_day*86400000+43200000 ELSE NULL END""")
         sql.execSQL("""UPDATE cash_entries SET occurred_at_ms=(SELECT d.closed_at_ms FROM term_deposits d
             WHERE d.id=cash_entries.source_id) WHERE source_kind='TERM_CLOSE'""")
@@ -117,183 +193,135 @@ class DemoDatabaseAssetGeneratorTest {
         database.statistics().clearCache()
         database.statistics().clearBaselineItems()
         sql.execSQL("UPDATE statistics_state SET source_revision=source_revision+1,baseline_at_ms=?,earliest_invalidated_epoch_day=? WHERE id=1",
-            arrayOf(baselineMs, baseline.toEpochDay()))
-        insertDemoLabels(database)
+            arrayOf(startMs, start.toEpochDay()))
 
         val instruments = database.overview().allInstruments().map { it.instrument }
-        instruments.forEachIndexed { index, instrument ->
-            var month = YearMonth.from(baseline)
-            val finalMonth = YearMonth.from(today).minusMonths(1)
-            var monthIndex = 0
-            while (month <= finalMonth) {
-                val factorBasisPoints = 8200 + ((index * 131 + monthIndex * 73) % 3300)
-                val price = instrument.current_price_e5 * factorBasisPoints / 10_000L
-                val effective = month.atEndOfMonth().atTime(16, 0).atZone(zone).toInstant().toEpochMilli()
-                database.statistics().insertPrice(InstrumentPriceEntity(instrument_id = instrument.id,
-                    price_e5 = price.coerceAtLeast(1), currency_code = instrument.currency_code,
-                    effective_at_ms = effective, created_at_ms = clock.millis()))
+        instruments.forEach { instrument ->
+            val item = DemoDataSeeder.DEMO_INSTRUMENTS.single { it.symbol == instrument.symbol }
+            var month = YearMonth.of(start.year + item.listed, 1)
+            while (month < YearMonth.from(today)) {
+                val date = month.atEndOfMonth()
+                insertPrice(database, instrument.id, instrument.currency_code,
+                    DemoDataSeeder.demoPrice(item.symbol, date, today), date.atTime(16, 0).atZone(zone).toInstant().toEpochMilli(), clock)
                 month = month.plusMonths(1)
-                monthIndex++
             }
-            (1..today.dayOfMonth).forEach { day ->
-                val factorBasisPoints = 9700 + ((index * 19 + day * 41) % 650)
-                val price = instrument.current_price_e5 * factorBasisPoints / 10_000L
-                val effective = today.withDayOfMonth(day).atTime(16, 0).atZone(zone).toInstant().toEpochMilli()
-                database.statistics().insertPrice(InstrumentPriceEntity(instrument_id = instrument.id,
-                    price_e5 = if (day == today.dayOfMonth) instrument.current_price_e5 else price.coerceAtLeast(1),
-                    currency_code = instrument.currency_code,
-                    effective_at_ms = effective.coerceAtMost(clock.millis()), created_at_ms = clock.millis()))
+            (1 until today.dayOfMonth).forEach { day ->
+                val date = today.withDayOfMonth(day)
+                insertPrice(database, instrument.id, instrument.currency_code,
+                    DemoDataSeeder.demoPrice(item.symbol, date, today), date.atTime(16, 0).atZone(zone).toInstant().toEpochMilli(), clock)
             }
         }
     }
 
-    private suspend fun insertDemoLabels(database: ValnookDatabase) {
+    private suspend fun insertPrice(database: ValnookDatabase, instrumentId: Long, currency: String, price: BigDecimal,
+        at: Long, clock: Clock) {
+        database.statistics().insertPrice(InstrumentPriceEntity(instrument_id = instrumentId,
+            price_e5 = price.movePointRight(5).longValueExact(), currency_code = currency,
+            effective_at_ms = at, created_at_ms = clock.millis()))
+    }
+
+    /** Every demo text the user can see gets an English twin; switching the app language swaps them. */
+    private suspend fun insertLabels(database: ValnookDatabase) {
         val sql = database.openHelper.writableDatabase
-        fun label(kind: String, id: Long, field: String, zh: String, en: String) {
+        val dictionary = DemoDataSeeder.ENGLISH + WALLET_ENGLISH
+        fun label(kind: String, id: Long, field: String, zh: String) {
+            if (zh.isEmpty()) return
+            val english = requireNotNull(dictionary[zh]) { "No English label for $zh" }
             sql.execSQL("INSERT OR REPLACE INTO demo_labels(entity_kind,entity_id,field_name,zh_hans,english) VALUES (?,?,?,?,?)",
-                arrayOf<Any>(kind, id, field, zh, en))
+                arrayOf<Any>(kind, id, field, zh, english))
         }
-        val accountEnglish = listOf("China Merchants Bank", "Industrial and Commercial Bank of China",
-            "Bank of China", "China Construction Bank", "Bank of Communications", "HSBC",
-            "CITIC Securities", "Huatai Securities", "GF Securities", "CICC Wealth",
-            "Futu Securities", "Interactive Brokers")
-        val noteEnglish = listOf("Bank account · salary and daily spending", "Bank account · household spending",
-            "Bank account · cross-border funds", "Bank account · household reserve",
-            "Bank account · transport and travel", "Bank account · foreign currency",
-            "Brokerage account · China A-shares and long-term holdings", "Brokerage account · balanced portfolio",
-            "Brokerage account · value investing", "Brokerage account · multi-market portfolio",
-            "Brokerage account · Hong Kong and US trading", "Brokerage account · overseas long-term holdings")
-        database.overview().allAccounts().forEachIndexed { index, account ->
-            label("ACCOUNT", account.id, "NAME", account.name, accountEnglish[index])
-            label("ACCOUNT", account.id, "NOTE", account.note, noteEnglish[index])
+        database.overview().allAccounts().forEach {
+            label("ACCOUNT", it.id, "NAME", it.name)
+            label("ACCOUNT", it.id, "NOTE", it.note)
         }
-        database.overview().allCash().forEach { cash ->
-            val english = when (cash.name) {
-                "招商银行活期" -> "CMB current account"
-                "工商银行活期" -> "ICBC current account"
-                "中国银行活期" -> "BOC current account"
-                "建设银行活期" -> "CCB current account"
-                "交通银行活期" -> "BCM current account"
-                "人民币长期资金" -> "CNY long-term funds"
-                "美元储蓄" -> "USD savings"
-                "港币储蓄" -> "HKD savings"
-                "美元往来账户" -> "USD current account"
-                "港币往来账户" -> "HKD current account"
-                "人民币交易资金" -> "CNY trading cash"
-                "美元交易资金" -> "USD trading cash"
-                "港币交易资金" -> "HKD trading cash"
-                "招商银行 Visa" -> "CMB Visa"
-                "招商银行 Mastercard" -> "CMB Mastercard"
-                "工商银行共享额度主卡" -> "ICBC shared-limit primary"
-                "工商银行附属卡 · 家庭" -> "ICBC supplementary · household"
-                "工商银行附属卡 · 出行" -> "ICBC supplementary · travel"
-                "工商银行附属卡 · 网购" -> "ICBC supplementary · online shopping"
-                "建设银行 Visa" -> "CCB Visa"
-                "交通银行银联信用卡" -> "BCM UnionPay credit card"
-                "汇丰银行 Mastercard" -> "HSBC Mastercard"
-                "中国银行信用卡" -> "BOC credit card"
-                else -> cash.currency_code
-            }
-            label("CASH", cash.id, "NAME", cash.name, english)
+        database.overview().allCash().forEach {
+            label("CASH", it.id, "NAME", it.name)
+            label("CASH", it.id, "NOTE", it.note)
         }
-        val cursor = sql.query("SELECT id,name FROM asset_types ORDER BY id")
-        cursor.use {
-            while (it.moveToNext()) {
-                val id = it.getLong(0)
-                val name = it.getString(1)
-                val english = when (name) { "A股股票" -> "China A-shares"; "港股股票" -> "Hong Kong stocks"; else -> "US stocks" }
-                label("TYPE", id, "NAME", name, english)
-            }
+        fun rows(query: String, each: (android.database.Cursor) -> Unit) = sql.query(query).use { while (it.moveToNext()) each(it) }
+        rows("SELECT id,note FROM cash_entries WHERE source_kind='CASH_SET' AND note<>''") {
+            label("ENTRY", it.getLong(0), "NOTE", it.getString(1))
         }
-        database.overview().allInstruments().forEach { row ->
-            val instrument = row.instrument
-            val english = if (instrument.currency_code == "USD") instrument.name else
-                "${instrument.symbol} ${when (instrument.currency_code) { "CNY" -> "A-share"; else -> "HK stock" }}"
-            label("INSTRUMENT", instrument.id, "NAME", instrument.name, english)
+        rows("SELECT id,name FROM account_groups WHERE id<>${AccountGroup.DEFAULT_ID}") {
+            label("GROUP", it.getLong(0), "NAME", it.getString(1))
         }
+        rows("SELECT id,name FROM wallet_cards") { label("CARD", it.getLong(0), "NAME", it.getString(1)) }
+        rows("SELECT rowid,label FROM wallet_card_images") { label("FACE", it.getLong(0), "LABEL", it.getString(1)) }
+        sql.query("SELECT id,name FROM asset_types ORDER BY id").use {
+            while (it.moveToNext()) label("TYPE", it.getLong(0), "NAME", it.getString(1))
+        }
+        database.overview().allInstruments().forEach { label("INSTRUMENT", it.instrument.id, "NAME", it.instrument.name) }
     }
 
-    private fun assertLifecycleFixtures(database: ValnookDatabase) {
+    /** Shape checks, plus the checks a reader would make: no savings account ever runs below zero. */
+    private suspend fun check(database: ValnookDatabase, graph: AppGraph) {
+        val snapshot = graph.overview.snapshot()
+        val summary = StringBuilder()
+        snapshot.cash.forEach { summary.appendLine("${it.name} ${it.currency.code} ${it.balance_minor}") }
+        Log.i("DemoAsset", summary.toString())
+        assertEquals(10, snapshot.accounts.size)
+        assertEquals(4, snapshot.groups.size)
+        assertEquals(21, snapshot.cash.size)
+        assertEquals(5, snapshot.cash.count { it.creditProfile != null })
+        assertEquals(DemoDataSeeder.DEMO_INSTRUMENTS.size, snapshot.instruments.size)
+        assertEquals(15, snapshot.positions.size)
+        assertTrue(snapshot.cash.filter { it.creditProfile == null }.all { it.balance_minor >= 0 })
+        val total = AssetValuation.calculate(snapshot).total.amount
+        Log.i("DemoAsset", "total=$total")
+        assertTrue(total > BigDecimal("1000000") && total < BigDecimal("3000000"))
         val sql = database.openHelper.readableDatabase
-        sql.query("""SELECT COUNT(*) FROM credit_account_profiles p
-            JOIN cash_accounts child ON child.id=p.account_id
-            JOIN cash_accounts source ON source.id=p.limit_source_account_id
-            WHERE child.savings_account_id<>source.savings_account_id""").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(0, it.getInt(0))
-        }
-        sql.query("SELECT COUNT(*) FROM savings_accounts WHERE note LIKE '银行账户 · %'").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(6, it.getInt(0))
-        }
-        sql.query("SELECT COUNT(*) FROM savings_accounts WHERE note LIKE '证券账户 · %'").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(6, it.getInt(0))
-        }
-        sql.query("""SELECT COUNT(*) FROM term_deposits d JOIN savings_accounts a
-            ON a.id=d.savings_account_id WHERE a.note LIKE '证券账户 · %'""").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(0, it.getInt(0))
-        }
-        sql.query("""SELECT COUNT(*) FROM credit_account_profiles p JOIN cash_accounts c ON c.id=p.account_id
-            JOIN savings_accounts a ON a.id=c.savings_account_id WHERE a.note LIKE '证券账户 · %'""").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(0, it.getInt(0))
-        }
-        sql.query("""SELECT COUNT(*) FROM investments p JOIN savings_accounts a ON a.id=p.savings_account_id
-            WHERE a.note NOT LIKE '证券账户 · %'""").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(0, it.getInt(0))
-        }
-        sql.query("""SELECT
-            SUM(CASE WHEN cash_linked=1 AND direction='BUY' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN cash_linked=1 AND direction='SELL' THEN 1 ELSE 0 END),
-            SUM(CASE WHEN cash_linked=0 THEN 1 ELSE 0 END)
-            FROM investment_trades""").use {
-            assertTrue(it.moveToFirst())
-            assertTrue(it.getInt(0) > 0)
-            assertTrue(it.getInt(1) > 0)
-            assertTrue(it.getInt(2) > 0)
-        }
-        sql.query("SELECT COUNT(*),MAX(revision) FROM cash_entries WHERE note LIKE '长期账本%'").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(6, it.getInt(0))
-            assertTrue(it.getLong(1) >= 4)
-        }
-        sql.query("SELECT COUNT(*),MAX(revision) FROM term_deposits").use {
-            assertTrue(it.moveToFirst())
-            assertEquals(26, it.getInt(0))
-            assertTrue(it.getLong(1) >= 6)
-        }
-        sql.query("""SELECT p.position_state,p.holding_quantity_e8,MAX(t.revision)
-            FROM investments p JOIN instruments i ON i.id=p.instrument_id
-            JOIN savings_accounts a ON a.id=p.savings_account_id
-            JOIN investment_trades t ON t.investment_id=p.id
-            WHERE i.symbol='AAPL' AND a.name='中信证券' GROUP BY p.id""").use {
-            assertTrue(it.moveToFirst())
-            assertEquals("HOLDING", it.getString(0))
-            assertTrue(it.getLong(1) > 0)
-            assertTrue(it.getLong(2) >= 4)
-        }
-        sql.query("""SELECT p.position_state,p.holding_quantity_e8,MAX(t.revision)
-            FROM investments p JOIN instruments i ON i.id=p.instrument_id
-            JOIN savings_accounts a ON a.id=p.savings_account_id
-            JOIN investment_trades t ON t.investment_id=p.id
-            WHERE i.symbol='META' AND a.name='中信证券' GROUP BY p.id""").use {
-            assertTrue(it.moveToFirst())
-            assertEquals("CLOSED", it.getString(0))
-            assertEquals(0L, it.getLong(1))
-            assertTrue(it.getLong(2) >= 3)
+        // Running balance of every savings account, in date order, from its own ledger.
+        sql.query("""SELECT c.name,e.delta_minor FROM cash_entries e JOIN cash_accounts c ON c.id=e.cash_account_id
+            WHERE e.is_deleted=0 AND NOT EXISTS(SELECT 1 FROM credit_account_profiles p WHERE p.account_id=c.id)
+            ORDER BY c.id,e.occurred_at_ms,e.id""").use {
+            val running = mutableMapOf<String, Long>()
+            val lowest = mutableMapOf<String, Long>()
+            while (it.moveToNext()) {
+                val value = running.getOrDefault(it.getString(0), 0L) + it.getLong(1)
+                running[it.getString(0)] = value
+                lowest[it.getString(0)] = minOf(lowest[it.getString(0)] ?: value, value)
+            }
+            Log.i("DemoAsset", "lowest=$lowest")
+            assertTrue("Negative running balance: $lowest", lowest.values.all { value -> value >= 0 })
         }
         sql.query("SELECT MIN(occurred_at_ms),MAX(occurred_at_ms) FROM cash_entries WHERE is_deleted=0").use {
             assertTrue(it.moveToFirst())
-            val span = it.getLong(1) - it.getLong(0)
-            assertTrue(span >= 9L * 365L * 86_400_000L)
+            assertTrue(it.getLong(1) - it.getLong(0) >= 9L * 365L * 86_400_000L)
         }
+        sql.query("SELECT COUNT(*) FROM investment_trades t JOIN instruments i ON i.id=(SELECT instrument_id FROM investments p WHERE p.id=t.investment_id) WHERE i.symbol='510300.SH'").use {
+            assertTrue(it.moveToFirst()); assertTrue(it.getInt(0) > 100)
+        }
+        val cards = dev.valnook.data.repository.RoomWallet(database, graph.clock).observeCards().first()
+        assertEquals(16, cards.size)
+        assertEquals(1, cards.count { it.bindingLost })
+        val faces = dev.valnook.data.repository.RoomWallet(database, graph.clock).observeFaces().first()
+        assertEquals(5, faces.size)
+        assertEquals(2, faces.count { !it.inUse })
+        sql.execSQL("VACUUM")
     }
 
     private companion object {
+        /** Card names, and the labels of faces named after them, in both languages. */
+        val WALLET_ENGLISH = mapOf(
+            "招行储蓄卡" to "CMB debit card",
+            "招行 Visa" to "CMB Visa",
+            "招行经典白" to "CMB Classic White",
+            "工行储蓄卡" to "ICBC debit card",
+            "工行信用卡" to "ICBC credit card",
+            "工行附属卡" to "ICBC supplementary card",
+            "建行储蓄卡" to "CCB debit card",
+            "建行龙卡" to "CCB Long Card",
+            "中行外币卡" to "BOC multi-currency card",
+            "公交卡" to "Transit card",
+            "社保卡" to "Social security card",
+            "图书馆借书证" to "Library card",
+            "超市会员卡" to "Supermarket membership",
+            "公司工卡" to "Work badge",
+            "小区门禁卡" to "Building pass",
+            "中行信用卡（已注销）" to "BOC credit card (cancelled)",
+            "纸纹" to "Paper", "极光" to "Aurora"
+        )
         const val EXPORT_DATABASE_NAME = "valnook-demo-asset-export.db"
-        const val ASSET_FILE_NAME = "valnook-demo-v12.db"
+        const val ASSET_FILE_NAME = "valnook-demo-v21.db"
     }
 }

@@ -61,18 +61,34 @@ class SessionIsolationTest {
         assertTrue(demo.id != real.id)
         assertEquals(1, demoDatabaseFiles().count { it.endsWith(".db") })
         val snapshot = demo.graph.overview.snapshot()
-        assertEquals(12, snapshot.accounts.size)
-        assertEquals(37, snapshot.cash.size)
-        assertEquals(10, snapshot.cash.count { it.type == BalanceAccountType.CREDIT })
+        assertEquals(10, snapshot.accounts.size)
+        assertEquals(4, snapshot.groups.size)
+        assertEquals(21, snapshot.cash.size)
+        assertEquals(5, snapshot.cash.count { it.type == BalanceAccountType.CREDIT })
         val cashById = snapshot.cash.associateBy { it.id }
         assertTrue(snapshot.cash.filter { it.creditProfile?.limitSourceAccountId != null }.all { child ->
             cashById[child.creditProfile?.limitSourceAccountId]?.account_id == child.account_id
         })
-        assertEquals(60, snapshot.instruments.size)
-        assertEquals(26, snapshot.positions.size)
-        val demoTrades = snapshot.positions.flatMap { demo.graph.investments.trade_page(it.id, null, 100) }
-        assertEquals(247, demoTrades.size)
-        assertTrue(snapshot.positions.map { it.holding_quantity_e8 }.distinct().size > 10)
+        assertTrue(snapshot.cash.any { !it.includeInAvailableCash })
+        assertTrue(snapshot.cash.any { !it.showOnAccountsPage })
+        assertTrue(snapshot.cash.map { it.currency.code }.containsAll(listOf("CNY", "USD", "HKD", "EUR", "JPY")))
+        assertEquals(19, snapshot.instruments.size)
+        assertEquals(15, snapshot.positions.size)
+        // Pages hold at most 100 trades; the monthly ETF plan has more.
+        suspend fun trades(positionId: Long): List<dev.valnook.domain.model.Trade> {
+            val all = mutableListOf<dev.valnook.domain.model.Trade>()
+            var cursor: dev.valnook.domain.model.TradeCursor? = null
+            do {
+                val page = demo.graph.investments.trade_page(positionId, cursor, 100)
+                all += page
+                cursor = page.lastOrNull()?.let { dev.valnook.domain.model.TradeCursor(it.occurred_at_ms, it.id) }
+            } while (page.size == 100)
+            return all
+        }
+        val demoTrades = snapshot.positions.flatMap { trades(it.id) }
+        assertTrue(snapshot.positions.any { trades(it.id).size > 100 })
+        assertEquals(209, demoTrades.size)
+        assertTrue(snapshot.positions.map { it.holding_quantity_e8 }.distinct().size > 8)
         assertTrue(demoTrades.map { it.quantity_e8 }.distinct().size > 10)
         assertTrue(demoTrades.map { it.fee_minor }.distinct().size > 20)
         assertTrue(demoTrades.any { it.fee_minor == 0L })
@@ -81,23 +97,22 @@ class SessionIsolationTest {
         assertTrue(demoTrades.any { it.direction == dev.valnook.domain.model.Direction.SELL &&
             it.cash_linked && it.cashAccountId != null })
         assertTrue(demoTrades.any { !it.cash_linked && it.cashAccountId == null })
-        assertTrue(demoTrades.maxOf { it.revision } >= 4)
+        assertTrue(demoTrades.maxOf { it.revision } >= 3)
         assertTrue(snapshot.instruments.any { it.symbol == "600519.SH" && it.name.isNotBlank() })
         assertTrue(snapshot.instruments.any { it.symbol == "0700.HK" && it.name.isNotBlank() })
         assertTrue(snapshot.instruments.any { it.symbol == "AAPL" && it.name == "Apple" })
         assertTrue(snapshot.instruments.none { it.symbol.contains("DEMO", ignoreCase = true) })
         val overview = AssetValuation.calculate(snapshot)
-        assertTrue(overview.total.amount >= BigDecimal("100000"))
-        assertTrue(overview.total.amount < BigDecimal("200000"))
-        val bankIds = snapshot.accounts.filter { it.note.startsWith("银行账户") }.map { it.id }.toSet()
-        val brokerIds = snapshot.accounts.filter { it.note.startsWith("证券账户") }.map { it.id }.toSet()
-        assertEquals(6, bankIds.size)
-        assertEquals(6, brokerIds.size)
-        assertTrue(snapshot.cash.filter { it.type == BalanceAccountType.CREDIT }.all { it.account_id in bankIds })
+        assertTrue(overview.total.amount >= BigDecimal("1000000"))
+        assertTrue(overview.total.amount < BigDecimal("3000000"))
+        val brokerIds = snapshot.accounts.filter { it.name in setOf("华泰证券", "富途证券", "支付宝") }.map { it.id }.toSet()
+        assertEquals(3, brokerIds.size)
         assertTrue(snapshot.positions.all { it.account_id in brokerIds })
         val currentStatistics = demo.graph.statistics.loadCurrent()
-        assertEquals("cash overview=${overview.cash.amount} statistics=${currentStatistics.availableCash}",
-            0, overview.cash.amount.compareTo(requireNotNull(currentStatistics.availableCash)))
+        // The housing fund and the reserve card are left out of available cash on both sides.
+        assertTrue(overview.availableCash.amount < overview.cash.amount)
+        assertEquals("cash overview=${overview.availableCash.amount} statistics=${currentStatistics.availableCash}",
+            0, overview.availableCash.amount.compareTo(requireNotNull(currentStatistics.availableCash)))
         assertEquals("investment overview=${overview.investmentValue.amount} statistics=${currentStatistics.investmentValue}",
             0, overview.investmentValue.amount.compareTo(requireNotNull(currentStatistics.investmentValue)))
         assertEquals("total overview=${overview.total.amount} statistics=${currentStatistics.totalAssets}",
@@ -107,26 +122,31 @@ class SessionIsolationTest {
             demo.graph.deposits.observe_deposits(account.id, 100, false).first() +
                 demo.graph.deposits.observe_deposits(account.id, 100, true).first()
         }
-        assertEquals(26, demoDeposits.size)
-        assertTrue(demoDeposits.maxOf { it.revision } >= 6)
-        val firstAccount = snapshot.accounts.first()
-        val timelineCash = snapshot.cash.single {
-            it.account_id == firstAccount.id && it.type == BalanceAccountType.SAVINGS &&
-                it.currency.code == "CNY"
-        }
-        val timelineEntries = demo.graph.cashPages.cashAccountPage(timelineCash.id, null, 1_000)
-        assertEquals(6, timelineEntries.count { it.note.startsWith("长期账本") })
+        assertEquals(8, demoDeposits.size)
+        assertEquals(2, demoDeposits.count { it.closed })
+        assertTrue(demoDeposits.maxOf { it.revision } >= 2)
+        val salary = snapshot.cash.single { it.name == "招行储蓄卡" }
+        // Ledger pages also stop at 100 rows; read the whole ten years.
+        val timelineEntries = mutableListOf<dev.valnook.domain.model.CashEntry>()
+        var ledgerCursor: dev.valnook.domain.repository.LedgerCursor? = null
+        do {
+            val page = demo.graph.cashPages.cashAccountPage(salary.id, ledgerCursor, 100)
+            timelineEntries += page
+            ledgerCursor = page.lastOrNull()?.let { dev.valnook.domain.repository.LedgerCursor(it.occurred_at_ms, it.id) }
+        } while (page.size == 100)
+        assertTrue(timelineEntries.size > 200)
+        assertTrue(timelineEntries.count { it.note == "工资" } >= 30)
         assertTrue(timelineEntries.maxOf { it.occurred_at_ms } - timelineEntries.minOf { it.occurred_at_ms } >=
             9L * 365L * 86_400_000L)
-        val brokerAccount = snapshot.accounts.single { it.name == "中信证券" }
+        val brokerAccount = snapshot.accounts.single { it.name == "富途证券" }
         val apple = snapshot.positions.single { it.account_id == brokerAccount.id && it.symbol == "AAPL" }
-        assertTrue(demo.graph.investments.trade_page(apple.id, null, 100).maxOf { it.revision } >= 4)
+        assertTrue(demo.graph.investments.trade_page(apple.id, null, 100).maxOf { it.revision } >= 3)
         assertTrue(demo.graph.investments.observe_investments(brokerAccount.id, 100,
             InvestmentSection.CLOSED).first().any { it.symbol == "META" })
         assertEquals(realBefore, real.graph.overview.snapshot())
         demo.graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
             "Temporary demo account", "must disappear after re-entry", emptyList()))
-        assertEquals(13, demo.graph.overview.snapshot().accounts.size)
+        assertEquals(11, demo.graph.overview.snapshot().accounts.size)
 
         val staleDemoCommands = demo.graph.commands
         val staleDemoSettings = demo.graph.settingsWriter
@@ -145,7 +165,7 @@ class SessionIsolationTest {
 
         sessions.enterDemo()
         val restoredDemo = sessions.session.value.graph
-        assertEquals(12, restoredDemo.overview.snapshot().accounts.size)
+        assertEquals(10, restoredDemo.overview.snapshot().accounts.size)
         assertTrue(restoredDemo.overview.snapshot().accounts.none { it.name == "Temporary demo account" })
         sessions.exitDemo()
         assertTrue(demoDatabaseFiles().isEmpty())
@@ -157,12 +177,26 @@ class SessionIsolationTest {
         var settings = graph.settings.observeSettings().first()
         settings = graph.settingsWriter.applyChange(SaveLanguage(settings.revision, AppLanguage.ENGLISH))
         assertEquals("China Merchants Bank", graph.overview.snapshot().accounts.first().name)
+        // Every demo text has both languages: groups, notes, cards, faces and ledger notes follow too.
+        val english = graph.overview.snapshot()
+        val englishSalary = english.cash.single { it.name == "CMB debit card" }
+        assertTrue(english.groups.any { it.name == "Bank cards" })
+        assertTrue(english.cash.any { it.note == "Shares the primary card's limit" })
+        assertTrue(graph.cashPages.cashAccountPage(englishSalary.id, null, 400).any { it.note == "Salary" })
+        assertTrue(requireNotNull(graph.wallet).observeCards().first().any { it.name == "CMB debit card" })
+        assertTrue(requireNotNull(graph.wallet).observeFaces().first().any { it.label == "Paper" })
+        assertTrue(english.instruments.any { it.name == "Kweichow Moutai" })
         val first = graph.overview.snapshot().accounts.first()
         graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), first.id, first.revision,
             "My custom broker", first.note, emptyList()))
         settings = graph.settingsWriter.applyChange(SaveLanguage(settings.revision, AppLanguage.ZH_HANS))
         assertEquals("My custom broker", graph.overview.snapshot().accounts.first().name)
         assertTrue(graph.overview.snapshot().accounts.drop(1).any { it.name == "华泰证券" })
+        val chinese = graph.overview.snapshot()
+        assertTrue(chinese.groups.any { it.name == "银行卡" })
+        val salary = chinese.cash.single { it.name == "招行储蓄卡" }
+        assertTrue(graph.cashPages.cashAccountPage(salary.id, null, 400).any { it.note == "工资" })
+        assertTrue(requireNotNull(graph.wallet).observeFaces().first().any { it.label == "纸纹" })
         sessions.exitDemo()
     }
 

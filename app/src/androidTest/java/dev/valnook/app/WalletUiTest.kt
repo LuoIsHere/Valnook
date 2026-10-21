@@ -782,9 +782,11 @@ class WalletUiTest {
         val original=wallet;card("Real collection")
         root();switchDemo(true)
         val demo=wallet;val cards=runBlocking{demo.observeCards().first()}
-        assertEquals(15,cards.size);assertTrue(cards.any{it.boundCashAccountId==null})
-        assertTrue(cards.all{it.faceStyle!=null&&it.imageKey==null})
-        assertEquals(6,cards.map{it.faceStyle!!.geometry}.distinct().size)
+        assertEquals(16,cards.size);assertTrue(cards.any{it.boundCashAccountId==null})
+        // Drawn faces in every geometry, photo faces (one shared by two cards) and a card whose account was deleted.
+        assertEquals(6,cards.mapNotNull{it.faceStyle?.geometry}.distinct().size)
+        assertEquals(4,cards.count{it.imageKey!=null});assertEquals(3,cards.mapNotNull{it.imageKey}.distinct().size)
+        assertEquals(1,cards.count{it.bindingLost})
         assertTrue(runBlocking{runCatching{original.save(null,null,"Stale",null,null)}}.isFailure)
         rule.onNodeWithTag("nav-wallet").performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}
