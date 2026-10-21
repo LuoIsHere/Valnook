@@ -139,7 +139,9 @@ class AccountBehaviorUiTest {
         rule.onNodeWithText("Bank").performClick()
         rule.onNodeWithTag("account-cash-1").assertExists()
         rule.onNodeWithTag("account-cash-2").assertDoesNotExist()
-        rule.onAllNodesWithText("100.00 CNY",substring=true).assertCountEquals(3)
+        // The hidden reserve still counts towards the account total, but not towards available cash.
+        rule.onNodeWithTag("account-total-1").assertTextEquals("300.00 CNY")
+        rule.onAllNodesWithText("100.00 CNY",substring=true).assertCountEquals(2)
         rule.mainClock.advanceTimeBy(500)
         image("v0012-accounts-light")
     }

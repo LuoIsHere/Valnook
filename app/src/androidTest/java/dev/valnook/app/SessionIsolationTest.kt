@@ -177,7 +177,7 @@ class SessionIsolationTest {
         stored=active.graph.settingsWriter.applyChange(SaveGainLossColors(stored.revision,GainLossColorScheme.RED_GAIN))
         val navigation = NavigationConfiguration(
             listOf(NavigationItemId.STATISTICS, NavigationItemId.SETTINGS, NavigationItemId.ACCOUNTS,
-                NavigationItemId.INVESTMENTS),
+                NavigationItemId.WALLET, NavigationItemId.INVESTMENTS),
             setOf(NavigationItemId.STATISTICS, NavigationItemId.SETTINGS))
         active.graph.settingsWriter.applyChange(SaveNavigationConfiguration(stored.revision, navigation))
 

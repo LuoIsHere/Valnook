@@ -72,12 +72,16 @@ class QueryPerformanceTest {
         }
     }
 
+    // Named columns: later schema versions append columns with defaults.
+    private val cashColumns = "savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms"
+
     private suspend fun populate(db: ValnookDatabase, fixture: Fixture) = db.withTransaction {
         val sql = db.openHelper.writableDatabase
         val random = Random(20261001)
         for (id in 1..fixture.accounts) {
-            sql.execSQL("INSERT INTO savings_accounts VALUES (?,?,'synthetic',0,0,1)", arrayOf<Any>(id, "fixture-account-$id"))
-            sql.execSQL("INSERT INTO cash_accounts VALUES (?,'CNY',100000000,100,0,?,'CNY fixture','synthetic',1,0)",
+            sql.execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision) VALUES (?,?,'synthetic',0,0,1)",
+                arrayOf<Any>(id, "fixture-account-$id"))
+            sql.execSQL("INSERT INTO cash_accounts($cashColumns) VALUES (?,'CNY',100000000,100,0,?,'CNY fixture','synthetic',1,0)",
                 arrayOf<Any>(id, id))
         }
         if (fixture.label == "wide") {
@@ -90,7 +94,7 @@ class QueryPerformanceTest {
                     id <= 80 -> 1_001
                     else -> 1_002 + (id - 81) % 20
                 }
-                sql.execSQL("INSERT INTO cash_accounts VALUES (1,'CNY',0,100,0,?,?,'synthetic',1,0)",
+                sql.execSQL("INSERT INTO cash_accounts($cashColumns) VALUES (1,'CNY',0,100,0,?,?,'synthetic',1,0)",
                     arrayOf<Any>(creditAccountId, "credit-$id"))
                 sql.execSQL(
                     """INSERT INTO credit_account_profiles(account_id,credit_limit_minor,statement_day,
@@ -180,7 +184,7 @@ class QueryPerformanceTest {
         operations(sql, fixture.accounts, "usd-cash", "CASH_ENTRY", entries)
         for (id in 1..fixture.accounts) {
             val cashId = fixture.accounts + id
-            sql.execSQL("INSERT INTO cash_accounts VALUES (?,'USD',10000,1,0,?,'USD fixture','synthetic',1,0)",
+            sql.execSQL("INSERT INTO cash_accounts($cashColumns) VALUES (?,'USD',10000,1,0,?,'USD fixture','synthetic',1,0)",
                 arrayOf<Any>(id, cashId))
             sql.execSQL("""INSERT INTO cash_entries(id,original_operation_id,savings_account_id,currency_code,
                 cash_account_id,source_kind,source_id,delta_minor,occurred_at_ms,note,revision,is_deleted,created_at_ms,updated_at_ms)
@@ -283,11 +287,12 @@ class QueryPerformanceTest {
         if (name == "statistics-mutation-historical-trade" || name == "statistics-mutation-fx")
             assertEquals("A two-year invalidation should replay once per affected annual build",
                 (repetitions + 1) * 2, statisticsHistory.size)
+        // Today is read live from the ledger, so a change dated today replays no history at all.
         if (name == "statistics-mutation-today-trade" || name == "statistics-mutation-price")
-            assertEquals("A current-year invalidation should preserve the prior-year cache",
-                repetitions + 1, statisticsHistory.size)
+            assertEquals("A change dated today should keep every cached day", 0, statisticsHistory.size)
         if (name == "dao-overview" || name == "repository-overview")
-            assertTrue("N+1 snapshot: $counts", counts.all { it == 8 })
+            // Nine fixed reads: accounts, cash, credit profiles, deposits, positions, instruments, settings, rates, groups.
+            assertTrue("N+1 snapshot: $counts", counts.all { it == 9 })
         if (name == "historical-price-correction" || name == "append-trade") {
             val replay = history.filter { it.sql.contains("ORDER BY occurred_at_ms,id") }
             assertEquals(repetitions + 1, replay.size)

@@ -133,9 +133,18 @@ class UiFlowTest {
         rule.onNodeWithText(text).performClick()
     }
     private fun click_record(tag:String) {
-        rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
-            .performScrollToNode(hasTestTag(tag))
-        rule.onNodeWithTag(tag).performClick()
+        // Ledgers show one month at a time; step back to the record's month when it is not in this one.
+        val list=rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+        repeat(24) {
+            if(runCatching{list.performScrollToNode(hasTestTag(tag))}.isSuccess) {
+                rule.onNodeWithTag(tag).performClick()
+                return
+            }
+            list.performScrollToNode(hasTestTag("month-previous"))
+            rule.onNodeWithTag("month-previous").performClick()
+            rule.waitForIdle()
+        }
+        list.performScrollToNode(hasTestTag(tag))
     }
     private fun show_scene(name:String,content:@Composable ()->Unit) {
         rule.runOnUiThread {rule.activity.setContent {key(name){content()}}}
@@ -254,7 +263,7 @@ class UiFlowTest {
         }
     }
     @Test fun investment_trade_price_and_history_are_independent() {
-        runBlocking {
+        val positionId = runBlocking {
             val type = createType("合成基金")
             createInvestment(account_id,"合成投资","TEST",type,"CNY",R.parse_e8("10"),
                 R.parse_e8("100"),R.parse_e8("100"))
@@ -284,7 +293,9 @@ class UiFlowTest {
         save()
         wait_text("12 份")
         shot("investment-trade")
-        click_record("trade-record-1")
+        // The seeded opening trade has no date and no month; open the buy just recorded.
+        val buyId = runBlocking { graph.investments.trade_page(positionId, null).maxOf { it.id } }
+        click_record("trade-record-$buyId")
         wait_text("交易详情")
         wait_text("181.50 CNY")
         wait_text("1.50 CNY")
@@ -300,7 +311,7 @@ class UiFlowTest {
         window_shot("trade-detail-window", "修改买卖记录")
         rule.onNodeWithContentDescription("返回").performClick()
         wait_text("交易历史")
-        click_record("trade-record-1")
+        click_record("trade-record-$buyId")
         wait_text("交易详情")
         click_list("删除买卖记录")
         wait_text("确认删除")
@@ -321,7 +332,8 @@ class UiFlowTest {
         wait_text("按账户分别计算成本")
         shot("investment-price")
         runBlocking {
-            assertTrue(db.trades().first_trades(1, 50).isEmpty())
+            // Only the seeded opening trade of 10 is left after deleting the recorded buy.
+            assertEquals(listOf(R.parse_e8("10")), db.trades().first_trades(1, 50).map { it.quantity_e8 })
             assertEquals(R.parse_e8("10"), db.positions().investment(1)!!.holding_quantity_e8)
             assertEquals(12000000L, db.instruments().instrument(1)!!.current_price_e5)
             assertNull(db.cash().cash_one(account_id, "CNY"))
@@ -504,8 +516,10 @@ class UiFlowTest {
         wait_text("0 份")
         rule.onNodeWithContentDescription("返回").performClick()
         wait_text("暂无持仓")
-        rule.onNodeWithText("已清仓").assertDoesNotExist()
-        click_list("所有投资品")
+        // Closed positions have their own tab next to current holdings, so the label is always shown.
+        rule.onNodeWithText("已清仓").assertExists()
+        // The account's investment tab picks instruments through "选择投资品".
+        click_list(localized(dev.valnook.feature.investments.R.string.investment_add_to_account))
         wait_text("QQQ")
         rule.onAllNodesWithText("QQQ")[0].performClick()
         wait_text("累计已实现盈亏 300.00 CNY")
@@ -766,7 +780,10 @@ class UiFlowTest {
         wait_text("设置已保存")
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
         rule.onNode(hasText("账户") and hasClickAction()).performClick()
-        wait_text("16620.00 CNY")
+        // The all-account total moved to Statistics; the accounts page shows each account's total
+        // (16120.00 + 500.00 = 16620.00) and available cash at the top.
+        wait_text("16120.00 CNY")
+        rule.onNodeWithTag("account-total-2").assertTextEquals("500.00 CNY")
         wait_text("2 220.00 CNY")
         rule.onNodeWithTag("accounts-list").performScrollToNode(hasText("合成账户 A"))
         wait_text("可用现金 1720.00 CNY")
@@ -808,7 +825,6 @@ class UiFlowTest {
     @Test fun cash_balance_editor_is_available_only_in_editor_and_ledger() {
         val editBalance = localized(dev.valnook.feature.cash.R.string.cash_edit_balance)
         val balanceLabel = localized(dev.valnook.feature.cash.R.string.cash_current_balance)
-        val saveLabel = localized(dev.valnook.feature.cash.R.string.cash_save)
         val backLabel = localized(dev.valnook.app.R.string.nav_back)
         var cashId = 0L
         runBlocking { graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(), account_id,
@@ -818,21 +834,25 @@ class UiFlowTest {
             click(androidx.compose.ui.geometry.Offset(24f, 24f))
         }
         rule.waitUntil(5000) { rule.onAllNodesWithTag("account-cash-$cashId").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithText(editBalance).assertDoesNotExist()
+        // Edit balance is an icon button, found by its description.
+        rule.onNodeWithContentDescription(editBalance).assertDoesNotExist()
         rule.onNodeWithText("人民币").assertDoesNotExist()
         shot("cash-overview-read-only")
         rule.onNodeWithTag("account-cash-$cashId").performScrollTo().performClick()
-        wait_text(editBalance)
-        click_list(editBalance)
-        wait_text(balanceLabel)
-        rule.onNodeWithText(balanceLabel).performScrollTo().performTextReplacement("135.00")
-        save(saveLabel)
+        rule.waitUntil(15000) { rule.onAllNodesWithContentDescription(editBalance).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithContentDescription(editBalance).performClick()
+        // The editor's amount field is labelled by its description; saving is the toolbar check mark.
+        rule.waitUntil(15000) { rule.onAllNodesWithTag("cash-balance-input").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("cash-balance-input").assertContentDescriptionContains(balanceLabel)
+            .performTextReplacement("135.00")
+        finish_input()
+        rule.onNodeWithTag("cash-balance-save").performClick()
         wait_text("135.00")
         runBlocking { assertEquals(13500L, db.cash().cash_one(account_id, "CNY")!!.balance_minor) }
-        window_shot("cash-ledger-balance-editor", editBalance)
+        window_shot("cash-ledger-balance-editor")
         rule.onNodeWithContentDescription(backLabel).performClick()
         wait_text("CNY")
-        rule.onNodeWithText(editBalance).assertDoesNotExist()
+        rule.onNodeWithContentDescription(editBalance).assertDoesNotExist()
     }
 
     @Test fun account_accordion_and_detail_sections_show_negative_cash() {
@@ -1239,19 +1259,8 @@ class UiFlowTest {
         wait_text("交易历史")
         rule.onNodeWithText("暂无交易记录").assertIsDisplayed()
         runBlocking { assertTrue(graph.overview.observeSnapshot().first().positions.isEmpty()) }
-        window_shot("account-instrument-empty", "添加投资品到账户")
-        click_list("添加投资品到账户")
-        wait_text("添加投资品到账户")
-        save()
-        wait_text("交易历史")
-        rule.onNodeWithText("暂无交易记录").assertIsDisplayed()
-        runBlocking {
-            val positions = graph.overview.observeSnapshot().first().positions
-            assertEquals(1, positions.size)
-            assertEquals(account_id, positions.single().account_id)
-            assertEquals(0L, positions.single().holding_quantity_e8)
-            assertTrue(graph.investments.trade_page(positions.single().id, null).isEmpty())
-        }
+        // The first buy creates the position in this account; there is no separate add step.
+        window_shot("account-instrument-empty", "买入")
         click_list("买入")
         wait_text("份额")
         rule.onNodeWithText("份额").performScrollTo().performTextInput("2")

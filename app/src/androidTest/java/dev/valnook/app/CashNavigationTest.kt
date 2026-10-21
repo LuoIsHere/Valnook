@@ -77,7 +77,9 @@ class CashNavigationTest {
         rule.onNodeWithText("返回手势测试").performClick()
         wait_text("USD")
         screenshot("topbar-transparent")
-        rule.onNodeWithContentDescription("$cashChanges · USD").performClick()
+        // The account page lists each balance account as its own row.
+        val usd=runBlocking{graph.overview.snapshot()}.cash.single{it.currency.code=="USD"}
+        rule.onNodeWithTag("account-cash-${usd.id}").performClick()
         wait_text(manualChange)
         rule.onNodeWithText(manualChange).performClick()
         wait_text(entryDetail)

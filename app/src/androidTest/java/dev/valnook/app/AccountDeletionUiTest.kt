@@ -82,8 +82,9 @@ class AccountDeletionUiTest {
         rule.waitUntil(10000){rule.onAllNodesWithTag("account-total-$parent").fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithTag("account-total-$parent").performClick()
         val edit=rule.activity.getString(dev.valnook.app.R.string.nav_edit)
-        rule.waitUntil(10000){rule.onAllNodesWithText(edit).fetchSemanticsNodes().isNotEmpty()}
-        rule.onNodeWithText(edit).performClick()
+        // Edit is an icon button: find it by its description.
+        rule.waitUntil(10000){rule.onAllNodesWithContentDescription(edit).fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithContentDescription(edit).performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("account-delete-open").fetchSemanticsNodes().any{!it.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)}}
         rule.onNodeWithTag("account-delete-open").performClick()
         val prefix=rule.activity.getString(dev.valnook.feature.accounts.R.string.account_delete_code,"")

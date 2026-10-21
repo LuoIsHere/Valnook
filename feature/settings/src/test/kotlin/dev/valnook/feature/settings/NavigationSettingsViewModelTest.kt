@@ -39,7 +39,8 @@ class NavigationSettingsViewModelTest {
         assertEquals(1, repository.writes)
         assertFalse(NavigationItemId.ACCOUNTS in repository.value.value.navigation.visible)
         assertTrue(NavigationItemId.SETTINGS in repository.value.value.navigation.visible)
-        assertEquals(NavigationItemId.STATISTICS, repository.value.value.navigation.order[1])
+        assertEquals(listOf(NavigationItemId.ACCOUNTS, NavigationItemId.WALLET, NavigationItemId.STATISTICS,
+            NavigationItemId.INVESTMENTS, NavigationItemId.SETTINGS), repository.value.value.navigation.order)
     }
 
     private class Repository : SettingsRepository, SettingsWriter {

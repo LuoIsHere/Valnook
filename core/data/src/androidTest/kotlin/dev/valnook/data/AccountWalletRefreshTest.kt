@@ -72,14 +72,25 @@ class AccountWalletRefreshTest {
         }.toByteArray()
         val manifest=JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
         if(legacy) {
+            // A version 6 archive has none of the files or columns later versions added.
+            val allowed=dev.valnook.data.portability.BackupContract.payloadPathsFor(6)
+            files.keys.retainAll{it=="manifest.json"||it in allowed}
+            dev.valnook.data.portability.BackupContract.tablesFor(6).filter{it.path in files}.forEach{table->
+                val columns=table.columns.map{it.name}.toSet()
+                files[table.path]=files.getValue(table.path).toString(Charsets.UTF_8).lineSequence().filter{it.isNotBlank()}
+                    .joinToString(""){line->JSONObject(line).apply{keys().asSequence().toList().filter{it !in columns}.forEach{remove(it)}}.toString()+"\n"}
+                    .toByteArray()
+            }
+            val declared=manifest.getJSONArray("files")
+            manifest.put("files",JSONArray((0 until declared.length()).map{declared.getJSONObject(it)}.filter{it.getString("path") in allowed}))
             manifest.put("dataSchemaVersion",6)
             val old=manifest.getJSONArray("requiredFeatures")
             manifest.put("requiredFeatures",JSONArray((0 until old.length()).map{old.getString(it)}.filter{it!="wallet-face-style-v1"}))
         }
         val payloads=manifest.getJSONArray("files")
         repeat(payloads.length()){i-> val file=payloads.getJSONObject(i)
-            if(file.getString("path")==path) {
-                val content=files.getValue(path);file.put("uncompressedBytes",content.size)
+            files[file.getString("path")]?.let{content->
+                file.put("uncompressedBytes",content.size)
                 file.put("sha256",java.security.MessageDigest.getInstance("SHA-256").digest(content).joinToString(""){"%02x".format(it)})
             }
         }

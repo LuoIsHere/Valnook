@@ -997,9 +997,9 @@ class WalletUiTest {
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick()
         rule.onNodeWithTag("wallet-month-previous").performScrollTo().performClick()
-        val manual=rule.activity.getString(dev.valnook.core.designsystem.R.string.manual_balance_change)
-        rule.waitUntil(10000){rule.onAllNodesWithText(manual).fetchSemanticsNodes().isNotEmpty()}
-        rule.onNodeWithText(manual).performScrollTo().performClick()
+        // A noted change shows its note in place of the source label.
+        rule.waitUntil(10000){rule.onAllNodesWithText("September").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithText("September").performScrollTo().performClick()
         rule.waitUntil(10000){rule.onAllNodesWithText(rule.activity.getString(dev.valnook.core.designsystem.R.string.cash_entry_detail)).fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithContentDescription(rule.activity.getString(dev.valnook.app.R.string.nav_back)).performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isNotEmpty()}

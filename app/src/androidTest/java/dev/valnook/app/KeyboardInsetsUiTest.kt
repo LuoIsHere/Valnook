@@ -79,7 +79,10 @@ class KeyboardInsetsUiTest {
 
     @Test fun clear_data_input_and_confirm_stay_above_the_keyboard() {
         openSettings()
-        rule.onNodeWithText(text(dev.valnook.feature.settings.R.string.settings_clear_data)).performScrollTo().performClick()
+        // The settings list is lazy and the danger zone sits below the fold.
+        val clear = text(dev.valnook.feature.settings.R.string.settings_clear_data)
+        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText(clear))
+        rule.onNodeWithText(clear).performClick()
         rule.waitUntil(10_000) { rule.onAllNodes(hasSetTextAction()).fetchSemanticsNodes().isNotEmpty() }
         val input = rule.onNode(hasSetTextAction())
         input.performClick()

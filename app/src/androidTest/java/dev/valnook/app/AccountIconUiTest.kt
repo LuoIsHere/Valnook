@@ -64,10 +64,11 @@ class AccountIconUiTest {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalAccountImageLoader provides remember { AccountImageLoader(graph.overview::accountIconImage) },
                 LocalDensity provides Density(density.density, if (large) 2f else density.fontScale)) {
-                ValnookTheme(dark_theme = dark) {
+                // A new view model is a new screen, as with a navigation entry; otherwise the toolbar keeps the old one.
+                key(vm) { ValnookTheme(dark_theme = dark) {
                     var toolbar by remember { mutableStateOf<AccountEditToolbarState?>(null) }
                     Column { AccountEditSaveAction(toolbar); AccountEditScreen(vm, {}, onSaveActionChanged = { toolbar = it }) }
-                }
+                } }
             }
         }
     }
@@ -143,7 +144,9 @@ class AccountIconUiTest {
             rule.onNodeWithText(context.getString(dev.valnook.feature.accounts.R.string.account_order_cancel)).performClick()
             assertFalse(vm.state.value.iconChanged)
             select()
-            rule.onNode(isToggleable()).performClick()
+            // The editor has its own summary switches; pick the photo dialog's fit box.
+            rule.onNode(isToggleable() and hasAnySibling(hasText(context.getString(dev.valnook.feature.accounts.R.string.account_icon_fit))))
+                .performClick()
             save("account-photo-fit", "account-photo-crop")
             rule.onNodeWithTag("account-photo-confirm").performClick()
             rule.waitUntil(10_000) { vm.state.value.icon.type == AccountIconType.IMAGE }
