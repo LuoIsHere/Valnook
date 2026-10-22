@@ -781,12 +781,12 @@ class UiFlowTest {
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
         rule.onNode(hasText("账户") and hasClickAction()).performClick()
         // The all-account total moved to Statistics; the accounts page shows each account's total
-        // (16120.00 + 500.00 = 16620.00) and available cash at the top.
-        wait_text("16120.00 CNY")
+        // (16 120.00 + 500.00 = 16 620.00) and available cash at the top.
+        wait_text("16 120.00 CNY")
         rule.onNodeWithTag("account-total-2").assertTextEquals("500.00 CNY")
         wait_text("2 220.00 CNY")
         rule.onNodeWithTag("accounts-list").performScrollToNode(hasText("合成账户 A"))
-        wait_text("可用现金 1720.00 CNY")
+        wait_text("可用现金 1 720.00 CNY")
         shot("all-account-total-16620")
         rule.onNodeWithTag("accounts-list").performScrollToNode(hasText("合成长列表 40"))
         rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
@@ -1327,8 +1327,8 @@ class UiFlowTest {
         rule.onNode(hasText("投资") and hasClickAction()).performClick()
         wait_text("总投资市值"); wait_text("10 200.00 CNY")
         rule.onNodeWithTag("investment-market-total").assertTextEquals("10 200.00 CNY")
-        rule.onNodeWithTag("investment-account-total-$account_id").assertTextEquals("10200.00 CNY")
-        rule.onNodeWithTag("account-realized-$account_id").assertTextEquals("已实现盈亏 49900.00 CNY")
+        rule.onNodeWithTag("investment-account-total-$account_id").assertTextEquals("10 200.00 CNY")
+        rule.onNodeWithTag("account-realized-$account_id").assertTextEquals("已实现盈亏 49 900.00 CNY")
         rule.onNodeWithText("已清仓历史").assertDoesNotExist()
         rule.onNodeWithText("查看持仓与记录").assertDoesNotExist()
         rule.onNodeWithTag("investment-account-toggle-$account_id").performScrollTo().performClick()

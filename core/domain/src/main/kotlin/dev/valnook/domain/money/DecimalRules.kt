@@ -43,8 +43,12 @@ object DecimalRules {
     fun replace_contribution(current: Long, previous: Long, replacement: Long): Long =
         exact_long(BigDecimal.valueOf(current).subtract(BigDecimal.valueOf(previous)).add(BigDecimal.valueOf(replacement)))
     fun format_units(value: Long, scale: Int): String = BigDecimal.valueOf(value, scale).toPlainString()
-    fun format_display(value: Long, scale: Int): String {
-        val parts = format_units(value, scale).split('.')
+    fun format_display(value: Long, scale: Int): String = group_thousands(format_units(value, scale))
+    /** Converted totals: rounded half up to [scale], grouped like stored amounts. */
+    fun format_display(value: BigDecimal, scale: Int): String =
+        group_thousands(value.setScale(scale, RoundingMode.HALF_UP).toPlainString())
+    private fun group_thousands(plain: String): String {
+        val parts = plain.split('.')
         val negative = parts.first().startsWith("-")
         val digits = parts.first().removePrefix("-")
         val integer = (if(negative) "-" else "") + digits.reversed().chunked(3).joinToString(" ").reversed()

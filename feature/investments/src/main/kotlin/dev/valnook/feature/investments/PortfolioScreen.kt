@@ -30,10 +30,10 @@ import dev.valnook.designsystem.*
 import dev.valnook.domain.calculation.*
 import dev.valnook.domain.model.*
 import java.math.BigDecimal
-import java.math.RoundingMode
+import dev.valnook.domain.money.DecimalRules
 
 internal fun money(value: BigDecimal?, currency: Currency): String =
-    value?.setScale(currency.fraction_digits, RoundingMode.HALF_UP)?.toPlainString()?.plus(" " + currency.code) ?: "—"
+    value?.let { DecimalRules.format_display(it, currency.fraction_digits) + " " + currency.code } ?: "—"
 @Composable internal fun converted(total: ConvertedTotal): String =
     total.currency?.let { money(total.amount, it) } ?: stringResource(R.string.investment_set_base)
 /** Converted totals follow their displayed rounding; an unknown base currency stays neutral. */

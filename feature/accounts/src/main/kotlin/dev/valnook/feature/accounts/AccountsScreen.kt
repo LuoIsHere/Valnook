@@ -29,7 +29,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.*
 import dev.valnook.domain.command.SubmissionPhase
-import java.math.RoundingMode
 import dev.valnook.domain.money.DecimalRules
 import dev.valnook.domain.calculation.AssetValuation
 import dev.valnook.domain.calculation.CreditBillingCalendar
@@ -38,7 +37,7 @@ import dev.valnook.domain.calculation.CreditLimitCalculator
 import java.time.LocalDate
 
 @Composable private fun totalText(total: ConvertedTotal): String = total.currency?.let {
-    total.amount.setScale(it.fraction_digits, RoundingMode.HALF_UP).toPlainString() + " " + it.code
+    DecimalRules.format_display(total.amount, it.fraction_digits) + " " + it.code
 } ?: stringResource(R.string.accounts_set_base_currency)
 
 @Composable private fun missingText(total: ConvertedTotal): String = total.missing.mapNotNull {

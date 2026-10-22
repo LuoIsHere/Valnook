@@ -17,6 +17,14 @@ class DecimalRulesTest {
         assertEquals("-1 234.56",R.format_display(-123456,2))
         assertEquals(54,Currency.supported.size)
     }
+    @Test fun converted_totals_round_half_up_and_group_like_stored_amounts() {
+        assertEquals("1 629 953.23",R.format_display(java.math.BigDecimal("1629953.2346651"),2))
+        assertEquals("-7 754.49",R.format_display(java.math.BigDecimal("-7754.485"),2))
+        assertEquals("229 664.49",R.format_display(java.math.BigDecimal("229664.49"),2))
+        assertEquals("999.00",R.format_display(java.math.BigDecimal("999"),2))
+        assertEquals("1 000",R.format_display(java.math.BigDecimal("999.5"),0))
+        assertEquals(R.format_display(-123456,2),R.format_display(java.math.BigDecimal("-1234.56"),2))
+    }
     private val cny = Currency.of("CNY")
     private fun day(s: String) = LocalDate.parse(s).toEpochDay()
     private fun error(code: ErrorCode, block: () -> Unit) {

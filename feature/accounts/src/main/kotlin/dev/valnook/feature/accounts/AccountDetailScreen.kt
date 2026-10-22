@@ -20,7 +20,7 @@ import dev.valnook.designsystem.LocalPageTitle
 import dev.valnook.designsystem.PageLoading
 import dev.valnook.designsystem.PageFailure
 import dev.valnook.domain.model.ConvertedTotal
-import java.math.RoundingMode
+import dev.valnook.domain.money.DecimalRules
 
 enum class AccountDetailSection { ACCOUNTS, DEPOSITS, INVESTMENTS }
 
@@ -108,7 +108,7 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
 }
 
 @Composable private fun detailTotal(total: ConvertedTotal): String = total.currency?.let {
-    total.amount.setScale(it.fraction_digits, RoundingMode.HALF_UP).toPlainString() + " " + it.code
+    DecimalRules.format_display(total.amount, it.fraction_digits) + " " + it.code
 } ?: stringResource(R.string.accounts_set_base_currency)
 
 @Composable private fun detailAmountColor(total: ConvertedTotal) =
