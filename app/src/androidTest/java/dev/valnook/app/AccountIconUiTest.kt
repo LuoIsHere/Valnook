@@ -64,11 +64,11 @@ class AccountIconUiTest {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalAccountImageLoader provides remember { AccountImageLoader(graph.overview::accountIconImage) },
                 LocalDensity provides Density(density.density, if (large) 2f else density.fontScale)) {
-                // A new view model is a new screen, as with a navigation entry; otherwise the toolbar keeps the old one.
-                key(vm) { ValnookTheme(dark_theme = dark) {
+                // The same place shows the recreated view model next; the toolbar must follow it.
+                ValnookTheme(dark_theme = dark) {
                     var toolbar by remember { mutableStateOf<AccountEditToolbarState?>(null) }
                     Column { AccountEditSaveAction(toolbar); AccountEditScreen(vm, {}, onSaveActionChanged = { toolbar = it }) }
-                } }
+                }
             }
         }
     }

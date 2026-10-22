@@ -295,12 +295,13 @@ import java.time.LocalDate
     val latestSortActionChanged by rememberUpdatedState(onSortActionChanged)
     val latestRows by rememberUpdatedState(state.rows)
     val latestSaveChanged by rememberUpdatedState(onSaveActionChanged)
-    DisposableEffect(state.loaded, submission.phase) {
+    // Keyed by the view model too: a new one at this place must hand its own submit to the toolbar.
+    DisposableEffect(vm, state.loaded, submission.phase) {
         latestSaveChanged(if (state.loaded) AccountEditToolbarState(submission.phase == SubmissionPhase.WORKING,
             submission.phase != SubmissionPhase.SUCCEEDED && submission.phase != SubmissionPhase.WORKING, vm::submit) else null)
         onDispose { latestSaveChanged(null) }
     }
-    DisposableEffect(state.loaded, state.rows.size, submission.editable) {
+    DisposableEffect(vm, state.loaded, state.rows.size, submission.editable) {
         latestSortActionChanged(if (state.loaded && state.rows.size > 1 && submission.editable) ({
             sortKeys = latestRows.map { it.key }
             sorting = true
