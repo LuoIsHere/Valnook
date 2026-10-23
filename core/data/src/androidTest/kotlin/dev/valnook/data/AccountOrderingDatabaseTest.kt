@@ -105,6 +105,25 @@ class AccountOrderingDatabaseTest {
         expectError(ErrorCode.STALE_RECORD) { writer.moveAccounts(group, listOf(a)) }
     }
 
+    @Test fun clearing_data_removes_groups_and_resets_the_default_group(): Unit = runBlocking {
+        val db = database()
+        val a = account(db, "A")
+        val writer = RoomAccountGroupWriter(db, clock)
+        val group = writer.create("Family")
+        writer.create("Travel")
+        writer.moveAccounts(group, listOf(a))
+        writer.reorderGroups(listOf(group, AccountGroup.DEFAULT_ID) +
+            RoomOverview(db).snapshot().groups.map { it.id }.filter { it != group && it != AccountGroup.DEFAULT_ID })
+        writer.setCollapsed(AccountGroup.DEFAULT_ID, true)
+
+        dev.valnook.data.repository.RoomDataMaintenance(db).clearBusinessData()
+
+        assertEquals(listOf(AccountGroup(AccountGroup.DEFAULT_ID, "", 0)), RoomOverview(db).snapshot().groups)
+        // The ledger starts over: new groups follow the default group again.
+        val next = writer.create("Family")
+        assertEquals(listOf(AccountGroup.DEFAULT_ID, next), RoomOverview(db).snapshot().groups.map { it.id })
+    }
+
     @Test fun group_commands_are_receipted_audited_and_advance_the_generation(): Unit = runBlocking {
         val db = database()
         val a = account(db, "A"); val b = account(db, "B")

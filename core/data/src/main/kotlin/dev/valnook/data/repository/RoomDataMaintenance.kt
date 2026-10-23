@@ -30,6 +30,10 @@ class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
             maintenance.clearCreditProfiles()
             maintenance.clearCashAccounts()
             maintenance.clearAccounts()
+            // Groups are user content too; only a fresh default group remains.
+            maintenance.clearAccountGroups()
+            db.accountGroups().insert(dev.valnook.data.database.AccountGroupEntity(
+                dev.valnook.data.database.AccountGroupEntity.DEFAULT_ID, "", 0, false, now, now))
             maintenance.clearAccountIcons()
             maintenance.clearOperations()
             db.overview().clearRates()
