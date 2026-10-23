@@ -145,6 +145,82 @@ class CloudBackupCoordinatorTest {
         assertEquals(0, drive.uploadCalls)
     }
 
+    @Test fun au2_edit_after_scheduling_still_backs_up_when_due() = runBlocking {
+        connect()
+        coordinator.setAutomatic(true)
+        val scheduled = scheduler.latest!!
+        // Every recorded write advances the data generation, as AuditRecorder does.
+        database.audit().advanceGeneration(networkClock.value)
+
+        val shouldRetry = coordinator.executeScheduled(
+            scheduled.cycleId, scheduled.data, scheduled.connection, scheduled.schedule)
+
+        val state = coordinator.observeState().first()
+        val next = scheduler.latest
+        assertEquals("due cycle uploaded (retry=$shouldRetry, state=${state.attemptState}, " +
+            "next cycle=${next?.cycleId == scheduled.cycleId}/${next?.data})", 1, drive.uploadCalls)
+        assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
+    }
+
+    @Test fun au2_waiting_cycle_backs_up_once_network_returns_after_an_edit() = runBlocking {
+        connect()
+        coordinator.setAutomatic(true)
+        val scheduled = scheduler.latest!!
+        network.connected = false
+        assertTrue(coordinator.executeScheduled(
+            scheduled.cycleId, scheduled.data, scheduled.connection, scheduled.schedule))
+        database.audit().advanceGeneration(networkClock.value)
+        network.connected = true
+
+        // WorkManager retries the same request, with the generations captured when it was scheduled.
+        val shouldRetry = coordinator.executeScheduled(
+            scheduled.cycleId, scheduled.data, scheduled.connection, scheduled.schedule)
+
+        val state = coordinator.observeState().first()
+        assertEquals("retried cycle uploaded (retry=$shouldRetry, state=${state.attemptState})",
+            1, drive.uploadCalls)
+        assertFalse(shouldRetry)
+    }
+
+    @Test fun au2_edit_during_automatic_upload_still_finishes_the_backup() = runBlocking {
+        connect()
+        coordinator.setAutomatic(true)
+        val scheduled = scheduler.latest!!
+        drive.afterFirstUploadGate = {
+            drive.afterFirstUploadGate = null
+            database.audit().advanceGeneration(networkClock.value)
+        }
+
+        coordinator.executeScheduled(scheduled.cycleId, scheduled.data, scheduled.connection, scheduled.schedule)
+
+        // The archive is a snapshot taken before the edit, so it is still a valid restore point.
+        val state = coordinator.observeState().first()
+        val next = scheduler.latest
+        assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
+        assertEquals("verified", drive.files.single().properties["verificationState"])
+        assertTrue("a new cycle is scheduled", next != null && next.cycleId != scheduled.cycleId)
+    }
+
+    @Test fun au2_schedule_change_during_upload_cancels_without_leaving_progress_on_screen() = runBlocking {
+        connect()
+        coordinator.setAutomatic(true)
+        val scheduled = scheduler.latest!!
+        drive.afterFirstUploadGate = {
+            drive.afterFirstUploadGate = null
+            coordinator.setIntervalHours(12)
+        }
+
+        coordinator.executeScheduled(scheduled.cycleId, scheduled.data, scheduled.connection, scheduled.schedule)
+
+        val state = coordinator.observeState().first()
+        assertEquals(BackupAttemptState.CANCELLED, state.attemptState)
+        assertEquals(BackupAttemptState.CANCELLED.name, database.cloudBackup().latestAttempt()!!.state)
+        // The interval change owns the schedule now.
+        val next = scheduler.latest!!
+        assertNotEquals(scheduled.cycleId, next.cycleId)
+        assertEquals(12 * 3_600_000L, next.due - next.reference)
+    }
+
     @Test fun au2_restore_marker_forces_persistent_pause_and_cancels_schedule() = runBlocking {
         connect()
         coordinator.setAutomatic(true)

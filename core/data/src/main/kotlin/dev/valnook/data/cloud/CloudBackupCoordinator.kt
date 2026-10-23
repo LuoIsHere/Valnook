@@ -139,9 +139,13 @@ class CloudBackupCoordinator internal constructor(
         executeCycle(UUID.randomUUID().toString(), automatic = false, expected = null)
     }
 
+    /**
+     * [dataGeneration] is what the data was when the cycle was scheduled. It is not checked: every edit advances it,
+     * and the cycle should back up those edits. A restore invalidates the cycle through the schedule generation.
+     */
     suspend fun executeScheduled(
         cycleId: String,
-        dataGeneration: Long,
+        @Suppress("UNUSED_PARAMETER") dataGeneration: Long,
         connectionGeneration: Long,
         scheduleGeneration: Long
     ): Boolean {
@@ -149,7 +153,7 @@ class CloudBackupCoordinator internal constructor(
         if (before.provider != drive.provider.name || before.connection_generation != connectionGeneration ||
             before.schedule_generation != scheduleGeneration) return false
         executeCycle(cycleId, automatic = true,
-            expected = Generation(dataGeneration, connectionGeneration, scheduleGeneration))
+            expected = Generation(connectionGeneration, scheduleGeneration))
         val state = store.state()
         return state.automatic_enabled && state.scheduled_cycle_id == cycleId &&
             state.connection_generation == connectionGeneration &&
@@ -297,7 +301,7 @@ class CloudBackupCoordinator internal constructor(
         try {
             reconcileRestorePause()
             var state = requireConnection()
-            val actual = Generation(database.audit().generation(), state.connection_generation, state.schedule_generation)
+            val actual = Generation(state.connection_generation, state.schedule_generation)
             if (expected != null && expected != actual) return
             if (automatic && (!state.automatic_enabled || state.pause_reason != BackupPauseReason.NONE.name ||
                     state.scheduled_cycle_id != cycleId)) return
@@ -328,6 +332,8 @@ class CloudBackupCoordinator internal constructor(
             val directory = File(cloudRoot, "attempt-$attemptId").also(::secureDirectory)
             val archiveFile = File(directory, "archive.val_backup")
             archive = archiveFile
+            // Recorded only. Edits after this point do not invalidate the snapshot already taken.
+            val dataGeneration = database.audit().generation()
             val result = try {
                 withContext(Dispatchers.IO) {
                     FileOutputStream(archiveFile).use { portability.createBackup(backupId, it) {} }
@@ -340,7 +346,7 @@ class CloudBackupCoordinator internal constructor(
             val md5 = digest(archiveFile, "MD5")
             attempt = CloudBackupAttemptEntity(
                 attempt_id = attemptId, cycle_id = cycleId, backup_id = backupId,
-                data_generation = actual.data, connection_generation = actual.connection,
+                data_generation = dataGeneration, connection_generation = actual.connection,
                 schedule_generation = actual.schedule, folder_id = state.folder_id!!,
                 planned_drive_file_id = null, drive_file_id = null,
                 local_archive_path = archiveFile.absolutePath, archive_sha256 = result.sha256,
@@ -396,6 +402,7 @@ class CloudBackupCoordinator internal constructor(
                 store.saveAttempt(cancelled)
                 attempt = cancelled
             }
+            releaseProgress()
         } finally {
             if (attempt?.state != BackupAttemptState.UNKNOWN_RESULT.name) archive?.parentFile?.deleteRecursively()
             running.set(false)
@@ -404,7 +411,7 @@ class CloudBackupCoordinator internal constructor(
 
     private suspend fun finishBeforeUpload(error: Exception, automatic: Boolean, at: Long,
         generation: Generation, cycleId: String) {
-        if (!isGenerationCurrent(generation, cycleId, automatic)) return
+        if (!isGenerationCurrent(generation, cycleId, automatic)) { releaseProgress(); return }
         val kind = if (error is dev.valnook.domain.portability.PortabilityException &&
             error.errorCode == dev.valnook.domain.portability.PortabilityErrorCode.STORAGE_FULL)
             CloudBackupError.LOW_STORAGE else CloudBackupError.LOCAL_PREPARATION_FAILED
@@ -423,7 +430,7 @@ class CloudBackupCoordinator internal constructor(
         val at = networkClock.nowUtcMs() ?: System.currentTimeMillis()
         if (!isGenerationCurrent(generation, cycleId, automatic)) {
             return attempt.copy(finished_at_utc_ms = at, state = BackupAttemptState.CANCELLED.name,
-                error = CloudBackupError.SESSION_EXPIRED.name).also { store.saveAttempt(it) }
+                error = CloudBackupError.SESSION_EXPIRED.name).also { store.saveAttempt(it); releaseProgress() }
         }
         val unknown = error is DriveRequestException && error.outcomeUnknown
         val cloudError = when {
@@ -637,9 +644,8 @@ class CloudBackupCoordinator internal constructor(
     private suspend fun isGenerationCurrent(expected: Generation, cycleId: String,
         automatic: Boolean): Boolean {
         val current = store.state()
-        val data = database.audit().generation()
         val validCycle = !automatic || current.scheduled_cycle_id == cycleId
-        return current.provider == drive.provider.name && data == expected.data && current.connection_generation == expected.connection &&
+        return current.provider == drive.provider.name && current.connection_generation == expected.connection &&
             current.schedule_generation == expected.schedule && validCycle && current.folder_id != null &&
             (!automatic || current.pause_reason != BackupPauseReason.AFTER_RESTORE.name)
     }
@@ -658,6 +664,15 @@ class CloudBackupCoordinator internal constructor(
                 observed_restore_attempt_id = restoreId,
                 updated_at_ms = maintenance.last_restore_committed_at_ms ?: System.currentTimeMillis())
         }
+    }
+
+    /**
+     * An abandoned cycle must not leave its progress on screen. Whatever abandoned it (disconnecting, a schedule
+     * change, a restore) already scheduled what comes next; states it set are left alone.
+     */
+    private suspend fun releaseProgress() {
+        store.update { current -> if (current.attempt_state !in PROGRESS_STATES) current else current.copy(
+            attempt_state = BackupAttemptState.CANCELLED.name, updated_at_ms = System.currentTimeMillis()) }
     }
 
     private suspend fun markWaiting(status: BackupAttemptState, error: CloudBackupError) {
@@ -770,12 +785,15 @@ class CloudBackupCoordinator internal constructor(
         file.setReadable(true, true); file.setWritable(true, true); file.setExecutable(true, true)
     }
 
-    private data class Generation(val data: Long, val connection: Long, val schedule: Long)
+    /** What a cycle depends on. Data edits are not part of it; a restore advances the schedule generation. */
+    private data class Generation(val connection: Long, val schedule: Long)
 
     private companion object {
         val SAFE_ID = Regex("[0-9a-fA-F-]{36}")
         val FAILURE_STATES = setOf(BackupAttemptState.FAILED, BackupAttemptState.UNKNOWN_RESULT,
             BackupAttemptState.PREPARATION_FAILED)
+        val PROGRESS_STATES = setOf(BackupAttemptState.PREPARING.name, BackupAttemptState.UPLOADING.name,
+            BackupAttemptState.VERIFYING.name)
         val WAITING_STATES = setOf(BackupAttemptState.WAITING_NETWORK.name,
             BackupAttemptState.WAITING_NETWORK_TIME.name)
         fun utc(value: Long): String = DateTimeFormatter.ISO_INSTANT.format(Instant.ofEpochMilli(value))
