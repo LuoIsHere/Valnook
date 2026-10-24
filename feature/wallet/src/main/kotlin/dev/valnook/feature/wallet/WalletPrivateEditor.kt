@@ -61,7 +61,7 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     // wording(en, zh): edit both translations together. Keep the encryption algorithm and exclusions aligned
     // with docs/PRIVACY_POLICY_{CN,EN}.md and feature/settings/src/main/res/raw*/privacy_policy.txt.
     // 英文在前、中文在后。风险提示保留 Keystore / AES-GCM，不写“及背面、侧面配色”；
-    // 配色仍不备份。MIT 免责声明两种语言都必须加粗；“不再显示”只影响本机提示。
+    // 配色仍不备份。免责声明两种语言都必须加粗，且与 PrivacyPolicyScreen 加粗的句子一致；“不再显示”只影响本机提示。
     if(state.warning) {
         var skip by remember { mutableStateOf(false) }
         AnimatedGlassDialog(true,state::cancelWarning,properties=PrivateDialogProperties) {
@@ -76,8 +76,8 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
                     "卸载应用、清除应用数据或成功覆盖恢复备份后，这部分内容将无法恢复。建议在设备支持时，为 Valnook 启用系统应用锁。"))
                 Text(wording("Copying a field places it on the system clipboard, outside this app's encrypted storage. Use this action with care.",
                     "主动复制会将对应内容写入系统剪贴板，不受本地加密存储保护，请谨慎使用。"))
-                Text(wording("Valnook is open-source software distributed under the MIT License and accepts no liability for any financial loss you incur.",
-                    "Valnook为按照MIT协议发行的开源软件，不对您的财产损失负任何责任"),fontWeight=FontWeight.Bold)
+                Text(wording("To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.",
+                    "在适用法律允许的最大范围内，开发者不对卡片信息泄露造成的财产损失承担责任。"),fontWeight=FontWeight.Bold)
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                     TextButton(state::cancelWarning){Text(wording("Cancel","取消"))}
                     Spacer(Modifier.weight(1f))

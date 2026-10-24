@@ -31,8 +31,8 @@ fun PrivacyPolicyScreen() {
         // 此处仅给相同免责声明加粗；修改任一语言时，同时更新风险提示及四份中英文政策文件。
         buildAnnotatedString {
             append(policy)
-            listOf("Valnook为按照MIT协议发行的开源软件，不对您的财产损失负任何责任",
-                "Valnook is open-source software distributed under the MIT License and accepts no liability for any financial loss you incur.").forEach { notice ->
+            listOf("在适用法律允许的最大范围内，开发者不对卡片信息泄露造成的财产损失承担责任。",
+                "To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.").forEach { notice ->
                 val start=policy.indexOf(notice)
                 if(start>=0)addStyle(SpanStyle(fontWeight=FontWeight.Bold),start,start+notice.length)
             }

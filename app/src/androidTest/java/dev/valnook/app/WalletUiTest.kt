@@ -252,7 +252,7 @@ class WalletUiTest {
         }
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
         rule.onNodeWithText("Android Keystore",substring=true).assertExists()
-        rule.onNodeWithText("Valnook为按照MIT协议发行的开源软件，不对您的财产损失负任何责任").assertExists()
+        rule.onNodeWithText("在适用法律允许的最大范围内，开发者不对卡片信息泄露造成的财产损失承担责任。").assertExists()
         rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
         rule.onNodeWithTag("wallet-private-number").performScrollTo().assertExists()
     }
