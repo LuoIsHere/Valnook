@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.0.17
+
+- Added account groups. Main accounts can be sorted into named groups that fold and unfold with an animation on the Accounts page, with a total in each group header. A group manager creates, renames, reorders, and deletes groups and moves accounts between them.
+- Added account groups to web management, and included them in full backups. Clear data removes them and leaves a fresh default group.
+- Added a cardholder name of up to 26 characters to wallet card backs. Like the other card-back details, it is encrypted on the device and excluded from backups, exports, and web management.
+- Added a card face library in Settings > Card faces. It keeps up to 50 named faces, including faces a card no longer uses, lets you save a face to a location you choose, and is included in full backups.
+- Cards scrolled upward now stack under the toolbar. The navigation bar slides away when card details open and returns with the card, and card details glow with the card's edge colors as the card opens, flips, and collapses its header.
+- Added an asset-type filter to All instruments in the app and in web management.
+- Balance change lists now show a record's note in place of its source when a note exists.
+- Backup times are shown in the device time zone with their UTC offset, and the latest cloud backup result shows why it failed.
+- Made OneDrive backups faster by checking each upload with a single download and by listing the backup folder only once after a successful backup.
+- Lined up instrument symbols on the left and names on the right when adding a holding in web management, with the currency shown beside the symbol.
+- Redesigned the demo data around a typical personal ledger with ten years of history, available in Chinese and English. Demo text follows the app language.
+- Full backups now use data format 9. Backups created with 0.0.17 cannot be restored in earlier versions; backups from earlier versions can still be restored.
+- Fixed a crash on some devices when adjusting a card face right after choosing an image.
+- Fixed the card-back editor so its color and save buttons clear the text focus and keyboard, and fixed the card editor's shared-subaccount notice not updating when the card list changed.
+- Fixed gaps in net worth and investment value trends when trades were recorded before an instrument's first price. Changes are now measured from zero before history begins, and percentages are shown when the earlier value is zero or negative.
+- Fixed holding costs so purchases are valued at the unrounded trade amount, avoiding average costs such as 69.29407 for a 69.294 purchase. Profit or loss smaller than one cent is no longer colored as a loss or shown as +0.00.
+- Fixed web investment pages. Asset types now open a list where types can be viewed and renamed, choosing an instrument for a new holding no longer asks to discard changes, and accounts whose trades were all deleted no longer appear. Quantities, trade prices, and average costs show full precision, holdings with more than 100 trades show all of them, adding an instrument without an asset type explains that one is needed first, and statistics curves no longer jump from zero in the month history begins.
+- Fixed the backup screen so local backup progress, results, restore previews, and errors appear above the OneDrive section. The cloud backup failure banner no longer covers the whole screen, and remaining "Drive" wording now refers to OneDrive.
+- Fixed automatic backups being skipped, or retried indefinitely while waiting for a network, after data had changed since they were scheduled. A cancelled backup no longer leaves the status at Uploading.
+- Fixed the on-screen keyboard covering input fields and buttons, such as the restore confirmation code and exchange-rate settings.
+- Converted totals, including account totals, available cash, account details, and investment values, now use the same thousands separators as other amounts.
+- Updated the OneDrive backup guide, replaced the Google Drive guide with a short notice that it is disabled, and updated the privacy policy.
+
 ## 0.0.16
 
 - Added built-in wallet card backgrounds, geometric patterns, and customizable colors, with clearer horizontal scrolling in the artwork picker.
