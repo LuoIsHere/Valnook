@@ -67,6 +67,7 @@ Valnook 帮助您集中管理储蓄、信用账户、定期存款和投资记录
 
 - [OneDrive 备份工作流程（英文）](ONEDRIVE_BACKUP.md)
 - [Google Drive 备份（已停用）](GOOGLE_DRIVE_BACKUP.md)
+- [数据库结构说明（英文）](DATABASE.md)
 - [完整更新日志（英文）](CHANGELOG.md)
 
 ## Attention / 注意

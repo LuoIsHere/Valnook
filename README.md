@@ -67,6 +67,7 @@ See the [Privacy Policy and Disclaimer](docs/PRIVACY_POLICY_EN.md) for details. 
 
 - [How OneDrive backup works](docs/ONEDRIVE_BACKUP.md)
 - [Google Drive backup (disabled)](docs/GOOGLE_DRIVE_BACKUP.md)
+- [Database structure](docs/DATABASE.md)
 - [Full changelog](docs/CHANGELOG.md)
 
 ## Attention
