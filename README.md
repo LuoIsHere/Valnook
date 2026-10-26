@@ -1,77 +1,80 @@
 <p align="center">
-  <img src="docs/images/valnook.svg" width="112" height="112" alt="Valnook logo">
+  <img src="docs/images/valnook.svg" width="96" height="96" alt="Valnook logo">
 </p>
 
 <h1 align="center">Valnook</h1>
 
-<p align="center">A local-first Android app for personal financial records and asset management.</p>
-<p align="center"><strong>Version 0.0.16</strong> · <a href="LICENSE">MIT License</a></p>
+<p align="center">An Android app for recording personal finances, with data stored on the device.</p>
+<p align="center"><strong>Version 0.0.17</strong> · <a href="LICENSE">MIT License</a></p>
 <p align="center">English · <a href="docs/README_CN.md">简体中文</a></p>
 
-## A note from the author
-
-I’m an embedded developer, and Valnook is my first Android app. I started it because every finance app I tried felt a little awkward, and the features I wanted most — card wallets, investment summaries, cloud backup — were often behind a paywall. So I built my own and made it open source. I can’t fully explain why open source matters so much to me; maybe it’s just that keeping track of your own money shouldn’t sit behind a paywall, or require trusting software you can’t look inside.
-
-Valnook was built with help from Codex. Most of the code was written by AI, while the architecture, implementation approach and trade-offs are my decisions and my responsibility. I use it every day, and it comes with some deliberate compromises: investment prices aren’t updated automatically, because I don’t want to run a server for a non-profit project, and cloud backup uses the free OneDrive. It’s still young and certainly rough in places, so issues and feedback are very welcome.
-
-## About
-
-Valnook brings savings, credit accounts, term deposits, and investment records together so you can track your assets, liabilities, and changes over time. Data is stored on your device, with no account registration required.
+Valnook records personal assets and liabilities across bank accounts, credit cards, term deposits and investments, in multiple currencies. It needs no account and no server. Data is stored on the device, with optional backup to OneDrive.
 
 ## Features
 
-| Feature | Description |
-| --- | --- |
-| Accounts | Organize savings and credit subaccounts by main account and currency. Record balances and fund activity, view balance trends, and check credit limits and billing dates. |
-| Term deposits | Record principal, term, and interest rate; manage opening and closing deposits. |
-| Investments | Record holdings and trades, view monthly market value trends and profit/loss, and review closed positions by account. |
-| Statistics | View an asset summary and daily or monthly trends for net assets, available cash, and investment value. |
-| Wallet | Choose built-in card designs and colors or import images, then organize cards in an animated stack. Link a subaccount to view its balance, credit limits, and monthly fund activity. Store card numbers, expiry dates, and CVVs locally with encryption. |
-| Web management | Pair your phone with a computer on the same local network to manage accounts and financial records from a browser. |
-| Backup and export | Create and restore local backups, back up data to OneDrive, or export to Excel. Private card-back information is excluded from backups and exports. |
-| Personalization | English and Chinese, light and dark themes, custom account icons and navigation, and a demo mode for trying the app. |
+- **Accounts.** Each main account, such as a bank or a broker, holds savings and credit subaccounts in one or more currencies. Record balance changes, view balance trends for the past three months, and track credit limits and billing dates. Main accounts can be arranged in collapsible groups.
+- **Term deposits.** Record the principal, term and interest rate, and settle a deposit at maturity.
+- **Investments.** Record holdings and trades, with average cost, realized and unrealized profit, and a monthly value chart. Prices are entered manually.
+- **Statistics.** View daily and monthly trends for net assets, available cash and investment value.
+- **Wallet.** Arrange cards in a stack using built-in designs or imported images, kept in a card face library. A card linked to a subaccount shows its balance and the current month's activity. Card-back details, such as the card number and CVV, are encrypted and remain on the device.
+- **Web management.** Pair a browser on the same local network to manage accounts and records from a computer.
+- **Backup and export.** Create local backup files, back up to OneDrive manually or on a schedule, and export to Excel.
+
+The app is available in English and Chinese, supports light and dark themes, and includes a demo mode with sample data.
 
 <table>
-  <tr><th>Accounts</th><th>Subaccount</th><th>Card details</th></tr>
+  <tr><th>Accounts</th><th>Statistics</th><th>Wallet</th></tr>
   <tr>
-    <td><img src="docs/images/accounts-en.png" width="240" alt="Accounts"></td>
-    <td><img src="docs/images/subaccount-en.png" width="240" alt="Subaccount balance history"></td>
-    <td><img src="docs/images/wallet-motion-en.gif" width="240" alt="Selecting a wallet card and returning to the card stack"></td>
+    <td><img src="docs/images/accounts-en.gif" width="240" alt="Folding and unfolding an account group"></td>
+    <td><img src="docs/images/statistics-en.gif" width="240" alt="Dragging across the net assets chart"></td>
+    <td><img src="docs/images/wallet-en.gif" width="240" alt="Opening a wallet card and returning to the stack"></td>
   </tr>
 </table>
 
-## Project structure
+## Download
 
-| Module | Responsibility |
-| --- | --- |
-| `app` | Application startup, navigation, dependency wiring, and data sessions. |
-| `core:domain` | Data models, financial rules, and repository interfaces. |
-| `core:data` | Local storage, repository implementations, backup/restore, and the local web server. |
-| `core:designsystem` | Shared themes and UI components. |
-| `feature:*` | Accounts, cash, deposits, investments, wallet, statistics, settings, backup, and web management screens. |
+The latest build is available on the [Releases](https://github.com/LuoIsHere/Valnook/releases) page. Valnook requires Android 16 or later.
 
-## Implementation
+## Before you start
 
-- **Android UI:** Kotlin, Jetpack Compose, and Material 3; ViewModels and coroutine flows manage screen state. Hilt provides application-level dependency injection, and Navigation 3 handles navigation.
-- **Data:** Room stores financial records locally. Financial rules are separate from storage and UI.
-- **Web management:** Bundled HTML, CSS, and JavaScript connect to the phone's embedded Ktor server over HTTP/WebSocket after pairing on the same local network.
-- **Private information:** Card-back fields use AES-GCM with keys managed by Android Keystore and are stored separately from data eligible for backup.
+- Investment prices and exchange rates are entered manually and are not retrieved from the internet.
+- OneDrive is the only supported cloud backup. Google Drive backup [has been disabled](docs/GOOGLE_DRIVE_BACKUP.md).
+- Backup files and Excel exports are not encrypted and should be stored securely.
+- Card-back details are never backed up. They are empty after a restore and cannot be recovered after the app is uninstalled or the device is replaced.
+- The connection between web management and the phone is not encrypted. Use it only on trusted networks and devices.
+- Valnook provides recording and calculation tools, not investment advice. Verify important figures independently.
 
-## Privacy
+See the [Privacy Policy](docs/PRIVACY_POLICY_EN.md) for details.
 
-Cloud backup is optional. Private card-back data stays on the device and is unavailable to web management or backup recovery. Card-front images and built-in designs are included in full backups. Backup and Excel files are not encrypted; keep them safe. Use web management only on trusted networks and devices, as its connection is not encrypted.
+## For developers
 
-See the [Privacy Policy and Disclaimer](docs/PRIVACY_POLICY_EN.md) for details. [简体中文](docs/PRIVACY_POLICY_CN.md).
+The app is written in Kotlin with Jetpack Compose and Material 3. Room stores the data, Hilt provides dependency injection, and Navigation 3 handles navigation. Web management consists of bundled HTML, CSS and JavaScript served by a Ktor server inside the app. Card-back details are encrypted with AES-GCM using a key managed by Android Keystore.
 
-## Documentation
+A debug build requires no additional configuration: `./gradlew :app:assembleDebug`. OneDrive sign-in is registered to the project's signing keys and is unavailable in builds signed with other keys.
 
 - [How OneDrive backup works](docs/ONEDRIVE_BACKUP.md)
-- [Google Drive backup (disabled)](docs/GOOGLE_DRIVE_BACKUP.md)
 - [Database structure](docs/DATABASE.md)
 - [Full changelog](docs/CHANGELOG.md)
 
-## Attention
+<details>
+<summary>Modules</summary>
 
-Valnook provides recording, calculation, and presentation tools. It does not provide investment or other professional advice. Independently verify all data and calculations.
+| Module | Contents |
+| --- | --- |
+| `app` | Startup, navigation, dependency wiring, and data sessions. |
+| `core:domain` | Data models, financial rules, and repository interfaces. |
+| `core:data` | Storage, repositories, backup and restore, and the web server. |
+| `core:designsystem` | Shared themes and UI components. |
+| `feature:*` | Accounts, cash, deposits, investments, wallet, statistics, settings, backup, and web management screens. |
 
-**To the fullest extent permitted by applicable law, the authors and copyright holders are not liable for financial loss arising from the use of or inability to use this software.** See the [privacy policy and disclaimer](docs/PRIVACY_POLICY_EN.md) and [MIT License](LICENSE).
+</details>
+
+## Disclaimer
+
+Valnook is provided under the [MIT License](LICENSE), without warranty. To the fullest extent permitted by applicable law, the authors and copyright holders are not liable for financial loss arising from the use of or inability to use this software. See the [Privacy Policy and Disclaimer](docs/PRIVACY_POLICY_EN.md).
+
+## A note from the author
+
+I'm an embedded developer, and Valnook is my first Android app. Every finance app I tried felt a little off, and the things I wanted most, like a card wallet, investment summaries and cloud backup, were usually behind a paywall. So I built my own and made it open source. Keeping track of your own money shouldn't cost a subscription, or mean trusting software you can't look inside.
+
+Valnook was built with Codex and Claude Code. AI wrote most of the code; the architecture, the approach and the trade-offs are my decisions. I use it every day. It's still early and surely rough in places, so if something feels off or breaks, please [open an issue](https://github.com/LuoIsHere/Valnook/issues).

@@ -1,77 +1,80 @@
 <p align="center">
-  <img src="images/valnook.svg" width="112" height="112" alt="Valnook 标志">
+  <img src="images/valnook.svg" width="96" height="96" alt="Valnook 标志">
 </p>
 
 <h1 align="center">Valnook</h1>
 
-<p align="center">一款以本地存储为主的 Android 个人财务记录与资产管理应用。</p>
-<p align="center"><strong>版本 0.0.16</strong> · <a href="../LICENSE">MIT 许可证</a></p>
+<p align="center">一款将数据保存在手机本地的 Android 个人财务记录应用。</p>
+<p align="center"><strong>版本 0.0.17</strong> · <a href="../LICENSE">MIT 许可证</a></p>
 <p align="center"><a href="../README.md">English</a> · 简体中文</p>
 
-## 写在前面
-
-我平时做嵌入式开发，Valnook 是我第一次写 Android 应用。起因很简单：用过不少记账软件，总有些地方觉得别扭，而卡面展示、投资汇总、云备份这些我很想要的功能，往往还需要付费。所以我决定自己做一个，并且把它开源。我说不太清楚为什么一定要开源，可能只是觉得，记录自己的钱这件事，不该被锁在付费墙后面，也不该只能选择相信一个看不见的软件。
-
-这个项目在 Codex 的辅助下完成，大部分代码由 AI 编写，架构、实现方式和取舍由我决定和把关。我自己每天都在用它，也因此做了一些妥协：投资品没有自动更新净值，因为我不想为一个不盈利的项目维护服务器；云备份用的是免费的 OneDrive。它还很年轻，一定有粗糙的地方，欢迎提 issue 或者交流。
-
-## 用途
-
-Valnook 帮助您集中管理储蓄、信用账户、定期存款和投资记录，了解资产构成、负债及资产变化。数据保存在本机，无需注册账户。
+Valnook 用于记录个人资产和负债，包括银行账户、信用卡、定期存款和投资，支持多种货币。应用无需注册，也不依赖服务器，数据保存在手机本地，可选择备份到 OneDrive。
 
 ## 主要功能
 
-| 功能 | 说明 |
-| --- | --- |
-| 账户管理 | 按主账户管理不同币种的储蓄、信用子账户，记录余额与资金变动，查看余额趋势、信用额度及账期提示。 |
-| 定期存款 | 记录存款本金、期限和利率，管理定期存款的开立与结清。 |
-| 投资管理 | 记录持仓和交易，查看当月市值趋势与盈亏，按账户查阅已清仓持仓。 |
-| 资产统计 | 查看资产汇总，以及净资产、可用现金和投资市值的日／月变化趋势。 |
-| 卡包 | 选择内置卡面与配色或导入图片，通过动态堆叠整理卡片；绑定子账户后，可查看余额、信用额度及每月资金变动。支持在本机加密保存卡号、有效期和 CVV。 |
-| 网页管理 | 手机与电脑处于同一局域网时，配对后可通过电脑浏览器管理账户与财务记录。 |
-| 备份与导出 | 创建和恢复本地备份，使用 OneDrive 备份数据，或导出为 Excel 文件。卡背私密信息不包含在备份和导出中。 |
-| 个性化 | 支持中英文、深浅色主题、账户图标和导航栏自定义，可通过演示模式体验功能。 |
+- **账户。** 每个主账户（如一家银行或券商）下可设置多个币种的储蓄和信用子账户。可记录余额变动，查看近三个月的余额走势，并跟踪信用额度和账单日。主账户可以分组，分组可折叠。
+- **定期存款。** 记录本金、期限和利率，到期后结清。
+- **投资。** 记录持仓和交易，显示平均成本、已实现和未实现盈亏，以及每月市值走势。价格需手动填写。
+- **统计。** 查看净资产、可用现金和投资市值的日、月走势。
+- **卡包。** 卡片以堆叠方式排列，可使用内置卡面或导入图片，卡面保存在卡面库中。绑定子账户后，卡片会显示该账户的余额和当月收支。卡背信息（如卡号和 CVV）加密保存，仅存于本机。
+- **网页管理。** 与同一局域网内的电脑浏览器配对后，可在电脑上管理账户和记录。
+- **备份与导出。** 支持本地备份文件、手动或定时备份到 OneDrive，以及导出 Excel。
+
+应用支持中文和英文、浅色和深色主题，并提供含示例数据的演示模式。
 
 <table>
-  <tr><th>账户</th><th>子账户</th><th>卡片详情</th></tr>
+  <tr><th>账户</th><th>统计</th><th>卡包</th></tr>
   <tr>
-    <td><img src="images/accounts-cn.png" width="240" alt="账户"></td>
-    <td><img src="images/subaccount-cn.png" width="240" alt="子账户余额变化"></td>
-    <td><img src="images/wallet-motion-cn.gif" width="240" alt="选择卡片与返回卡包的动画"></td>
+    <td><img src="images/accounts-cn.gif" width="240" alt="折叠和展开账户分组"></td>
+    <td><img src="images/statistics-cn.gif" width="240" alt="在净资产图上拖动查看数值"></td>
+    <td><img src="images/wallet-cn.gif" width="240" alt="打开一张卡片后返回卡包"></td>
   </tr>
 </table>
 
-## 项目架构
+## 下载
 
-| 模块 | 职责 |
+最新版本可在 [Releases](https://github.com/LuoIsHere/Valnook/releases) 页面下载。需要 Android 16 或更高版本。
+
+## 使用前请了解
+
+- 投资价格和汇率需手动填写，应用不会从网络获取。
+- 云备份仅支持 OneDrive，Google Drive 备份[已停用](GOOGLE_DRIVE_BACKUP.md)。
+- 备份文件和导出的 Excel 不加密，请妥善保管。
+- 卡背信息不会进入备份。恢复备份后卡背为空，卸载应用或更换设备后无法找回。
+- 网页管理与手机之间的连接不加密，请仅在可信的网络和设备上使用。
+- Valnook 提供记录和计算工具，不构成投资建议。重要数据请自行核对。
+
+详见[隐私政策](PRIVACY_POLICY_CN.md)。
+
+## 开发说明
+
+应用使用 Kotlin、Jetpack Compose 和 Material 3 编写。Room 负责存储，Hilt 负责依赖注入，Navigation 3 负责导航。网页管理由随应用打包的 HTML、CSS 和 JavaScript 组成，通过应用内的 Ktor 服务提供。卡背信息使用 AES-GCM 加密，密钥由 Android Keystore 管理。
+
+debug 版本无需额外配置，可直接通过 `./gradlew :app:assembleDebug` 构建。OneDrive 登录与项目的签名密钥绑定，使用其他密钥签名的版本无法登录。
+
+- [OneDrive 备份的工作原理](ONEDRIVE_BACKUP.md)
+- [数据库结构说明](DATABASE.md)
+- [完整更新日志](CHANGELOG.md)
+
+<details>
+<summary>模块</summary>
+
+| 模块 | 内容 |
 | --- | --- |
-| `app` | 应用启动、导航、依赖装配和数据会话管理。 |
+| `app` | 应用启动、导航、依赖装配和数据会话。 |
 | `core:domain` | 数据模型、财务计算规则和数据访问接口。 |
-| `core:data` | 本地存储、数据访问实现、备份恢复和本地网页服务。 |
-| `core:designsystem` | 共用主题与 UI 组件。 |
+| `core:data` | 存储、数据访问实现、备份恢复和网页服务。 |
+| `core:designsystem` | 共用主题和 UI 组件。 |
 | `feature:*` | 账户、资金、定期、投资、卡包、统计、设置、备份和网页管理页面。 |
 
-## 实现方式
+</details>
 
-- **Android 界面：** 使用 Kotlin、Jetpack Compose 和 Material 3，通过 ViewModel 与协程 Flow 管理页面状态；Hilt 负责应用级依赖注入，Navigation 3 负责导航。
-- **数据管理：** 使用 Room 在本地保存财务记录，财务计算规则与存储、界面分离。
-- **网页管理：** 随应用打包 HTML、CSS 和 JavaScript，通过手机内嵌的 Ktor 服务提供同一局域网内配对后的 HTTP/WebSocket 访问。
-- **私密信息：** 卡背字段使用 AES-GCM 加密，密钥由 Android Keystore 管理，与可备份的数据分开保存。
+## 免责声明
 
-## 隐私
+Valnook 依据 [MIT 许可证](../LICENSE)提供，不附带任何担保。在适用法律允许的最大范围内，作者及版权持有人不对因使用或无法使用本软件而产生的财务损失承担责任。详见[隐私政策与免责声明](PRIVACY_POLICY_CN.md)。
 
-云备份由用户选择启用。卡背私密数据仅保存在本机，不能通过备份恢复，网页端也无法访问；正面图片和内置卡面样式会包含在完整备份中。备份和 Excel 文件本身不加密，请妥善保管。网页管理连接不提供传输加密，请仅在可信网络和设备上使用。
+## 写在最后
 
-详细说明见[隐私政策与免责声明](PRIVACY_POLICY_CN.md)。[English](PRIVACY_POLICY_EN.md)。
+我平时做嵌入式开发，Valnook 是我写的第一个 Android 应用。起因很简单：用过不少记账软件，总有些地方觉得别扭，而卡包、投资汇总、云备份这些我最想要的功能，往往还要付费。所以我自己做了一个，并且把它开源。记录自己的钱这件事，不该被锁在付费墙后面，也不该只能去相信一个看不见里面的软件。
 
-## 文档
-
-- [OneDrive 备份工作流程（英文）](ONEDRIVE_BACKUP.md)
-- [Google Drive 备份（已停用）](GOOGLE_DRIVE_BACKUP.md)
-- [数据库结构说明（英文）](DATABASE.md)
-- [完整更新日志（英文）](CHANGELOG.md)
-
-## Attention / 注意
-
-Valnook 仅提供记录、计算与展示工具，不构成投资或其他专业建议。请自行核对数据和计算结果。
-
-**在适用法律允许的最大范围内，作者及版权持有人不对因使用或无法使用本软件而产生的财务损失承担责任。** 详见[隐私政策与免责声明](PRIVACY_POLICY_CN.md)及 [MIT 许可证](../LICENSE)。
+这个项目是在 Codex 和 Claude Code 的辅助下完成的，大部分代码由 AI 编写，架构、实现方式和取舍由我决定。我自己每天都在用它。现在还是早期版本，粗糙的地方肯定不少，用着不顺手或者发现问题，欢迎[提 issue](https://github.com/LuoIsHere/Valnook/issues)。
