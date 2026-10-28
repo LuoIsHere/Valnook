@@ -490,7 +490,7 @@ class MigrationTest {
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
-            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22).build()
             try {
                 val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
                 assertEquals(listOf("shared", "orphan"), faces.map { it.key })
@@ -512,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
@@ -525,5 +525,72 @@ class MigrationTest {
                 assertEquals(4500L, snapshot.cash.single().balance_minor)
             } finally { db.close() }
         } finally { context.deleteDatabase(name) }
+    }
+
+    /** Rates under two bases, a multi-currency account and a statistics cache row; valid in schemas 17 to 21. */
+    private fun androidx.sqlite.db.SupportSQLiteDatabase.insertFxSample() {
+        execSQL("INSERT INTO currencies VALUES ('CNY',2),('USD',2),('HKD',2),('EUR',2)")
+        execSQL("""INSERT INTO app_settings(id,base_currency,revision,language,gain_loss_scheme,navigation_order,navigation_visible)
+            VALUES (1,'CNY',3,'SYSTEM','GREEN_GAIN','ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS','ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS')""")
+        execSQL("INSERT INTO fx_rates VALUES ('USD','CNY','7.12',10),('HKD','CNY','0.915',10),('CNY','USD','0.1404',11),('EUR','USD','1.08',11)")
+        execSQL("INSERT INTO statistics_state VALUES (1,5,3,1000,NULL)")
+        execSQL("INSERT INTO statistics_cache VALUES ('NET_WORTH',20000,'123.45',1,5,3,2000)")
+        execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision,display_order) VALUES (1,'Bank','',1,1,1,0)")
+        execSQL("""INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms)
+            VALUES (1,'USD',1000,1,1,1,'USD cash','',1,1),(1,'CNY',5000,1,1,2,'CNY cash','',1,1)""")
+    }
+
+    /** Switch off, notice not dismissed, never synced, empty history; rates and cached statistics untouched. */
+    private fun androidx.sqlite.db.SupportSQLiteDatabase.assertFxUpgrade() {
+        query("SELECT source_currency,target_currency,rate,updated_at_ms FROM fx_rates ORDER BY target_currency,source_currency").use {
+            val rows = generateSequence { if (it.moveToNext()) listOf(it.getString(0), it.getString(1), it.getString(2), it.getLong(3)) else null }.toList()
+            assertEquals(listOf(listOf("HKD", "CNY", "0.915", 10L), listOf("USD", "CNY", "7.12", 10L),
+                listOf("CNY", "USD", "0.1404", 11L), listOf("EUR", "USD", "1.08", 11L)), rows)
+        }
+        query("SELECT id,auto_enabled,notice_dismissed,last_success_day,last_success_at_ms,last_attempt_at_ms,last_error,data_date FROM fx_local_state").use {
+            assertTrue(it.moveToFirst())
+            assertEquals(1L, it.getLong(0)); assertEquals(0L, it.getLong(1)); assertEquals(0L, it.getLong(2))
+            (3..7).forEach { column -> assertTrue(it.isNull(column)) }
+            assertFalse(it.moveToNext())
+        }
+        query("SELECT COUNT(*) FROM fx_rate_history").use { assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0)) }
+        query("SELECT value_decimal,complete,rule_version FROM statistics_cache").use {
+            assertTrue(it.moveToFirst()); assertEquals("123.45", it.getString(0)); assertEquals(1L, it.getLong(1)); assertEquals(3L, it.getLong(2))
+        }
+        query("SELECT base_currency,revision FROM app_settings").use {
+            assertTrue(it.moveToFirst()); assertEquals("CNY", it.getString(0)); assertEquals(3L, it.getLong(1))
+        }
+        query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+    }
+
+    @Test fun v21_to_v22_adds_the_switch_off_and_an_empty_history_without_touching_rates() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-fx-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 21).apply { insertFxSample(); close() }
+            helper.runMigrationsAndValidate(name, 22, true, MIGRATION_21_22).apply { assertFxUpgrade(); close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach schema 22 with their manual rates unchanged. */
+    @Test fun released_installs_reach_v22_with_manual_rates_unchanged(): Unit = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val chains = mapOf(
+            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22),
+            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22))
+        chains.forEach { (version, migrations) ->
+            val name = "migration-fx-v$version-${UUID.randomUUID()}.db"
+            try {
+                helper.createDatabase(name, version).apply { insertFxSample(); close() }
+                helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, *migrations).apply { assertFxUpgrade(); close() }
+                val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
+                try {
+                    assertEquals(FxLocalStateEntity(), db.fx().localState())
+                    assertTrue(db.fx().history("CNY").isEmpty())
+                    assertEquals(4, db.overview().rates().size)
+                    assertEquals(listOf(1000L, 5000L), dev.valnook.data.repository.RoomOverview(db).snapshot().cash.map { it.balance_minor }.sorted())
+                } finally { db.close() }
+            } finally { context.deleteDatabase(name) }
+        }
     }
 }

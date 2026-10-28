@@ -37,6 +37,9 @@ class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
             maintenance.clearAccountIcons()
             maintenance.clearOperations()
             db.overview().clearRates()
+            db.fx().clearHistory()
+            // Back to a first launch: switch off and the network notice shown again.
+            db.fx().saveLocalState(dev.valnook.data.database.FxLocalStateEntity())
             db.overview().clearFinancialSettings()
             check(maintenance.resetAuditCoverage(now) == 1)
             val eventId = UUID.randomUUID().toString()

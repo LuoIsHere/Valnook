@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.io.PlatformTestStorageRegistry
+import dev.valnook.data.database.FxLocalStateEntity
+import dev.valnook.data.database.FxRateHistoryEntity
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.data.portability.AppBuildInfo
 import dev.valnook.data.portability.ArchiveManifest
@@ -654,6 +656,131 @@ class BackupPortabilityTest {
         assertEquals(listOf("Travel"), face.cardNames)
     }
 
+    /** Base CNY with one manual rate, three days of USD history and the switch on with a sync record. */
+    private suspend fun fxSource(prefix: String): ValnookDatabase {
+        val source = database(prefix)
+        RoomSettings(source, clock).applyChange(SaveFinancialSettings(0, Currency.of("CNY"),
+            listOf(dev.valnook.domain.model.FxRate(Currency.of("USD"), Currency.of("CNY"), java.math.BigDecimal("7.1")))))
+        source.fx().insertHistory((0L..2L).map { offset ->
+            FxRateHistoryEntity("CNY", "USD", 20_000 + offset, 20_000 + offset - (if (offset == 2L) 1 else 0),
+                "0.14$offset", 1_000 + offset) })
+        source.fx().saveLocalState(FxLocalStateEntity(auto_enabled = true, notice_dismissed = true,
+            last_success_day = 20_002, last_success_at_ms = 5, last_attempt_at_ms = 5, data_date = 20_001))
+        return source
+    }
+
+    /** A target with its own base, history and a sync record; its switch is off and the notice dismissed. */
+    private suspend fun fxTarget(prefix: String): ValnookDatabase {
+        val target = database(prefix)
+        RoomSettings(target, clock).applyChange(SaveFinancialSettings(0, Currency.of("USD"), emptyList()))
+        target.fx().insertHistory(listOf(FxRateHistoryEntity("USD", "CNY", 19_000, 19_000, "7.2", 9)))
+        target.fx().saveLocalState(FxLocalStateEntity(auto_enabled = false, notice_dismissed = true,
+            last_success_day = 19_000, last_success_at_ms = 9, last_attempt_at_ms = 9, last_error = "NETWORK", data_date = 19_000))
+        return target
+    }
+
+    private suspend fun restore(target: ValnookDatabase, bytes: ByteArray) {
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(bytes), "fx.val_backup") {}
+        try { targetEngine.commitRestore(staged) {} } finally { targetEngine.close(staged) }
+    }
+
+    @Test fun fx_history_round_trips_and_restore_keeps_the_local_switch() = runBlocking {
+        val source = fxSource("fx-round-trip-source")
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        assertTrue("data/fx_rate_history.jsonl" in zipEntries(output.toByteArray()))
+        val payload = zipPayload(output.toByteArray()).values.joinToString("") { it.toString(Charsets.UTF_8) }
+        listOf("fx_local_state", "auto_enabled", "notice_dismissed", "last_success").forEach { assertFalse(it, payload.contains(it)) }
+        assertEquals(10L, JSONObject(zipText(output.toByteArray(), "manifest.json")).getLong("dataSchemaVersion"))
+
+        val target = fxTarget("fx-round-trip-target")
+        restore(target, output.toByteArray())
+        assertEquals(source.fx().history("CNY"), target.fx().history("CNY"))
+        assertTrue(target.fx().history("USD").isEmpty())
+        assertEquals(source.overview().rates(), target.overview().rates())
+        // Device-local: the target's switch and notice choice stay, its sync record is forgotten.
+        assertEquals(FxLocalStateEntity(auto_enabled = false, notice_dismissed = true), target.fx().localState())
+    }
+
+    @Test fun schema9_backup_restores_with_an_empty_history_and_its_rates() = runBlocking {
+        val source = fxSource("fx-schema9-source")
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        val target = fxTarget("fx-schema9-target")
+        restore(target, downgradeToLegacySchema(output.toByteArray(), 9))
+        assertTrue(target.fx().history("CNY").isEmpty() && target.fx().history("USD").isEmpty())
+        assertEquals(source.overview().rates(), target.overview().rates())
+        assertEquals(FxLocalStateEntity(auto_enabled = false, notice_dismissed = true), target.fx().localState())
+    }
+
+    @Test fun fx_history_with_another_base_or_bad_rows_is_rejected_before_target_rows_change() = runBlocking {
+        val source = fxSource("fx-bad-source")
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        val target = fxTarget("fx-bad-target")
+        val before = target.fx().history("USD")
+        val cases = listOf<Pair<PortabilityErrorCode, (JSONObject) -> Unit>>(
+            PortabilityErrorCode.INVALID_DATA to { row -> row.put("base_currency", "EUR") },
+            PortabilityErrorCode.INVALID_DATA to { row -> row.put("quote_currency", "CNY") },
+            PortabilityErrorCode.INVALID_DATA to { row -> row.put("source_date", "2026-12-31") },
+            PortabilityErrorCode.INVALID_DATA to { row -> row.put("rate", "-0.14") },
+            PortabilityErrorCode.INVALID_DATA to { row -> row.put("rate", "1.4E-1") },
+            PortabilityErrorCode.INVALID_DATA to { row -> row.put("rate", "0") },
+            PortabilityErrorCode.INVALID_DATA to { row -> row.put("local_date", "2026-02-30") }
+        )
+        cases.forEach { (code, change) ->
+            val tampered = rewriteFxRows(output.toByteArray()) { lines ->
+                listOf(JSONObject(lines.first()).also(change).toString()) + lines.drop(1)
+            }
+            expect(code) { runBlocking { engine(target).prepareRestore(ByteArrayInputStream(tampered), "bad.val_backup") {} } }
+        }
+        // Constraint failures surface while loading the candidate, before the relationship checks run.
+        val constraint = setOf(PortabilityErrorCode.INVALID_DATA, PortabilityErrorCode.RELATIONSHIP_ERROR)
+        val unknownQuote = rewriteFxRows(output.toByteArray()) { lines ->
+            listOf(JSONObject(lines.first()).put("quote_currency", "XYZ").toString()) + lines.drop(1)
+        }
+        expectOneOf(constraint) {
+            runBlocking { engine(target).prepareRestore(ByteArrayInputStream(unknownQuote), "xyz.val_backup") {} }
+        }
+        val duplicate = rewriteFxRows(output.toByteArray()) { lines -> lines + lines.first() }
+        expectOneOf(constraint) {
+            runBlocking { engine(target).prepareRestore(ByteArrayInputStream(duplicate), "dup.val_backup") {} }
+        }
+        assertEquals(before, target.fx().history("USD"))
+    }
+
+    /** Rewrites the history file and keeps sizes, hashes and record counts consistent, so only the content is wrong. */
+    private fun rewriteFxRows(bytes: ByteArray, change: (List<String>) -> List<String>): ByteArray {
+        val path = "data/fx_rate_history.jsonl"
+        val files = linkedMapOf<String, ByteArray>()
+        ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> while (true) {
+            val entry = zip.nextEntry ?: break
+            files[entry.name] = zip.readBytes()
+        } }
+        val lines = change(files.getValue(path).toString(Charsets.UTF_8).lines().filter { it.isNotBlank() })
+        files[path] = lines.joinToString("") { it + "\n" }.toByteArray()
+        val totals = JSONObject(files.getValue("verification/snapshot_totals.json").toString(Charsets.UTF_8))
+        totals.getJSONObject("recordCounts").put(path, lines.size.toString())
+        files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
+        val manifest = JSONObject(files.getValue("manifest.json").toString(Charsets.UTF_8))
+        val rows = manifest.getJSONArray("files")
+        repeat(rows.length()) { index ->
+            val row = rows.getJSONObject(index)
+            val name = row.getString("path")
+            if (name == path || name == "verification/snapshot_totals.json") {
+                val value = files.getValue(name)
+                if (name == path) row.put("recordCount", lines.size)
+                row.put("uncompressedBytes", value.size)
+                row.put("sha256", MessageDigest.getInstance("SHA-256").digest(value).joinToString("") { "%02x".format(it) })
+            }
+        }
+        files["manifest.json"] = manifest.toString().toByteArray()
+        return ByteArrayOutputStream().also { output -> ZipOutputStream(output).use { zip ->
+            files.forEach { (name, value) -> zip.putNextEntry(ZipEntry(name)); zip.write(value); zip.closeEntry() }
+        } }.toByteArray()
+    }
+
     private fun downgradeToLegacySchema(bytes: ByteArray, version: Int = 1): ByteArray {
         val files = linkedMapOf<String, ByteArray>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> while (true) {
@@ -662,6 +789,7 @@ class BackupPortabilityTest {
         } }
         if (version < 6) { files.remove("data/wallet_cards.jsonl"); files.remove("data/wallet_card_images.jsonl") }
         if (version < 8) files.remove("data/account_groups.jsonl")
+        if (version < 10) files.remove("data/fx_rate_history.jsonl")
         if(version < 4) files.remove("data/account_icon_images.jsonl")
         if (version in 6..8) files["data/wallet_card_images.jsonl"] = files.getValue("data/wallet_card_images.jsonl").toString(Charsets.UTF_8)
             .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
@@ -677,6 +805,7 @@ class BackupPortabilityTest {
             totals.getJSONObject("recordCounts").remove("data/wallet_card_images.jsonl")
         }
         if (version < 8) totals.getJSONObject("recordCounts").remove("data/account_groups.jsonl")
+        if (version < 10) totals.getJSONObject("recordCounts").remove("data/fx_rate_history.jsonl")
         if(version < 4) totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")
         if (version == 1) totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
         files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
@@ -689,7 +818,8 @@ class BackupPortabilityTest {
             (if (version >= 5) listOf("account-presentation-v1") else emptyList()) +
             (if (version >= 6) listOf("wallet-cards-v1") else emptyList()) +
             (if (version >= 7) listOf("wallet-face-style-v1") else emptyList()) +
-            (if (version >= 8) listOf("account-groups-v1") else emptyList())))
+            (if (version >= 8) listOf("account-groups-v1") else emptyList()) +
+            (if (version >= 9) listOf("wallet-face-library-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->

@@ -88,6 +88,12 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
                 dao.localizeWalletFaces(english)
             }
             if (change is SaveFinancialSettings) {
+                // History is per base and never converted across bases; a new base starts over.
+                val base = settings.baseCurrency?.code
+                if (base != previous?.base_currency) {
+                    if (base == null) db.fx().clearHistory() else db.fx().deleteHistoryOutside(base)
+                    db.fx().clearSyncRecord()
+                }
                 dao.clearRates()
                 dao.insertRates(settings.rates.map { FxRateEntity(it.sourceCurrency.code, it.targetCurrency.code,
                     it.rate.stripTrailingZeros().toPlainString(), clock.millis()) })

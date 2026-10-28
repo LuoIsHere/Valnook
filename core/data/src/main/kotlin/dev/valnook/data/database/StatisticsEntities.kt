@@ -1,5 +1,6 @@
 package dev.valnook.data.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -68,7 +69,9 @@ data class StatisticsCacheEntity(
     val reliable: Boolean,
     val source_revision: Long,
     val rule_version: Int,
-    val computed_at_ms: Long
+    val computed_at_ms: Long,
+    /** False when some currency had no rate that day and was left out of [value_decimal]. */
+    @ColumnInfo(defaultValue = "1") val complete: Boolean = true
 )
 
 data class StatisticsPositionRow(

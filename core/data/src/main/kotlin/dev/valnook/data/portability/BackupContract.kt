@@ -58,7 +58,7 @@ internal object BackupContract {
     /** Older rules only differ in derived statistics, which restore always rebuilds. */
     val RESTORABLE_HISTORICAL_VALUATION_RULES = dev.valnook.data.database.MIN_RESTORABLE_STATISTICS_RULE_VERSION..STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1", "wallet-face-library-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1", "wallet-face-library-v1", "fx-rate-history-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -139,6 +139,11 @@ internal object BackupContract {
             long("id"), long("instrument_id"), long("price_e5"), text("currency_code"), long("effective_at_ms"),
             long("created_at_ms"), long("updated_at_ms"), long("revision"), bool("is_deleted")
         ), "instrument_id,effective_at_ms,id"),
+        // Rates as the source answered for each local day; the device-local switch and sync record stay out.
+        PortableTable("data/fx_rate_history.jsonl", "fx_rate_history", listOf(
+            text("base_currency"), text("quote_currency"), localDate("local_date", "local_day"),
+            localDate("source_date", "source_date"), text("rate"), long("fetched_at_ms")
+        ), "base_currency,quote_currency,local_day"),
         PortableTable("data/audit_events.jsonl", "audit_events", listOf(
             text("event_id"), long("event_schema_version"), text("correlation_id"),
             text("operation_id", true), text("action"), text("entity_kind"),
@@ -166,7 +171,8 @@ internal object BackupContract {
         "credit_account_profiles" to 2,
         "account_icon_images" to 4,
         "wallet_cards" to 6, "wallet_card_images" to 6,
-        "account_groups" to 8
+        "account_groups" to 8,
+        "fx_rate_history" to 10
     )
 
     /** Data schema version that introduced each column name; columns not listed exist since version 1. */
@@ -196,7 +202,7 @@ internal object BackupContract {
     val importOrder = listOf(
         "account_icon_images", "account_groups", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "wallet_card_images", "wallet_cards", "investments",
         "term_deposits", "investment_trades", "cash_entries", "cash_movements", "instrument_price_history",
-        "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "audit_metadata",
+        "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "fx_rate_history", "audit_metadata",
         "audit_events", "audit_event_accounts"
     )
 }

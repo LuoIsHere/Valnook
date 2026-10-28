@@ -62,13 +62,9 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
     private val start = LocalDate.of(today.year - 9, 1, 3)
     private val random = Random(20261020)
 
-    suspend fun seed(displayPreferences: AppSettings) {
-        var stored = graph.settingsWriter.applyChange(SaveFinancialSettings(0, Currency.of("CNY"), listOf(
-            FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.12")),
-            FxRate(Currency.of("HKD"), Currency.of("CNY"), BigDecimal("0.915")),
-            FxRate(Currency.of("EUR"), Currency.of("CNY"), BigDecimal("8.28")),
-            FxRate(Currency.of("JPY"), Currency.of("CNY"), BigDecimal("0.0472"))
-        )))
+    /** [rates] defaults to round figures; the bundled demo database passes its fixed fetched rates instead. */
+    suspend fun seed(displayPreferences: AppSettings, rates: List<FxRate> = DEFAULT_RATES) {
+        var stored = graph.settingsWriter.applyChange(SaveFinancialSettings(0, Currency.of("CNY"), rates))
         if (stored.language != displayPreferences.language) stored = graph.settingsWriter.applyChange(
             SaveLanguage(stored.revision, displayPreferences.language))
         if (stored.gainLossColors != displayPreferences.gainLossColors) graph.settingsWriter.applyChange(
@@ -575,6 +571,12 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
         val currency: String, val price: String, val listed: Int)
 
     companion object {
+        val DEFAULT_RATES = listOf(
+            FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.12")),
+            FxRate(Currency.of("HKD"), Currency.of("CNY"), BigDecimal("0.915")),
+            FxRate(Currency.of("EUR"), Currency.of("CNY"), BigDecimal("8.28")),
+            FxRate(Currency.of("JPY"), Currency.of("CNY"), BigDecimal("0.0472"))
+        )
         const val CMB = "招商银行"
         const val ICBC = "中国工商银行"
         const val CCB = "中国建设银行"

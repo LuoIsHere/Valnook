@@ -15,6 +15,7 @@ import dev.valnook.app.di.AppGraph
 import dev.valnook.app.di.DemoDataSeeder
 import dev.valnook.app.di.createDatabaseGraph
 import dev.valnook.app.di.currentBuildInfo
+import dev.valnook.data.database.FxRateHistoryEntity
 import dev.valnook.data.database.InstrumentPriceEntity
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.calculation.AssetValuation
@@ -23,6 +24,8 @@ import dev.valnook.domain.model.AppSettings
 import dev.valnook.domain.model.BalanceAccountType
 import dev.valnook.domain.model.CreditAccountInput
 import dev.valnook.domain.model.CreditDueRule
+import dev.valnook.domain.model.Currency
+import dev.valnook.domain.model.FxRate
 import dev.valnook.domain.model.WalletFaceBackground
 import dev.valnook.domain.model.WalletFaceGeometry
 import dev.valnook.domain.model.WalletFaceStyle
@@ -37,9 +40,11 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.json.JSONObject
 import org.junit.runner.RunWith
 import java.io.ByteArrayOutputStream
 import java.math.BigDecimal
+import java.math.RoundingMode
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -48,8 +53,9 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * Builds the bundled demo database `valnook-demo-v21.db` from [DemoDataSeeder], adds the wallet, the price history
- * and the English labels, checks that the ledger reads like a real one, and writes the file to test storage.
+ * Builds the bundled demo database `valnook-demo-v22.db` from [DemoDataSeeder], adds the wallet, the price history,
+ * the fixed exchange rate history and the English labels, checks that the ledger reads like a real one, and writes
+ * the file to test storage.
  */
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
@@ -68,12 +74,15 @@ class DemoDatabaseAssetGeneratorTest {
                 raw.investments, raw.commands, raw.clock, raw.overview,
                 dev.valnook.data.repository.RoomStatistics(database, clock), raw.settings, raw.settingsWriter,
                 raw.instruments, raw.cashPages, raw.depositPages)
-            DemoDataSeeder(graph, clock).seed(AppSettings())
+            val fx = readDemoFx()
+            DemoDataSeeder(graph, clock).seed(AppSettings(), fx.currentRates())
+            database.fx().insertHistory(fx.rows)
             seedWallet(database, graph, clock)
             dev.valnook.data.repository.RoomAccountGroupWriter(database, clock).setCollapsed(AccountGroup.DEFAULT_ID, true)
             enrichHistory(database, clock)
             insertLabels(database)
             check(database, graph)
+            checkFx(database, fx)
         } finally {
             database.close()
         }
@@ -82,6 +91,53 @@ class DemoDatabaseAssetGeneratorTest {
             source.inputStream().use { input -> input.copyTo(output) }
         }
         assertTrue(source.length() > 0)
+    }
+
+    /**
+     * Rates fetched once by `internal/tools/demo-fx/fetch_demo_fx.py`: one row per day and currency, as the source
+     * answered for that day. The demo always uses them and never goes online.
+     */
+    private class DemoFx(val base: String, val rows: List<FxRateHistoryEntity>) {
+        /** Today's rates in app direction (1 quote = x base): the last day's values, inverted and rounded once. */
+        fun currentRates(): List<FxRate> = rows.groupBy { it.quote_currency }.map { (quote, days) ->
+            FxRate(Currency.of(quote), Currency.of(base), BigDecimal.ONE
+                .divide(BigDecimal(days.maxBy { it.local_day }.rate), 12, RoundingMode.HALF_EVEN).stripTrailingZeros())
+        }
+    }
+
+    private fun readDemoFx(): DemoFx {
+        val text = InstrumentationRegistry.getInstrumentation().context.assets.open(FX_HISTORY_ASSET)
+            .bufferedReader().use { it.readText() }
+        val json = JSONObject(text)
+        val base = json.getString("base")
+        val fetchedAt = json.getLong("fetchedAtMs")
+        val days = json.getJSONObject("days")
+        val rows = days.keys().asSequence().flatMap { quote ->
+            val list = days.getJSONArray(quote)
+            (0 until list.length()).map { index ->
+                val row = list.getJSONArray(index)
+                FxRateHistoryEntity(base, quote, LocalDate.parse(row.getString(0)).toEpochDay(),
+                    LocalDate.parse(row.getString(1)).toEpochDay(), row.getString(2), fetchedAt)
+            }
+        }.toList()
+        return DemoFx(base, rows)
+    }
+
+    /** Continuous days from the statistics baseline for each demo currency, and current rates taken from the last day. */
+    private suspend fun checkFx(database: ValnookDatabase, fx: DemoFx) {
+        val history = database.fx().history("CNY")
+        assertEquals(fx.rows.size, history.size)
+        assertEquals(setOf("EUR", "HKD", "JPY", "USD"), history.map { it.quote_currency }.toSet())
+        val baseline = database.statistics().state()!!.baseline_at_ms
+        history.groupBy { it.quote_currency }.values.forEach { days ->
+            val first = days.first().local_day
+            assertEquals(Instant.ofEpochMilli(baseline).atZone(ZoneId.of("Asia/Shanghai")).toLocalDate().toEpochDay(), first)
+            assertEquals((first until first + days.size).toList(), days.map { it.local_day })
+            assertTrue(days.all { it.source_date <= it.local_day && BigDecimal(it.rate).signum() > 0 })
+        }
+        val stored = database.overview().rates().associate { it.source_currency to BigDecimal(it.rate) }
+        fx.currentRates().forEach { assertEquals(0, it.rate.compareTo(stored.getValue(it.sourceCurrency.code))) }
+        assertEquals(false, database.fx().localState()!!.auto_enabled)
     }
 
     /** Sixteen everyday cards: bank cards bound to their accounts, a few unbound cards and one closed card. */
@@ -322,6 +378,7 @@ class DemoDatabaseAssetGeneratorTest {
             "纸纹" to "Paper", "极光" to "Aurora"
         )
         const val EXPORT_DATABASE_NAME = "valnook-demo-asset-export.db"
-        const val ASSET_FILE_NAME = "valnook-demo-v21.db"
+        const val ASSET_FILE_NAME = "valnook-demo-v22.db"
+        const val FX_HISTORY_ASSET = "demo-fx-history.json"
     }
 }

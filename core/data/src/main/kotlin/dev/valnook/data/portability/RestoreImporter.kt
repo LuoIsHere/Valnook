@@ -45,6 +45,8 @@ internal class RestoreImporter(
                 copyCandidate(staged.stagingDatabase)
                 fault(RestorePoint.AFTER_CANDIDATE_COPY)
                 target.maintenance().clearStatisticsCache()
+                // The switch is a device setting and stays; the sync record described the replaced history.
+                target.fx().clearSyncRecord()
                 val state = target.statistics().state()
                 if (state != null) {
                     val baselineDay = Instant.ofEpochMilli(state.baseline_at_ms)
@@ -81,7 +83,7 @@ internal class RestoreImporter(
             "wallet_cards", "wallet_card_images", "audit_event_accounts", "audit_events", "audit_metadata", "statistics_cache",
             "statistics_baseline_items", "statistics_state", "instrument_price_history", "demo_labels",
             "cash_entries", "cash_movements", "investment_trades", "term_deposits", "investments",
-            "instruments", "asset_types", "credit_account_profiles", "cash_accounts", "savings_accounts", "account_groups", "account_icon_images", "operations", "fx_rates",
+            "instruments", "asset_types", "credit_account_profiles", "cash_accounts", "savings_accounts", "account_groups", "account_icon_images", "operations", "fx_rates", "fx_rate_history",
             "app_settings", "currencies"
         ).forEach { table -> db.execSQL("DELETE FROM $table") }
     }

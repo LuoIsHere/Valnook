@@ -11,13 +11,23 @@ class BackupContractTest {
         BackupContract.tablesFor(version).single { it.table == table }.columns.map { it.name }.toSet()
 
     @Test fun each_version_reads_only_what_it_wrote() {
-        val versionOneExtras = setOf("credit_account_profiles", "account_icon_images", "wallet_cards", "wallet_card_images", "account_groups")
+        val versionOneExtras = setOf("credit_account_profiles", "account_icon_images", "wallet_cards", "wallet_card_images", "account_groups", "fx_rate_history")
         assertEquals(BackupContract.tables.map { it.table }.toSet() - versionOneExtras, tables(1))
         assertTrue("credit_account_profiles" in tables(2) && "account_icon_images" !in tables(3))
         assertTrue("account_icon_images" in tables(4) && "wallet_cards" !in tables(5))
         assertEquals(tables(6), tables(7))
         assertTrue("wallet_cards" in tables(7) && "account_groups" !in tables(7))
-        assertEquals(BackupContract.tables.map { it.table }.toSet(), tables(8))
+        assertEquals(tables(8), tables(9))
+        assertEquals(BackupContract.tables.map { it.table }.toSet() - "fx_rate_history", tables(9))
+        assertEquals(BackupContract.tables.map { it.table }.toSet(), tables(10))
+    }
+
+    @Test fun rate_history_starts_at_version_ten_and_keeps_device_state_out() {
+        assertEquals(setOf("base_currency", "quote_currency", "local_date", "source_date", "rate", "fetched_at_ms"),
+            columns(10, "fx_rate_history"))
+        assertTrue("data/fx_rate_history.jsonl" !in BackupContract.payloadPathsFor(9))
+        assertTrue(BackupContract.tables.none { it.table == "fx_local_state" })
+        assertTrue(BackupContract.importOrder.indexOf("fx_rate_history") > BackupContract.importOrder.indexOf("fx_rates"))
     }
 
     @Test fun account_columns_follow_the_version_that_added_them() {

@@ -385,6 +385,7 @@ internal class ArchiveReader(
             }
         }
         validateCreditAccounts(sql)
+        validateFxHistory(sql)
         if (counts["data/accounts.jsonl"] != manifest.accountCount ||
             counts["data/cash_accounts.jsonl"] != manifest.cashAccountCount ||
             counts["data/investment_trades.jsonl"] != manifest.tradeCount ||
@@ -445,6 +446,21 @@ internal class ArchiveReader(
         if (!hasDefault) invalid()
         db.query("SELECT 1 FROM savings_accounts a LEFT JOIN account_groups g ON g.id=a.group_id WHERE g.id IS NULL LIMIT 1")
             .use { if (it.moveToFirst()) relationship() }
+    }
+
+    /** Every history row belongs to the archive's base currency and holds a plain positive rate published on or before its day. */
+    private fun validateFxHistory(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        val base = db.query("SELECT base_currency FROM app_settings LIMIT 1").use {
+            if (it.moveToFirst() && !it.isNull(0)) it.getString(0) else null
+        }
+        db.query("SELECT base_currency,quote_currency,local_day,source_date,rate,fetched_at_ms FROM fx_rate_history").use { cursor ->
+            while (cursor.moveToNext()) {
+                val rate = cursor.getString(4)
+                if (cursor.getString(0) != base || cursor.getString(1) == base ||
+                    cursor.getLong(3) > cursor.getLong(2) || cursor.getLong(3) < MIN_FX_DAY || cursor.getLong(2) > MAX_FX_DAY ||
+                    cursor.getLong(5) < 0 || rate.length > 64 || !FX_RATE.matches(rate) || BigDecimal(rate).signum() <= 0) invalid()
+            }
+        }
     }
 
     private fun validateCreditAccounts(db: androidx.sqlite.db.SupportSQLiteDatabase) {
@@ -651,6 +667,9 @@ internal class ArchiveReader(
 
     private companion object {
         val LONG = Regex("-?(0|[1-9][0-9]*)")
+        val FX_RATE = Regex("[0-9]+(?:\\.[0-9]+)?")
+        val MIN_FX_DAY = java.time.LocalDate.of(1900, 1, 1).toEpochDay()
+        val MAX_FX_DAY = java.time.LocalDate.of(2999, 12, 31).toEpochDay()
         const val COPY_BUFFER_SIZE = 64 * 1024
     }
 }
