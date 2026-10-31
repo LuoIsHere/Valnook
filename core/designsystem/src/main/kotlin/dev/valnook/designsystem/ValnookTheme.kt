@@ -62,7 +62,8 @@ private val typography=Typography(
         val trendPalette = if(dark_theme) TrendPalette(Color(0xFF59B5E8),Color(0xFF59B5E8),Color(0xFF686E78),
             Color(0xFFB0B7C2).copy(alpha=.75f),Color(0xFFA5ADB8).copy(alpha=.18f)) else TrendPalette(
             Color(0xFFB88714),Color(0xFFE5B83D),Color(0xFFA1A6AE),Color(0xFF737983).copy(alpha=.75f),Color(0xFF817763).copy(alpha=.22f))
-        CompositionLocalProvider(LocalGainLossPalette provides palette, LocalTrendPalette provides trendPalette) {
+        CompositionLocalProvider(LocalGainLossPalette provides palette, LocalTrendPalette provides trendPalette,
+            LocalNoticePalette provides if(dark_theme) DarkNotice else LightNotice) {
             Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background,
                 contentColor=MaterialTheme.colorScheme.onSurface) {content()}
         }

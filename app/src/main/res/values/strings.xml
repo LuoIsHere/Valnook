@@ -28,4 +28,13 @@
     <string name="wallet_delete_card">Delete card</string>
     <string name="title_card_faces">Card faces</string>
     <string name="onboarding_fx_auto_hint">Current rates are fetched after you finish; you can turn this off in Settings.</string>
+    <string name="fx_notice_failed_title">Exchange rates not updated</string>
+    <string name="fx_notice_missing_title">Some currencies have no rate</string>
+    <string name="fx_notice_network">No network connection; retrying in 30 minutes.</string>
+    <string name="fx_notice_service">The exchange rate service is unavailable for now; retrying in 30 minutes.</string>
+    <string name="fx_notice_storage">The rates could not be saved; retrying in 30 minutes.</string>
+    <string name="fx_notice_missing">No rate for %1$s; left out of totals.</string>
+    <string name="fx_notice_using">Using rates from %1$s.</string>
+    <string name="fx_notice_using_none">No rates are available yet.</string>
+    <string name="fx_notice_sentences">%1$s %2$s</string>
 </resources>

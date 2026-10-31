@@ -134,7 +134,16 @@ fun ValnookRoot(
                     // The gate's AnimatedContent passes full-screen min constraints; this Box loosens them for the banner.
                     Box(Modifier.fillMaxSize()) {
                         SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
-                        CloudFailureBanner(cloudState, sessions, Modifier.align(Alignment.TopCenter))
+                        val fxNotice by remember(active.id) { active.graph.fxSync.observeNotice() }
+                            .collectAsStateWithLifecycle(null)
+                        val noticeScope = rememberCoroutineScope()
+                        // Background failures stack under the status bar, above every page.
+                        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()
+                            .padding(top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()),
+                            verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            CloudFailureBanner(cloudState, sessions)
+                            FxNoticeBanner(fxNotice, { id -> noticeScope.launch { active.graph.fxSync.consumeNotice(id) } })
+                        }
                     }
                 }
             }
@@ -163,9 +172,7 @@ private fun CloudFailureBanner(
         sessions.consumeCloudBanner(eventId)
     }
     if (visible) Surface(
-        modifier = modifier.fillMaxWidth().padding(
-            top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding(),
-            start = Space.md, end = Space.md).testTag("cloud-failure-banner"),
+        modifier = modifier.fillMaxWidth().padding(start = Space.md, end = Space.md).testTag("cloud-failure-banner"),
         color = MaterialTheme.colorScheme.error,
         contentColor = MaterialTheme.colorScheme.onError,
         tonalElevation = 6.dp,

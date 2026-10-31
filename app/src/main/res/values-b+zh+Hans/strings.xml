@@ -28,4 +28,13 @@
     <string name="wallet_delete_card">删除卡片</string>
     <string name="title_card_faces">卡面库</string>
     <string name="onboarding_fx_auto_hint">完成设置后自动获取当前汇率，之后可在「设置」中关闭。</string>
+    <string name="fx_notice_failed_title">汇率更新失败</string>
+    <string name="fx_notice_missing_title">部分币种没有汇率</string>
+    <string name="fx_notice_network">网络不可用，30 分钟后自动重试。</string>
+    <string name="fx_notice_service">汇率服务暂时不可用，30 分钟后自动重试。</string>
+    <string name="fx_notice_storage">汇率未能保存，30 分钟后自动重试。</string>
+    <string name="fx_notice_missing">%1$s 没有可用汇率，未计入总额。</string>
+    <string name="fx_notice_using">正在使用 %1$s 的汇率。</string>
+    <string name="fx_notice_using_none">暂时还没有可用的汇率。</string>
+    <string name="fx_notice_sentences">%1$s%2$s</string>
 </resources>
