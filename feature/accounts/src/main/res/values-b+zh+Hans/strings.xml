@@ -15,6 +15,7 @@
     <string name="accounts_summary_incomplete">汇总暂不完整：%1$s</string>
     <string name="accounts_partial_summary">部分汇总 · %1$s</string>
     <string name="accounts_missing_base">未设置主币种</string>
+    <string name="accounts_missing_rate">%1$s 没有可用汇率</string>
     <string name="accounts_missing_current_cost">当前成本待补全</string>
     <string name="accounts_missing_historical_cost">历史成本待补全</string>
     <string name="accounts_invalid_history">历史记录异常</string>

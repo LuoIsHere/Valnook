@@ -52,7 +52,8 @@ data class AssetSnapshot(val accounts: List<SavingsAccount>, val cash: List<Cash
     val deposits: List<TermDeposit>, val positions: List<Investment>,
     val instruments: List<Instrument>, val settings: AppSettings,
     /** In display order; always contains the default group when read from the database. */
-    val groups: List<AccountGroup> = emptyList())
+    val groups: List<AccountGroup> = emptyList(),
+    val fx: dev.valnook.domain.fx.FxContext = dev.valnook.domain.fx.FxContext())
 
 enum class MissingKind { BASE_CURRENCY, EXCHANGE_RATE, CURRENT_COST, HISTORICAL_COST, INVALID_HISTORY }
 data class MissingAmount(val kind: MissingKind, val currencyCode: String? = null, val positionId: Long? = null)

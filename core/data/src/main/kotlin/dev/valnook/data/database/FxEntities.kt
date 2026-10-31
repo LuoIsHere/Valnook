@@ -60,6 +60,12 @@ interface FxDao {
     @Query("SELECT * FROM fx_rate_history WHERE base_currency=:base AND quote_currency=:quote ORDER BY local_day DESC LIMIT 1")
     suspend fun latestHistory(base: String, quote: String): FxRateHistoryEntity?
 
+    /** Each quote's row for its latest stored day under [base]. */
+    @Query("""SELECT h.* FROM fx_rate_history h JOIN (SELECT quote_currency AS q,MAX(local_day) AS d FROM fx_rate_history
+        WHERE base_currency=:base GROUP BY quote_currency) m ON h.quote_currency=m.q AND h.local_day=m.d
+        WHERE h.base_currency=:base""")
+    suspend fun latestHistoryPerQuote(base: String): List<FxRateHistoryEntity>
+
     @Query("UPDATE fx_local_state SET auto_enabled=:on WHERE id=1")
     suspend fun setAutoEnabled(on: Boolean): Int
 

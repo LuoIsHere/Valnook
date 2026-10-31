@@ -484,11 +484,11 @@ internal class WebAdminApiRouter(
     private suspend fun distributions(): WebHttpResponse {
         val snapshot = reads.snapshot()
         val overview = AssetValuation.calculate(snapshot)
-        val rates = snapshot.settings.rates.associate { it.sourceCurrency.code to it.rate }
-        fun convert(code: String, amount: BigDecimal): BigDecimal =
-            if (code == snapshot.settings.baseCurrency?.code) amount else amount.multiply(rates[code] ?: BigDecimal.ONE)
+        // Same lookup as the totals; an amount without any rate is left out, as the totals leave it out.
+        val rates = dev.valnook.domain.fx.FxRateResolver(snapshot.settings, snapshot.fx)
+        fun convert(code: String, amount: BigDecimal): BigDecimal? = rates.today(code)?.let(amount::multiply)
         val types = snapshot.positions.filter { it.holding_quantity_e8 > 0 }.groupBy { it.type_name }.mapValues { (_, rows) ->
-            rows.fold(BigDecimal.ZERO) { total, row -> total + convert(row.currency.code, AssetValuation.marketValue(row)) }
+            rows.fold(BigDecimal.ZERO) { total, row -> total + (convert(row.currency.code, AssetValuation.marketValue(row)) ?: BigDecimal.ZERO) }
         }
         val currencies = mutableMapOf<String, BigDecimal>()
         snapshot.cash.forEach { currencies[it.currency.code] = currencies.getOrDefault(it.currency.code, BigDecimal.ZERO) +
@@ -498,8 +498,10 @@ internal class WebAdminApiRouter(
         snapshot.positions.filter { it.holding_quantity_e8 > 0 }.forEach { currencies[it.currency.code] =
             currencies.getOrDefault(it.currency.code, BigDecimal.ZERO) + AssetValuation.marketValue(it) }
         fun map(values: Map<String, BigDecimal>, convertValues: Boolean = false) = buildJsonArray {
-            values.toSortedMap().forEach { (label, amount) -> add(buildJsonObject { put("label", label)
-                put("value", decimal(if (convertValues) convert(label, amount) else amount)) }) }
+            values.toSortedMap().forEach { (label, amount) ->
+                val value = if (convertValues) convert(label, amount) ?: return@forEach else amount
+                add(buildJsonObject { put("label", label); put("value", decimal(value)) })
+            }
         }
         return success(buildJsonObject {
             put("dataGeneration", reads.generation()); put("currency", snapshot.settings.baseCurrency?.code)

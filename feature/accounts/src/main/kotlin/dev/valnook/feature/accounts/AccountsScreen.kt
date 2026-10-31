@@ -40,15 +40,20 @@ import java.time.LocalDate
     DecimalRules.format_display(total.amount, it.fraction_digits) + " " + it.code
 } ?: stringResource(R.string.accounts_set_base_currency)
 
-@Composable private fun missingText(total: ConvertedTotal): String = total.missing.mapNotNull {
-    when (it.kind) {
-        MissingKind.BASE_CURRENCY -> stringResource(R.string.accounts_missing_base)
-        MissingKind.EXCHANGE_RATE -> null
-        MissingKind.CURRENT_COST -> stringResource(R.string.accounts_missing_current_cost)
-        MissingKind.HISTORICAL_COST -> stringResource(R.string.accounts_missing_historical_cost)
-        MissingKind.INVALID_HISTORY -> stringResource(R.string.accounts_invalid_history)
-    }
-}.distinct().joinToString(" · ")
+@Composable private fun missingText(total: ConvertedTotal): String {
+    // Currencies without any rate are named together in one reason.
+    val rates = total.missing.filter { it.kind == MissingKind.EXCHANGE_RATE }.mapNotNull { it.currencyCode }.distinct().sorted()
+    val rateText = if (rates.isEmpty()) null else stringResource(R.string.accounts_missing_rate, rates.joinToString(", "))
+    return (total.missing.mapNotNull {
+        when (it.kind) {
+            MissingKind.BASE_CURRENCY -> stringResource(R.string.accounts_missing_base)
+            MissingKind.EXCHANGE_RATE -> null
+            MissingKind.CURRENT_COST -> stringResource(R.string.accounts_missing_current_cost)
+            MissingKind.HISTORICAL_COST -> stringResource(R.string.accounts_missing_historical_cost)
+            MissingKind.INVALID_HISTORY -> stringResource(R.string.accounts_invalid_history)
+        }
+    } + listOfNotNull(rateText)).distinct().joinToString(" · ")
+}
 
 @Composable fun AccountsScreen(vm: AccountsViewModel, onOpen: (Long) -> Unit,
     onOpenCash: (Long, Long) -> Unit = { _, _ -> }, onOpenDeposits: (Long) -> Unit = {},

@@ -495,6 +495,9 @@ class WebAdminEndToEndTest {
         assertEquals("REAL", JSONObject(session.body).getString("dataMode"))
         assertEquals(200, http(endpoint, "GET",
             "/api/v1/statistics/history?granularity=DAILY&metric=TOTAL_ASSETS", cookie = cookie).status)
+        val distribution = http(endpoint, "GET", "/api/v1/statistics/distribution", cookie = cookie)
+        assertEquals(distribution.body, 200, distribution.status)
+        assertTrue(JSONObject(distribution.body).has("currencies"))
         val generation = JSONObject(session.body).getLong("dataGeneration")
         val operationId = UUID.randomUUID().toString()
         val createBody = JSONObject().put("operationId", operationId).put("dataGeneration", generation)

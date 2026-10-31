@@ -7,6 +7,9 @@ interface OverviewRepository {
     fun observeSnapshot(): Flow<AssetSnapshot>
     suspend fun snapshot(): AssetSnapshot
     suspend fun accountIconImage(id: String): ByteArray? = null
+    /** The switch and latest stored rates, for showing today's rate next to a currency. */
+    fun observeFxContext(): Flow<dev.valnook.domain.fx.FxContext> =
+        kotlinx.coroutines.flow.flowOf(dev.valnook.domain.fx.FxContext())
 }
 
 interface SettingsRepository {

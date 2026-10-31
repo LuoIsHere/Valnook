@@ -221,10 +221,13 @@ private fun SessionRoot(
             ?: kotlinx.coroutines.flow.flowOf(null)
     }.collectAsStateWithLifecycle(null)
     val accounts by remember(graph) { graph.accounts.observe_accounts() }.collectAsStateWithLifecycle(emptyList())
-    val pickerRates = remember(settings) {
-        val base = settings.baseCurrency?.code
-        CurrencyPickerRates(base, settings.rates.filter { it.targetCurrency.code == base }
-            .associate { it.sourceCurrency.code to it.rate.stripTrailingZeros().toPlainString() })
+    val fxContext by remember(graph) { graph.overview.observeFxContext() }
+        .collectAsStateWithLifecycle(dev.valnook.domain.fx.FxContext())
+    val pickerRates = remember(settings, fxContext) {
+        // Today's rate per currency: the current rate, else the latest stored day.
+        val rates = dev.valnook.domain.fx.FxRateResolver(settings, fxContext)
+        CurrencyPickerRates(settings.baseCurrency?.code, dev.valnook.domain.model.Currency.supported
+            .mapNotNull { currency -> rates.display(currency.code)?.let { currency.code to it.toPlainString() } }.toMap())
     }
     val accountName: (Long) -> String = { id -> accounts.firstOrNull { it.id == id }?.name.orEmpty() }
     val scope = rememberCoroutineScope()

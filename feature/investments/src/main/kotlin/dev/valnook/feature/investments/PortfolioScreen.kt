@@ -43,7 +43,10 @@ private fun displayedSign(total: ConvertedTotal): Int =
     val valueColor = if (colorByValue && total.complete) profitColor(displayedSign(total))
         else MaterialTheme.colorScheme.onSurfaceVariant
     SummaryMetric(label, converted(total), valueColor = valueColor)
-    val missing = total.missing.mapNotNull {
+    // Currencies without any rate are named together in one reason.
+    val rates = total.missing.filter { it.kind == MissingKind.EXCHANGE_RATE }.mapNotNull { it.currencyCode }.distinct().sorted()
+    val rateText = if (rates.isEmpty()) null else stringResource(R.string.investment_missing_rate, rates.joinToString(", "))
+    val missing = (total.missing.mapNotNull {
         when (it.kind) {
             MissingKind.BASE_CURRENCY -> stringResource(R.string.investment_missing_base)
             MissingKind.EXCHANGE_RATE -> null
@@ -51,7 +54,7 @@ private fun displayedSign(total: ConvertedTotal): Int =
             MissingKind.HISTORICAL_COST -> stringResource(R.string.investment_missing_historical_cost)
             MissingKind.INVALID_HISTORY -> stringResource(R.string.investment_invalid_history)
         }
-    }.distinct().joinToString(" · ")
+    } + listOfNotNull(rateText)).distinct().joinToString(" · ")
     if (!total.complete && missing.isNotEmpty()) Text(stringResource(R.string.investment_incomplete, missing),
         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }

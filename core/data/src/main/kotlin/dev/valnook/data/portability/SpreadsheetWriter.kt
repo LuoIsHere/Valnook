@@ -111,11 +111,21 @@ internal class SpreadsheetWriter(
             sheet.row(text(label(english, "数据库版本", "Database version")), number(buildInfo.databaseSchemaVersion.toString()))
             sheet.row(text(label(english, "报表格式", "Report format")), number(BackupContract.REPORT_FORMAT_VERSION.toString()))
             sheet.row(text(label(english, "主币种", "Base currency")), text(base))
-            sheet.row(text(label(english, "缺失汇率口径", "Missing FX rule")), text(label(english,
-                "未配置的非主币种按 1:1", "Unconfigured non-base currencies use 1:1")))
+            val automatic = snapshot.fx.autoEnabled
+            sheet.row(text(label(english, "缺失汇率口径", "Missing FX rule")), text(if (automatic)
+                label(english, "没有可用汇率的币种不计入总额", "Currencies without any rate are left out of totals")
+                else label(english, "未配置的非主币种按 1:1", "Unconfigured non-base currencies use 1:1")))
+            if (snapshot.settings.rates.isNotEmpty()) sheet.row(header(label(english, "项目", "Item")),
+                header(label(english, "货币对", "Pair")), header(label(english, "汇率", "Rate")),
+                header(label(english, "来源", "Source")), header(label(english, "数据日期", "Data date")))
             snapshot.settings.rates.sortedWith(compareBy({ it.sourceCurrency.code }, { it.targetCurrency.code })).forEach { rate ->
-                sheet.row(text(label(english, "手动汇率", "Manual FX rate")),
-                    text("${rate.sourceCurrency.code}/${rate.targetCurrency.code}"), decimal(rate.rate))
+                // The source is the switch at export time; only automatic rates under the base have a data date.
+                val dataDate = snapshot.fx.latest[rate.sourceCurrency.code]
+                    ?.takeIf { automatic && rate.targetCurrency == snapshot.settings.baseCurrency }?.sourceDate?.toString().orEmpty()
+                sheet.row(text(label(english, "汇率", "FX rate")),
+                    text("${rate.sourceCurrency.code}/${rate.targetCurrency.code}"), decimal(rate.rate),
+                    text(if (automatic) label(english, "自动", "Automatic") else label(english, "手动", "Manual")),
+                    text(dataDate))
             }
             sheet.blank()
             sheet.row(section(label(english, "当前汇总（主币种）", "Current totals (base currency)")))
@@ -320,13 +330,8 @@ internal class SpreadsheetWriter(
     private fun query(sql: String, accountId: Long): Cursor =
         db.openHelper.readableDatabase.query(sql, arrayOf(accountId.toString()))
 
-    private fun convert(snapshot: AssetSnapshot, source: Currency, value: BigDecimal): BigDecimal? {
-        val base = snapshot.settings.baseCurrency ?: return null
-        val rate = if (source == base) BigDecimal.ONE else snapshot.settings.rates.firstOrNull {
-            it.sourceCurrency == source && it.targetCurrency == base
-        }?.rate ?: BigDecimal.ONE
-        return value.multiply(rate)
-    }
+    private fun convert(snapshot: AssetSnapshot, source: Currency, value: BigDecimal): BigDecimal? =
+        dev.valnook.domain.fx.FxRateResolver(snapshot.settings, snapshot.fx).today(source.code)?.let(value::multiply)
 
     private fun BigDecimal?.orZero(): BigDecimal = this ?: BigDecimal.ZERO
 

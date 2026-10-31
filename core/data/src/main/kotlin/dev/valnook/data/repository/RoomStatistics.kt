@@ -125,13 +125,15 @@ class RoomStatistics(
             dao.upgradeRule(STATISTICS_RULE_VERSION, instantDate(state.baseline_at_ms).toEpochDay())
             state = dao.state()
         }
-        Header(requireNotNull(state), settingsModel(dao.settings(), dao.rates()))
+        val settings = settingsModel(dao.settings(), dao.rates())
+        Header(requireNotNull(state), settings,
+            dev.valnook.domain.fx.FxRateResolver(settings, db.fxContext(settings.baseCurrency?.code)))
     }
 
     private suspend fun readSource(header: Header): Source = db.withTransaction {
         val dao = db.statistics()
         Source(header.state, dao.currentCash(), dao.creditProfiles(), dao.cashEntries(), dao.deposits(), dao.positions(),
-            dao.trades(), dao.prices(), header.settings)
+            dao.trades(), dao.prices(), header.settings, header.rates)
     }
 
     private suspend fun cacheFor(metric: StatisticsMetric, dates: List<LocalDate>, revision: Long,
@@ -167,7 +169,7 @@ class RoomStatistics(
             val balanceAccounts = source.cash.fold(BigDecimal.ZERO) { total, account ->
                 val after = entriesByCash[account.id].orEmpty().asSequence()
                     .filter { it.occurred_at_ms > cutoff }.sumOf { it.delta_minor }
-                val value = convertMinor(account.balance_minor - after, account.currency_code, source.settings)
+                val value = convertMinor(account.balance_minor - after, account.currency_code, source.rates)
                 if (account.id !in creditIds && account.include_in_available_cash) availableCash += value
                 total + value
             }
@@ -175,7 +177,7 @@ class RoomStatistics(
                 deposit.start_epoch_day <= date.toEpochDay() &&
                     (deposit.closed_at_ms == null || deposit.closed_at_ms > cutoff)
             }.fold(BigDecimal.ZERO) { total, deposit ->
-                total + convertMinor(deposit.principal_minor, deposit.currency_code, source.settings)
+                total + convertMinor(deposit.principal_minor, deposit.currency_code, source.rates)
             }
             var investment = BigDecimal.ZERO
             var investmentKnown = true
@@ -190,7 +192,7 @@ class RoomStatistics(
                         .lastOrNull { it.atMs <= cutoff }
                     if (price == null) investmentKnown = false else {
                         val original = BigDecimal.valueOf(quantity).movePointLeft(8).multiply(price.price)
-                        investment += convertMajor(original, position.currency_code, source.settings)
+                        investment += convertMajor(original, position.currency_code, source.rates)
                     }
                 }
             }
@@ -238,16 +240,15 @@ class RoomStatistics(
     private fun instantDate(milliseconds: Long): LocalDate = Instant.ofEpochMilli(milliseconds)
         .atZone(clock.zone).toLocalDate()
 
-    private fun convertMinor(value: Long, currencyCode: String, settings: AppSettings): BigDecimal {
+    private fun convertMinor(value: Long, currencyCode: String, rates: dev.valnook.domain.fx.FxRateResolver): BigDecimal {
         val currency = Currency.of(currencyCode)
-        return convertMajor(BigDecimal.valueOf(value).movePointLeft(currency.fraction_digits), currencyCode, settings)
+        return convertMajor(BigDecimal.valueOf(value).movePointLeft(currency.fraction_digits), currencyCode, rates)
     }
 
-    private fun convertMajor(value: BigDecimal, currencyCode: String, settings: AppSettings): BigDecimal {
-        val base = requireNotNull(settings.baseCurrency)
-        val rate = if (currencyCode == base.code) BigDecimal.ONE else settings.rates.firstOrNull {
-            it.sourceCurrency.code == currencyCode && it.targetCurrency == base
-        }?.rate ?: BigDecimal.ONE
+    // Every day uses today's rate for now, as the home totals do; a currency without any rate is left out.
+    // Daily rates and the incomplete marker come with the next statistics rule.
+    private fun convertMajor(value: BigDecimal, currencyCode: String, rates: dev.valnook.domain.fx.FxRateResolver): BigDecimal {
+        val rate = rates.today(currencyCode) ?: return BigDecimal.ZERO
         // Keep source precision through aggregation. Presentation applies currency rounding.
         return value.multiply(rate)
     }
@@ -261,10 +262,12 @@ class RoomStatistics(
         val positions: List<StatisticsPositionRow>,
         val trades: List<TradeEntity>,
         val prices: List<InstrumentPriceEntity>,
-        val settings: AppSettings
+        val settings: AppSettings,
+        val rates: dev.valnook.domain.fx.FxRateResolver
     )
 
-    private data class Header(val state: StatisticsStateEntity, val settings: AppSettings)
+    private data class Header(val state: StatisticsStateEntity, val settings: AppSettings,
+        val rates: dev.valnook.domain.fx.FxRateResolver)
 
     private data class PriceObservation(val instrumentId: Long, val atMs: Long, val price: BigDecimal, val manual: Boolean)
 

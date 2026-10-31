@@ -22,6 +22,7 @@ object AssetValuation {
         val cashByAccount = snapshot.cash.groupBy { it.account_id }
         val depositsByAccount = snapshot.deposits.filterNot { it.closed }.groupBy { it.account_id }
         val positionsByAccount = snapshot.positions.groupBy { it.account_id }
+        val rates = dev.valnook.domain.fx.FxRateResolver(snapshot.settings, snapshot.fx)
         val accounts = snapshot.accounts.map { account ->
             val balanceAccounts = cashByAccount[account.id].orEmpty()
             val savingsAmounts = balanceAccounts.filter { it.type == BalanceAccountType.SAVINGS }.map {
@@ -49,13 +50,13 @@ object AssetValuation {
                 it.algorithmVersion != InvestmentProfitCalculator.ALGORITHM_VERSION }
                 .map { MissingAmount(if (it.chronologyValid) MissingKind.HISTORICAL_COST else MissingKind.INVALID_HISTORY,
                     it.currency.code, it.id) }.toSet()
-            AccountAssets(account, convert(savingsAmounts + creditAmounts + deposits + values, snapshot.settings),
-                convert(savingsAmounts, snapshot.settings), convert(creditAmounts, snapshot.settings), convert(deposits, snapshot.settings),
-                convert(values, snapshot.settings),
-                convert(floating, snapshot.settings, floatingMissing), convert(realized, snapshot.settings, realizedMissing),
+            AccountAssets(account, convert(savingsAmounts + creditAmounts + deposits + values, rates),
+                convert(savingsAmounts, rates), convert(creditAmounts, rates), convert(deposits, rates),
+                convert(values, rates),
+                convert(floating, rates, floatingMissing), convert(realized, rates, realizedMissing),
                 convert(balanceAccounts.filter { it.type == BalanceAccountType.SAVINGS && it.includeInAvailableCash }.map {
                     it.currency to BigDecimal.valueOf(it.balance_minor, it.currency.fraction_digits)
-                }, snapshot.settings))
+                }, rates))
         }
         fun total(select: (AccountAssets) -> ConvertedTotal) = sum(accounts.map(select), snapshot.settings.baseCurrency)
         return AssetOverview(accounts, total { it.total }, total { it.cash }, total { it.creditBalance }, total { it.depositValue }, total { it.investmentValue },
@@ -71,18 +72,19 @@ object AssetValuation {
     fun marketValue(position: Investment): BigDecimal = BigDecimal.valueOf(position.holding_quantity_e8, 8)
         .multiply(BigDecimal.valueOf(position.current_price_e8, 8))
 
-    private fun convert(amounts: List<Pair<Currency, BigDecimal>>, settings: AppSettings,
+    private fun convert(amounts: List<Pair<Currency, BigDecimal>>, rates: dev.valnook.domain.fx.FxRateResolver,
         initialMissing: Set<MissingAmount> = emptySet()): ConvertedTotal {
-        val base = settings.baseCurrency ?: return ConvertedTotal(BigDecimal.ZERO, null,
+        val base = rates.base ?: return ConvertedTotal(BigDecimal.ZERO, null,
             initialMissing + MissingAmount(MissingKind.BASE_CURRENCY))
-        val rates = settings.rates.filter { it.targetCurrency == base }.associateBy { it.sourceCurrency.code }
         var result = BigDecimal.ZERO
+        val missing = initialMissing.toMutableSet()
         for ((currency, value) in amounts) {
             if (value.signum() == 0) continue
-            // A manually configured pair overrides the user-selected 1:1 default.
-            val rate = if (currency == base) BigDecimal.ONE else rates[currency.code]?.rate ?: BigDecimal.ONE
-            result = result.add(value.multiply(rate))
+            val rate = rates.today(currency.code)
+            // Without any rate the amount is left out rather than guessed.
+            if (rate == null) missing += MissingAmount(MissingKind.EXCHANGE_RATE, currency.code)
+            else result = result.add(value.multiply(rate))
         }
-        return ConvertedTotal(result, base, initialMissing)
+        return ConvertedTotal(result, base, missing)
     }
 }

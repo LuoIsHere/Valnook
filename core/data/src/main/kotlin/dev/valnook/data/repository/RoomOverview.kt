@@ -12,21 +12,34 @@ import java.time.Clock
 class RoomOverview(private val db: ValnookDatabase) : OverviewRepository {
     override fun observeSnapshot(): Flow<AssetSnapshot> = db.invalidationTracker.createFlow(
         "savings_accounts", "cash_accounts", "credit_account_profiles", "term_deposits", "investments", "instruments",
-        "asset_types", "app_settings", "fx_rates", "account_groups"
+        "asset_types", "app_settings", "fx_rates", "account_groups", "fx_rate_history", "fx_local_state"
     ).map { snapshot() }.flowOn(Dispatchers.IO)
+
+    override fun observeFxContext(): Flow<dev.valnook.domain.fx.FxContext> = db.invalidationTracker.createFlow(
+        "app_settings", "fx_rate_history", "fx_local_state"
+    ).map { db.withTransaction { db.fxContext(db.fx().baseCurrency()) } }.flowOn(Dispatchers.IO)
 
     override suspend fun accountIconImage(id: String): ByteArray? = db.accounts().iconImage(id)
 
-    override suspend fun snapshot(): AssetSnapshot {
+    override suspend fun snapshot(): AssetSnapshot = db.withTransaction {
         val rows = db.overview().snapshot()
+        val fx = db.fxContext(rows.settings?.base_currency)
         val profiles = rows.creditProfiles.associateBy { it.account_id }
-        return AssetSnapshot(rows.accounts.map { SavingsAccount(it.id, it.name, it.note, it.revision, AccountIcon(AccountIconType.valueOf(it.icon_type), it.icon_value), it.show_deposit_summary, it.show_investment_summary, it.group_id) },
+        AssetSnapshot(rows.accounts.map { SavingsAccount(it.id, it.name, it.note, it.revision, AccountIcon(AccountIconType.valueOf(it.icon_type), it.icon_value), it.show_deposit_summary, it.show_investment_summary, it.group_id) },
             rows.cash.map { CashAccount(it.savings_account_id, Currency.of(it.currency_code), it.balance_minor, it.revision,
                 it.id, it.name, it.note, it.currency_locked, profiles[it.id]?.toModel(), it.include_in_available_cash, it.show_on_accounts_page) },
             rows.deposits.map { it.toModel() }, rows.positions.map { it.toModel() },
-            rows.instruments.map { it.toModel() }, settingsModel(rows.settings, rows.rates), accountGroups(rows.groups))
+            rows.instruments.map { it.toModel() }, settingsModel(rows.settings, rows.rates), accountGroups(rows.groups), fx)
     }
 }
+
+/** The switch and each currency's latest stored day under [base], for [dev.valnook.domain.fx.FxRateResolver]. */
+internal suspend fun ValnookDatabase.fxContext(base: String?): dev.valnook.domain.fx.FxContext =
+    dev.valnook.domain.fx.FxContext(fx().localState()?.auto_enabled == true,
+        if (base == null) emptyMap() else fx().latestHistoryPerQuote(base).associate {
+            it.quote_currency to dev.valnook.domain.fx.FxHistoryRate(java.math.BigDecimal(it.rate),
+                java.time.LocalDate.ofEpochDay(it.source_date))
+        })
 
 /** Databases created without the seed callback (some tests) have no default row; present one anyway. */
 private fun accountGroups(rows: List<AccountGroupEntity>): List<AccountGroup> {

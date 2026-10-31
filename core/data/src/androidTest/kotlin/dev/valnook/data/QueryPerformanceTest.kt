@@ -290,9 +290,12 @@ class QueryPerformanceTest {
         // Today is read live from the ledger, so a change dated today replays no history at all.
         if (name == "statistics-mutation-today-trade" || name == "statistics-mutation-price")
             assertEquals("A change dated today should keep every cached day", 0, statisticsHistory.size)
-        if (name == "dao-overview" || name == "repository-overview")
+        if (name == "dao-overview")
             // Nine fixed reads: accounts, cash, credit profiles, deposits, positions, instruments, settings, rates, groups.
             assertTrue("N+1 snapshot: $counts", counts.all { it == 9 })
+        if (name == "repository-overview")
+            // The same nine plus the automatic-rate switch and each currency's latest stored day.
+            assertTrue("N+1 snapshot: $counts", counts.all { it == 11 })
         if (name == "historical-price-correction" || name == "append-trade") {
             val replay = history.filter { it.sql.contains("ORDER BY occurred_at_ms,id") }
             assertEquals(repetitions + 1, replay.size)

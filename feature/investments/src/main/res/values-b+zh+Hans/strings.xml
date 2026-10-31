@@ -6,6 +6,7 @@
     <string name="investment_set_base">请设置主币种</string>
     <string name="investment_incomplete">不完整 · %1$s</string>
     <string name="investment_missing_base">未设置主币种</string>
+    <string name="investment_missing_rate">%1$s 没有可用汇率</string>
     <string name="investment_missing_current_cost">持仓成本待补全</string>
     <string name="investment_missing_historical_cost">历史成本待补全</string>
     <string name="investment_invalid_history">历史记录异常</string>
