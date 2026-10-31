@@ -42,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -115,7 +116,7 @@ fun SettingsHome(
                 state.savedSettings.baseCurrency?.code ?: stringResource(R.string.settings_not_set), onRates)
             HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             SettingEntry(stringResource(R.string.settings_exchange_rates),
-                stringResource(R.string.settings_fx_default), onRates)
+                stringResource(if (state.automatic) R.string.settings_fx_auto_on else R.string.settings_fx_default), onRates)
             }
         }
         item {
@@ -386,24 +387,112 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
         if (state.loadFailed) Text(stringResource(R.string.settings_load_failed)) else CircularProgressIndicator()
         return
     }
-    val base = state.settings.baseCurrency
+    val base = state.shownBase
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        verticalArrangement = Arrangement.spacedBy(Space.lg)) {
+        item { AutomaticRates(state, vm) }
         item {
-            FxRateEditor(base, state.rows, state.busy, vm::selectBase, vm::addRate,
-                vm::updateRow, vm::removeRate)
+            FxRateEditor(base, state.shownRows, state.busy, vm::selectBase, vm::addRate,
+                vm::updateRow, vm::removeRate, readOnly = state.automatic, notes = sourceDateNotes(state),
+                showDefaultHint = !state.automatic,
+                emptyText = if (state.automatic) stringResource(R.string.settings_fx_auto_empty) else null)
         }
         item {
-            state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
-            if (state.error == ErrorCode.STALE_RECORD) TextButton(vm::discardAndReload) {
-                Text(stringResource(R.string.settings_reload_draft))
-            }
-            if (state.saved) Text(stringResource(R.string.settings_saved))
-            Button(vm::saveRates, enabled = !state.busy && base != null, modifier = Modifier.fillMaxWidth()) {
-                Text(if (state.busy) stringResource(R.string.settings_saving) else stringResource(R.string.settings_save))
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
+                if (state.error == ErrorCode.STALE_RECORD) TextButton(vm::discardAndReload) {
+                    Text(stringResource(R.string.settings_reload_draft))
+                }
+                if (state.saved && !state.automatic) Text(stringResource(R.string.settings_saved),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!state.automatic) Button(vm::saveRates, enabled = !state.busy && base != null,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium) {
+                    Text(if (state.busy) stringResource(R.string.settings_saving) else stringResource(R.string.settings_save))
+                }
             }
         }
     }
+    when (state.autoPrompt) {
+        AutoRatesPrompt.DISCARD_CHANGES -> FxDiscardDialog(vm::cancelAutomatic, vm::discardForAutomatic)
+        AutoRatesPrompt.NETWORK_NOTICE -> FxNetworkNoticeDialog(vm::cancelAutomatic, vm::acceptNetworkNotice)
+        null -> Unit
+    }
+}
+
+/** One card: the switch, then (when on) the status line with its button and currencies the last sync had no rate for. */
+@Composable
+private fun AutomaticRates(state: SettingsUiState, vm: SettingsViewModel) {
+    val fx = state.fx
+    val locale = LocalConfiguration.current.locales[0]
+    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        GlassCard {
+            Row(Modifier.fillMaxWidth().padding(horizontal = Space.cardInset, vertical = Space.md),
+                verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f).padding(end = Space.md), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                    Text(stringResource(R.string.settings_fx_auto), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(if (fx.available) R.string.settings_fx_auto_summary else R.string.settings_fx_demo),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(fx.autoEnabled, vm::requestAutomatic, enabled = fx.available && !state.busy,
+                    modifier = Modifier.testTag("fx-auto-switch"))
+            }
+            if (state.automatic) {
+                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .padding(start = Space.cardInset, end = Space.xs, top = Space.xs, bottom = Space.xs),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text(fxStatusLine(fx, locale), Modifier.weight(1f).testTag("fx-auto-status"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (fx.lastError != null && !fx.running) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.onSurfaceVariant)
+                    // A stored day is never fetched again, so once today is in there is nothing left to update.
+                    val updatedToday = fx.lastSuccessDay == java.time.LocalDate.now()
+                    TextButton(vm::refreshRates, enabled = !fx.running && !state.busy && !updatedToday,
+                        modifier = Modifier.testTag("fx-update-now")) {
+                        Text(stringResource(if (updatedToday) R.string.settings_fx_updated_today else R.string.settings_fx_update_now),
+                            style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+                if (fx.missingCurrencies.isNotEmpty()) Text(
+                    stringResource(R.string.settings_fx_missing, fx.missingCurrencies.joinToString(", ")),
+                    Modifier.padding(start = Space.cardInset, end = Space.cardInset, bottom = Space.md).testTag("fx-missing"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+            }
+        }
+        if (state.automatic) Text(stringResource(R.string.settings_fx_readonly), Modifier.padding(horizontal = Space.xs),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** Short enough to share the row with its button: month and day without the year, and only the time for today. */
+@Composable
+private fun fxStatusLine(fx: dev.valnook.domain.fx.FxSyncStatus, locale: java.util.Locale): String {
+    val zone = java.time.ZoneId.systemDefault()
+    val time = java.time.format.DateTimeFormatter.ofLocalizedTime(java.time.format.FormatStyle.SHORT).withLocale(locale)
+    val day = java.time.format.DateTimeFormatter.ofPattern(
+        android.text.format.DateFormat.getBestDateTimePattern(locale, "MMMd"), locale)
+    fun moment(ms: Long): String {
+        val at = java.time.Instant.ofEpochMilli(ms).atZone(zone)
+        return if (at.toLocalDate() == java.time.LocalDate.now(zone)) at.format(time) else at.format(day) + " " + at.format(time)
+    }
+    return when {
+        fx.running -> stringResource(R.string.settings_fx_status_running)
+        fx.lastError != null && fx.lastAttemptAtMs != null -> stringResource(R.string.settings_fx_status_failed,
+            moment(fx.lastAttemptAtMs!! + 30 * 60_000L))
+        fx.lastSuccessAtMs == null -> stringResource(R.string.settings_fx_status_never)
+        else -> stringResource(R.string.settings_fx_status_ok, fx.dataDate?.format(day) ?: "—", moment(fx.lastSuccessAtMs!!))
+    }
+}
+
+/** In automatic mode, rows whose source published an older value than the headline data date name their own date. */
+@Composable
+private fun sourceDateNotes(state: SettingsUiState): Map<String, String> {
+    val headline = state.fx.dataDate
+    if (!state.automatic || headline == null) return emptyMap()
+    val format = java.time.format.DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM)
+        .withLocale(LocalConfiguration.current.locales[0])
+    return state.fx.sourceDates.filterValues { it != headline }
+        .mapValues { stringResource(R.string.settings_fx_row_date, it.value.format(format)) }
 }
 
 @Composable

@@ -44,11 +44,12 @@ import dev.valnook.feature.settings.*
 
 @Composable
 fun OnboardingGate(settings: SettingsRepository, writer: SettingsWriter, storage: OnboardingStorage,
+    fxSync: dev.valnook.domain.fx.FxRateSync = dev.valnook.domain.fx.UnavailableFxRateSync,
     content: @Composable () -> Unit) {
     // The caller keys this composition by session, so data deletion cannot retain a completed gate.
     val owner = remember { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
-    val vm = viewModel(viewModelStoreOwner = owner) { OnboardingViewModel(storage, settings, writer) }
+    val vm = viewModel(viewModelStoreOwner = owner) { OnboardingViewModel(storage, settings, writer, fxSync) }
     OnboardingFlow(vm, content)
 }
 
@@ -193,11 +194,29 @@ private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
                 verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 Text(stringResource(R.string.onboarding_finance_hint), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                FxRateEditor(state.draft.base, state.draft.rates, state.busy, onBase = {
-                    if (it != state.draft.base) {
-                        if (state.draft.rates.isNotEmpty()) pendingBase = it.code else vm.base(it)
+                // Same card as the switch on the rates page in Settings.
+                GlassCard {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = Space.cardInset, vertical = Space.md),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f).padding(end = Space.md), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+                            Text(stringResource(dev.valnook.feature.settings.R.string.settings_fx_auto),
+                                style = MaterialTheme.typography.titleMedium)
+                            Text(stringResource(dev.valnook.feature.settings.R.string.settings_fx_auto_summary),
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(state.draft.autoFx, vm::autoFx, enabled = !state.busy, modifier = Modifier.testTag("onboarding-fx-auto"))
                     }
-                }, onAdd = vm::addRate, onUpdate = vm::updateRate, onRemove = vm::removeRate)
+                }
+                // With automatic rates only the base is chosen here; the rate rows are fetched after finishing.
+                FxRateEditor(state.draft.base, if (state.draft.autoFx) emptyList() else state.draft.rates, state.busy, onBase = {
+                    if (it != state.draft.base) {
+                        if (state.draft.rates.isNotEmpty() && !state.draft.autoFx) pendingBase = it.code else vm.base(it)
+                    }
+                }, onAdd = vm::addRate, onUpdate = vm::updateRate, onRemove = vm::removeRate,
+                    readOnly = state.draft.autoFx, showDefaultHint = !state.draft.autoFx)
+                if (state.draft.autoFx) Text(stringResource(R.string.onboarding_fx_auto_hint),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("onboarding-fx-auto-hint"))
                 state.error?.let {
                     Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("onboarding-error"))
                 }
@@ -209,6 +228,7 @@ private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
             }
         }
     }
+    if (state.fxNotice) dev.valnook.feature.settings.FxNetworkNoticeDialog(vm::cancelFxNotice, vm::acceptFxNotice)
     AnimatedGlassDialog(pendingBase != null, { pendingBase = null }) {
         GlassCard(prominent = true) {
             Column(Modifier.padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(Space.md)) {

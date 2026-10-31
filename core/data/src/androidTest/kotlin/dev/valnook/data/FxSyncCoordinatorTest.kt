@@ -151,6 +151,7 @@ class FxSyncCoordinatorTest {
         assertEquals(day("2026-10-25"), db.statistics().state()!!.earliest_invalidated_epoch_day)
         db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM statistics_cache").use { it.moveToFirst(); assertEquals(0, it.getInt(0)) }
         assertEquals(emptyList<String>(), sync.observeStatus().first().missingCurrencies)
+        assertEquals(date("2026-10-28"), sync.observeStatus().first().lastSuccessDay)
         assertNull(sync.observeNotice().first())
     }
 

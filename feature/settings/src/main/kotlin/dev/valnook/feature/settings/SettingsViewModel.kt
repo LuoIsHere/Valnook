@@ -3,6 +3,9 @@ package dev.valnook.feature.settings
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import dev.valnook.domain.fx.FxRateSync
+import dev.valnook.domain.fx.FxSyncStatus
+import dev.valnook.domain.fx.UnavailableFxRateSync
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
 import kotlinx.coroutines.CancellationException
@@ -14,6 +17,9 @@ import java.math.BigDecimal
 
 data class FxRateDraft(val sourceCurrency: Currency, val rateInput: String)
 
+/** What turning automatic rates on is waiting for. */
+enum class AutoRatesPrompt { DISCARD_CHANGES, NETWORK_NOTICE }
+
 data class SettingsUiState(
     val savedSettings: AppSettings = AppSettings(),
     val settings: AppSettings = AppSettings(),
@@ -24,13 +30,23 @@ data class SettingsUiState(
     val dirty: Boolean = false,
     val error: ErrorCode? = null,
     val loadFailed: Boolean = false,
-    val saved: Boolean = false
-)
+    val saved: Boolean = false,
+    val fx: FxSyncStatus = FxSyncStatus(),
+    val autoPrompt: AutoRatesPrompt? = null
+) {
+    val automatic: Boolean get() = fx.available && fx.autoEnabled
+    /** In automatic mode the list shows the stored current rates, read only. */
+    val shownRows: List<FxRateDraft> get() = if (!automatic) rows else savedSettings.rates
+        .filter { it.targetCurrency == savedSettings.baseCurrency }
+        .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) }
+    val shownBase: Currency? get() = if (automatic) savedSettings.baseCurrency else settings.baseCurrency
+}
 
 class SettingsViewModel(
     private val repository: SettingsRepository,
     private val writer: SettingsWriter,
-    private val handle: SavedStateHandle
+    private val handle: SavedStateHandle,
+    private val fxSync: FxRateSync = UnavailableFxRateSync
 ) : ViewModel() {
     private val mutable = MutableStateFlow(SettingsUiState())
     val state = mutable.asStateFlow()
@@ -38,6 +54,20 @@ class SettingsViewModel(
 
     init {
         reload()
+        viewModelScope.launch {
+            try {
+                fxSync.observeStatus().collect { status ->
+                    val switchedOff = state.value.fx.autoEnabled && !status.autoEnabled
+                    mutable.value = state.value.copy(fx = status)
+                    // Turning automatic rates off leaves the last automatic values to edit.
+                    if (switchedOff && state.value.loaded) discardAndReload()
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                // Without a status the switch stays off and manual editing works as before.
+            }
+        }
     }
 
     fun reload() {
@@ -78,7 +108,8 @@ class SettingsViewModel(
             rows = rows,
             baselineRevision = draft.revision,
             loaded = true,
-            dirty = restored && handle.get<Boolean>(KEY_DIRTY) == true
+            dirty = restored && handle.get<Boolean>(KEY_DIRTY) == true,
+            fx = state.value.fx
         )
         persistDraft(mutable.value)
     }
@@ -102,6 +133,12 @@ class SettingsViewModel(
 
     fun selectBase(currency: Currency) {
         if (state.value.busy) return
+        val current = state.value
+        // In automatic mode a new base is saved at once and its rates fetched; the stored revision moves with each sync.
+        if (current.automatic) {
+            persist(SaveFinancialSettings(current.savedSettings.revision, currency, current.savedSettings.rates))
+            return
+        }
         val draft = state.value.settings
         change(state.value.copy(settings = draft.copy(baseCurrency = currency),
             rows = draft.rates.filter { it.targetCurrency == currency }
@@ -143,9 +180,59 @@ class SettingsViewModel(
         val savedSettings = state.value.savedSettings
         val rows = savedSettings.rates.filter { it.targetCurrency == savedSettings.baseCurrency }
             .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) }
-        val next = SettingsUiState(savedSettings, savedSettings, rows, savedSettings.revision, loaded = true)
+        val next = SettingsUiState(savedSettings, savedSettings, rows, savedSettings.revision, loaded = true,
+            fx = state.value.fx)
         mutable.value = next
         persistDraft(next)
+    }
+
+    /** Turning on asks to drop unsaved edits, then shows the network notice unless dismissed; turning off is immediate. */
+    fun requestAutomatic(on: Boolean) {
+        val current = state.value
+        if (current.busy || !current.fx.available || on == current.fx.autoEnabled) return
+        if (!on) {
+            fx { fxSync.setAutoEnabled(false) }
+            return
+        }
+        when {
+            current.dirty -> mutable.value = current.copy(autoPrompt = AutoRatesPrompt.DISCARD_CHANGES)
+            !current.fx.noticeDismissed -> mutable.value = current.copy(autoPrompt = AutoRatesPrompt.NETWORK_NOTICE)
+            else -> fx { fxSync.setAutoEnabled(true) }
+        }
+    }
+
+    fun discardForAutomatic() {
+        discardAndReload()
+        if (!state.value.fx.noticeDismissed) mutable.value = state.value.copy(autoPrompt = AutoRatesPrompt.NETWORK_NOTICE)
+        else fx { fxSync.setAutoEnabled(true) }
+    }
+
+    fun acceptNetworkNotice(dontShowAgain: Boolean) {
+        mutable.value = state.value.copy(autoPrompt = null)
+        fx {
+            if (dontShowAgain) fxSync.dismissNotice()
+            fxSync.setAutoEnabled(true)
+        }
+    }
+
+    fun cancelAutomatic() {
+        mutable.value = state.value.copy(autoPrompt = null)
+    }
+
+    fun refreshRates() = fx { fxSync.refreshNow() }
+
+    private fun fx(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: DomainException) {
+                mutable.value = state.value.copy(error = error.code)
+            } catch (_: Exception) {
+                mutable.value = state.value.copy(error = ErrorCode.STALE_RECORD)
+            }
+        }
     }
 
     fun saveRates() {
@@ -177,7 +264,8 @@ class SettingsViewModel(
                 val stored = writer.applyChange(change)
                 val rows = stored.rates.filter { it.targetCurrency == stored.baseCurrency }
                     .map { FxRateDraft(it.sourceCurrency, it.rate.toPlainString()) }
-                val next = SettingsUiState(stored, stored, rows, stored.revision, loaded = true, saved = true)
+                val next = SettingsUiState(stored, stored, rows, stored.revision, loaded = true, saved = true,
+                    fx = state.value.fx)
                 mutable.value = next
                 persistDraft(next)
             } catch (cancelled: CancellationException) {

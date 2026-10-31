@@ -86,4 +86,33 @@
     <string name="settings_github_attribution">The GitHub name and related marks are trademarks of GitHub, Inc.</string>
     <string name="settings_repository_url" translatable="false">https://github.com/LuoIsHere/Valnook</string>
     <string name="settings_nav_wallet">Wallet</string>
+    <string name="settings_fx_auto">Automatic exchange rates</string>
+    <string name="settings_fx_auto_summary">Fetches current rates from Frankfurter once a day</string>
+    <string name="settings_fx_demo">The demo never goes online</string>
+    <string name="settings_fx_status_never">Not updated yet</string>
+    <string name="settings_fx_status_running">Updating…</string>
+    <string name="settings_fx_status_ok">Rates of %1$s · updated %2$s</string>
+    <string name="settings_fx_status_failed">Update failed; retrying after %1$s</string>
+    <string name="settings_fx_update_now">Update now</string>
+    <string name="settings_fx_missing">No exchange rate for: %1$s</string>
+    <string name="settings_fx_readonly">Rates are updated automatically; turn this off to edit them.</string>
+    <string name="settings_fx_row_date">Data date %1$s</string>
+    <string name="settings_fx_discard_title">Discard unsaved changes?</string>
+    <string name="settings_fx_discard_body">Turning on automatic exchange rates discards your unsaved changes.</string>
+    <string name="settings_fx_discard_keep">Keep editing</string>
+    <string name="settings_fx_discard_confirm">Discard and continue</string>
+    <string name="settings_fx_notice_title">About automatic exchange rates</string>
+    <string name="settings_fx_notice_source">Source: rates come from the public Frankfurter exchange rate service (api.frankfurter.dev), which compiles data from central banks and other public sources.</string>
+    <string name="settings_fx_notice_when">When the app connects: it sends a request on the first launch each day, when the base currency changes, when this feature is turned on, and when you update manually. After a failed request it retries automatically at most once every 30 minutes.</string>
+    <string name="settings_fx_notice_sent">What is sent: the base currency code, a fixed list of currencies and the requested dates. The service provider and network intermediaries such as Cloudflare can see your IP address and the time of the request.</string>
+    <string name="settings_fx_notice_not_sent">What is not sent: balances, accounts, transactions or any other financial records.</string>
+    <string name="settings_fx_notice_storage">Storage: retrieved rates are stored in the database on this device and included in backups.</string>
+    <string name="settings_fx_notice_replace">When automatic exchange rates are turned on, the current rates are replaced with the retrieved values. If you turn the feature off, the most recently retrieved rates are kept; rates you entered manually cannot be restored.</string>
+    <string name="settings_fx_notice_disclaimer">Exchange rate data is provided by a third party for reference only. It may differ from the rates actually offered by banks or other institutions and may be delayed or inaccurate. Valnook does not guarantee the accuracy, completeness or timeliness of this data, and neither the data nor any results calculated from it constitute investment, wealth-management or other financial advice.</string>
+    <string name="settings_fx_notice_cancel">Cancel</string>
+    <string name="settings_fx_notice_skip">Don\'t show again</string>
+    <string name="settings_fx_notice_accept">Turn on</string>
+    <string name="settings_fx_auto_on">Automatic, updated daily</string>
+    <string name="settings_fx_updated_today">Updated today</string>
+    <string name="settings_fx_auto_empty">No account uses a foreign currency yet. Its rate appears here once one does.</string>
 </resources>

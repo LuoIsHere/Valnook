@@ -17,13 +17,17 @@ data class FxSyncStatus(
     val noticeDismissed: Boolean = false,
     val running: Boolean = false,
     val lastSuccessAtMs: Long? = null,
+    /** Local day of the last successful sync; today's rates are never fetched twice. */
+    val lastSuccessDay: LocalDate? = null,
     /** Latest date the source published among the last successful results. */
     val dataDate: LocalDate? = null,
     val lastAttemptAtMs: Long? = null,
     /** Set while the most recent attempt failed; cleared by the next success. */
     val lastError: FxSyncError? = null,
     /** In-use currencies the last successful sync had no rate for. */
-    val missingCurrencies: List<String> = emptyList()
+    val missingCurrencies: List<String> = emptyList(),
+    /** The date the source published each currency's value used on the last successful day. */
+    val sourceDates: Map<String, LocalDate> = emptyMap()
 )
 
 /** One background sync that needs the user's attention: it failed, or some in-use currencies had no rate. */
@@ -41,6 +45,8 @@ interface FxRateSync {
     suspend fun consumeNotice(id: String)
     suspend fun refreshNow()
     suspend fun setAutoEnabled(on: Boolean)
+    /** "Don't show again" for the network notice; reset by clearing data, never restored from a backup. */
+    suspend fun dismissNotice()
 }
 
 object UnavailableFxRateSync : FxRateSync {
@@ -49,4 +55,5 @@ object UnavailableFxRateSync : FxRateSync {
     override suspend fun consumeNotice(id: String) = Unit
     override suspend fun refreshNow() = Unit
     override suspend fun setAutoEnabled(on: Boolean) = Unit
+    override suspend fun dismissNotice() = Unit
 }

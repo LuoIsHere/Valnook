@@ -157,6 +157,8 @@ class BackupScreenUiTest {
         rule.runOnIdle { vm.prepareRestore("ok.val_backup") { java.io.ByteArrayInputStream(ByteArray(0)) } }
         rule.waitForIdle()
         rule.onNodeWithTag("backup-restore-preview").assertIsDisplayed()
+        // The automatic exchange rate switch is device-local and stays as it is.
+        rule.onNodeWithTag("backup-preview-fx").performScrollTo().assertIsDisplayed()
 
         rule.onNodeWithTag("backup-continue").performScrollTo().performClick()
         rule.runOnIdle { vm.updateConfirmation("123456") }

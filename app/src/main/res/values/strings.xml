@@ -27,4 +27,5 @@
     <string name="nav_wallet">Wallet</string>
     <string name="wallet_delete_card">Delete card</string>
     <string name="title_card_faces">Card faces</string>
+    <string name="onboarding_fx_auto_hint">Current rates are fetched after you finish; you can turn this off in Settings.</string>
 </resources>

@@ -22,13 +22,16 @@ data class OnboardingState(
     val busy: Boolean = false,
     val language: AppLanguage = AppLanguage.SYSTEM,
     val error: ErrorCode? = null,
-    val loadFailed: Boolean = false
+    val loadFailed: Boolean = false,
+    /** The network notice is open, waiting to turn automatic exchange rates on. */
+    val fxNotice: Boolean = false
 )
 
 class OnboardingViewModel(
     private val store: OnboardingStorage,
     private val settings: SettingsRepository,
-    private val writer: SettingsWriter
+    private val writer: SettingsWriter,
+    private val fxSync: dev.valnook.domain.fx.FxRateSync = dev.valnook.domain.fx.UnavailableFxRateSync
 ) : ViewModel() {
     private val mutable = MutableStateFlow(OnboardingState())
     val state = mutable.asStateFlow()
@@ -90,6 +93,19 @@ class OnboardingViewModel(
     fun removeRate(index: Int) = action {
         save(state.value.draft.copy(rates = state.value.draft.rates.filterIndexed { i, _ -> i != index }))
     }
+    /** Turning on shows the network notice first unless it was dismissed on this device. */
+    fun autoFx(on: Boolean) = action {
+        if (on && !fxSync.observeStatus().first().noticeDismissed) mutable.value = state.value.copy(fxNotice = true)
+        else save(state.value.draft.copy(autoFx = on))
+    }
+    fun acceptFxNotice(dontShowAgain: Boolean) = action {
+        mutable.value = state.value.copy(fxNotice = false)
+        if (dontShowAgain) fxSync.dismissNotice()
+        save(state.value.draft.copy(autoFx = true))
+    }
+    fun cancelFxNotice() {
+        mutable.value = state.value.copy(fxNotice = false)
+    }
     fun language(language: AppLanguage) = action {
         mutable.value = state.value.copy(busy = true)
         save(state.value.draft.copy(introSeen = true))
@@ -101,13 +117,16 @@ class OnboardingViewModel(
         val draft = state.value.draft
         if (!draft.accepted || draft.step != OnboardingStep.FINANCE) return@action
         val base = draft.base ?: throw DomainException(ErrorCode.CURRENCY)
-        val rates = validateFxRates(base, draft.rates)
+        // With automatic rates the typed rates are not used; the first sync fills them.
+        val rates = if (draft.autoFx) emptyList() else validateFxRates(base, draft.rates)
         mutable.value = state.value.copy(busy = true)
         val current = settings.observeSettings().first()
         // Idempotent after process death between committing finances and the local completion marker.
         if (current.baseCurrency != base || current.rates != rates) {
             writer.applyChange(SaveFinancialSettings(current.revision, base, rates))
         }
+        // Switching on starts the first sync; repeating it after a failure is harmless.
+        if (draft.autoFx) fxSync.setAutoEnabled(true)
         save(draft.copy(step = OnboardingStep.READY))
     }
     fun complete() = action {

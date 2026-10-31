@@ -456,6 +456,10 @@ class AppSessionManager @Inject internal constructor(
             if (!real) return
             fxEngine.setAutoEnabled(on) { block -> writeMutex.withLock { requireMobileWrite(sessionId); block() } }
         }
+        override suspend fun dismissNotice() {
+            if (!real) return
+            fxEngine.dismissNotice { block -> writeMutex.withLock { requireMobileWrite(sessionId); block() } }
+        }
     }
 
     private inner class SessionPortability(

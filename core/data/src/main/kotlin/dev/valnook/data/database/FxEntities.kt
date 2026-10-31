@@ -81,6 +81,9 @@ interface FxDao {
         WHERE h.base_currency=:base""")
     suspend fun latestHistoryPerQuote(base: String): List<FxRateHistoryEntity>
 
+    @Query("UPDATE fx_local_state SET notice_dismissed=1 WHERE id=1")
+    suspend fun dismissNotice(): Int
+
     @Query("UPDATE fx_local_state SET auto_enabled=:on WHERE id=1")
     suspend fun setAutoEnabled(on: Boolean): Int
 

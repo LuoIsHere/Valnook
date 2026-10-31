@@ -129,7 +129,8 @@ fun ValnookRoot(
                     webScope.launch { webAdmin.stop() }
                 }
             } else Box(Modifier.fillMaxSize()) {
-                dev.valnook.app.onboarding.OnboardingGate(active.graph.settings, active.graph.settingsWriter, sessions.onboarding) {
+                dev.valnook.app.onboarding.OnboardingGate(active.graph.settings, active.graph.settingsWriter, sessions.onboarding,
+                    active.graph.fxSync) {
                     // The gate's AnimatedContent passes full-screen min constraints; this Box loosens them for the banner.
                     Box(Modifier.fillMaxSize()) {
                         SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
@@ -507,7 +508,7 @@ private fun SessionRoot(
                             }
                             entry<SettingsKey> {
                                 val vm = pageViewModel {
-                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
+                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle(), graph.fxSync)
                                 }
                                 SettingsHome(vm, active.mode == DataMode.DEMO, switching, switchFailed,
                                     { open(FxSettingsKey) }, { enable ->
@@ -557,7 +558,7 @@ private fun SessionRoot(
                             }
                             entry<FxSettingsKey> {
                                 FxSettingsScreen(pageViewModel {
-                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle())
+                                    SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle(), graph.fxSync)
                                 })
                             }
                             entry<LanguageSettingsKey> {

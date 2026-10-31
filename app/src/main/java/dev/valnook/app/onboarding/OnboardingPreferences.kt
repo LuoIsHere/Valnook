@@ -14,7 +14,9 @@ data class OnboardingDraft(
     val accepted: Boolean = false,
     val introSeen: Boolean = false,
     val base: Currency? = null,
-    val rates: List<FxRateDraft> = emptyList()
+    val rates: List<FxRateDraft> = emptyList(),
+    /** Turn automatic exchange rates on when onboarding finishes. */
+    val autoFx: Boolean = false
 )
 
 /** Installation-local progress: never included in financial backups or demo databases. */
@@ -43,12 +45,12 @@ class OnboardingPreferences(private val preferences: SharedPreferences) : Onboar
             rates = (0 until rates.length()).map { index ->
                 val row = rates.getJSONObject(index)
                 FxRateDraft(Currency.of(row.getString("currency")), row.getString("value"))
-            })
+            }, autoFx = json.optBoolean("autoFx"))
     }
 
     override fun save(draft: OnboardingDraft) {
         val json = JSONObject().put("step", draft.step.name).put("accepted", draft.accepted)
-            .put("introSeen", draft.introSeen).put("base", draft.base?.code.orEmpty())
+            .put("introSeen", draft.introSeen).put("base", draft.base?.code.orEmpty()).put("autoFx", draft.autoFx)
             .put("rates", JSONArray().apply {
                 draft.rates.forEach { put(JSONObject().put("currency", it.sourceCurrency.code).put("value", it.rateInput)) }
             })

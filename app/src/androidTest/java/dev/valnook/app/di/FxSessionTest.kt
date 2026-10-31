@@ -42,6 +42,7 @@ class FxSessionTest {
         override fun request(trigger: FxSyncTrigger) { calls += "request:$trigger" }
         override suspend fun sync(trigger: FxSyncTrigger): FxSyncOutcome { calls += "sync:$trigger"; return FxSyncOutcome.SKIPPED }
         override suspend fun setAutoEnabled(on: Boolean, gate: FxWriteGate) { gate.write { calls += "switch:$on" } }
+        override suspend fun dismissNotice(gate: FxWriteGate) { gate.write { calls += "dismiss" } }
     }
 
     private val context = ApplicationProvider.getApplicationContext<android.content.Context>()

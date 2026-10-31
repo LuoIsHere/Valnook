@@ -130,6 +130,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             item(key = "feedback-preview-counts") { PreviewRow(stringResource(R.string.backup_counts),
                 "${preview.accountCount} / ${preview.cashAccountCount} / ${preview.tradeCount} / ${preview.auditEventCount}") }
             item(key = "feedback-preview-warning") { Text(stringResource(R.string.backup_overwrite_warning), color = MaterialTheme.colorScheme.error) }
+            item(key = "feedback-preview-fx") { Text(stringResource(R.string.backup_fx_switch_kept),
+                Modifier.testTag("backup-preview-fx"), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (!preview.auditCoverageComplete) item(key = "feedback-preview-audit") { Text(stringResource(R.string.backup_audit_incomplete),
                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (state.challenge == null) item(key = "feedback-preview-actions") { Row(Modifier.fillMaxWidth(),

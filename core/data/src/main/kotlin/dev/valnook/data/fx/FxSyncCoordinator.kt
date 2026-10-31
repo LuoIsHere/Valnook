@@ -52,6 +52,7 @@ interface FxSyncEngine {
     suspend fun sync(trigger: FxSyncTrigger): FxSyncOutcome
     /** Writes the switch through [gate], which may check the caller's session; turning it on starts a sync. */
     suspend fun setAutoEnabled(on: Boolean, gate: FxWriteGate)
+    suspend fun dismissNotice(gate: FxWriteGate)
 }
 
 enum class FxSyncOutcome { SKIPPED, SUCCEEDED, FAILED, DISCARDED }
@@ -64,6 +65,7 @@ object DisabledFxSyncEngine : FxSyncEngine {
     override fun request(trigger: FxSyncTrigger) = Unit
     override suspend fun sync(trigger: FxSyncTrigger) = FxSyncOutcome.SKIPPED
     override suspend fun setAutoEnabled(on: Boolean, gate: FxWriteGate) = Unit
+    override suspend fun dismissNotice(gate: FxWriteGate) = Unit
 }
 
 fun createFxSyncCoordinator(database: ValnookDatabase, clock: Clock): FxSyncEngine =
@@ -104,6 +106,10 @@ internal class FxSyncCoordinator(
     override suspend fun setAutoEnabled(on: Boolean, gate: FxWriteGate) {
         gate.write { db.fx().setAutoEnabled(on) }
         if (on) request(FxSyncTrigger.ENABLED)
+    }
+
+    override suspend fun dismissNotice(gate: FxWriteGate) {
+        gate.write { db.fx().dismissNotice() }
     }
 
     override fun attach(gate: FxWriteGate) {
@@ -279,15 +285,19 @@ internal class FxSyncCoordinator(
         val base = db.fx().baseCurrency()
         val missing = if (state.auto_enabled && base != null && state.last_success_day != null)
             missingOn(base, state.last_success_day) else emptyList()
+        val sources = if (base != null && state.last_success_day != null) db.fx().historyOn(base, state.last_success_day)
+            .associate { it.quote_currency to LocalDate.ofEpochDay(it.source_date) } else emptyMap()
         return FxSyncStatus(
             available = true,
             autoEnabled = state.auto_enabled,
             noticeDismissed = state.notice_dismissed,
             lastSuccessAtMs = state.last_success_at_ms,
+            lastSuccessDay = state.last_success_day?.let(LocalDate::ofEpochDay),
             dataDate = state.data_date?.let(LocalDate::ofEpochDay),
             lastAttemptAtMs = state.last_attempt_at_ms,
             lastError = state.last_error?.let { name -> FxSyncError.entries.firstOrNull { it.name == name } },
-            missingCurrencies = missing
+            missingCurrencies = missing,
+            sourceDates = sources
         )
     }
 
