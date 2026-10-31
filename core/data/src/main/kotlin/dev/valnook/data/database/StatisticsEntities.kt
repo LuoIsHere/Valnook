@@ -8,7 +8,10 @@ import androidx.room.PrimaryKey
 
 // 3: trade executions back-fill valuation prices before the first manual price.
 // 3：首个手动价格之前，以成交价作为估值价格。
-const val STATISTICS_RULE_VERSION = 3
+// 4: each past day uses that day's stored exchange rate, else today's rate; a currency with neither is left out
+//    and the day marked incomplete.
+// 4：过去的每一天用当天记录的汇率，没有记录用今天的汇率；都没有的币种不计入，并把这一天标为不完整。
+const val STATISTICS_RULE_VERSION = 4
 
 /** Oldest rule whose saved state can be restored; its derived cache is rebuilt on read. */
 const val MIN_RESTORABLE_STATISTICS_RULE_VERSION = 2

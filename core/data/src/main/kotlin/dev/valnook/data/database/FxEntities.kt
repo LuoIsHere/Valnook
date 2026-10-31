@@ -14,6 +14,8 @@ import androidx.room.*
 data class FxRateHistoryEntity(val base_currency: String, val quote_currency: String, val local_day: Long,
     val source_date: Long, val rate: String, val fetched_at_ms: Long)
 
+data class FxHistoryRange(val quote: String, val first_day: Long, val last_day: Long)
+
 /** Device-local switch and sync record. Never backed up; restore keeps the switch and forgets the sync record. */
 @Entity(tableName = "fx_local_state")
 data class FxLocalStateEntity(
@@ -59,6 +61,19 @@ interface FxDao {
 
     @Query("SELECT * FROM fx_rate_history WHERE base_currency=:base AND quote_currency=:quote ORDER BY local_day DESC LIMIT 1")
     suspend fun latestHistory(base: String, quote: String): FxRateHistoryEntity?
+
+    /** Every stored day of [quotes] under [base], for valuing past days at their own rate. */
+    @Query("SELECT * FROM fx_rate_history WHERE base_currency=:base AND quote_currency IN (:quotes)")
+    suspend fun historyFor(base: String, quotes: List<String>): List<FxRateHistoryEntity>
+
+    @Query("""SELECT * FROM fx_rate_history WHERE base_currency=:base AND quote_currency IN (:quotes)
+        AND local_day BETWEEN :firstDay AND :lastDay""")
+    suspend fun historyFor(base: String, quotes: List<String>, firstDay: Long, lastDay: Long): List<FxRateHistoryEntity>
+
+    /** First and last stored day of each quote under [base]; history is continuous between them. */
+    @Query("""SELECT quote_currency AS quote,MIN(local_day) AS first_day,MAX(local_day) AS last_day FROM fx_rate_history
+        WHERE base_currency=:base GROUP BY quote_currency""")
+    suspend fun historyRanges(base: String): List<FxHistoryRange>
 
     /** Each quote's row for its latest stored day under [base]. */
     @Query("""SELECT h.* FROM fx_rate_history h JOIN (SELECT quote_currency AS q,MAX(local_day) AS d FROM fx_rate_history

@@ -22,4 +22,6 @@
     <string name="statistics_day_change">Day change</string>
     <string name="statistics_month_change">Month change</string>
     <string name="statistics_home_investment">Total investment value</string>
+    <string name="statistics_point_incomplete">Some currencies had no exchange rate and are left out</string>
+    <string name="statistics_series_incomplete">Some days had no exchange rate; those currencies are left out</string>
 </resources>

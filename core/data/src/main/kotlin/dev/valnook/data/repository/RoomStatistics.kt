@@ -46,18 +46,18 @@ class RoomStatistics(
             } ?: reliableDates
             val cached = cacheFor(request.metric, reusableDates, header.state.source_revision, header.state.rule_version)
             val missing = reliableDates.filterNot(cached::containsKey)
-            val computed = if (missing.isEmpty()) emptyMap() else compute(readSource(header), missing)
+            val computed = if (missing.isEmpty()) emptyMap() else compute(readSource(header, missing), missing)
             if (computed.isNotEmpty()) commit(header.state.source_revision, computed)
-            val live = if (today in actualDates && today >= baselineDate) mapOf(today to readCurrent(header).forMetric(request.metric)) else emptyMap()
-            val values = cached + computed.mapValues { (_, value) -> value.forMetric(request.metric) } + live
+            val live = if (today in actualDates && today >= baselineDate) mapOf(today to readCurrent(header).point(request.metric)) else emptyMap()
+            val values = cached + computed.mapValues { (_, value) -> value.point(request.metric) } + live
             StatisticsSeries(request.metric, request.period, header.settings.baseCurrency, dates.map { date ->
                 when {
                     date.isAfter(today) -> StatisticsPoint(date, null, reliable = false, future = true)
                     // Display padding only: do not cache it or use it as a financial comparison baseline.
                     // 仅补齐历史起点之前的图表，不写入缓存或用于变化/百分比的真实基准。
                     date < baselineDate -> StatisticsPoint(date, BigDecimal.ZERO, reliable = false)
-                    else -> StatisticsPoint(date, values[date], reliable = values[date] != null,
-                        comparisonValue = values[comparisonDate(date)])
+                    else -> StatisticsPoint(date, values[date]?.value, reliable = values[date]?.value != null,
+                        comparisonValue = values[comparisonDate(date)]?.value, complete = values[date]?.complete ?: true)
                 }
             })
         }
@@ -78,10 +78,11 @@ class RoomStatistics(
             val cached = if (header.state.earliest_invalidated_epoch_day == null)
                 cachedValues(neededDates, header.state.source_revision, header.state.rule_version) else emptyMap()
             val missing = neededDates.filterNot(cached::containsKey)
-            val computed = if (missing.isEmpty()) emptyMap() else compute(readSource(header), missing)
+            val computed = if (missing.isEmpty()) emptyMap() else compute(readSource(header, missing), missing)
             if (computed.isNotEmpty()) commit(header.state.source_revision, computed)
             val values = cached + computed
-            val current = readCurrent(header)
+            // The summary shows only complete totals; the chart draws incomplete ones with a marker.
+            val current = readCurrent(header).completeOnly()
             val change = if (previousMonthEnd < baselineDate) {
                 MonthlyAssetChange(null, header.settings.baseCurrency, null, "baseline_unavailable")
             } else {
@@ -100,8 +101,10 @@ class RoomStatistics(
         if (db.statistics().state()?.source_revision != header.state.source_revision)
             throw DomainException(ErrorCode.STALE_RECORD)
         val overview = AssetValuation.calculate(RoomOverview(db).snapshot())
-        fun known(total: ConvertedTotal) = total.amount.takeIf { total.complete }
-        Values(known(overview.total), known(overview.availableCash), known(overview.investmentValue))
+        // Without a base currency nothing is known; a missing exchange rate leaves an incomplete value.
+        fun known(total: ConvertedTotal) = total.amount.takeIf { total.currency != null }
+        Values(known(overview.total), known(overview.availableCash), known(overview.investmentValue),
+            overview.total.complete, overview.availableCash.complete, overview.investmentValue.complete)
     }
 
     private suspend fun readHeader(): Header = db.withTransaction {
@@ -130,20 +133,32 @@ class RoomStatistics(
             dev.valnook.domain.fx.FxRateResolver(settings, db.fxContext(settings.baseCurrency?.code)))
     }
 
-    private suspend fun readSource(header: Header): Source = db.withTransaction {
+    private suspend fun readSource(header: Header, dates: List<LocalDate>): Source = db.withTransaction {
         val dao = db.statistics()
-        Source(header.state, dao.currentCash(), dao.creditProfiles(), dao.cashEntries(), dao.deposits(), dao.positions(),
-            dao.trades(), dao.prices(), header.settings, header.rates)
+        val cash = dao.currentCash()
+        val deposits = dao.deposits()
+        val positions = dao.positions()
+        // One read of the requested days' stored rates for the currencies this source holds, inverted once per row.
+        val base = header.settings.baseCurrency?.code
+        val quotes = (cash.map { it.currency_code } + deposits.map { it.currency_code } + positions.map { it.currency_code })
+            .distinct().filter { it != base }
+        val daily = if (base == null || quotes.isEmpty() || dates.isEmpty()) emptyMap() else db.fx()
+            .historyFor(base, quotes, dates.minOf { it.toEpochDay() }, dates.maxOf { it.toEpochDay() })
+            .groupBy { it.quote_currency }.mapValues { (_, rows) -> rows.associate { row ->
+                row.local_day to BigDecimal.ONE.divide(BigDecimal(row.rate), java.math.MathContext.DECIMAL128)
+            } }
+        Source(header.state, cash, dao.creditProfiles(), dao.cashEntries(), deposits, positions,
+            dao.trades(), dao.prices(), header.settings, header.rates, daily)
     }
 
     private suspend fun cacheFor(metric: StatisticsMetric, dates: List<LocalDate>, revision: Long,
-        ruleVersion: Int): Map<LocalDate, BigDecimal?> {
+        ruleVersion: Int): Map<LocalDate, Point> {
         if (dates.isEmpty()) return emptyMap()
         val rows = db.statistics().cached(metric.name, dates.minOf { it.toEpochDay() },
             dates.maxOf { it.toEpochDay() }, revision, ruleVersion).associateBy { it.epoch_day }
         return dates.mapNotNull { date ->
             rows[date.toEpochDay()]?.takeIf { instantDate(it.computed_at_ms) > date }
-                ?.let { row -> date to row.value_decimal?.toBigDecimal() }
+                ?.let { row -> date to Point(row.value_decimal?.toBigDecimal(), row.complete) }
         }.toMap()
     }
 
@@ -152,32 +167,52 @@ class RoomStatistics(
         if (dates.isEmpty()) return emptyMap()
         val perMetric = StatisticsMetric.entries.associateWith { cacheFor(it, dates, revision, ruleVersion) }
         if (perMetric.values.any { it.size != dates.size }) return emptyMap()
-        return dates.associateWith { date -> Values(perMetric.getValue(StatisticsMetric.TOTAL_ASSETS)[date],
-            perMetric.getValue(StatisticsMetric.AVAILABLE_CASH)[date],
-            perMetric.getValue(StatisticsMetric.INVESTMENT_VALUE)[date]) }
+        fun point(metric: StatisticsMetric, date: LocalDate) = perMetric.getValue(metric).getValue(date)
+        return dates.associateWith { date ->
+            val total = point(StatisticsMetric.TOTAL_ASSETS, date)
+            val cash = point(StatisticsMetric.AVAILABLE_CASH, date)
+            val investment = point(StatisticsMetric.INVESTMENT_VALUE, date)
+            Values(total.value, cash.value, investment.value, total.complete, cash.complete, investment.complete)
+        }
     }
 
     private fun compute(source: Source, dates: List<LocalDate>): Map<LocalDate, Values> {
-        if (source.settings.baseCurrency == null) return dates.associateWith { Values(null, null, null) }
+        val base = source.settings.baseCurrency?.code ?: return dates.associateWith { Values(null, null, null) }
         val entriesByCash = source.entries.groupBy { it.cash_account_id }
         val tradesByPosition = source.trades.groupBy { it.investment_id }
         val observationsByInstrument = priceObservations(source)
         return dates.distinct().associateWith { date ->
             val cutoff = cutoff(date)
+            val day = date.toEpochDay()
+            // That day's stored rate, else today's rate (current or latest stored); null leaves the amount out.
+            fun rate(code: String): BigDecimal? = if (code == base) BigDecimal.ONE
+                else source.daily[code]?.get(day) ?: source.rates.today(code)
+            var cashComplete = true
+            var otherComplete = true
+            var investmentComplete = true
             val creditIds = source.creditProfiles.asSequence().map { it.account_id }.toHashSet()
             var availableCash = BigDecimal.ZERO
             val balanceAccounts = source.cash.fold(BigDecimal.ZERO) { total, account ->
                 val after = entriesByCash[account.id].orEmpty().asSequence()
                     .filter { it.occurred_at_ms > cutoff }.sumOf { it.delta_minor }
-                val value = convertMinor(account.balance_minor - after, account.currency_code, source.rates)
-                if (account.id !in creditIds && account.include_in_available_cash) availableCash += value
+                val minor = account.balance_minor - after
+                val available = account.id !in creditIds && account.include_in_available_cash
+                val rate = rate(account.currency_code)
+                if (rate == null) {
+                    if (minor != 0L) { otherComplete = false; if (available) cashComplete = false }
+                    return@fold total
+                }
+                val value = major(minor, account.currency_code).multiply(rate)
+                if (available) availableCash += value
                 total + value
             }
             val deposits = source.deposits.asSequence().filter { deposit ->
-                deposit.start_epoch_day <= date.toEpochDay() &&
+                deposit.start_epoch_day <= day &&
                     (deposit.closed_at_ms == null || deposit.closed_at_ms > cutoff)
             }.fold(BigDecimal.ZERO) { total, deposit ->
-                total + convertMinor(deposit.principal_minor, deposit.currency_code, source.rates)
+                val rate = rate(deposit.currency_code)
+                if (rate == null) { otherComplete = false; total }
+                else total + major(deposit.principal_minor, deposit.currency_code).multiply(rate)
             }
             var investment = BigDecimal.ZERO
             var investmentKnown = true
@@ -192,12 +227,17 @@ class RoomStatistics(
                         .lastOrNull { it.atMs <= cutoff }
                     if (price == null) investmentKnown = false else {
                         val original = BigDecimal.valueOf(quantity).movePointLeft(8).multiply(price.price)
-                        investment += convertMajor(original, position.currency_code, source.rates)
+                        // Keep source precision through aggregation. Presentation applies currency rounding.
+                        val rate = rate(position.currency_code)
+                        if (rate == null) { if (original.signum() != 0) investmentComplete = false }
+                        else investment += original.multiply(rate)
                     }
                 }
             }
-            if (investmentKnown) Values(balanceAccounts + deposits + investment, availableCash, investment)
-            else Values(null, availableCash, null)
+            val totalComplete = otherComplete && investmentComplete
+            if (investmentKnown) Values(balanceAccounts + deposits + investment, availableCash, investment,
+                totalComplete, cashComplete, investmentComplete)
+            else Values(null, availableCash, null, totalComplete, cashComplete, investmentComplete)
         }
     }
 
@@ -228,7 +268,7 @@ class RoomStatistics(
                 StatisticsMetric.entries.map { metric -> StatisticsCacheEntity(metric.name, date.toEpochDay(),
                     value.forMetric(metric)?.stripTrailingZeros()?.toPlainString(),
                     reliable = value.forMetric(metric) != null, source_revision = revision,
-                    rule_version = state.rule_version, computed_at_ms = now) }
+                    rule_version = state.rule_version, computed_at_ms = now, complete = value.completeFor(metric)) }
             })
             db.statistics().markValid(revision)
         }
@@ -240,18 +280,8 @@ class RoomStatistics(
     private fun instantDate(milliseconds: Long): LocalDate = Instant.ofEpochMilli(milliseconds)
         .atZone(clock.zone).toLocalDate()
 
-    private fun convertMinor(value: Long, currencyCode: String, rates: dev.valnook.domain.fx.FxRateResolver): BigDecimal {
-        val currency = Currency.of(currencyCode)
-        return convertMajor(BigDecimal.valueOf(value).movePointLeft(currency.fraction_digits), currencyCode, rates)
-    }
-
-    // Every day uses today's rate for now, as the home totals do; a currency without any rate is left out.
-    // Daily rates and the incomplete marker come with the next statistics rule.
-    private fun convertMajor(value: BigDecimal, currencyCode: String, rates: dev.valnook.domain.fx.FxRateResolver): BigDecimal {
-        val rate = rates.today(currencyCode) ?: return BigDecimal.ZERO
-        // Keep source precision through aggregation. Presentation applies currency rounding.
-        return value.multiply(rate)
-    }
+    private fun major(minor: Long, currencyCode: String): BigDecimal =
+        BigDecimal.valueOf(minor).movePointLeft(Currency.of(currencyCode).fraction_digits)
 
     private data class Source(
         val state: StatisticsStateEntity,
@@ -263,7 +293,9 @@ class RoomStatistics(
         val trades: List<TradeEntity>,
         val prices: List<InstrumentPriceEntity>,
         val settings: AppSettings,
-        val rates: dev.valnook.domain.fx.FxRateResolver
+        val rates: dev.valnook.domain.fx.FxRateResolver,
+        /** Stored rates per quote and local day, already in app direction (1 quote = x base). */
+        val daily: Map<String, Map<Long, BigDecimal>>
     )
 
     private data class Header(val state: StatisticsStateEntity, val settings: AppSettings,
@@ -271,11 +303,22 @@ class RoomStatistics(
 
     private data class PriceObservation(val instrumentId: Long, val atMs: Long, val price: BigDecimal, val manual: Boolean)
 
-    private data class Values(val total: BigDecimal?, val cash: BigDecimal?, val investment: BigDecimal?) {
+    private data class Point(val value: BigDecimal?, val complete: Boolean)
+
+    private data class Values(val total: BigDecimal?, val cash: BigDecimal?, val investment: BigDecimal?,
+        val totalComplete: Boolean = true, val cashComplete: Boolean = true, val investmentComplete: Boolean = true) {
         fun forMetric(metric: StatisticsMetric): BigDecimal? = when (metric) {
             StatisticsMetric.TOTAL_ASSETS -> total
             StatisticsMetric.AVAILABLE_CASH -> cash
             StatisticsMetric.INVESTMENT_VALUE -> investment
         }
+        fun completeFor(metric: StatisticsMetric): Boolean = when (metric) {
+            StatisticsMetric.TOTAL_ASSETS -> totalComplete
+            StatisticsMetric.AVAILABLE_CASH -> cashComplete
+            StatisticsMetric.INVESTMENT_VALUE -> investmentComplete
+        }
+        fun point(metric: StatisticsMetric) = Point(forMetric(metric), completeFor(metric))
+        fun completeOnly() = Values(total.takeIf { totalComplete }, cash.takeIf { cashComplete },
+            investment.takeIf { investmentComplete })
     }
 }

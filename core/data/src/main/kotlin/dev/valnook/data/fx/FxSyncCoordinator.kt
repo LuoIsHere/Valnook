@@ -173,8 +173,9 @@ internal class FxSyncCoordinator(
                     val changed = start <= today && replaceTodayRates(snapshot.base, today, now)
                     dataDate = rows.maxOfOrNull { it.source_date } ?: db.fx().localState()?.data_date
                     check(db.fx().recordSuccess(today, now, dataDate) == 1)
-                    // Statistics still value every day at today's rates, so a rate change reaches back to the baseline.
-                    val from = if (changed) snapshot.baselineDay else if (rows.isNotEmpty()) start else null
+                    // New rows change their own days; new current rates also change every day valued at today's rate.
+                    val from = listOfNotNull(start.takeIf { rows.isNotEmpty() },
+                        snapshot.baselineDay?.takeIf { changed }?.let { firstDayOnTodayRate(snapshot.base, it, today) }).minOrNull()
                     if (from != null && db.statistics().state() != null) db.statistics().invalidate(from)
                     missing = missingOn(snapshot.base, today)
                     outcome = FxSyncOutcome.SUCCEEDED
@@ -250,6 +251,22 @@ internal class FxSyncCoordinator(
         db.fx().bumpSettingsRevision()
         audit.recordSystemRates(before, audit.settingsJson(), now)
         return true
+    }
+
+    /**
+     * Earliest day from [baselineDay] on where some currency in use has no stored rate and so is valued at today's
+     * rate. Stored days run without gaps from a currency's first to its last day.
+     */
+    private suspend fun firstDayOnTodayRate(base: String, baselineDay: Long, today: Long): Long? {
+        val ranges = db.fx().historyRanges(base).associateBy { it.quote }
+        return (db.fx().inUseCurrencies().toSet() - base).mapNotNull { code ->
+            val range = ranges[code] ?: return@mapNotNull baselineDay
+            when {
+                range.first_day > baselineDay -> baselineDay
+                range.last_day < today -> range.last_day + 1
+                else -> null
+            }
+        }.minOrNull()
     }
 
     private suspend fun missingOn(base: String, day: Long): List<String> {

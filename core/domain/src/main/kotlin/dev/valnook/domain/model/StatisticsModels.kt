@@ -34,7 +34,9 @@ data class StatisticsPoint(
     val value: BigDecimal?,
     val reliable: Boolean,
     val future: Boolean = false,
-    val comparisonValue: BigDecimal? = null
+    val comparisonValue: BigDecimal? = null,
+    /** False when some currency had no exchange rate that day and was left out of [value]. */
+    val complete: Boolean = true
 ) {
     // A missing comparison (before history starts) counts as zero.
     // 没有对比数据（如历史起点之前）按 0 处理。

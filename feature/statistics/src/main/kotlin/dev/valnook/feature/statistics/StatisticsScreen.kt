@@ -144,6 +144,10 @@ internal fun InteractiveChart(series: StatisticsSeries, title: String, showChang
         Text(dateText.ifEmpty { "—" },style=MaterialTheme.typography.bodySmall.copy(lineHeight=24.sp),maxLines=1,
             color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=2.dp)
                 .heightIn(min=with(LocalDensity.current){24.sp.toDp()}))
+        // The selected day left out a currency without any exchange rate.
+        if (selected?.complete==false) Text(stringResource(R.string.statistics_point_incomplete),
+            style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error,
+            modifier=Modifier.testTag("statistics-incomplete-point-${series.metric.name.lowercase()}"))
         if (showChange) {
         Text(stringResource(if(series.period.granularity==StatisticsGranularity.DAILY) R.string.statistics_day_change else R.string.statistics_month_change),
             style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
@@ -177,6 +181,9 @@ internal fun InteractiveChart(series: StatisticsSeries, title: String, showChang
     },description=stringResource(R.string.statistics_chart_description,title,periodLabel(series.period)),
         readout="$dateText, $valueText",animationKey="${series.metric}-${series.period}",futureExtensionFrom=futureExtensionFrom,
         modifier=Modifier.padding(top=12.dp).height(if(showChange)192.dp else 172.dp).testTag(chartTag))
+    if (series.points.any { !it.future && !it.complete }) Text(stringResource(R.string.statistics_series_incomplete),
+        style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier=Modifier.padding(top=8.dp).testTag("statistics-incomplete-${series.metric.name.lowercase()}"))
 }
 
 internal fun sparseXAxisLabels(series: StatisticsSeries): List<Pair<Int, String>> {

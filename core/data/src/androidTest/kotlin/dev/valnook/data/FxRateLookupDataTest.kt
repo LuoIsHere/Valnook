@@ -75,6 +75,10 @@ class FxRateLookupDataTest {
         db.cash().insert_cash(CashEntity(account, currency, minor, 1, at, name = currency, created_at_ms = at))
     }
     private fun decimal(expected: String, actual: BigDecimal?) = assertEquals(expected, 0, BigDecimal(expected).compareTo(actual))
+    /** October 1st has its own stored rates: 1000 CNY + 100 USD / 0.15 + 200 EUR / 0.128. */
+    private val octoberFirstValue = BigDecimal("1000") +
+        BigDecimal("100").multiply(BigDecimal.ONE.divide(BigDecimal("0.15"), java.math.MathContext.DECIMAL128)) + BigDecimal("1562.5")
+    private fun exact(expected: BigDecimal, actual: BigDecimal?) = assertEquals("$expected", 0, expected.compareTo(actual))
     private suspend fun home() = AssetValuation.calculate(RoomOverview(db).snapshot()).total
     private suspend fun series() = RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
         StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
@@ -96,8 +100,8 @@ class FxRateLookupDataTest {
         assertTrue(home().complete)
         decimal("3272.5", RoomStatistics(db, clock).loadCurrent().totalAssets)
         val points = series().points
-        decimal("3272.5", points[0].value)   // October 1st also uses today's rate for now
-        decimal("3272.5", points[1].value)
+        exact(octoberFirstValue, points[0].value)   // a past day uses its own stored rates
+        decimal("3272.5", points[1].value)        // today follows home
     }
 
     @Test fun automatic_mode_leaves_out_a_currency_without_any_rate() = runBlocking {
@@ -108,7 +112,9 @@ class FxRateLookupDataTest {
         assertEquals(setOf(MissingAmount(MissingKind.EXCHANGE_RATE, "KWD")), total.missing)
         // The live point follows home: an incomplete total has no value; past days leave KWD out.
         assertNull(RoomStatistics(db, clock).loadCurrent().totalAssets)
-        decimal("3272.5", series().points[0].value)
+        val past = series().points[0]
+        exact(octoberFirstValue, past.value)
+        assertFalse(past.complete)
     }
 
     @Test fun manual_mode_still_counts_a_currency_without_any_rate_one_to_one() = runBlocking {
@@ -116,7 +122,7 @@ class FxRateLookupDataTest {
         decimal("3273.5", home().amount)
         assertTrue(home().complete)
         decimal("3273.5", RoomStatistics(db, clock).loadCurrent().totalAssets)
-        decimal("3273.5", series().points[0].value)
+        exact(octoberFirstValue + BigDecimal.ONE, series().points[0].value)   // stored days count in manual mode too
     }
 
     private suspend fun summarySheet(): String {

@@ -308,4 +308,24 @@ class FxSyncCoordinatorTest {
         assertTrue(server.urls.isEmpty())
     }
 
+
+    @Test fun new_rates_invalidate_only_days_valued_at_today_s_rate() = runBlocking {
+        // Every currency in use has a stored rate from the baseline on.
+        (20..26).forEach { server.published.getValue("JPY")[date("2026-10-%02d".format(it))] = "23.%02d".format(it) }
+        sync.sync(FxSyncTrigger.START)
+        assertEquals(day("2026-10-25"), db.statistics().state()!!.earliest_invalidated_epoch_day)
+        db.statistics().markValid(db.statistics().state()!!.source_revision)
+
+        clock.now = Instant.parse("2026-10-29T01:00:00Z")
+        sync.sync(FxSyncTrigger.START)
+        // Rates changed, but every earlier day keeps its own stored rate: only the new day is recomputed.
+        assertEquals(day("2026-10-29"), db.statistics().state()!!.earliest_invalidated_epoch_day)
+        db.statistics().markValid(db.statistics().state()!!.source_revision)
+
+        // A currency in use without any stored day is valued at today's rate everywhere.
+        cash("KWD")
+        clock.now = Instant.parse("2026-10-30T01:00:00Z")
+        sync.sync(FxSyncTrigger.START)
+        assertEquals(day("2026-10-25"), db.statistics().state()!!.earliest_invalidated_epoch_day)
+    }
 }
