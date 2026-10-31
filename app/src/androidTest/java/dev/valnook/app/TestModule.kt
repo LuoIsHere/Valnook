@@ -74,4 +74,6 @@ object TestModule {
     @Provides @Singleton fun cloudBackupService(
         coordinator: dev.valnook.data.cloud.CloudBackupCoordinator): CloudBackupService = coordinator
     @Provides @Singleton fun cloudAuthorization(): CloudAuthorization = UnavailableCloudAuthorization
+    // UI tests never go online; automatic rates stay inert unless a test supplies its own engine.
+    @Provides @Singleton fun fxSyncEngine(): dev.valnook.data.fx.FxSyncEngine = dev.valnook.data.fx.DisabledFxSyncEngine
 }

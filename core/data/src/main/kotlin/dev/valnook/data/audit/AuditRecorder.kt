@@ -74,6 +74,23 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         beforeJson: String,
         afterJson: String,
         recordedAtMs: Long
+    ) = recordSetting(when (change) {
+        is SaveFinancialSettings -> "FINANCIAL_SETTINGS"
+        is SaveLanguage -> "LANGUAGE"
+        is SaveGainLossColors -> "GAIN_LOSS_COLORS"
+        is SaveNavigationConfiguration -> "NAVIGATION"
+    }, beforeJson, afterJson, recordedAtMs, "USER")
+
+    /** Rates replaced by automatic exchange rates, not by the user. */
+    suspend fun recordSystemRates(beforeJson: String, afterJson: String, recordedAtMs: Long) =
+        recordSetting("FINANCIAL_SETTINGS", beforeJson, afterJson, recordedAtMs, "SYSTEM")
+
+    private suspend fun recordSetting(
+        entityKind: String,
+        beforeJson: String,
+        afterJson: String,
+        recordedAtMs: Long,
+        source: String
     ) {
         val eventId = UUID.randomUUID().toString()
         db.audit().insertEvent(AuditEventEntity(
@@ -82,12 +99,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             correlation_id = eventId,
             operation_id = null,
             action = "UPDATE",
-            entity_kind = when (change) {
-                is SaveFinancialSettings -> "FINANCIAL_SETTINGS"
-                is SaveLanguage -> "LANGUAGE"
-                is SaveGainLossColors -> "GAIN_LOSS_COLORS"
-                is SaveNavigationConfiguration -> "NAVIGATION"
-            },
+            entity_kind = entityKind,
             entity_id = "1",
             business_at_ms = recordedAtMs,
             business_local_date = Instant.ofEpochMilli(recordedAtMs).atZone(clock.zone).toLocalDate().toString(),
@@ -96,7 +108,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             after_json = afterJson,
             changed_fields_json = changedFields(beforeJson, afterJson),
             cash_effects_json = "[]",
-            source = "USER"
+            source = source
         ))
         check(db.audit().advanceGeneration(recordedAtMs) == 1)
     }

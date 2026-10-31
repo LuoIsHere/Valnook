@@ -50,4 +50,41 @@ interface FxDao {
 
     @Query("DELETE FROM fx_rate_history")
     suspend fun clearHistory()
+
+    @Query("SELECT MAX(local_day) FROM fx_rate_history WHERE base_currency=:base")
+    suspend fun lastHistoryDay(base: String): Long?
+
+    @Query("SELECT * FROM fx_rate_history WHERE base_currency=:base AND local_day=:day")
+    suspend fun historyOn(base: String, day: Long): List<FxRateHistoryEntity>
+
+    @Query("SELECT * FROM fx_rate_history WHERE base_currency=:base AND quote_currency=:quote ORDER BY local_day DESC LIMIT 1")
+    suspend fun latestHistory(base: String, quote: String): FxRateHistoryEntity?
+
+    @Query("UPDATE fx_local_state SET auto_enabled=:on WHERE id=1")
+    suspend fun setAutoEnabled(on: Boolean): Int
+
+    @Query("UPDATE fx_local_state SET last_attempt_at_ms=:now,last_error=:error WHERE id=1")
+    suspend fun recordFailure(now: Long, error: String): Int
+
+    @Query("""UPDATE fx_local_state SET last_success_day=:day,last_success_at_ms=:now,last_attempt_at_ms=:now,
+        last_error=NULL,data_date=:dataDate WHERE id=1""")
+    suspend fun recordSuccess(day: Long, now: Long, dataDate: Long?): Int
+
+    /** Currencies the totals depend on: every balance account, every deposit (closed ones too) and every traded instrument. */
+    @Query("""SELECT currency_code FROM cash_accounts UNION SELECT currency_code FROM term_deposits
+        UNION SELECT i.currency_code FROM instruments i WHERE EXISTS (SELECT 1 FROM investments p
+            JOIN investment_trades t ON t.investment_id=p.id WHERE p.instrument_id=i.id AND t.is_deleted=0)""")
+    suspend fun inUseCurrencies(): List<String>
+
+    @Query("SELECT * FROM fx_rates WHERE target_currency=:base")
+    suspend fun ratesTo(base: String): List<FxRateEntity>
+
+    @Upsert
+    suspend fun saveRates(values: List<FxRateEntity>)
+
+    @Query("UPDATE app_settings SET revision=revision+1 WHERE id=1")
+    suspend fun bumpSettingsRevision(): Int
+
+    @Query("SELECT base_currency FROM app_settings WHERE id=1")
+    suspend fun baseCurrency(): String?
 }

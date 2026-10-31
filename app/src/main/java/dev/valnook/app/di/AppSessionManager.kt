@@ -42,7 +42,8 @@ class AppSessionManager @Inject internal constructor(
     val cloudAuthorization: dev.valnook.feature.backup.CloudAuthorization =
         dev.valnook.feature.backup.UnavailableCloudAuthorization,
     val onboarding: dev.valnook.app.onboarding.OnboardingStorage =
-        dev.valnook.app.onboarding.OnboardingPreferences(context)
+        dev.valnook.app.onboarding.OnboardingPreferences(context),
+    private val fxEngine: dev.valnook.data.fx.FxSyncEngine = dev.valnook.data.fx.DisabledFxSyncEngine
 ) {
     /** Single non-reentrant boundary for writes, switches, and destructive maintenance. */
     private val writeMutex = Mutex()
@@ -60,6 +61,8 @@ class AppSessionManager @Inject internal constructor(
         bind(realDatabaseGraph, initialId, DataMode.REAL)))
     val session = mutable.asStateFlow()
     init {
+        // Sync writes wait for restore, clear and other local writes; web admin leases do not block them.
+        fxEngine.attach { block -> writeMutex.withLock { block() } }
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
             // Reconcile unreferenced ciphertext after interrupted deletion/restore; no values are decoded.
             runCatching { writeMutex.withLock { realDatabaseGraph.walletPrivate.cleanup() } }
@@ -68,6 +71,11 @@ class AppSessionManager @Inject internal constructor(
     fun observeCloudState() = cloudCoordinator.observeState()
     suspend fun consumeCloudBanner(eventId: String) = cloudCoordinator.consumeBanner(eventId)
     suspend fun reconcileCloudSchedule() = cloudCoordinator.reconcileSchedule()
+
+    /** Daily automatic exchange rates, for the real dataset only. */
+    fun requestFxSync() {
+        if (mutable.value.mode == DataMode.REAL) fxEngine.request(dev.valnook.domain.fx.FxSyncTrigger.START)
+    }
 
     suspend fun enterDemo() = writeMutex.withLock {
         rejectWhenWebAdminOpen()
@@ -288,12 +296,13 @@ class AppSessionManager @Inject internal constructor(
             currentSessionId == sessionId
         },
         settings = source.settings,
-        settingsWriter = SessionSettingsWriter(sessionId, source.settingsWriter),
+        settingsWriter = SessionSettingsWriter(sessionId, mode, source),
         instruments = source.instruments,
         cashPages = source.cashPages,
         depositPages = source.depositPages,
         portability = SessionPortability(sessionId, mode, source.portability),
         cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator),
+        fxSync = SessionFxSync(sessionId, mode),
         wallet = object : dev.valnook.domain.repository.WalletRepository {
             private val delegate = dev.valnook.data.repository.RoomWallet(source.database,source.clock)
             override fun observeCards() = delegate.observeCards()
@@ -411,13 +420,42 @@ class AppSessionManager @Inject internal constructor(
 
     private inner class SessionSettingsWriter(
         private val sessionId: String,
-        private val delegate: SettingsWriter
+        private val mode: DataMode,
+        private val source: DatabaseGraph
     ) : SettingsWriter {
-        override suspend fun applyChange(change: SettingsChange): dev.valnook.domain.model.AppSettings =
-            writeMutex.withLock {
+        override suspend fun applyChange(change: SettingsChange): dev.valnook.domain.model.AppSettings {
+            var baseChanged = false
+            val result = writeMutex.withLock {
                 requireMobileWrite(sessionId)
-                delegate.applyChange(change)
+                val previous = source.database.fx().baseCurrency()
+                source.settingsWriter.applyChange(change).also { baseChanged = it.baseCurrency?.code != previous }
             }
+            // A new base starts its history over; the sync itself checks whether automatic rates are on.
+            if (baseChanged && mode == DataMode.REAL) fxEngine.request(dev.valnook.domain.fx.FxSyncTrigger.BASE_CHANGED)
+            return result
+        }
+    }
+
+    private inner class SessionFxSync(
+        private val sessionId: String,
+        private val mode: DataMode
+    ) : dev.valnook.domain.fx.FxRateSync {
+        private val real = mode == DataMode.REAL
+        override fun observeStatus() = if (real) fxEngine.observeStatus()
+            else kotlinx.coroutines.flow.flowOf(dev.valnook.domain.fx.FxSyncStatus())
+        override fun observeNotice() = if (real) fxEngine.observeNotice()
+            else kotlinx.coroutines.flow.flowOf(null)
+        override suspend fun consumeNotice(id: String) { if (real) fxEngine.consumeNotice(id) }
+        // The demo never goes online and its switch stays off.
+        override suspend fun refreshNow() {
+            if (!real) return
+            writeMutex.withLock { requireMobileWrite(sessionId) }
+            fxEngine.sync(dev.valnook.domain.fx.FxSyncTrigger.MANUAL)
+        }
+        override suspend fun setAutoEnabled(on: Boolean) {
+            if (!real) return
+            fxEngine.setAutoEnabled(on) { block -> writeMutex.withLock { requireMobileWrite(sessionId); block() } }
+        }
     }
 
     private inner class SessionPortability(

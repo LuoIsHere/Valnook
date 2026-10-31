@@ -39,7 +39,8 @@ class AppGraph(
     val cloudBackup: CloudBackupService = dev.valnook.domain.cloud.UnavailableCloudBackupService,
     val wallet: WalletRepository? = null,
     val accountGroupWriter: AccountGroupWriter? = null,
-    val walletPrivate: WalletPrivateRepository? = null
+    val walletPrivate: WalletPrivateRepository? = null,
+    val fxSync: dev.valnook.domain.fx.FxRateSync = dev.valnook.domain.fx.UnavailableFxRateSync
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -141,6 +142,11 @@ object AppModule {
     @Provides
     @Singleton
     fun cloudBackupService(coordinator: dev.valnook.data.cloud.CloudBackupCoordinator): CloudBackupService = coordinator
+
+    @Provides
+    @Singleton
+    fun fxSyncEngine(database: ValnookDatabase, clock: Clock): dev.valnook.data.fx.FxSyncEngine =
+        dev.valnook.data.fx.createFxSyncCoordinator(database, clock)
 
     @Provides
     @Singleton

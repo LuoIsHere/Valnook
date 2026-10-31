@@ -55,6 +55,7 @@ class MainActivity:ComponentActivity() {
     override fun onStart() {
         super.onStart()
         lifecycleScope.launch { sessions.reconcileCloudSchedule() }
+        sessions.requestFxSync()
     }
     override fun onStop() {
         super.onStop()
