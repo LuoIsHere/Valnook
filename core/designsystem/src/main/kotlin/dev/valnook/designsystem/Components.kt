@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -101,19 +102,18 @@ import java.util.Locale
     val toggle_sign_description=if(numeric&&signed) stringResource(R.string.toggle_sign) else ""
     val bringIntoView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
     LaunchedEffect(requestAttention) { if(requestAttention) { kotlinx.coroutines.delay(100); bringIntoView.bringIntoView() } }
+    // The caller owns the text; the cursor is kept here, as the String text fields do, so ± can move it.
+    var cursor by remember { mutableStateOf(TextFieldValue(value)) }
+    val shown=cursor.copy(text=value)
     Box(Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoView).testTag("input-$label")) {
-    OutlinedTextField(value=value,onValueChange=on_change,label={Text(label)},singleLine=true,
+    OutlinedTextField(value=shown,onValueChange={cursor=it;if(it.text!=value)on_change(it.text)},label={Text(label)},singleLine=true,
         isError=error!=null, supportingText=if(error!=null) {{ ErrorMessage(error) }} else null,
         textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(12.dp),
         enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
         trailingIcon=if(numeric&&signed) {{
             IconButton(onClick={
-                val next=when {
-                    value.startsWith("-")->value.removePrefix("-")
-                    value.isBlank()->"-"
-                    else->"-$value"
-                }
-                on_change(next)
+                cursor=toggleSign(shown)
+                on_change(cursor.text)
             },enabled=enabled) { Text("±",modifier=Modifier.semantics {
                 contentDescription=toggle_sign_description
             }) }

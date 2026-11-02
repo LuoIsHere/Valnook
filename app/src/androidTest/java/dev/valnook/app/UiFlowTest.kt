@@ -845,8 +845,18 @@ class UiFlowTest {
         rule.onNodeWithContentDescription(editBalance).performClick()
         // The editor's amount field is labelled by its description; saving is the toolbar check mark.
         rule.waitUntil(15000) { rule.onAllNodesWithTag("cash-balance-input").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("cash-balance-input").assertContentDescriptionContains(balanceLabel)
-            .performTextReplacement("135.00")
+        // ± leaves the cursor on the same digits, so typing goes where it should.
+        val balanceInput = rule.onNodeWithTag("cash-balance-input").assertContentDescriptionContains(balanceLabel)
+        val toggleSign = rule.onNodeWithContentDescription("切换正负号")
+        balanceInput.performTextReplacement("")
+        toggleSign.performClick()
+        balanceInput.performTextInput("5")
+        balanceInput.assertTextEquals("-5")
+        balanceInput.performTextReplacement("43208.23")
+        toggleSign.performClick()
+        balanceInput.performTextInput("9")
+        balanceInput.assertTextEquals("-43208.239")
+        balanceInput.performTextReplacement("135.00")
         finish_input()
         rule.onNodeWithTag("cash-balance-save").performClick()
         wait_text("135.00")

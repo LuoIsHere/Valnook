@@ -63,6 +63,8 @@ data class CashBalanceToolbarState(val busy:Boolean,val enabled:Boolean,val labe
     val account=requireNotNull(state.account)
     val amountLabel=stringResource(R.string.cash_current_balance)
     val signLabel=stringResource(dev.valnook.core.designsystem.R.string.toggle_sign)
+    var cursor by remember { mutableStateOf(TextFieldValue(state.balanceInput)) }
+    val shown=cursor.copy(text=state.balanceInput)
     Column(Modifier.fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(pageContentPadding()),
         verticalArrangement=Arrangement.spacedBy(20.dp)) {
         Text(account.name,style=MaterialTheme.typography.titleMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
@@ -71,14 +73,14 @@ data class CashBalanceToolbarState(val busy:Boolean,val enabled:Boolean,val labe
             Text(account.currency.code,style=MaterialTheme.typography.labelLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(verticalAlignment=Alignment.CenterVertically) {
                 Spacer(Modifier.width(48.dp))
-                BasicTextField(state.balanceInput,vm::changeBalance,enabled=submission.editable,singleLine=true,
+                BasicTextField(shown,{cursor=it;if(it.text!=state.balanceInput)vm.changeBalance(it.text)},enabled=submission.editable,singleLine=true,
                     modifier=Modifier.weight(1f).heightIn(min=60.dp).testTag("cash-balance-input").semantics{contentDescription=amountLabel},
                     textStyle=MaterialTheme.typography.displaySmall.copy(fontSize=(40f-(state.balanceInput.length-10).coerceAtLeast(0)*1.5f).coerceAtLeast(24f).sp,
                         color=MaterialTheme.colorScheme.onSurface,fontWeight=androidx.compose.ui.text.font.FontWeight.SemiBold,textAlign=TextAlign.Center,fontFeatureSettings="tnum"),
                     cursorBrush=SolidColor(MaterialTheme.colorScheme.onSurface),
                     keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal,imeAction=ImeAction.Done),
                     keyboardActions=KeyboardActions(onDone={focus.clearFocus();keyboard?.hide()}))
-                IconButton({vm.changeBalance(if(state.balanceInput.startsWith("-"))state.balanceInput.removePrefix("-")else "-"+state.balanceInput)},
+                IconButton({cursor=toggleSign(shown);vm.changeBalance(cursor.text)},
                     enabled=submission.editable,modifier=Modifier.semantics{contentDescription=signLabel}){Text("±")}
             }
         }
