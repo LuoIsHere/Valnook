@@ -78,7 +78,7 @@ import java.time.*
                     val candidates = cashAccounts.filter { it.currency == state.currency }
                     if (candidates.isEmpty()) Text(stringResource(R.string.investment_cash_missing), color = MaterialTheme.colorScheme.error)
                     else ChoiceField(stringResource(R.string.investment_cash_account), state.cashAccountId?.toString().orEmpty(),
-                        candidates.map { it.id.toString() to (it.name + " 路 " + it.currency.code + " 路 " +
+                        candidates.map { it.id.toString() to (it.name + " · " + it.currency.code + " · " +
                             dev.valnook.domain.money.DecimalRules.format_display(it.balance_minor, it.currency.fraction_digits)) },
                         { vm.selectCashAccount(it.toLong()) }, submission.editable)
                 }
@@ -140,7 +140,7 @@ import java.time.*
     FormLayout(stringResource(R.string.instrument_price_edit_title),
         submission.phase == SubmissionPhase.WORKING,
         submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
-        Text(listOf(state.name, state.symbol, state.currency.code).filter { it.isNotBlank() }.joinToString(" 路 "),
+        Text(listOf(state.name, state.symbol, state.currency.code).filter { it.isNotBlank() }.joinToString(" · "),
             style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.instrument_price_shared_hint),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

@@ -277,6 +277,7 @@ class UiFlowTest {
         wait_text("交易历史")
         click_list("更新当前价格")
         wait_text("该当前价格由此标的在所有账户中共用。")
+        rule.onNodeWithText("合成投资 · TEST · CNY").assertExists()
         rule.onNodeWithText("当前每份价格（最多5位小数）").performTextReplacement("105")
         save()
         wait_text("交易历史")
@@ -410,6 +411,7 @@ class UiFlowTest {
         }
         click_list("修改来源买卖记录")
         wait_text("成交单价")
+        rule.onNodeWithContentDescription(" · USD · ", substring = true).performScrollTo().assertExists()
         rule.onNode(isToggleable()).performScrollTo().assertIsOn().performClick()
         save()
         wait_text("这条流水已删除或已取消现金联动。")
