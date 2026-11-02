@@ -192,10 +192,11 @@ import java.util.Locale
                                 }
                                 Text(name,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
                                 val configured=if(code==pickerRates.baseCode) "1" else pickerRates.rates[code]
-                                Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
-                                    Text(configured ?: "1",Modifier.testTag("currency-rate-$code"),
+                                // Without a base there is nothing to convert into; a currency without a rate shows none.
+                                if(pickerRates.baseCode!=null) Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
+                                    Text(configured ?: "—",Modifier.testTag("currency-rate-$code"),
                                         style=MaterialTheme.typography.bodyMedium,textAlign=androidx.compose.ui.text.style.TextAlign.End)
-                                    if(configured==null)Text(stringResource(R.string.currency_rate_default),style=MaterialTheme.typography.bodySmall,
+                                    if(configured==null)Text(stringResource(R.string.currency_rate_missing),style=MaterialTheme.typography.bodySmall,
                                         color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                                 if(code==selected)Text("✓",color=MaterialTheme.colorScheme.primary)

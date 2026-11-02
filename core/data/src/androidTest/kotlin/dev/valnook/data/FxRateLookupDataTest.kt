@@ -99,6 +99,7 @@ class FxRateLookupDataTest {
         decimal("3272.5", home().amount)
         assertTrue(home().complete)
         decimal("3272.5", RoomStatistics(db, clock).loadCurrent().totalAssets)
+        assertTrue(RoomStatistics(db, clock).loadCurrent().complete)
         val points = series().points
         exact(octoberFirstValue, points[0].value)   // a past day uses its own stored rates
         decimal("3272.5", points[1].value)        // today follows home
@@ -110,19 +111,23 @@ class FxRateLookupDataTest {
         val total = home()
         decimal("3272.5", total.amount)
         assertEquals(setOf(MissingAmount(MissingKind.EXCHANGE_RATE, "KWD")), total.missing)
-        // The live point follows home: an incomplete total has no value; past days leave KWD out.
-        assertNull(RoomStatistics(db, clock).loadCurrent().totalAssets)
+        // The summary follows home and the chart: the amount without KWD, marked incomplete.
+        val current = RoomStatistics(db, clock).loadCurrent()
+        decimal("3272.5", current.totalAssets)
+        assertFalse(current.complete)
         val past = series().points[0]
         exact(octoberFirstValue, past.value)
         assertFalse(past.complete)
     }
 
-    @Test fun manual_mode_still_counts_a_currency_without_any_rate_one_to_one() = runBlocking {
+    @Test fun manual_mode_also_leaves_out_a_currency_without_any_rate() = runBlocking {
         cash("KWD", 1_000, octoberFirst.atStartOfDay(zone).toInstant().toEpochMilli() + 3_600_000)
-        decimal("3273.5", home().amount)
-        assertTrue(home().complete)
-        decimal("3273.5", RoomStatistics(db, clock).loadCurrent().totalAssets)
-        exact(octoberFirstValue + BigDecimal.ONE, series().points[0].value)   // stored days count in manual mode too
+        decimal("3272.5", home().amount)
+        assertEquals(setOf(MissingAmount(MissingKind.EXCHANGE_RATE, "KWD")), home().missing)
+        assertFalse(RoomStatistics(db, clock).loadCurrent().complete)
+        val past = series().points[0]
+        exact(octoberFirstValue, past.value)   // stored days count in manual mode too; KWD is left out
+        assertFalse(past.complete)
     }
 
     private suspend fun summarySheet(): String {
@@ -155,7 +160,7 @@ class FxRateLookupDataTest {
 
         db.fx().setAutoEnabled(false)
         rows = rows(summarySheet())
-        assertTrue(rows.contains(listOf("缺失汇率口径", "未配置的非主币种按 1:1")))
+        assertTrue(rows.contains(listOf("缺失汇率口径", "没有可用汇率的币种不计入总额")))
         assertTrue(rows.contains(listOf("汇率", "USD/CNY", "7.1", "手动", "")))
         assertFalse(rows.any { it.firstOrNull() == "手动汇率" })
     }

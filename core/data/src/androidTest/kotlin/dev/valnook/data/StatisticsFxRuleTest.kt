@@ -153,10 +153,17 @@ class StatisticsFxRuleTest {
         assertTrue(series().take(4).none { it.complete })
     }
 
-    @Test fun data_that_never_used_automatic_rates_values_every_day_as_before() = runBlocking {
-        // Rule 3 valued every day at the current rates with 1:1 for missing ones: 1000 + 100 × 7 + 200 × 1.
+    @Test fun data_that_never_used_automatic_rates_leaves_out_a_currency_until_its_rate_is_saved() = runBlocking {
+        // Every day at the current rates, as under rule 3, but EUR has no rate: 1000 + 100 × 7, marked incomplete.
         series().take(5).forEach {
-            exact(BigDecimal("1900"), it.value)
+            exact(BigDecimal("1700"), it.value)
+            assertFalse(it.complete)
+        }
+        // Saving a EUR rate brings it back on every day without a stored rate.
+        RoomSettings(db, clock).applyChange(SaveFinancialSettings(1, Currency.of("CNY"), listOf(
+            FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7")), FxRate(Currency.of("EUR"), Currency.of("CNY"), BigDecimal("8")))))
+        series().take(5).forEach {
+            exact(BigDecimal("3300"), it.value)
             assertTrue(it.complete)
         }
     }

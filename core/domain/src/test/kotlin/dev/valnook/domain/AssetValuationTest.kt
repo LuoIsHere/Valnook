@@ -54,22 +54,26 @@ class AssetValuationTest {
         decimal("700", AssetValuation.calculate(snapshot("7.0")).realized.amount)
         assertEquals("100", snapshot().positions.first().realizedProfit)
     }
-    @Test fun missing_base_and_cost_stay_distinct_with_default_exchange_rates() {
+    @Test fun missing_base_cost_and_rate_stay_distinct() {
         val base = AssetValuation.calculate(snapshot().copy(settings = AppSettings()))
         assertNull(base.total.currency); assertTrue(base.total.missing.any { it.kind == MissingKind.BASE_CURRENCY })
+        // No USD pair: USD amounts are left out and named, not counted at 1:1.
         val pair = AssetValuation.calculate(snapshot().copy(settings = AppSettings(cny)))
-        assertTrue(pair.total.complete); decimal("3600", pair.total.amount)
+        assertFalse(pair.total.complete); decimal("1500", pair.total.amount)
+        assertEquals(setOf(MissingAmount(MissingKind.EXCHANGE_RATE, "USD")), pair.total.missing)
         val cost = AssetValuation.calculate(snapshot().copy(positions = listOf(position(1, cost = null))))
         assertTrue(cost.total.complete); assertFalse(cost.floating.complete); assertTrue(cost.realized.complete)
+        // A USD→CNY pair does not convert into HKD: nothing has a rate to HKD.
         val switched = AssetValuation.calculate(snapshot().copy(settings = snapshot().settings.copy(baseCurrency = Currency.of("HKD"))))
-        assertTrue(switched.total.complete); decimal("3600", switched.total.amount)
+        assertFalse(switched.total.complete); decimal("0", switched.total.amount)
+        assertEquals(setOf("CNY", "USD"), switched.total.missing.mapNotNull { it.currencyCode }.toSet())
     }
-    @Test fun default_one_applies_to_cash_deposits_market_and_profits_until_a_pair_is_set() {
+    @Test fun amounts_without_a_pair_are_left_out_of_cash_deposits_market_and_profits_until_one_is_set() {
         val input = snapshot().copy(settings = AppSettings(cny), positions = listOf(position(1, cost = "800")))
         val result = AssetValuation.calculate(input)
-        assertTrue(result.total.complete); assertTrue(result.floating.complete); assertTrue(result.realized.complete)
-        decimal("3600", result.total.amount); decimal("1600", result.cash.amount)
-        decimal("1000", result.investmentValue.amount); decimal("200", result.floating.amount); decimal("100", result.realized.amount)
+        assertFalse(result.total.complete); assertFalse(result.floating.complete); assertFalse(result.realized.complete)
+        decimal("1500", result.total.amount); decimal("1500", result.cash.amount)
+        decimal("0", result.investmentValue.amount); decimal("0", result.floating.amount); decimal("0", result.realized.amount)
         val configured = AssetValuation.calculate(input.copy(settings = snapshot().settings))
         decimal("16620", configured.total.amount); decimal("1440", configured.floating.amount); decimal("720", configured.realized.amount)
         assertEquals("800", input.positions.single().remainingCost)

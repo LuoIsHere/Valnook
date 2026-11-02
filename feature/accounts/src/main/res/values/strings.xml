@@ -15,7 +15,7 @@
     <string name="accounts_summary_incomplete">Total is incomplete: %1$s</string>
     <string name="accounts_partial_summary">Partial total · %1$s</string>
     <string name="accounts_missing_base">Base currency is not set</string>
-    <string name="accounts_missing_rate">No exchange rate for %1$s</string>
+    <string name="accounts_missing_rate">No rate for %1$s, left out; set one or turn on automatic rates in Settings › Exchange rates</string>
     <string name="accounts_missing_current_cost">Current cost is incomplete</string>
     <string name="accounts_missing_historical_cost">Historical cost is incomplete</string>
     <string name="accounts_invalid_history">Transaction history is invalid</string>

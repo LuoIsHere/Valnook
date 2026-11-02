@@ -69,7 +69,9 @@ data class CurrentStatistics(
     val availableCash: BigDecimal?,
     val investmentValue: BigDecimal?,
     val currency: Currency?,
-    val monthlyChange: MonthlyAssetChange
+    val monthlyChange: MonthlyAssetChange,
+    /** False when some currency had no exchange rate and was left out of these values, as on the chart. */
+    val complete: Boolean = true
 )
 
 data class StatisticsRequest(val metric: StatisticsMetric, val period: StatisticsPeriod)

@@ -112,9 +112,8 @@ internal class SpreadsheetWriter(
             sheet.row(text(label(english, "报表格式", "Report format")), number(BackupContract.REPORT_FORMAT_VERSION.toString()))
             sheet.row(text(label(english, "主币种", "Base currency")), text(base))
             val automatic = snapshot.fx.autoEnabled
-            sheet.row(text(label(english, "缺失汇率口径", "Missing FX rule")), text(if (automatic)
-                label(english, "没有可用汇率的币种不计入总额", "Currencies without any rate are left out of totals")
-                else label(english, "未配置的非主币种按 1:1", "Unconfigured non-base currencies use 1:1")))
+            sheet.row(text(label(english, "缺失汇率口径", "Missing FX rule")), text(
+                label(english, "没有可用汇率的币种不计入总额", "Currencies without any rate are left out of totals")))
             if (snapshot.settings.rates.isNotEmpty()) sheet.row(header(label(english, "项目", "Item")),
                 header(label(english, "货币对", "Pair")), header(label(english, "汇率", "Rate")),
                 header(label(english, "来源", "Source")), header(label(english, "数据日期", "Data date")))

@@ -81,8 +81,8 @@ class RoomStatistics(
             val computed = if (missing.isEmpty()) emptyMap() else compute(readSource(header, missing), missing)
             if (computed.isNotEmpty()) commit(header.state.source_revision, computed)
             val values = cached + computed
-            // The summary shows only complete totals; the chart draws incomplete ones with a marker.
-            val current = readCurrent(header).completeOnly()
+            // Same values as today's chart point: an amount left without a rate is shown and marked incomplete.
+            val current = readCurrent(header)
             val change = if (previousMonthEnd < baselineDate) {
                 MonthlyAssetChange(null, header.settings.baseCurrency, null, "baseline_unavailable")
             } else {
@@ -90,8 +90,10 @@ class RoomStatistics(
                 MonthlyAssetChange(previous?.let { current.total?.subtract(it) }, header.settings.baseCurrency,
                     previousMonthEnd, if (previous == null || current.total == null) "valuation_unavailable" else null)
             }
+            val previous = values[previousMonthEnd]
             CurrentStatistics(current.total, current.cash, current.investment,
-                header.settings.baseCurrency, change)
+                header.settings.baseCurrency, change, complete = current.complete &&
+                    (previousMonthEnd < baselineDate || previous == null || previous.totalComplete))
         }
     }
 
@@ -318,7 +320,6 @@ class RoomStatistics(
             StatisticsMetric.INVESTMENT_VALUE -> investmentComplete
         }
         fun point(metric: StatisticsMetric) = Point(forMetric(metric), completeFor(metric))
-        fun completeOnly() = Values(total.takeIf { totalComplete }, cash.takeIf { cashComplete },
-            investment.takeIf { investmentComplete })
+        val complete: Boolean get() = totalComplete && cashComplete && investmentComplete
     }
 }

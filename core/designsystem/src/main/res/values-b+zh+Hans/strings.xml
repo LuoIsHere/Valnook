@@ -8,7 +8,7 @@
     <string name="no_currency_match">没有匹配的可添加币种。</string>
     <string name="currency_rate_to">汇率 → %1$s</string>
     <string name="currency_rate_no_base">汇率 · 尚未设置主币种</string>
-    <string name="currency_rate_default">默认</string>
+    <string name="currency_rate_missing">无汇率</string>
     <string name="add_currency_account">添加币种账户</string>
     <string name="cash_changes">余额变化</string>
     <string name="net_cash_change">本次余额变化：%1$s %2$s</string>

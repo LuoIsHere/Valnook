@@ -110,7 +110,7 @@ class FxSettingsUiTest {
         rule.waitUntil(5_000) { sync.calls == listOf("auto:false") }
         rate(0).assertIsEnabled().assertTextContains("6.66")
         rule.onNodeWithTag("fx-add").assertExists()
-        rule.onNodeWithText("未设置汇率的币种按 1:1 折算").assertExists()
+        rule.onNodeWithText("未设置汇率的外币不计入总额").assertExists()
     }
 
     @Test fun unsaved_edits_then_notice_with_dont_show_again() {

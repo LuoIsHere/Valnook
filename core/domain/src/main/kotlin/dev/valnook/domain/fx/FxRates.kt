@@ -28,10 +28,10 @@ class FxRateResolver(settings: AppSettings, private val context: FxContext) {
     }
 
     /**
-     * The rate a total uses; null means the currency is left out and the total marked incomplete. Manual mode still
-     * counts a currency without any rate at 1:1, as it always has; automatic mode reports it missing.
+     * The rate a total uses; null means the currency is left out and the total marked incomplete. Since v0.0.18 this
+     * holds in manual mode too: a currency without any rate is no longer counted at 1:1.
      */
-    fun today(code: String): BigDecimal? = known(code) ?: if (base != null && !context.autoEnabled) BigDecimal.ONE else null
+    fun today(code: String): BigDecimal? = known(code)
 
     /** [known] rounded like the rates users type, for display next to a currency. */
     fun display(code: String): BigDecimal? = known(code)?.setScale(12, RoundingMode.HALF_EVEN)?.stripTrailingZeros()

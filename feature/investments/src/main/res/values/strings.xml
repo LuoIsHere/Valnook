@@ -6,7 +6,7 @@
     <string name="investment_set_base">Set a base currency</string>
     <string name="investment_incomplete">Incomplete · %1$s</string>
     <string name="investment_missing_base">Base currency is not set</string>
-    <string name="investment_missing_rate">No exchange rate for %1$s</string>
+    <string name="investment_missing_rate">No rate for %1$s, left out; set one or turn on automatic rates in Settings › Exchange rates</string>
     <string name="investment_missing_current_cost">Holding cost is incomplete</string>
     <string name="investment_missing_historical_cost">Historical cost is incomplete</string>
     <string name="investment_invalid_history">Transaction history is invalid</string>

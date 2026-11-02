@@ -8,7 +8,7 @@
     <string name="no_currency_match">No matching currency can be added.</string>
     <string name="currency_rate_to">Rate → %1$s</string>
     <string name="currency_rate_no_base">Rate · base currency not set</string>
-    <string name="currency_rate_default">Default</string>
+    <string name="currency_rate_missing">No rate</string>
     <string name="add_currency_account">Add currency account</string>
     <string name="cash_changes">Balance changes</string>
     <string name="net_cash_change">Balance change: %1$s %2$s</string>

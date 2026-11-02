@@ -368,19 +368,23 @@ class StatisticsRepositoryTest {
         decimal("240", requireNotNull(corrected.points[1].value))
     }
 
-    @Test fun allHistoricalPointsUseCurrentManualRateAndMissingRateFallsBackToOne() = runBlocking {
+    @Test fun allHistoricalPointsUseCurrentManualRateAndMissingRateIsLeftOut() = runBlocking {
         db.openHelper.writableDatabase.execSQL("UPDATE instruments SET currency_code='USD'")
         db.openHelper.writableDatabase.execSQL("UPDATE instrument_price_history SET currency_code='USD'")
         db.statistics().invalidate(octoberFirst.toEpochDay())
         val repository = RoomStatistics(db, clock)
-        decimal("240", requireNotNull(repository.loadCurrent().investmentValue))
+        // No USD rate: the investments are left out and the summary is marked incomplete, as on the chart.
+        decimal("0", requireNotNull(repository.loadCurrent().investmentValue))
+        assertFalse(repository.loadCurrent().complete)
         val writer = RoomSettings(db, clock)
         var settings = writer.applyChange(SaveFinancialSettings(1, Currency.of("CNY"), listOf(
             FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("7.2")))))
         decimal("1728", requireNotNull(repository.loadCurrent().investmentValue))
+        assertTrue(repository.loadCurrent().complete)
         settings = writer.applyChange(SaveFinancialSettings(settings.revision, Currency.of("CNY"), emptyList()))
         assertTrue(settings.rates.isEmpty())
-        decimal("240", requireNotNull(repository.loadCurrent().investmentValue))
+        decimal("0", requireNotNull(repository.loadCurrent().investmentValue))
+        assertFalse(repository.loadCurrent().complete)
     }
 
     @Test fun clockRollbackBeforeBaselineReturnsUnknownCurrentWithoutChangingSources() = runBlocking {

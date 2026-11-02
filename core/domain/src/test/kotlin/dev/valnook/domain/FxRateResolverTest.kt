@@ -32,11 +32,10 @@ class FxRateResolverTest {
         assertNull(rates.known("GBP"))
     }
 
-    @Test fun manual_mode_keeps_one_to_one_for_currencies_without_any_rate() {
+    @Test fun manual_mode_leaves_out_currencies_without_any_rate_too() {
         val rates = FxRateResolver(settings, FxContext(autoEnabled = false, latest = stored))
         decimal("7.8125", rates.today("EUR"))                    // stored days still count in manual mode
-        decimal("1", rates.today("GBP"))
-        assertNull(rates.known("GBP"))
+        assertNull(rates.today("GBP"))
         assertNull(FxRateResolver(AppSettings(), FxContext()).today("USD"))
     }
 
@@ -61,10 +60,10 @@ class FxRateResolverTest {
         assertEquals(result.total.missing, result.accounts.single().cash.missing)
     }
 
-    @Test fun manual_mode_totals_are_unchanged_without_stored_rates() {
+    @Test fun manual_mode_totals_leave_out_currencies_without_a_rate() {
         val result = AssetValuation.calculate(snapshot(FxContext()))
-        // As before: EUR and KWD have no rate and count 1:1 (1000 + 710 + 200 + 1.000).
-        decimal("1911", result.total.amount)
-        assertTrue(result.total.complete)
+        // EUR and KWD have no rate: 1000 CNY + 100 USD × 7.1, both named as missing.
+        decimal("1710", result.total.amount)
+        assertEquals(setOf("EUR", "KWD"), result.total.missing.mapNotNull { it.currencyCode }.toSet())
     }
 }

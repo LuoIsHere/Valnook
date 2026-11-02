@@ -310,6 +310,60 @@ class FxSyncCoordinatorTest {
     }
 
 
+    @Test fun switching_back_on_the_same_day_replaces_manual_rates_without_a_request() = runBlocking {
+        sync.sync(FxSyncTrigger.START)
+        db.fx().setAutoEnabled(false)
+        RoomSettings(db, clock).applyChange(SaveFinancialSettings(db.overview().settings()!!.revision, Currency.of("CNY"), listOf(
+            FxRate(Currency.of("USD"), Currency.of("CNY"), BigDecimal("9")), FxRate(Currency.of("CNY"), Currency.of("USD"), BigDecimal("0.14")))))
+        server.urls.clear()
+        db.fx().setAutoEnabled(true)
+        assertEquals(FxSyncOutcome.SUCCEEDED, sync.sync(FxSyncTrigger.ENABLED))
+        assertTrue(server.urls.isEmpty())
+        assertEquals(inverse("0.15028"), rates()[("USD" to "CNY")])
+    }
+
+    @Test fun a_base_change_during_a_running_sync_runs_once_it_finishes() = runBlocking {
+        // While the first request is in flight the base changes and its trigger arrives: it must not be lost.
+        server.onRequest = {
+            server.onRequest = {}
+            RoomSettings(db, clock).applyChange(SaveFinancialSettings(db.overview().settings()!!.revision, Currency.of("USD"), emptyList()))
+            assertEquals(FxSyncOutcome.SKIPPED, sync.sync(FxSyncTrigger.BASE_CHANGED))
+        }
+        assertEquals(FxSyncOutcome.DISCARDED, sync.sync(FxSyncTrigger.START))
+        withTimeout(10_000) {
+            while (db.fx().history("USD").isEmpty()) kotlinx.coroutines.delay(50)
+        }
+        assertTrue(server.urls.any { it.contains("base=USD") })
+        assertTrue(db.fx().history("CNY").isEmpty())
+    }
+
+    @Test fun a_long_gap_is_stored_a_year_at_a_time_and_resumes_after_a_failure() = runBlocking {
+        val baseline = date("2024-01-01")
+        db.openHelper.writableDatabase.execSQL("UPDATE statistics_state SET baseline_at_ms=? WHERE id=1",
+            arrayOf(baseline.atStartOfDay(shanghai).toInstant().toEpochMilli()))
+        var day = date("2023-12-20")
+        while (day <= date("2026-10-31")) {
+            server.published.getValue("USD")[day] = "0.1" + (day.toEpochDay() % 1000).toString().padStart(3, '0')
+            day = day.plusDays(1)
+        }
+        // The third request (the second year's range) fails.
+        server.onRequest = { if (server.urls.size == 3) throw IOException("offline") }
+        assertEquals(FxSyncOutcome.FAILED, sync.sync(FxSyncTrigger.START))
+        assertEquals(listOf("date=2024-01-01", "from=2024-01-02&to=2024-12-31", "from=2025-01-01&to=2025-12-31"), queries())
+        var usd = db.fx().history("CNY").filter { it.quote_currency == "USD" }.map { it.local_day }
+        assertEquals((day("2024-01-01")..day("2024-12-31")).toList(), usd)   // the first year stays stored
+        assertEquals("NETWORK", db.fx().localState()!!.last_error)
+        assertNull(db.fx().localState()!!.last_success_day)
+
+        server.onRequest = {}
+        server.urls.clear()
+        assertEquals(FxSyncOutcome.SUCCEEDED, sync.sync(FxSyncTrigger.ENABLED))
+        assertEquals(listOf("date=2025-01-01", "from=2025-01-02&to=2025-12-31", "from=2026-01-01&to=2026-10-28"), queries())
+        usd = db.fx().history("CNY").filter { it.quote_currency == "USD" }.map { it.local_day }
+        assertEquals((day("2024-01-01")..day("2026-10-28")).toList(), usd)   // no gap where it resumed
+        assertEquals(day("2026-10-28"), db.fx().localState()!!.last_success_day)
+    }
+
     @Test fun new_rates_invalidate_only_days_valued_at_today_s_rate() = runBlocking {
         // Every currency in use has a stored rate from the baseline on.
         (20..26).forEach { server.published.getValue("JPY")[date("2026-10-%02d".format(it))] = "23.%02d".format(it) }

@@ -455,7 +455,7 @@ internal class WebAdminApiRouter(
             put("dataGeneration", reads.generation()); put("currency", value.currency?.code)
             put("totalAssets", value.totalAssets?.let(::decimal)); put("availableCash", value.availableCash?.let(::decimal))
             put("investmentValue", value.investmentValue?.let(::decimal))
-            put("monthlyChange", value.monthlyChange.value?.let(::decimal))
+            put("monthlyChange", value.monthlyChange.value?.let(::decimal)); put("complete", value.complete)
         })
     }
 

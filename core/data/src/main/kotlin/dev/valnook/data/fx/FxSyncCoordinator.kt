@@ -84,6 +84,8 @@ internal class FxSyncCoordinator(
     private val running = MutableStateFlow(false)
     private val notice = MutableStateFlow<FxSyncNotice?>(null)
     private val singleFlight = Mutex()
+    /** A trigger that arrived while a sync was running and must not be lost (base change, switch on, onboarding). */
+    private val pending = java.util.concurrent.atomic.AtomicReference<FxSyncTrigger?>(null)
     private val audit = AuditRecorder(db, clock)
     @Volatile private var gate = FxWriteGate { it() }
 
@@ -123,13 +125,18 @@ internal class FxSyncCoordinator(
     }
 
     override suspend fun sync(trigger: FxSyncTrigger): FxSyncOutcome {
-        if (!singleFlight.tryLock()) return FxSyncOutcome.SKIPPED
+        if (!singleFlight.tryLock()) {
+            // The running sync already covers a start-up check or a manual update; the others change what to fetch.
+            if (trigger != FxSyncTrigger.START && trigger != FxSyncTrigger.MANUAL) pending.set(trigger)
+            return FxSyncOutcome.SKIPPED
+        }
         try {
             running.value = true
             return run(trigger)
         } finally {
             running.value = false
             singleFlight.unlock()
+            pending.getAndSet(null)?.let(::request)
         }
     }
 
@@ -156,44 +163,88 @@ internal class FxSyncCoordinator(
         if (!due(trigger, state.last_success_day, state.last_attempt_at_ms, state.last_error, now, today)) {
             return FxSyncOutcome.SKIPPED
         }
-        val snapshot = snapshot() ?: return FxSyncOutcome.SKIPPED
+        var snapshot = snapshot() ?: return FxSyncOutcome.SKIPPED
         val start = snapshot.lastDay?.plus(1) ?: snapshot.baselineDay ?: today
         val quotes = Currency.supported.map { it.code } - snapshot.base
-        val rows = if (start > today) emptyList() else try {
-            val first = client.rates(snapshot.base, quotes, LocalDate.ofEpochDay(start))
-            val rest = if (start < today) client.series(snapshot.base, quotes, LocalDate.ofEpochDay(start + 1), LocalDate.ofEpochDay(today))
-                else emptyList()
-            expandDaily(snapshot.base, start, today, first + rest, now)
+        // A long gap (such as the first sync from an old baseline) is fetched and stored a year at a time, so memory
+        // stays small and a failure keeps the years already stored; the next sync goes on from the last stored day.
+        // A chunk is one calendar year like the client's series requests, so each chunk is a single request.
+        var chunkStart = start
+        var carried = emptyList<FrankfurterRate>()
+        while (yearEnd(chunkStart) < today) {
+            val chunkEnd = yearEnd(chunkStart)
+            val points = try {
+                fetch(snapshot.base, quotes, chunkStart, chunkEnd, carried)
+            } catch (error: FrankfurterException) {
+                return fail(trigger, snapshot, now, error.error.toSyncError())
+            }
+            val rows = expandDaily(snapshot.base, chunkStart, chunkEnd, points, now)
+            var stored = false
+            try {
+                gate.write {
+                    db.withTransaction {
+                        if (!unchanged(snapshot)) return@withTransaction
+                        if (rows.isNotEmpty()) db.fx().insertHistory(rows)
+                        if (db.statistics().state() != null) db.statistics().invalidate(chunkStart)
+                        stored = true
+                    }
+                }
+            } catch (error: android.database.SQLException) {
+                return fail(trigger, snapshot, now, FxSyncError.STORAGE)
+            }
+            if (!stored) return FxSyncOutcome.DISCARDED
+            snapshot = snapshot.copy(lastDay = db.fx().lastHistoryDay(snapshot.base))
+            carried = points.groupBy { it.quote }.map { (_, values) -> values.maxBy { it.date } }
+            chunkStart = chunkEnd + 1
+        }
+        val rows = if (chunkStart > today) emptyList() else try {
+            expandDaily(snapshot.base, chunkStart, today, fetch(snapshot.base, quotes, chunkStart, today, carried), now)
         } catch (error: FrankfurterException) {
             return fail(trigger, snapshot, now, error.error.toSyncError())
         }
         var outcome = FxSyncOutcome.DISCARDED
         var missing = emptyList<String>()
         var dataDate: Long? = null
+        val finalSnapshot = snapshot
         try {
             gate.write {
                 db.withTransaction {
-                    if (!unchanged(snapshot)) return@withTransaction
+                    if (!unchanged(finalSnapshot)) return@withTransaction
                     if (rows.isNotEmpty()) db.fx().insertHistory(rows)
-                    // A clock set back before the stored days keeps the current rates.
-                    val changed = start <= today && replaceTodayRates(snapshot.base, today, now)
+                    // Today's stored row replaces the current rates even when nothing new was fetched (switched back
+                    // on the same day); a clock set back before the stored days keeps them.
+                    val rolledBack = finalSnapshot.lastDay != null && finalSnapshot.lastDay > today
+                    val changed = !rolledBack && replaceTodayRates(finalSnapshot.base, today, now)
                     dataDate = rows.maxOfOrNull { it.source_date } ?: db.fx().localState()?.data_date
                     check(db.fx().recordSuccess(today, now, dataDate) == 1)
                     // New rows change their own days; new current rates also change every day valued at today's rate.
-                    val from = listOfNotNull(start.takeIf { rows.isNotEmpty() },
-                        snapshot.baselineDay?.takeIf { changed }?.let { firstDayOnTodayRate(snapshot.base, it, today) }).minOrNull()
+                    val from = listOfNotNull(chunkStart.takeIf { rows.isNotEmpty() },
+                        finalSnapshot.baselineDay?.takeIf { changed }?.let { firstDayOnTodayRate(finalSnapshot.base, it, today) }).minOrNull()
                     if (from != null && db.statistics().state() != null) db.statistics().invalidate(from)
-                    missing = missingOn(snapshot.base, today)
+                    missing = missingOn(finalSnapshot.base, today)
                     outcome = FxSyncOutcome.SUCCEEDED
                 }
             }
         } catch (error: android.database.SQLException) {
-            return fail(trigger, snapshot, now, FxSyncError.STORAGE)
+            return fail(trigger, finalSnapshot, now, FxSyncError.STORAGE)
         }
         if (outcome == FxSyncOutcome.SUCCEEDED && missing.isNotEmpty() && trigger != FxSyncTrigger.MANUAL) {
             notice.value = FxSyncNotice(UUID.randomUUID().toString(), null, missing, dataDate?.let(LocalDate::ofEpochDay))
         }
         return outcome
+    }
+
+    /**
+     * The source's points for [from]..[to]: the single-day answer for [from] (each quote's nearest earlier value) and
+     * the published days after it. A later chunk carries the previous chunk's last point per quote instead.
+     */
+    private suspend fun fetch(base: String, quotes: List<String>, from: Long, to: Long,
+        carried: List<FrankfurterRate>): List<FrankfurterRate> {
+        val first = if (carried.isEmpty()) client.rates(base, quotes, LocalDate.ofEpochDay(from)) else emptyList()
+        val seriesFrom = if (carried.isEmpty()) from + 1 else from
+        val rest = if (seriesFrom <= to) client.series(base, quotes, LocalDate.ofEpochDay(seriesFrom), LocalDate.ofEpochDay(to))
+            else emptyList()
+        return carried + first + rest
     }
 
     private suspend fun fail(trigger: FxSyncTrigger, snapshot: Snapshot, now: Long,
@@ -306,6 +357,9 @@ internal class FxSyncCoordinator(
     companion object {
         const val RETRY_WAIT_MS = 30L * 60 * 1000
         const val MANUAL_DEBOUNCE_MS = 10_000L
+
+        /** The last day of the year that starts on [day]: a chunk when catching up a long gap. */
+        private fun yearEnd(day: Long) = LocalDate.ofEpochDay(day).plusYears(1).minusDays(1).toEpochDay()
 
         /**
          * Start-up syncs run once per local day and wait 30 minutes after a failure; a clock set back counts as the

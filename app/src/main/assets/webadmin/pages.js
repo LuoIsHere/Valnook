@@ -726,6 +726,7 @@ async function renderStatistics(refresh = false) {
   const [summary, dist, history] = await Promise.all([api("/api/v1/statistics/summary"), api("/api/v1/statistics/distribution"), api("/api/v1/statistics/history?granularity=DAILY&metric=TOTAL_ASSETS")]);
   const root = el("div");
   root.append(el("div", { class: "cards" }, metric(t("totalAssets"), fmt(summary.totalAssets, summary.currency)), metric(t("availableCash"), fmt(summary.availableCash, summary.currency)), metric(t("investmentValue"), fmt(summary.investmentValue, summary.currency)), metric(t("monthlyChange"), fmt(summary.monthlyChange, summary.currency), gainClass(summary.monthlyChange))));
+  if (summary.complete === false) root.append(el("p", { class: "subtle", text: t("incomplete") }));
   root.append(chart(history.items));
   [[t("accountDistribution"), dist.accounts], [t("assetTypeDistribution"), dist.assetTypes], [t("currencyDistribution"), dist.currencies]].forEach(([title, items]) => root.append(distribution(title, items, dist.currency)));
   replacePage(root, refresh);
@@ -987,7 +988,8 @@ function closeDrawer(force = false, immediate = false) {
 function hero(summary, primary) {
   return el("section", { class: "hero" }, metric(t(primary), fmt(summary[primary], summary.currency)),
     el("div", { class: "hero-details" }, ...["availableCash", "monthlyChange"].map(key =>
-      el("span", {}, el("span", { class: "subtle", text: t(key) }), el("strong", { class: key === "monthlyChange" ? gainClass(summary[key]) : "", text: fmt(summary[key], summary.currency) })))));
+      el("span", {}, el("span", { class: "subtle", text: t(key) }), el("strong", { class: key === "monthlyChange" ? gainClass(summary[key]) : "", text: fmt(summary[key], summary.currency) })))),
+    summary.complete === false ? el("p", { class: "subtle", text: t("incomplete") }) : null);
 }
 function toLocalDateTime(ms) { const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); }
 

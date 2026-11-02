@@ -1231,9 +1231,11 @@ class UiFlowTest {
         rule.onNodeWithContentDescription("币种:", substring = true).performScrollTo().performClick()
         rule.onNodeWithText("搜索代码或币种名称").performTextInput("EUR")
         rule.onNodeWithText("欧元").assertIsDisplayed()
-        rule.onNodeWithTag("currency-rate-EUR", useUnmergedTree = true).assertTextEquals("1")
+        // No EUR rate: the picker says so instead of the old 1:1.
+        rule.onNodeWithTag("currency-rate-EUR", useUnmergedTree = true).assertTextEquals("—")
+        rule.onNodeWithText("无汇率", useUnmergedTree = true).assertExists()
         rule.onNodeWithText("搜索代码或币种名称").performImeAction()
-        window_shot("currency-default-rate")
+        window_shot("currency-missing-rate")
         rule.onNodeWithText("搜索代码或币种名称").performTextReplacement("USD")
         rule.onNodeWithText("美元").assertIsDisplayed()
         rule.onNodeWithTag("currency-rate-USD", useUnmergedTree = true).assertTextEquals("7")
