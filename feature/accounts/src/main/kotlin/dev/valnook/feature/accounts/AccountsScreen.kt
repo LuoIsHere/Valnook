@@ -352,7 +352,7 @@ import java.time.LocalDate
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
                         CurrencyChoice(row.currency.code, { vm.changeRow(row.key, currency = Currency.of(it)) },
-                            submission.editable && !row.currencyLocked, Currency.supported.map { it.code to it.name })
+                            submission.editable && !row.currencyLocked, Currency.options(interfaceLanguage()))
                     }
                     Box(Modifier.weight(1.3f)) { Field(stringResource(R.string.account_balance), row.balanceInput,
                         { vm.changeRow(row.key, balance = it) }, true, submission.editable, signed = true, error = state.fieldErrors["${row.key}:balance"]?.name,

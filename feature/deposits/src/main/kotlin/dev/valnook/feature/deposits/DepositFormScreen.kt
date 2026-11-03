@@ -25,7 +25,7 @@ import java.time.LocalDate
         GlassCard {
         Column(Modifier.padding(Space.md), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         CurrencyChoice(state.currency.code, { value -> vm.update { it.copy(currency = Currency.of(value)) } },
-            submission.editable && vm.mode == DepositFormMode.CREATE, Currency.supported.map { it.code to it.name })
+            submission.editable && vm.mode == DepositFormMode.CREATE, Currency.options(interfaceLanguage()))
         if (vm.mode != DepositFormMode.CLOSE) {
             Field(stringResource(R.string.deposit_principal), state.principalInput, { value -> vm.update { it.copy(principalInput = value) } }, true, submission.editable)
             Field(stringResource(R.string.deposit_rate), state.rateInput, { value -> vm.update { it.copy(rateInput = value) } }, true, submission.editable)

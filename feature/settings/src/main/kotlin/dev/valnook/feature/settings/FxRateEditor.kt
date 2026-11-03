@@ -33,7 +33,7 @@ fun FxRateEditor(base: Currency?, rows: List<FxRateDraft>, busy: Boolean,
             Column(Modifier.padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 Box(Modifier.testTag("fx-base")) {
                     CurrencyChoice(base?.code.orEmpty(), { onBase(Currency.of(it)) }, !busy,
-                        Currency.supported.map { it.code to it.name }, glass = true)
+                        Currency.options(interfaceLanguage()), glass = true)
                 }
                 Text(if (base == null) stringResource(R.string.settings_no_base) else
                     stringResource(R.string.settings_fx_direction, base.code), style = MaterialTheme.typography.bodySmall,
@@ -99,7 +99,7 @@ private fun RateInput(index: Int, row: FxRateDraft, rows: List<FxRateDraft>, bas
             verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(0.38f)) {
                 CurrencyChoice(row.sourceCurrency.code, { onUpdate(index, Currency.of(it), null) }, editable,
-                    Currency.supported.map { it.code to it.name },
+                    Currency.options(interfaceLanguage()),
                     rows.filterIndexed { i, _ -> i != index }.map { it.sourceCurrency.code }.toSet() + base.code,
                     glass = true, field = { open ->
                         ActionButton(open, Modifier.fillMaxWidth().heightIn(min = 56.dp), enabled = editable) {

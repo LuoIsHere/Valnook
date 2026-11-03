@@ -114,7 +114,7 @@ import java.time.*
             { value -> vm.update { it.copy(typeId = value.toLong()) } }, submission.editable)
         CurrencyChoice(state.currency.code, { value -> vm.update {
             it.copy(currency = Currency.of(value), currencyPriceConfirmed = false)
-        } }, submission.editable && !state.currencyLocked, Currency.supported.map { it.code to it.name })
+        } }, submission.editable && !state.currencyLocked, Currency.options(interfaceLanguage()))
         Field(stringResource(R.string.instrument_current_price), state.priceInput,
             { value -> vm.update { it.copy(priceInput = value) } }, true, submission.editable)
         if (!state.currencyLocked && state.expectedRevision != null)
