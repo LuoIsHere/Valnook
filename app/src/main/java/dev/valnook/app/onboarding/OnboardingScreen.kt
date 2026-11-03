@@ -207,6 +207,9 @@ private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
                         Switch(state.draft.autoFx, vm::autoFx, enabled = !state.busy, modifier = Modifier.testTag("onboarding-fx-auto"))
                     }
                 }
+                Text(stringResource(if (state.draft.autoFx) R.string.onboarding_fx_auto_hint else R.string.onboarding_fx_auto_later_hint),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.testTag("onboarding-fx-auto-hint"))
                 // With automatic rates only the base is chosen here; the rate rows are fetched after finishing.
                 FxRateEditor(state.draft.base, if (state.draft.autoFx) emptyList() else state.draft.rates, state.busy, onBase = {
                     if (it != state.draft.base) {
@@ -214,9 +217,6 @@ private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
                     }
                 }, onAdd = vm::addRate, onUpdate = vm::updateRate, onRemove = vm::removeRate,
                     readOnly = state.draft.autoFx, showDefaultHint = !state.draft.autoFx)
-                if (state.draft.autoFx) Text(stringResource(R.string.onboarding_fx_auto_hint),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.testTag("onboarding-fx-auto-hint"))
                 state.error?.let {
                     Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("onboarding-error"))
                 }

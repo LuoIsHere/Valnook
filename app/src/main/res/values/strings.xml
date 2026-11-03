@@ -28,6 +28,7 @@
     <string name="wallet_delete_card">Delete card</string>
     <string name="title_card_faces">Card faces</string>
     <string name="onboarding_fx_auto_hint">Current rates are fetched after you finish; you can turn this off in Settings.</string>
+    <string name="onboarding_fx_auto_later_hint">You can turn this on later in Settings › Exchange rates.</string>
     <string name="fx_notice_failed_title">Exchange rates not updated</string>
     <string name="fx_notice_missing_title">Some currencies have no rate</string>
     <string name="fx_notice_network">No network connection; retrying in 30 minutes.</string>

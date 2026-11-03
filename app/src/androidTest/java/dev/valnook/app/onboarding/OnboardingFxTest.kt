@@ -67,12 +67,16 @@ class OnboardingFxTest {
         rule.runOnIdle { vm.base(Currency.of("CNY")) }
         rule.waitUntil(5_000) { vm.state.value.draft.base != null }
         rule.onNodeWithTag("fx-add").assertExists()
+        val hint = rule.onNodeWithTag("onboarding-fx-auto-hint")
+        hint.assertTextEquals(context.getString(dev.valnook.app.R.string.onboarding_fx_auto_later_hint))
 
         rule.onNodeWithTag("onboarding-fx-auto").performClick()
         rule.onNodeWithTag("fx-notice").assertExists()
         rule.onNodeWithTag("fx-notice-cancel").performClick()
         rule.waitUntil(5_000) { !vm.state.value.fxNotice }
         assertTrue(!vm.state.value.draft.autoFx)
+        rule.onNodeWithTag("onboarding-fx-auto").assertIsOff()
+        hint.assertTextEquals(context.getString(dev.valnook.app.R.string.onboarding_fx_auto_later_hint))
 
         rule.onNodeWithTag("onboarding-fx-auto").performClick()
         rule.onNodeWithTag("fx-notice-skip").performClick()
@@ -80,7 +84,7 @@ class OnboardingFxTest {
         rule.waitUntil(5_000) { vm.state.value.draft.autoFx }
         assertTrue(store.read().autoFx)
         rule.onAllNodesWithTag("fx-add").assertCountEquals(0)
-        rule.onNodeWithTag("onboarding-fx-auto-hint").assertExists()
+        hint.assertTextEquals(context.getString(dev.valnook.app.R.string.onboarding_fx_auto_hint))
 
         rule.onNodeWithTag("onboarding-finish").performClick()
         rule.waitUntil(5_000) { vm.state.value.draft.step == OnboardingStep.READY }
