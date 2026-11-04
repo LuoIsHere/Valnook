@@ -10,7 +10,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
@@ -73,9 +72,10 @@ class WalletImageCache(private val repository: WalletRepository) {
 }
 
 @Composable internal fun WalletCardView(card:WalletCard,cache:WalletImageCache,modifier:Modifier=Modifier,
-    preview:WalletImage?=null,raised:Boolean=false,glow:(()->Float)?=null) {
+    preview:WalletImage?=null,raised:Boolean=false,glow:(()->Float)?=null,shadow:()->Float={1f}) {
     var tint by remember(card.imageKey,preview?.key) { mutableLongStateOf(card.imageKey?.let{cache.peek(it)?.tint}?:0xff555555L) }
     val shape=RoundedCornerShape(18.dp)
+    val elevation=if(raised)16.dp else 5.dp
     BoxWithConstraints(modifier.widthIn(max=440.dp).fillMaxWidth().aspectRatio(WalletRules.ASPECT)) {
         val density=androidx.compose.ui.platform.LocalDensity.current
         val edge=with(density){maxWidth.roundToPx()}.coerceAtMost(1600)
@@ -86,8 +86,12 @@ class WalletImageCache(private val repository: WalletRepository) {
             value?.let { tint=it.tint }
         }
         glow?.let { WalletGlow(it,shape,Modifier.matchParentSize()) { WalletCardFace(card,image) } }
+        // [shadow] is read while drawing, so fading it never recomposes the card.
         Box(Modifier.matchParentSize()
-            .shadow(if(raised)16.dp else 5.dp,shape,clip=false,ambientColor=Color(tint.toInt()),spotColor=Color(tint.toInt()))
+            .graphicsLayer{
+                this.shape=RoundedCornerShape(18.dp);clip=false;shadowElevation=elevation.toPx()*shadow()
+                ambientShadowColor=Color(tint.toInt());spotShadowColor=Color(tint.toInt())
+            }
             .clip(shape).testTag("wallet-card-${card.id}")) {
             WalletCardFace(card,image)
         }

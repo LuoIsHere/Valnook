@@ -65,6 +65,7 @@ import java.time.*
             val width=(maxWidth-48.dp).coerceAtMost(440.dp).coerceAtMost(maxHeight*.7f)
             val headerHeight=width/WalletRules.ASPECT+24.dp
             val headerPx=with(LocalDensity.current){headerHeight.toPx()}
+            val panelCorner=24.dp
             val nested=remember(headerPx){object:NestedScrollConnection {
                 override fun onPreScroll(available:Offset,source:NestedScrollSource):Offset {
                     if(available.y>=0)return Offset.Zero
@@ -80,22 +81,22 @@ import java.time.*
             var shownMonth by rememberSaveable { mutableStateOf(ledger.month.toString()) }
             LaunchedEffect(ledger.month){if(shownMonth!=ledger.month.toString()){list.scrollToItem(0);shownMonth=ledger.month.toString()}}
             Column(Modifier.fillMaxSize().nestedScroll(nested).padding(top=LocalPageTopSpace.current,bottom=LocalPageBottomSpace.current)) {
-                // At rest the card's glow spreads on every side. As the header starts to collapse the glow fades out
-                // while the bottom clip closes in, so the card never shows below the header and nothing is cut abruptly.
+                // At rest the card's glow spreads on every side. As the header collapses the glow fades out and the clip
+                // closes in, but always reaches past the opaque panel's rounded corners: the panel covers the card, not the clip.
                 Box(Modifier.fillMaxWidth().height(headerHeight*(1-collapse)).drawWithContent {
-                    clipRect(-size.width,-size.height,size.width*2,size.height+64.dp.toPx()*glowFade()){this@drawWithContent.drawContent()}
+                    clipRect(-size.width,-size.height,size.width*2,size.height+maxOf(panelCorner.toPx(),64.dp.toPx()*glowFade())){this@drawWithContent.drawContent()}
                 },contentAlignment=Alignment.TopCenter) {
                     WalletFlippingCard(card,cache,privateState,cardModifier.width(width).requiredHeight(width/WalletRules.ASPECT).graphicsLayer {
                         translationY=-headerPx*collapse*.25f
-                        // Stay opaque until the glow has faded: a translucent layer composites offscreen at the card's
-                        // bounds and would cut the glow down to a rectangle. Still gone at 80% collapse, as before.
+                        // Stay opaque until the glow and shadow have faded: a translucent layer composites offscreen at the
+                        // card's bounds and would cut them down to a rectangle. Still gone at 80% collapse, as before.
                         val visible=((.8f-collapse)/.7f).coerceIn(0f,1f)
                         alpha=if(returning)maxOf(visible,(progress()*4).coerceIn(0f,1f))else visible
                     }.semantics{contentDescription=card.name}.clickable(interactionSource=remember{androidx.compose.foundation.interaction.MutableInteractionSource()},
                         indication=null,enabled=returnEnabled&&collapse<.8f&&privateState.angle.value==0f&&!privateState.desiredBack,
-                        onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled,{glow()*glowFade()})
+                        onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled,{glow()*glowFade()},::glowFade)
                 }
-                GlassSurface(Modifier.fillMaxWidth().weight(1f,fill=false).padding(horizontal=16.dp).then(panelMotion),RoundedCornerShape(24.dp)) {
+                GlassSurface(Modifier.fillMaxWidth().weight(1f,fill=false).padding(horizontal=16.dp).then(panelMotion),RoundedCornerShape(panelCorner),tintAlpha=1f) {
                     LazyColumn(Modifier.fillMaxWidth().testTag("wallet-ledger"),state=list,
                         contentPadding=PaddingValues(start=18.dp,end=18.dp,top=16.dp,bottom=24.dp)) {
                         if(card.boundCashAccountId==null) {

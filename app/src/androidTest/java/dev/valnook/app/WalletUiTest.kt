@@ -565,6 +565,61 @@ class WalletUiTest {
         // A tap during the return must not leave Wallet.
         rule.onNodeWithTag("wallet-stack").assertExists()
     }
+    @Test fun detail_panel_covers_the_card_with_its_rounded_top_and_no_square_shadow() {
+        // One strong colour tells any card pixel from the page at a glance.
+        val id=runBlocking{
+            val bitmap=Bitmap.createBitmap(1000,631,Bitmap.Config.ARGB_8888);bitmap.eraseColor(0xffd02828.toInt())
+            val image=WalletImageCodec.encode(bitmap,1f,0f,0f);bitmap.recycle()
+            wallet.save(null,null,"Cover",null,image.key,image)
+        }
+        val vm=rule.runOnUiThread{WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle(),null,graph.walletPrivate)}
+        fun dp(value:Float)=with(rule.density){value.dp.toPx()}
+        for(dark in listOf(false,true)) {
+            rule.runOnUiThread{vm.select(null);rule.activity.setContent{key(dark){ValnookTheme(dark_theme=dark){WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}}}
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+            rule.waitForIdle()
+            rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick()
+            rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-ledger").fetchSemanticsNodes().isNotEmpty()}
+            rule.waitForIdle()
+            val scene=rule.onNodeWithTag("wallet-scene").fetchSemanticsNode().boundsInRoot
+            fun panel()=rule.onNodeWithTag("wallet-ledger").fetchSemanticsNode().boundsInRoot
+            val restTop=panel().top
+            // The overview's copy of the card stays composed underneath; the detail's sits right above the panel.
+            val card=rule.onAllNodesWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNodes().map{it.boundsInRoot}
+                .minBy{kotlin.math.abs(restTop-it.bottom-dp(24f))}
+            val header=restTop-card.top
+            fun pixel(x:Float,y:Float)=rule.onNodeWithTag("wallet-scene").captureToImage().asAndroidBitmap()
+                .let{shot->shot.getPixel((x-scene.left).toInt(),(y-scene.top).toInt()).also{shot.recycle()}}
+            fun distance(a:Int,b:Int)=maxOf(kotlin.math.abs(android.graphics.Color.red(a)-android.graphics.Color.red(b)),
+                kotlin.math.abs(android.graphics.Color.green(a)-android.graphics.Color.green(b)),
+                kotlin.math.abs(android.graphics.Color.blue(a)-android.graphics.Color.blue(b)))
+            val page=pixel(scene.left+dp(4f),scene.bottom-dp(4f))
+            val up={distance:Float->rule.onNodeWithTag("wallet-ledger").performTouchInput{moveBy(androidx.compose.ui.geometry.Offset(0f,-distance))}
+                repeat(2){rule.mainClock.advanceTimeByFrame()}}
+            rule.mainClock.autoAdvance=false
+            try {
+                rule.onNodeWithTag("wallet-ledger").performTouchInput{down(center)}
+                up(dp(12f))
+                val slopTop=panel().top
+                // Just past the glow's fade, while the card's bottom corners still clear the panel: only a shadow could show here.
+                up(header*.11f-(restTop-slopTop))
+                val fraction=(restTop-panel().top)/header
+                assertTrue("Collapse should sit between the glow's fade and the panel: $fraction",fraction>.1f&&fraction<.12f)
+                // 4.2dp in on the diagonal is about 1.5dp outside the card's 18dp corner, where a shadow is strongest.
+                val corner=pixel(card.left+dp(4.2f),card.bottom-header*fraction*.25f-dp(4.2f))
+                assertTrue("dark=$dark: the card's rounded corner shows the page, not a square shadow: ${Integer.toHexString(corner)} vs ${Integer.toHexString(page)}",distance(corner,page)<=4)
+                // Further up the card's bottom edge is well under the panel: past the panel's rounded corner the card must still show.
+                up(header*.45f-(restTop-panel().top))
+                val top=panel().top;val x=card.left+dp(1.5f)
+                val above=pixel(x,top-dp(6f));val beside=pixel(x,top+dp(2f))
+                assertTrue("dark=$dark: the card is visible above the panel: ${Integer.toHexString(above)}",distance(above,page)>40)
+                assertTrue("dark=$dark: the card runs on behind the panel's rounded corner: ${Integer.toHexString(beside)} vs ${Integer.toHexString(above)}",distance(beside,above)<=16)
+                rule.onNodeWithTag("wallet-ledger").performTouchInput{up()}
+                rule.mainClock.advanceTimeByFrame()
+            } finally { rule.mainClock.autoAdvance=true }
+        }
+    }
+
     @Test fun detail_glow_spreads_the_edge_colour_and_follows_the_card_in_and_out() {
         // Red left half, blue right half: each side of the card must glow in its own edge colour.
         val id=runBlocking{
