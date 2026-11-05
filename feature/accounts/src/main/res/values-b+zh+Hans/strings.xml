@@ -54,7 +54,8 @@
     <string name="account_review_retry">核对并重试</string>
     <string name="account_save">保存</string>
     <string name="account_unknown_result">保存结果待确认，请重试；不会重复记账。</string>
-    <string name="account_section_count">共 %1$d 项</string>
+    <string name="account_section_total">合计</string>
+    <string name="account_trend_description">净资产走势</string>
     <string name="account_tab_deposits">定期</string>
     <string name="account_order_children">子账户排序</string>
     <string name="account_order_cancel">取消</string>

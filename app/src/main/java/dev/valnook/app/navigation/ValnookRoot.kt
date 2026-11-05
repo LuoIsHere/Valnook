@@ -324,7 +324,8 @@ private fun SessionRoot(
     val toolbarScrollState = rememberToolbarScrollState(stack)
     val toolbarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(toolbarScrollState)
     val toolbarBackgroundAlpha by animateFloatAsState(
-        if (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f) 1f else 0f,
+        // The account page's balance moves up into the bar, so the bar stays clear there; nothing scrolls under it.
+        if (current !is AccountKey && (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f)) 1f else 0f,
         animationSpec = tween(120), label = "toolbar-background")
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
@@ -357,6 +358,8 @@ private fun SessionRoot(
         { value: NavigationToolbarState? -> navigationToolbar = value }
     }
 
+    var accountTitleReserve by remember(graph.sessionId) { mutableIntStateOf(0) }
+    val updateAccountTitleReserve = remember(graph.sessionId) { { value: Int -> accountTitleReserve = value } }
     var deleteTarget by remember(graph.sessionId) { mutableStateOf<Pair<Long, Long?>?>(null) }
     deleteTarget?.let { (accountId, cashId) ->
         dev.valnook.feature.accounts.AccountDeletionDialog(graph.commands, accountId, cashId,
@@ -390,7 +393,8 @@ private fun SessionRoot(
                         }
                         if(walletCurrent) androidx.compose.animation.Crossfade(title,Modifier.weight(1f),animationSpec=tween(160),label="wallet-title") { value ->
                             Text(value,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                        } else Text(title, Modifier.weight(1f), maxLines = 2)
+                        } else Text(title, Modifier.weight(1f).padding(end =
+                            if (current is AccountKey) with(density) { accountTitleReserve.toDp() } else 0.dp), maxLines = 2)
                     }
                     if (active.mode == DataMode.DEMO) Text(
                         stringResource(dev.valnook.feature.settings.R.string.settings_demo_banner),
@@ -464,6 +468,7 @@ private fun SessionRoot(
             CompositionLocalProvider(dev.valnook.designsystem.LocalAccountImageLoader provides accountImages,
                 LocalPageBottomSpace provides bottomSpace,
                 LocalPageTopSpace provides if (glassTop) padding.calculateTopPadding() else 0.dp,
+                dev.valnook.designsystem.LocalPageTopBarHeight provides barHeight,
                 LocalPageTitle provides title,
                 LocalCurrencyPickerRates provides pickerRates) {
                 val direction = LocalLayoutDirection.current
@@ -479,7 +484,8 @@ private fun SessionRoot(
                         transitionSpec = { NavigationMotion.forward(offset) },
                         popTransitionSpec = { NavigationMotion.back(offset) },
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
-                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave, updateAccountGroupsToolbar) { parent, cash ->
+                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave, updateAccountGroupsToolbar,
+                                updateAccountTitleReserve) { parent, cash ->
                                 deleteTarget = parent to cash
                             }
                             investmentEntries(graph, open, back, accountName)

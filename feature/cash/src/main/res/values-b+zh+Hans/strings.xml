@@ -33,4 +33,11 @@
     <string name="cash_due_in">还款日还有 %1$d 天</string>
     <string name="cash_statement_in">账单日还有 %1$d 天</string>
     <string name="cash_previous_balance">调整前余额 %1$s</string>
+    <string name="cash_section_credit">信用卡</string>
+    <string name="cash_section_savings">储蓄账户</string>
+    <string name="cash_section_info">账户信息</string>
+    <string name="cash_note_label">备注</string>
+    <string name="cash_limit_used">已用</string>
+    <string name="cash_limit_available">可用</string>
+    <string name="cash_limit_total">总额度</string>
 </resources>

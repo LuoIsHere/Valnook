@@ -1,14 +1,11 @@
 package dev.valnook.feature.cash
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.semantics.*
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -19,28 +16,50 @@ import dev.valnook.feature.cash.R as CashR
 import dev.valnook.domain.model.*
 import java.time.*
 
-@Composable fun CashScreen(vm:CashViewModel,on_open:(Long)->Unit) {
+@Composable fun CashScreen(vm:CashViewModel,creditExpansion:()->Float={1f},accountNote:String="",on_open:(Long)->Unit) {
     val state by vm.balances.collectAsStateWithLifecycle()
     val trends by vm.trends.collectAsStateWithLifecycle()
     when (val current = state) {
         CashBalancesState.Loading -> CircularProgressIndicator()
         CashBalancesState.Failed -> Text(stringResource(CashR.string.cash_balance_load_failed))
         is CashBalancesState.Ready -> CashContent(current.rows, current.allAccounts,
-            current.creditSourceLabels, trends) { on_open(it.id) }
+            current.creditSourceLabels, trends, creditExpansion, accountNote) { on_open(it.id) }
     }
 }
 @Composable fun CashContent(rows:List<CashAccount>,allAccounts:List<CashAccount> = rows,
     creditSourceLabels:Map<Long,String> = emptyMap(),
     trends:Map<Long,List<CashTrendPoint>> = emptyMap(),
+    creditExpansion:()->Float={1f},
+    accountNote:String="",
     on_open:(CashAccount)->Unit) {
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
+    val (credit,savings)=rows.partition { it.type==BalanceAccountType.CREDIT }
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
-        itemsIndexed(rows,key={_,cash->cash.id}) {index,cash->
-            val history_label=stringResource(R.string.cash_changes)+" · "+cash.name
-            CashBalanceSummary(cash,null,Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable{on_open(cash)}
-                .semantics{contentDescription=history_label}.padding(vertical=Space.sm), allAccounts,
-                creditSourceLabels, trends[cash.id].orEmpty())
-            if(index<rows.lastIndex)HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+        if(credit.isNotEmpty())item(key="credit") {
+            CashSection(stringResource(CashR.string.cash_section_credit),Modifier.testTag("cash-section-credit")) {
+                credit.forEachIndexed { index,cash ->
+                    if(index>0)CashRowDivider()
+                    CreditAccountRow(cash,allAccounts,creditSourceLabels,trends[cash.id].orEmpty(),creditExpansion){on_open(cash)}
+                }
+            }
+        }
+        if(savings.isNotEmpty())item(key="savings") {
+            CashSection(stringResource(CashR.string.cash_section_savings),Modifier.testTag("cash-section-savings")) {
+                savings.forEachIndexed { index,cash ->
+                    if(index>0)CashRowDivider()
+                    SavingsAccountRow(cash,trends[cash.id].orEmpty()){on_open(cash)}
+                }
+            }
+        }
+        if(accountNote.isNotBlank())item(key="info") {
+            CashSection(stringResource(CashR.string.cash_section_info),Modifier.testTag("cash-section-info")) {
+                Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(CashR.string.cash_note_label),style=MaterialTheme.typography.bodySmall,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(accountNote,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall,
+                        textAlign=androidx.compose.ui.text.style.TextAlign.End)
+                }
+            }
         }
     }
 }

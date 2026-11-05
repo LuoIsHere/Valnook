@@ -10,6 +10,8 @@ import androidx.compose.ui.unit.dp
 /** Space inside scrolling content, so its viewport still draws behind system UI/overlays. */
 val LocalPageBottomSpace = compositionLocalOf { 0.dp }
 val LocalPageTopSpace = compositionLocalOf { 0.dp }
+/** Height of the page title bar, for content that moves up into it while scrolling. */
+val LocalPageTopBarHeight = compositionLocalOf { 56.dp }
 
 @Composable
 fun pageContentPadding(horizontal: Dp = 16.dp, top: Dp = 8.dp, bottom: Dp = 16.dp): PaddingValues {

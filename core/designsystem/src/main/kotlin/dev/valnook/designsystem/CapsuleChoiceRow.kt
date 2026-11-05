@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.Role
 import kotlin.math.roundToInt
 
-private val capsuleBoundsConverter = TwoWayConverter<Rect, AnimationVector4D>(
+internal val capsuleBoundsConverter = TwoWayConverter<Rect, AnimationVector4D>(
     convertToVector = { AnimationVector4D(it.left, it.top, it.right, it.bottom) },
     convertFromVector = { Rect(it.v1, it.v2, it.v3, it.v4) },
 )

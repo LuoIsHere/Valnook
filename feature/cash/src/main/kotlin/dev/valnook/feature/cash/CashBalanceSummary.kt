@@ -15,6 +15,7 @@ import dev.valnook.domain.money.DecimalRules
 import dev.valnook.domain.model.BalanceAccountType
 import dev.valnook.domain.calculation.CreditBillingCalendar
 import dev.valnook.domain.calculation.CreditBillingFocus
+import dev.valnook.domain.calculation.CreditBillingStatus
 import dev.valnook.domain.calculation.CreditLimitCalculator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.unit.dp
@@ -25,7 +26,6 @@ import java.time.LocalDate
 @Composable fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?,
     modifier:Modifier=Modifier,allAccounts:List<CashAccount> = emptyList(),
     creditSourceLabels:Map<Long,String> = emptyMap(),
-    trend:List<dev.valnook.domain.model.CashTrendPoint>? = null,
     showBalance:Boolean = true) {
     Column(modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(Space.sm)) {
@@ -44,7 +44,6 @@ import java.time.LocalDate
                     color=if(account.type==BalanceAccountType.SAVINGS && account.balance_minor<0)
                         MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
             }
-            if(trend!=null)CashTrendChart(trend,account,Modifier.width(84.dp),compact=true)
             if(on_edit!=null)CompactEditButton(stringResource(R.string.cash_edit_balance),on_edit)
         }
         if(account.note.isNotBlank()) Text(account.note,style=MaterialTheme.typography.bodySmall)
@@ -76,12 +75,14 @@ import java.time.LocalDate
             }
             val billing=CreditBillingCalendar.calculate(LocalDate.now(),profile.statementDay,profile.dueRule)
             Text(stringResource(R.string.cash_statement_day,profile.statementDay),style=MaterialTheme.typography.bodySmall)
-            Text(when {
-                billing.daysRemaining==0L && billing.focus==CreditBillingFocus.STATEMENT -> stringResource(R.string.cash_statement_today)
-                billing.daysRemaining==0L -> stringResource(R.string.cash_due_today)
-                billing.focus==CreditBillingFocus.DUE -> stringResource(R.string.cash_due_in,billing.daysRemaining)
-                else -> stringResource(R.string.cash_statement_in,billing.daysRemaining)
-            },style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(creditBillingText(billing),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+}
+
+@Composable internal fun creditBillingText(billing:CreditBillingStatus):String = when {
+    billing.daysRemaining==0L && billing.focus==CreditBillingFocus.STATEMENT -> stringResource(R.string.cash_statement_today)
+    billing.daysRemaining==0L -> stringResource(R.string.cash_due_today)
+    billing.focus==CreditBillingFocus.DUE -> stringResource(R.string.cash_due_in,billing.daysRemaining)
+    else -> stringResource(R.string.cash_statement_in,billing.daysRemaining)
 }

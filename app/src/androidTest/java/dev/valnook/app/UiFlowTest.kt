@@ -192,7 +192,7 @@ class UiFlowTest {
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
         rule.onNodeWithTag("root-capsule").assertDoesNotExist()
-        listOf("账户", "定期", "投资").forEach { rule.onNodeWithText(it).assertExists() }
+        listOf("ACCOUNTS", "DEPOSITS", "INVESTMENTS").forEach { rule.onNodeWithTag("account-section-$it").assertExists() }
         open_account_edit()
         wait_text("编辑账户")
         rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
@@ -219,7 +219,7 @@ class UiFlowTest {
                 R.parse_e8("3"),LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),false))
         }
         wait_text("合成账户 A");rule.onNodeWithTag("account-total-$account_id").performClick()
-        rule.onNodeWithText("定期").performClick();wait_text("已到期，待结算");shot("deposit-matured")
+        rule.onNodeWithTag("account-section-DEPOSITS").performClick();wait_text("已到期，待结算");shot("deposit-matured")
         rule.onNodeWithText("结束存单").assertDoesNotExist()
         rule.onNodeWithText("修改存单记录").assertDoesNotExist()
         click_record("deposit-record-1");wait_text("存单详情");shot("deposit-record-detail")
@@ -270,8 +270,7 @@ class UiFlowTest {
         }
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performClick()
-        wait_text("投资")
-        rule.onNodeWithText("投资").performClick()
+        rule.onNodeWithTag("account-section-INVESTMENTS").performClick()
         wait_text("合成投资")
         rule.onNodeWithText("合成投资").performClick()
         wait_text("交易历史")
@@ -478,7 +477,7 @@ class UiFlowTest {
         }
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performClick()
-        rule.onNodeWithText("投资").performClick()
+        rule.onNodeWithTag("account-section-INVESTMENTS").performClick()
         wait_text("TINY")
         rule.onNodeWithText("0.00%").assertIsDisplayed()
         rule.onAllNodesWithText("+0.00", substring = true).assertCountEquals(0)
@@ -506,7 +505,7 @@ class UiFlowTest {
         }
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performClick()
-        rule.onNodeWithText("投资").performClick()
+        rule.onNodeWithTag("account-section-INVESTMENTS").performClick()
         wait_text("QQQ")
         rule.onAllNodesWithText("QQQ")[0].performClick()
         wait_text("交易历史")
@@ -1103,8 +1102,8 @@ class UiFlowTest {
         }
         listOf("Accounts", "Deposits", "Investments").forEach { label ->
             val layouts = mutableListOf<TextLayoutResult>()
-            rule.onNodeWithText(label).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-            assertFalse("Tab label should fit at 320dp: $label", layouts.single().isLineEllipsized(0))
+            rule.onNodeWithText(label, substring = true).assertIsDisplayed().performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+            assertFalse("Tab label should fit at 320dp: $label", layouts.single().multiParagraph.didExceedMaxLines)
         }
         rule.onNodeWithTag("account-section-DEPOSITS").performClick().assertIsSelected()
         shot("account-detail-narrow-english-light-large-text", "english-account-detail")

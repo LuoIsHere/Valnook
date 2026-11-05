@@ -54,7 +54,8 @@
     <string name="account_review_retry">Review and retry</string>
     <string name="account_save">Save</string>
     <string name="account_unknown_result">Save result not yet confirmed. Retry safely without creating a duplicate.</string>
-    <string name="account_section_count">Total: %1$d</string>
+    <string name="account_section_total">Total</string>
+    <string name="account_trend_description">Net assets trend</string>
     <string name="account_tab_deposits">Deposits</string>
     <string name="account_order_children">Sort subaccounts</string>
     <string name="account_order_cancel">Cancel</string>

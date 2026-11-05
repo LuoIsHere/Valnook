@@ -52,6 +52,7 @@ fun TrendChart(
     compact: Boolean = false,
     animationKey: String = "trend",
     futureExtensionFrom: Int? = null,
+    labelAlpha: () -> Float = { 1f },
 ) {
     val palette = LocalTrendPalette.current
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -192,7 +193,7 @@ fun TrendChart(
         if(split!=null && !compact) drawLine(palette.cursor,Offset(split,inset),Offset(split,bottom),1.dp.toPx())
         if(!compact) {
             val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                color=axisColor.toArgb(); textSize=11.sp.toPx()
+                color=axisColor.copy(alpha=axisColor.alpha*labelAlpha()).toArgb(); textSize=11.sp.toPx()
             }
             var previousRight=Float.NEGATIVE_INFINITY
             labels.forEach { (index,label) ->

@@ -33,4 +33,11 @@
     <string name="cash_due_in">Payment due in %1$d days</string>
     <string name="cash_statement_in">Statement date in %1$d days</string>
     <string name="cash_previous_balance">Previous balance %1$s</string>
+    <string name="cash_section_credit">Credit cards</string>
+    <string name="cash_section_savings">Savings accounts</string>
+    <string name="cash_section_info">Account info</string>
+    <string name="cash_note_label">Note</string>
+    <string name="cash_limit_used">Used</string>
+    <string name="cash_limit_available">Available</string>
+    <string name="cash_limit_total">Total limit</string>
 </resources>
