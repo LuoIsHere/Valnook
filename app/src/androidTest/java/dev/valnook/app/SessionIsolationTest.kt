@@ -59,6 +59,8 @@ class SessionIsolationTest {
         val demo = sessions.session.value
         assertEquals(DataMode.DEMO, demo.mode)
         assertTrue(demo.id != real.id)
+        // Demo labels follow the language, and the checks below use the Chinese ones whatever the device language is.
+        demo.graph.settingsWriter.applyChange(SaveLanguage(demo.graph.settings.observeSettings().first().revision, AppLanguage.ZH_HANS))
         assertEquals(1, demoDatabaseFiles().count { it.endsWith(".db") })
         val snapshot = demo.graph.overview.snapshot()
         assertEquals(10, snapshot.accounts.size)

@@ -147,7 +147,9 @@ class BackupScreenUiTest {
         rule.onNodeWithTag("cloud-backup-first").performScrollTo().performClick()
         rule.waitForIdle()
         rule.onNodeWithTag("cloud-backup-detail-first").assertDoesNotExist()
-        rule.onNodeWithTag("cloud-microsoft-attribution").performScrollTo().assertExists()
+        // A lazy list only composes what is near the screen, so scroll the list rather than the node.
+        rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("cloud-microsoft-attribution"))
+        rule.onNodeWithTag("cloud-microsoft-attribution").assertExists()
     }
 
     @Test fun local_failure_and_saved_result_show_above_the_onedrive_section() {
