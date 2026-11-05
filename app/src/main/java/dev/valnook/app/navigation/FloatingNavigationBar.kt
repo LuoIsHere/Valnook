@@ -2,11 +2,13 @@ package dev.valnook.app.navigation
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import dev.valnook.app.R
 import androidx.navigation3.runtime.NavKey
@@ -35,7 +37,9 @@ internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId
                     NavigationItemId.INVESTMENTS -> R.string.nav_investments
                     NavigationItemId.STATISTICS -> R.string.nav_statistics
                     NavigationItemId.SETTINGS -> R.string.nav_settings
-                }), maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                }), maxLines = 1, style = MaterialTheme.typography.labelMedium.copy(letterSpacing = 0.sp),
+                    // Tabs share the width equally. A name that does not fit shrinks instead of being cut off.
+                    autoSize = TextAutoSize.StepBased(6.sp, MaterialTheme.typography.labelMedium.fontSize, .25.sp))
             }
         }
     }
