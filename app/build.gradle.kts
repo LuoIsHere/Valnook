@@ -90,8 +90,12 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.play.services.auth) // Legacy adapter retained, not injected.
     implementation(libs.msal)
+    constraints {
+        // MSAL brings these in with older versions. Hold the tested ones; no dependency is added.
+        implementation(libs.play.services.auth)
+        implementation(libs.androidx.loader)
+    }
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

@@ -16,6 +16,7 @@ coroutines = "1.10.2"
 serialization = "1.9.0"
 work = "2.12.0"
 playServicesAuth = "21.5.0"
+androidxLoader = "1.1.0"
 msal = "8.4.1"
 ktor = "3.2.3"
 zxing = "3.5.4"
@@ -56,6 +57,7 @@ androidx-compose-material3 = { group = "androidx.compose.material3", name = "mat
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
 play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "playServicesAuth" }
+androidx-loader = { module = "androidx.loader:loader", version.ref = "androidxLoader" }
 serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 ktor-server-core = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor" }
 ktor-server-cio = { module = "io.ktor:ktor-server-cio-jvm", version.ref = "ktor" }
