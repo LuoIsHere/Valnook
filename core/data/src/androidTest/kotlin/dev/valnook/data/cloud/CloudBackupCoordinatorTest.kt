@@ -415,6 +415,111 @@ class CloudBackupCoordinatorTest {
         }
     }
 
+    private fun coordinatorForBuild(databaseVersion: Int) = CloudBackupCoordinator(context, database,
+        RoomPortabilityEngine(context, database, Clock.fixed(Instant.parse("2026-10-03T06:00:00Z"), ZoneOffset.UTC),
+            AppBuildInfo("valnook", "0.0.5", 5, "20261003.4", "20261003.4", databaseVersion)),
+        CloudAccessProvider { CloudAccessResult.Granted("synthetic-access-token") }, drive, scheduler,
+        object : NetworkUtcClock { override suspend fun nowUtcMs() = Instant.parse("2026-10-03T06:00:00Z").toEpochMilli() }, network)
+
+    @Test fun saved_list_is_there_after_a_restart_without_touching_the_network() = runBlocking {
+        connect()
+        coordinator.manualBackup()
+        val saved = coordinator.observeState().first()
+        assertEquals(1, saved.backups.size)
+        assertTrue(saved.backupsRefreshedAtUtc != null)
+        val lists = drive.listCalls
+        val restarted = coordinatorForBuild(10)
+        assertEquals(saved.backups, restarted.observeState().first().backups)
+        assertEquals(saved.backupsRefreshedAtUtc, restarted.observeState().first().backupsRefreshedAtUtc)
+        assertEquals(lists, drive.listCalls)
+    }
+
+    @Test fun refresh_replaces_the_saved_list_in_the_cloud_order() = runBlocking {
+        connect()
+        repeat(2) { coordinator.manualBackup() }
+        assertEquals(2, coordinator.observeState().first().backups.size)
+        val removed = drive.files.removeAt(0).id
+        coordinator.refresh()
+        val listed = coordinator.observeState().first().backups
+        assertEquals(1, listed.size)
+        assertFalse(listed.any { it.fileId == removed })
+    }
+
+    @Test fun whether_a_backup_can_be_restored_follows_the_running_version() = runBlocking {
+        connect()
+        coordinator.manualBackup()
+        assertTrue(coordinator.observeState().first().backups.single().compatible)
+        // The same saved row, read by an older build that cannot open this database version.
+        assertFalse(coordinatorForBuild(1).observeState().first().backups.single().compatible)
+        assertTrue(coordinatorForBuild(99).observeState().first().backups.single().compatible)
+    }
+
+    @Test fun disconnecting_or_connecting_again_clears_the_saved_list() = runBlocking {
+        connect()
+        coordinator.manualBackup()
+        assertEquals(1, database.cloudBackup().observeIndex().first().size)
+        coordinator.disconnect()
+        assertTrue(database.cloudBackup().observeIndex().first().isEmpty())
+        val disconnected = coordinator.observeState().first()
+        assertTrue(disconnected.backups.isEmpty())
+        assertEquals(null, disconnected.backupsRefreshedAtUtc)
+    }
+
+    @Test fun rows_of_another_account_are_never_shown() = runBlocking {
+        connect()
+        coordinator.manualBackup()
+        val row = database.cloudBackup().observeIndex().first().single()
+        database.cloudBackup().clearIndex()
+        database.cloudBackup().insertIndex(listOf(row.copy(account_reference = "someone-else")))
+        assertTrue(coordinator.observeState().first().backups.isEmpty())
+    }
+
+    @Test fun a_list_fetched_for_an_old_connection_is_not_saved() = runBlocking {
+        connect()
+        coordinator.manualBackup()
+        val before = database.cloudBackup().observeIndex().first()
+        var reconnected = false
+        // The connection changes between asking for the list and saving it.
+        val racing = CloudBackupCoordinator(context, database,
+            RoomPortabilityEngine(context, database, Clock.fixed(Instant.parse("2026-10-03T06:00:00Z"), ZoneOffset.UTC),
+                AppBuildInfo("valnook", "0.0.5", 5, "20261003.4", "20261003.4", 10)),
+            CloudAccessProvider { CloudAccessResult.Granted("synthetic-access-token") }, object : CloudDriveApi by drive {
+                override suspend fun listPage(accessToken: String, folderId: String, pageToken: String?): RemoteBackupPage {
+                    if (!reconnected) {
+                        reconnected = true
+                        database.cloudBackup().saveState(database.cloudBackup().state().let { it.copy(connection_generation = it.connection_generation + 1) })
+                    }
+                    return RemoteBackupPage(emptyList(), null)
+                }
+            }, scheduler, object : NetworkUtcClock { override suspend fun nowUtcMs() = Instant.parse("2026-10-03T06:00:00Z").toEpochMilli() }, network)
+        val error = runCatching { racing.refresh() }.exceptionOrNull() as? CloudBackupException
+        assertEquals(CloudBackupError.SESSION_EXPIRED, error?.error)
+        assertEquals(before, database.cloudBackup().observeIndex().first())
+    }
+
+    @Test fun restoring_a_backup_removed_elsewhere_says_so_and_updates_the_list() = runBlocking {
+        connect()
+        repeat(2) { coordinator.manualBackup() }
+        val gone = coordinator.observeState().first().backups.first().fileId
+        drive.files.removeAll { it.id == gone }
+        val error = runCatching { coordinator.stageForRestore(gone) }.exceptionOrNull() as? CloudBackupException
+        assertEquals(CloudBackupError.BACKUP_NOT_FOUND, error?.error)
+        val listed = coordinator.observeState().first().backups
+        assertEquals(1, listed.size)
+        assertFalse(listed.any { it.fileId == gone })
+    }
+
+    @Test fun downloading_a_backup_moved_to_the_recycle_bin_says_so_and_leaves_the_list() = runBlocking {
+        connect()
+        coordinator.manualBackup()
+        val gone = coordinator.observeState().first().backups.single().fileId
+        val index = drive.files.indexOfFirst { it.id == gone }
+        drive.files[index] = drive.files[index].copy(trashed = true)
+        val error = runCatching { coordinator.downloadOriginal(gone, java.io.ByteArrayOutputStream()) }.exceptionOrNull() as? CloudBackupException
+        assertEquals(CloudBackupError.BACKUP_NOT_FOUND, error?.error)
+        assertTrue(coordinator.observeState().first().backups.isEmpty())
+    }
+
     private suspend fun connect() {
         coordinator.connect(CloudAuthorizationGrant("synthetic-access-token"))
     }
@@ -480,7 +585,8 @@ class CloudBackupCoordinatorTest {
             if (failAfterUploadWithUnknownOutcome) throw DriveRequestException(null, true)
             return result
         }
-        override suspend fun metadata(accessToken: String, fileId: String) = files.first { it.id == fileId }
+        override suspend fun metadata(accessToken: String, fileId: String) =
+            files.firstOrNull { it.id == fileId } ?: throw DriveRequestException(404, false)
         override suspend fun markVerified(accessToken: String, verified: RemoteBackupFile,
             appProperties: Map<String, String>,
             beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile {

@@ -48,7 +48,7 @@ class BackupScreenUiTest {
     @Test fun prebuilt_demo_database_upgrades_without_cloud_connection() = kotlinx.coroutines.runBlocking {
         val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
         val name = "onedrive-demo-check-${java.util.UUID.randomUUID()}.db"
-        val database = dev.valnook.data.database.ValnookDatabase.fromAsset(context, name, "database/valnook-demo-v22.db")
+        val database = dev.valnook.data.database.ValnookDatabase.fromAsset(context, name, "database/valnook-demo-v23.db")
         try {
             org.junit.Assert.assertEquals(dev.valnook.data.database.DATABASE_SCHEMA_VERSION, database.openHelper.readableDatabase.version)
             org.junit.Assert.assertNull(database.cloudBackup().state().account_reference)
@@ -88,6 +88,25 @@ class BackupScreenUiTest {
         org.junit.Assert.assertEquals(2, connections)
         org.junit.Assert.assertEquals(1, signOuts)
         rule.onAllNodesWithText("Google", substring = true).assertCountEquals(0)
+    }
+
+    @Test fun cloud_list_tells_not_fetched_from_really_empty() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val cloudState = MutableStateFlow(CloudBackupRuntimeState(connected = true, accountDisplay = "Synthetic account"))
+        val cloud = object : CloudBackupService by UnavailableCloudBackupService {
+            override val cloudAllowed = true
+            override fun observeState() = cloudState
+        }
+        val settings = object : SettingsRepository { override fun observeSettings() = flowOf(AppSettings()) }
+        rule.setContent { ValnookTheme { BackupScreen(BackupViewModel(UnavailableDataPortability, settings, false, cloud), false) } }
+        rule.onNodeWithTag("cloud-backups-empty").performScrollTo()
+        rule.onNodeWithText(context.getString(dev.valnook.feature.backup.R.string.cloud_backups_not_fetched)).assertExists()
+        rule.onNodeWithTag("cloud-backups-refreshed").assertDoesNotExist()
+        cloudState.value = cloudState.value.copy(backupsRefreshedAtUtc = "2026-11-05T01:02:03Z")
+        rule.waitForIdle()
+        rule.onNodeWithTag("cloud-backups-empty").performScrollTo()
+        rule.onNodeWithText(context.getString(dev.valnook.feature.backup.R.string.cloud_no_backups)).assertExists()
+        rule.onNodeWithTag("cloud-backups-refreshed").assertExists()
     }
 
     @Test fun demo_has_only_spreadsheet_export_and_no_cloud_authorization() {

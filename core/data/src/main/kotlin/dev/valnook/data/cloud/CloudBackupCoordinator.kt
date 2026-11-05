@@ -2,6 +2,7 @@ package dev.valnook.data.cloud
 
 import android.content.Context
 import dev.valnook.data.database.CloudBackupAttemptEntity
+import dev.valnook.data.database.CloudBackupIndexEntity
 import dev.valnook.data.database.CloudBackupStateEntity
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.data.portability.BackupContract
@@ -20,7 +21,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 
@@ -36,14 +36,13 @@ class CloudBackupCoordinator internal constructor(
 ) : CloudBackupService {
     private val appContext = context.applicationContext
     private val store = PersistentCloudBackupStore(database)
-    private val remote = MutableStateFlow<List<CloudBackupDescriptor>>(emptyList())
     private val running = AtomicBoolean(false)
     private val cloudRoot = File(appContext.cacheDir, "valnook-cloud").also(::secureDirectory)
     private val restoreRoot = File(cloudRoot, "restore").also(::secureDirectory)
     override val cloudAllowed: Boolean = true
 
     override fun observeState(): Flow<CloudBackupRuntimeState> =
-        combine(store.observe(), remote) { state, backups -> state.toDomain(backups) }
+        combine(store.observe(), store.observeIndex()) { state, backups -> state.toDomain(backups) }
 
     override suspend fun reconcileSchedule() {
         reconcileRestorePause()
@@ -88,7 +87,7 @@ class CloudBackupCoordinator internal constructor(
         }
         val now = try { trustedNow(grant.accessToken) } catch (_: Exception) { null }
             ?: System.currentTimeMillis()
-        store.update { current ->
+        store.updateClearingIndex { current ->
             if (current.connection_generation != before.connection_generation) stale()
             current.copy(
             provider = drive.provider.name,
@@ -107,16 +106,16 @@ class CloudBackupCoordinator internal constructor(
             latest_error = null,
             pending_banner_event_id = null,
             pending_banner_error = null,
+            backups_refreshed_at_utc_ms = null,
             updated_at_ms = now
         ) }
-        remote.value = emptyList()
         scheduler.cancel()
         refreshWithToken(grant.accessToken)
     }
 
     override suspend fun disconnect() {
         val now = networkClock.nowUtcMs() ?: System.currentTimeMillis()
-        store.update { current -> current.copy(
+        store.updateClearingIndex { current -> current.copy(
             account_reference = null,
             account_display = null,
             folder_id = null,
@@ -129,9 +128,9 @@ class CloudBackupCoordinator internal constructor(
             latest_error = null,
             pending_banner_event_id = null,
             pending_banner_error = null,
+            backups_refreshed_at_utc_ms = null,
             updated_at_ms = now
         ) }
-        remote.value = emptyList()
         scheduler.cancel()
     }
 
@@ -245,6 +244,7 @@ class CloudBackupCoordinator internal constructor(
         try {
             drive.download(token, fileId, output)
         } catch (error: DriveRequestException) {
+            if (error.statusCode == 404) backupGone(token, fileId)
             throw mapDrive(error, CloudBackupError.DOWNLOAD_FAILED)
         }
     }
@@ -253,7 +253,7 @@ class CloudBackupCoordinator internal constructor(
         val state = requireConnection()
         val token = requireAccess(state.account_reference!!)
         val metadata = requireManagedFile(token, state.folder_id!!, fileId)
-        if (!metadata.toDescriptor(portability.buildInfo()).compatible) {
+        if (!metadata.toIndex(state, 0).toDescriptor(portability.buildInfo()).compatible) {
             throw CloudBackupException(CloudBackupError.BACKUP_INCOMPATIBLE)
         }
         val localId = UUID.randomUUID().toString()
@@ -267,6 +267,7 @@ class CloudBackupCoordinator internal constructor(
         } catch (error: Exception) {
             directory.deleteRecursively()
             if (error is CloudBackupException) throw error
+            if (error is DriveRequestException && error.statusCode == 404) backupGone(token, fileId)
             throw if (error is DriveRequestException) mapDrive(error, CloudBackupError.DOWNLOAD_FAILED)
             else CloudBackupException(CloudBackupError.DOWNLOAD_FAILED, error)
         }
@@ -520,9 +521,9 @@ class CloudBackupCoordinator internal constructor(
         store.saveAttempt(finished)
         try {
             // A complete rotation already knows what is left; list again only when it stopped part way.
-            val values = (remaining ?: listManaged(token, folderId)).map { it.toDescriptor(portability.buildInfo()) }
+            val values = remaining ?: listManaged(token, folderId)
             assertGeneration(generation, cycleId, automatic)
-            remote.value = values
+            saveIndex(store.state(), generation.connection, values, finishedAt)
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (_: Exception) {
@@ -581,9 +582,26 @@ class CloudBackupCoordinator internal constructor(
 
     private suspend fun refreshWithToken(token: String) {
         val state = requireConnection()
-        val values = listManaged(token, state.folder_id!!).map { it.toDescriptor(portability.buildInfo()) }
-        if (store.state().connection_generation != state.connection_generation) stale()
-        remote.value = values
+        saveIndex(state, state.connection_generation, listManaged(token, state.folder_id!!), System.currentTimeMillis())
+    }
+
+    private suspend fun saveIndex(state: CloudBackupStateEntity, connectionGeneration: Long,
+        values: List<RemoteBackupFile>, refreshedAtUtcMs: Long) {
+        val rows = values.mapIndexed { position, file -> file.toIndex(state, position) }
+        if (!store.replaceIndex(connectionGeneration, rows, refreshedAtUtcMs)) stale()
+    }
+
+    /** Another device removed this backup. The list was out of date, so bring it up to date, as far as that is possible now. */
+    private suspend fun backupGone(token: String, fileId: String): Nothing {
+        store.removeFromIndex(fileId)
+        try {
+            refreshWithToken(token)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // The missing backup has already left the list; a later refresh picks up anything else.
+        }
+        throw CloudBackupException(CloudBackupError.BACKUP_NOT_FOUND)
     }
 
     private suspend fun listManaged(token: String, folderId: String): List<RemoteBackupFile> {
@@ -601,9 +619,10 @@ class CloudBackupCoordinator internal constructor(
 
     private suspend fun requireManagedFile(token: String, folderId: String, fileId: String): RemoteBackupFile {
         val value = try { drive.metadata(token, fileId) } catch (error: DriveRequestException) {
+            if (error.statusCode == 404) backupGone(token, fileId)
             throw mapDrive(error, CloudBackupError.DOWNLOAD_FAILED)
         }
-        if (!value.isManagedBackup(folderId)) throw CloudBackupException(CloudBackupError.DRIVE_PERMISSION)
+        if (!value.isManagedBackup(folderId)) backupGone(token, fileId)
         return value
     }
 
@@ -720,18 +739,21 @@ class CloudBackupCoordinator internal constructor(
     private fun RemoteBackupFile.isManagedBackup(folderId: String): Boolean = !trashed && folderId in parents &&
         name.endsWith(".val_backup") && properties["app"] == "valnook" && properties["role"] == "backup"
 
-    private fun RemoteBackupFile.toDescriptor(info: dev.valnook.data.portability.AppBuildInfo): CloudBackupDescriptor {
-        val format = properties["formatVersion"]?.toIntOrNull() ?: -1
-        val schema = properties["dataSchemaVersion"]?.toIntOrNull() ?: -1
-        val db = properties["databaseSchemaVersion"]?.toIntOrNull() ?: -1
-        return CloudBackupDescriptor(id, name, properties["snapshotCreatedAtUtc"].orEmpty(), createdTime, size,
-            properties["appVersion"].orEmpty(), properties["internalBuildRevision"].orEmpty(), db,
-            format, schema, properties["verificationState"].orEmpty(),
-            properties["verificationState"] == "verified" && format == BackupContract.FORMAT_VERSION &&
-                schema <= BackupContract.DATA_SCHEMA_VERSION && db <= info.databaseSchemaVersion)
-    }
+    private fun RemoteBackupFile.toIndex(state: CloudBackupStateEntity, position: Int) = CloudBackupIndexEntity(
+        id, state.provider, state.account_reference!!, state.folder_id!!, position, name,
+        properties["snapshotCreatedAtUtc"].orEmpty(), createdTime, size,
+        properties["appVersion"].orEmpty(), properties["internalBuildRevision"].orEmpty(),
+        properties["databaseSchemaVersion"]?.toIntOrNull() ?: -1, properties["formatVersion"]?.toIntOrNull() ?: -1,
+        properties["dataSchemaVersion"]?.toIntOrNull() ?: -1, properties["verificationState"].orEmpty())
 
-    private fun CloudBackupStateEntity.toDomain(backups: List<CloudBackupDescriptor>) = if (provider != drive.provider.name) CloudBackupRuntimeState() else CloudBackupRuntimeState(
+    /** Whether it can be restored depends on the running version, so it is worked out on each read and never saved. */
+    private fun CloudBackupIndexEntity.toDescriptor(info: dev.valnook.data.portability.AppBuildInfo) = CloudBackupDescriptor(
+        file_id, file_name, snapshot_created_at_utc, drive_created_at_utc, byte_count, app_version, internal_build_revision,
+        database_schema_version, format_version, data_schema_version, verification_state,
+        verification_state == "verified" && format_version == BackupContract.FORMAT_VERSION &&
+            data_schema_version <= BackupContract.DATA_SCHEMA_VERSION && database_schema_version <= info.databaseSchemaVersion)
+
+    private fun CloudBackupStateEntity.toDomain(backups: List<CloudBackupIndexEntity>) = if (provider != drive.provider.name) CloudBackupRuntimeState() else CloudBackupRuntimeState(
         connected = folder_id != null && account_reference != null,
         accountReference = account_reference,
         accountDisplay = account_display,
@@ -745,7 +767,9 @@ class CloudBackupCoordinator internal constructor(
         lastSuccessAtUtc = last_success_at_utc_ms?.let(::utc),
         nextDueAtUtc = next_due_at_utc_ms?.let(::utc),
         cleanupIncomplete = cleanup_incomplete,
-        backups = backups,
+        backups = backups.filter { it.provider == provider && it.account_reference == account_reference && it.folder_id == folder_id }
+            .map { it.toDescriptor(portability.buildInfo()) },
+        backupsRefreshedAtUtc = backups_refreshed_at_utc_ms?.let(::utc),
         pendingBannerEventId = pending_banner_event_id,
         pendingBannerError = pending_banner_error?.let { enumOr(it, CloudBackupError.INTERNAL) }
     )

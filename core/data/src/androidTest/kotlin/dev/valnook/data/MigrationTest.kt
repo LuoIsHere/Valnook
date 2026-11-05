@@ -512,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
@@ -572,12 +572,34 @@ class MigrationTest {
         } finally { context.deleteDatabase(name) }
     }
 
-    /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach schema 22 with their manual rates unchanged. */
-    @Test fun released_installs_reach_v22_with_manual_rates_unchanged(): Unit = runBlocking {
+    @Test fun v22_to_v23_keeps_the_connection_and_starts_with_no_saved_list() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-cloud-index-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 22).apply {
+                execSQL("""INSERT INTO cloud_backup_state(id,account_reference,account_display,folder_id,connection_generation,automatic_enabled,interval_hours,
+                    pause_reason,schedule_generation,attempt_state,cleanup_incomplete,updated_at_ms,provider)
+                    VALUES (1,'account','Name','folder',3,1,24,'NONE',2,'IDLE',0,1,'ONEDRIVE')""")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 23, true, MIGRATION_22_23).apply {
+                query("SELECT account_reference,folder_id,provider,automatic_enabled,backups_refreshed_at_utc_ms FROM cloud_backup_state").use {
+                    assertTrue(it.moveToFirst())
+                    assertEquals("account", it.getString(0)); assertEquals("folder", it.getString(1)); assertEquals("ONEDRIVE", it.getString(2))
+                    assertEquals(1L, it.getLong(3)); assertTrue(it.isNull(4))
+                }
+                query("SELECT COUNT(*) FROM cloud_backup_index").use { assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0)) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach the current schema with their manual rates unchanged. */
+    @Test fun released_installs_reach_the_current_schema_with_manual_rates_unchanged(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val chains = mapOf(
-            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22),
-            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22))
+            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23),
+            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23))
         chains.forEach { (version, migrations) ->
             val name = "migration-fx-v$version-${UUID.randomUUID()}.db"
             try {

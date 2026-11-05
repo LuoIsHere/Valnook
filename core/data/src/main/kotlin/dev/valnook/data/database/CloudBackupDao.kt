@@ -33,6 +33,18 @@ interface CloudBackupDao {
     @Upsert
     suspend fun saveAttempt(value: CloudBackupAttemptEntity)
 
+    @Query("SELECT * FROM cloud_backup_index ORDER BY position, file_id")
+    fun observeIndex(): Flow<List<CloudBackupIndexEntity>>
+
+    @Insert
+    suspend fun insertIndex(values: List<CloudBackupIndexEntity>)
+
+    @Query("DELETE FROM cloud_backup_index")
+    suspend fun clearIndex()
+
+    @Query("DELETE FROM cloud_backup_index WHERE file_id=:fileId")
+    suspend fun removeFromIndex(fileId: String)
+
     @Query("DELETE FROM cloud_backup_attempts WHERE attempt_id NOT IN (SELECT attempt_id FROM cloud_backup_attempts ORDER BY started_at_utc_ms DESC, attempt_id DESC LIMIT :keep)")
     suspend fun trimAttempts(keep: Int)
 }

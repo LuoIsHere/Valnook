@@ -221,8 +221,15 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                     state.cloud.nextDueAtUtc, state.cloud.cleanupIncomplete) }
                 item { HorizontalDivider() }
                 item { Text(stringResource(R.string.cloud_backups), style = MaterialTheme.typography.titleMedium) }
+                state.cloud.backupsRefreshedAtUtc?.let { refreshed -> item {
+                    Text(stringResource(R.string.cloud_backups_refreshed, backupTimeText(refreshed)),
+                        Modifier.testTag("cloud-backups-refreshed"), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } }
                 if (state.cloud.backups.isEmpty()) item {
-                    Text(stringResource(R.string.cloud_no_backups), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(if (state.cloud.backupsRefreshedAtUtc == null) R.string.cloud_backups_not_fetched
+                        else R.string.cloud_no_backups), Modifier.testTag("cloud-backups-empty"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 items(state.cloud.backups.size, key = { state.cloud.backups[it].fileId }) { index ->
                     val value = state.cloud.backups[index]
@@ -401,6 +408,7 @@ private val FAILED_ATTEMPTS = setOf(BackupAttemptState.FAILED, BackupAttemptStat
     CloudBackupError.DRIVE_FOLDER_NOT_FOUND -> stringResource(R.string.cloud_error_drive_missing)
     CloudBackupError.INVALID_INTERVAL -> stringResource(R.string.cloud_error_interval)
     CloudBackupError.BACKUP_INCOMPATIBLE -> stringResource(R.string.cloud_incompatible)
+    CloudBackupError.BACKUP_NOT_FOUND -> stringResource(R.string.cloud_error_backup_gone)
     CloudBackupError.LOW_STORAGE -> stringResource(R.string.backup_error_space)
     CloudBackupError.RETENTION_CLEANUP_FAILED -> stringResource(R.string.cloud_cleanup_incomplete)
     else -> stringResource(R.string.cloud_error_generic)

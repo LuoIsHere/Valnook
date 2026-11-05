@@ -28,7 +28,31 @@ data class CloudBackupStateEntity(
     val pending_banner_error: String?,
     val observed_restore_attempt_id: String?,
     val updated_at_ms: Long,
-    @ColumnInfo(defaultValue = "'GOOGLE_DRIVE'") val provider: String = "GOOGLE_DRIVE"
+    @ColumnInfo(defaultValue = "'GOOGLE_DRIVE'") val provider: String = "GOOGLE_DRIVE",
+    val backups_refreshed_at_utc_ms: Long? = null
+)
+
+/**
+ * Device-local copy of the last cloud backup list, so it is still there after a restart. Excluded from portable
+ * backups. Holds what the cloud reported, not whether a backup can be restored: that depends on the running version.
+ */
+@Entity(tableName = "cloud_backup_index")
+data class CloudBackupIndexEntity(
+    @PrimaryKey val file_id: String,
+    val provider: String,
+    val account_reference: String,
+    val folder_id: String,
+    val position: Int,
+    val file_name: String,
+    val snapshot_created_at_utc: String,
+    val drive_created_at_utc: String,
+    val byte_count: Long,
+    val app_version: String,
+    val internal_build_revision: String,
+    val database_schema_version: Int,
+    val format_version: Int,
+    val data_schema_version: Int,
+    val verification_state: String
 )
 
 @Entity(

@@ -53,7 +53,7 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * Builds the bundled demo database `valnook-demo-v22.db` from [DemoDataSeeder], adds the wallet, the price history,
+ * Builds the bundled demo database `valnook-demo-v23.db` from [DemoDataSeeder], adds the wallet, the price history,
  * the fixed exchange rate history and the English labels, checks that the ledger reads like a real one, and writes
  * the file to test storage.
  */
@@ -378,7 +378,7 @@ class DemoDatabaseAssetGeneratorTest {
             "纸纹" to "Paper", "极光" to "Aurora"
         )
         const val EXPORT_DATABASE_NAME = "valnook-demo-asset-export.db"
-        const val ASSET_FILE_NAME = "valnook-demo-v22.db"
+        const val ASSET_FILE_NAME = "valnook-demo-v23.db"
         const val FX_HISTORY_ASSET = "demo-fx-history.json"
     }
 }

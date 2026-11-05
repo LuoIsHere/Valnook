@@ -650,7 +650,7 @@ class AppSessionManager @Inject internal constructor(
     )
 
     private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v22.db"
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v23.db"
         const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

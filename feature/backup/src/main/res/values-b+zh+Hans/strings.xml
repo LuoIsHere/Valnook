@@ -52,6 +52,9 @@
     <string name="cloud_not_scheduled">未计划</string>
     <string name="cloud_cleanup_incomplete">备份已完成，但旧备份清理未完成。</string>
     <string name="cloud_backups">云端备份</string>
+    <string name="cloud_backups_refreshed">上次刷新：%1$s</string>
+    <string name="cloud_backups_not_fetched">还没有获取列表，点「刷新」获取。</string>
+    <string name="cloud_error_backup_gone">这个备份已不在云端，列表已更新。</string>
     <string name="cloud_no_backups">没有找到 Valnook 云端备份。</string>
     <string name="cloud_verified">已验证</string>
     <string name="cloud_unverified">未验证</string>

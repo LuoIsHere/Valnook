@@ -45,6 +45,7 @@ import org.json.JSONObject
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import dev.valnook.data.portability.BackupContract
 import org.junit.Assert.*
 import org.junit.Before
 import org.junit.Test
@@ -841,4 +842,10 @@ class BackupPortabilityTest {
             files.forEach { (name, value) -> zip.putNextEntry(ZipEntry(name)); zip.write(value); zip.closeEntry() }
         } }.toByteArray()
     }
+
+    @Test fun cloud_connection_tables_stay_out_of_portable_backups() {
+        val tables = BackupContract.tables.map { it.table }
+        listOf("cloud_backup_state", "cloud_backup_attempts", "cloud_backup_index").forEach { assertFalse(it, it in tables) }
+    }
 }
+

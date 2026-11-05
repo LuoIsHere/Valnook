@@ -52,6 +52,9 @@
     <string name="cloud_not_scheduled">Not scheduled</string>
     <string name="cloud_cleanup_incomplete">Backup completed, but old backup cleanup is incomplete.</string>
     <string name="cloud_backups">Cloud backups</string>
+    <string name="cloud_backups_refreshed">Last refreshed: %1$s</string>
+    <string name="cloud_backups_not_fetched">The list has not been fetched yet. Tap Refresh to get it.</string>
+    <string name="cloud_error_backup_gone">This backup is no longer in the cloud. The list has been updated.</string>
     <string name="cloud_no_backups">No Valnook cloud backups found.</string>
     <string name="cloud_verified">Verified</string>
     <string name="cloud_unverified">Not verified</string>

@@ -43,6 +43,7 @@ enum class CloudBackupError {
     VERIFY_FAILED,
     DOWNLOAD_FAILED,
     BACKUP_INCOMPATIBLE,
+    BACKUP_NOT_FOUND,
     LOCAL_PREPARATION_FAILED,
     LOW_STORAGE,
     RETENTION_CLEANUP_FAILED,
@@ -109,6 +110,8 @@ data class CloudBackupRuntimeState(
     val nextDueAtUtc: String? = null,
     val cleanupIncomplete: Boolean = false,
     val backups: List<CloudBackupDescriptor> = emptyList(),
+    /** Null until the list has been fetched for this connection. An empty list then really means no backups. */
+    val backupsRefreshedAtUtc: String? = null,
     val pendingBannerEventId: String? = null,
     val pendingBannerError: CloudBackupError? = null
 )
