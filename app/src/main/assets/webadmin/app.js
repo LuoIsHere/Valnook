@@ -26,7 +26,8 @@ window.addEventListener("beforeunload", event => {
   if ($("#drawer-content form[data-dirty]") || $("#drawer-content form")?.pendingSubmission) { event.preventDefault(); event.returnValue = ""; }
 });
 installActivityTracking();
-$("#refresh-page").append(symbol("currency_exchange"));
+$("#refresh-page").append(symbol("ui_refresh"));
+$("#drawer-close").append(symbol("ui_close"));
 $("#refresh-page").addEventListener("click", () => refreshCurrent());
 
 const fragment = new URLSearchParams(location.hash.slice(1)); const qr = fragment.get("pair");

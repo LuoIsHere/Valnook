@@ -33,7 +33,7 @@ fun AccountGroupsActions(state: AccountGroupsToolbarState?) {
     IconButton(state.sortGroups, Modifier.testTag("account-groups-sort").semantics { contentDescription = sortLabel },
         enabled = !state.busy && state.canSortGroups) { SortIcon() }
     IconButton(state.addGroup, Modifier.testTag("account-groups-add").semantics { contentDescription = addLabel },
-        enabled = !state.busy) { Text("＋") }
+        enabled = !state.busy) { AddIcon(enabled = !state.busy) }
 }
 
 private sealed interface GroupDialog {
@@ -121,7 +121,7 @@ private fun GroupHeader(section: GroupedAccounts, enabled: Boolean,
         Text(accountGroupName(group), Modifier.weight(1f).padding(start = 12.dp), style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         IconButton(onAdd, Modifier.testTag("account-group-add-${group.id}").semantics { contentDescription = addLabel },
-            enabled = enabled) { Text("＋") }
+            enabled = enabled) { AddIcon(Modifier.size(20.dp), enabled) }
         // The default group cannot be renamed or deleted, so its add button is the one at the edge.
         if (!group.isDefault) Box {
             IconButton({ menu = true }, Modifier.testTag("account-group-more-${group.id}").semantics { contentDescription = moreLabel },

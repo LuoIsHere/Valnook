@@ -404,7 +404,10 @@ private fun SessionRoot(
             }, actions = {
                 when (current) {
                     WalletKey, HiddenWalletKey -> if (!walletDetail) {
-                        IconButton({ walletToolbar?.add?.invoke() }, Modifier.testTag("wallet-add")) { Text("＋") }
+                        val addCardDescription = dev.valnook.feature.wallet.walletAddLabel()
+                        IconButton({ walletToolbar?.add?.invoke() }, Modifier.testTag("wallet-add").semantics {
+                            contentDescription = addCardDescription
+                        }) { dev.valnook.designsystem.AddIcon() }
                     } else {
                         walletToolbar?.flip?.let { flip ->
                             val description=if(walletToolbar?.flipped==true)
@@ -432,7 +435,7 @@ private fun SessionRoot(
                         }) { dev.valnook.designsystem.GroupsIcon() }
                         IconButton({ open(AccountEditKey()) }, Modifier.semantics {
                             contentDescription = addAccountDescription
-                        }) { Text("＋") }
+                        }) { dev.valnook.designsystem.AddIcon() }
                     }
                     InvestmentsKey, HiddenInvestmentsKey -> IconButton({ open(InstrumentLibraryKey) }, Modifier.semantics {
                         contentDescription = instrumentLibraryDescription

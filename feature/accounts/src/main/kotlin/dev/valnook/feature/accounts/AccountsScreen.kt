@@ -247,7 +247,7 @@ import java.time.LocalDate
             Text(amount, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings="tnum"),
                 color = if (account.type == BalanceAccountType.CREDIT) MaterialTheme.colorScheme.onSurface
                     else if (account.balance_minor < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface)
-            Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            RowChevron()
         }
         if (account.type == BalanceAccountType.CREDIT) {
             val summary = remember(account.id, account.revision, allAccounts) {
@@ -286,7 +286,7 @@ import java.time.LocalDate
         Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         Text(totalText(total), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings="tnum"),
             color = amountColor(total))
-        Text("›", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        RowChevron()
     }
 }
 @Composable fun AccountEditScreen(vm: AccountEditViewModel, onBack: () -> Unit,

@@ -14,7 +14,7 @@
 .image-error{color:var(--danger);font-size:12px}.image-error:empty{display:none}
 .hero .metric .value{font-size:clamp(30px,3.5vw,44px)}
 .connection-banner{padding:12px 24px;text-align:center;background:var(--soft);color:var(--muted);font-size:13px}
-#refresh-page{display:grid;place-items:center;flex-shrink:0}#refresh-page .symbol{width:18px;height:18px}
+#refresh-page,#drawer-close{display:grid;place-items:center;flex-shrink:0}#refresh-page .symbol,#drawer-close .symbol{width:18px;height:18px}.action-group .icon-button{display:grid;place-items:center}.action-group .icon-button .symbol{width:16px;height:16px}
 @media(max-width:640px){.accounts-table th:nth-child(n+2):nth-child(-n+5),.accounts-table td:nth-child(n+2):nth-child(-n+5),.accounts-table th:last-child,.accounts-table td:last-child{display:none}.accounts-table td:first-child{min-width:0;width:58%}.accounts-table .account-cell{min-width:0;max-width:none;gap:10px}.accounts-table .avatar{width:32px;height:32px;flex-basis:32px}.accounts-table .numeric{font-size:12px;white-space:normal}.accounts-table .subtle{font-size:11px}.topbar .eyebrow{letter-spacing:.07em;font-size:9px}}
 /* Investment lists and the batch price editor share compact, bounded interaction surfaces. */
 .investment-group{padding:12px 0;border-bottom:1px solid var(--line)}

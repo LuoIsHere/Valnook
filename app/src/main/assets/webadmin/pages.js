@@ -193,13 +193,13 @@ function accountGroupContent(data) {
   const accounts = new Map(data.items.map(item => [item.id, item]));
   // Each arrow swaps one neighbour; data-move lets focus return to the same arrow after the list reloads.
   const moves = (ids, index, key, path, field) => el("div", { class: "action-group" },
-    ...[[-1, "moveUp", "↑"], [1, "moveDown", "↓"]].map(([step, label, arrow]) => {
+    ...[[-1, "moveUp", "ui_up"], [1, "moveDown", "ui_down"]].map(([step, label, icon]) => {
       const target = index + step;
       return el("button", { type: "button", class: "icon-button", "aria-label": t(label), title: t(label),
         "data-move": `${key}:${step}`, disabled: target < 0 || target >= ids.length, onclick: () => {
           const next = ids.slice(); [next[index], next[target]] = [next[target], next[index]];
           return moveInPlace(path, { [field]: next }, `${key}:${step}`);
-        } }, arrow);
+        } }, symbol(icon));
     }));
   const groupIds = data.groups.map(group => group.id);
   const sections = data.groups.map((group, index) => {
@@ -321,8 +321,7 @@ function sectionTable(title, headers, rows, action = null) { return el("section"
 
 function deleteAccountButton(accountId, balanceAccountId = null) {
   return el("button", { type: "button", class: "icon-button danger", "aria-label": t("delete"), onclick: () => deletionForm(accountId, balanceAccountId).catch(error => notify(errorMessage(error))) },
-    el("svg", { class: "symbol", viewBox: "0 0 24 24", "aria-hidden": "true" },
-      el("path", { d: "M4 6h16M9 3h6M7 6v15h10V6M10 9v9M14 9v9", fill: "none", stroke: "currentColor", "stroke-width": "1.7" })));
+    symbol("ui_delete"));
 }
 async function deletionForm(accountId, balanceAccountId) {
   if (!closeDrawer()) return;

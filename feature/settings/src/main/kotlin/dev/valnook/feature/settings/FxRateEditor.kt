@@ -1,8 +1,6 @@
 package dev.valnook.feature.settings
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -116,7 +114,7 @@ private fun RateInput(index: Int, row: FxRateDraft, rows: List<FxRateDraft>, bas
             }
             IconButton({ onRemove(index) }, enabled = editable,
                 modifier = Modifier.size(48.dp).testTag("remove-rate-${row.sourceCurrency.code}")) {
-                Icon(Icons.Outlined.Delete, stringResource(R.string.settings_remove_rate))
+                FaIcon(FaIcons.trash, stringResource(R.string.settings_remove_rate))
             }
         }
         note?.let {

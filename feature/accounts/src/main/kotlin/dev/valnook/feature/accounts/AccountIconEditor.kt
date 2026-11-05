@@ -55,7 +55,7 @@ internal fun AccountIconEditor(state: AccountEditUiState, enabled: Boolean,
                                 else MaterialTheme.colorScheme.surfaceContainerLow) {
                                 Box(Modifier.padding(7.dp)) { AccountAvatar(symbol, size = 34.dp) }
                             }
-                            if (selected) Text("✓", Modifier.align(Alignment.BottomEnd), style = MaterialTheme.typography.labelSmall)
+                            if (selected) SelectedIcon(Modifier.align(Alignment.BottomEnd).size(12.dp))
                         }
                     }
                 }

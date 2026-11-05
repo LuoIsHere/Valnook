@@ -1,15 +1,11 @@
 package dev.valnook.designsystem
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.unit.dp
 
@@ -19,10 +15,5 @@ import androidx.compose.ui.unit.dp
 }
 
 @Composable fun EditIcon(modifier: Modifier = Modifier.size(20.dp)) {
-    val color = LocalContentColor.current
-    Canvas(modifier) {
-        drawLine(color, Offset(size.width*.22f, size.height*.74f), Offset(size.width*.76f, size.height*.2f), 4.dp.toPx(), StrokeCap.Butt)
-        drawLine(color, Offset(size.width*.15f, size.height*.86f), Offset(size.width*.23f, size.height*.64f), 2.dp.toPx(), StrokeCap.Round)
-        drawLine(color, Offset(size.width*.15f, size.height*.86f), Offset(size.width*.37f, size.height*.78f), 2.dp.toPx(), StrokeCap.Round)
-    }
+    FaIcon(FaIcons.pen, null, modifier)
 }

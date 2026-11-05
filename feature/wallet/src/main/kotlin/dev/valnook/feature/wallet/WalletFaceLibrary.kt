@@ -5,7 +5,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,8 +19,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -108,7 +105,7 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
 @Composable fun WalletFaceLibraryActions(state: WalletFaceLibraryToolbar?) {
     if(state==null)return
     val label=wording("Upload card face","上传卡面")
-    IconButton(state.add,Modifier.testTag("wallet-face-add").semantics { contentDescription=label },enabled=state.enabled) { Text("＋") }
+    IconButton(state.add,Modifier.testTag("wallet-face-add").semantics { contentDescription=label },enabled=state.enabled) { AddIcon(enabled=state.enabled) }
 }
 
 @Composable fun WalletFaceLibraryScreen(vm: WalletFaceLibraryViewModel, cache: WalletImageCache,
@@ -203,7 +200,7 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
                 maxLines=2,overflow=TextOverflow.Ellipsis)
         }
         val exportLabel=wording("Save image","保存图片")
-        IconButton(onExport,Modifier.testTag("wallet-face-export-${face.key}").semantics { contentDescription=exportLabel },enabled=enabled) { DownloadIcon() }
+        IconButton(onExport,Modifier.testTag("wallet-face-export-${face.key}").semantics { contentDescription=exportLabel },enabled=enabled) { FaIcon(FaIcons.download) }
         DeleteIconButton(wording("Delete card face","删除卡面"),onDelete,Modifier.testTag("wallet-face-delete-${face.key}"),enabled=enabled&&!face.inUse)
     }
 }
@@ -259,7 +256,7 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
                                     style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines=1,overflow=TextOverflow.Ellipsis)
                             }
-                            if(face.key==selected)Text("✓",Modifier.padding(end=Space.sm),style=MaterialTheme.typography.titleMedium)
+                            if(face.key==selected)SelectedIcon(Modifier.padding(end=Space.sm).size(18.dp))
                         }
                     }
                 }
@@ -308,18 +305,4 @@ private fun faceDate(ms: Long)=FACE_DATE.format(Instant.ofEpochMilli(ms).atZone(
 internal fun faceFileName(face: WalletFace): String {
     val base=face.label.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"),"_").trim().trim('.')
     return (base.ifEmpty { "valnook-card-face" })+".webp"
-}
-
-/** Arrow into a tray, drawn like the other line icons. */
-@Composable private fun DownloadIcon() {
-    val color=LocalContentColor.current
-    Canvas(Modifier.size(20.dp)) {
-        val w=size.width;val h=size.height;val stroke=1.7.dp.toPx()
-        drawLine(color,Offset(w*.5f,h*.12f),Offset(w*.5f,h*.62f),stroke,StrokeCap.Round)
-        drawLine(color,Offset(w*.3f,h*.44f),Offset(w*.5f,h*.64f),stroke,StrokeCap.Round)
-        drawLine(color,Offset(w*.7f,h*.44f),Offset(w*.5f,h*.64f),stroke,StrokeCap.Round)
-        drawLine(color,Offset(w*.14f,h*.7f),Offset(w*.14f,h*.86f),stroke,StrokeCap.Round)
-        drawLine(color,Offset(w*.14f,h*.86f),Offset(w*.86f,h*.86f),stroke,StrokeCap.Round)
-        drawLine(color,Offset(w*.86f,h*.7f),Offset(w*.86f,h*.86f),stroke,StrokeCap.Round)
-    }
 }

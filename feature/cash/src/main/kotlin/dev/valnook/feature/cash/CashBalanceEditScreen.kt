@@ -1,6 +1,5 @@
 package dev.valnook.feature.cash
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
@@ -11,9 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.*
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
@@ -32,12 +29,7 @@ data class CashBalanceToolbarState(val busy:Boolean,val enabled:Boolean,val labe
     IconButton({state?.save?.invoke()},enabled=state?.enabled==true,
         modifier=Modifier.testTag("cash-balance-save").semantics{contentDescription=state?.label.orEmpty()}) {
         if(state?.busy==true)CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)
-        else { val color=LocalContentColor.current
-            Canvas(Modifier.size(24.dp)) {
-                drawLine(color,Offset(size.width*.18f,size.height*.5f),Offset(size.width*.42f,size.height*.74f),2.dp.toPx(),StrokeCap.Round)
-                drawLine(color,Offset(size.width*.42f,size.height*.74f),Offset(size.width*.84f,size.height*.25f),2.dp.toPx(),StrokeCap.Round)
-            }
-        }
+        else FaIcon(FaIcons.check,modifier=Modifier.size(22.dp))
     }
 }
 
@@ -81,7 +73,7 @@ data class CashBalanceToolbarState(val busy:Boolean,val enabled:Boolean,val labe
                     keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal,imeAction=ImeAction.Done),
                     keyboardActions=KeyboardActions(onDone={focus.clearFocus();keyboard?.hide()}))
                 IconButton({cursor=toggleSign(shown);vm.changeBalance(cursor.text)},
-                    enabled=submission.editable,modifier=Modifier.semantics{contentDescription=signLabel}){Text("±")}
+                    enabled=submission.editable,modifier=Modifier.semantics{contentDescription=signLabel}){FaIcon(FaIcons.plusMinus,modifier=Modifier.size(18.dp))}
             }
         }
         GlassCard { Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {

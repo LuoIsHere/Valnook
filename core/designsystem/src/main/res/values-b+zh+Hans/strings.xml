@@ -133,4 +133,5 @@
     <string name="state_collapsed">已收起</string>
     <string name="ledger_previous_month">上个月</string>
     <string name="ledger_next_month">下个月</string>
+    <string name="icon_selected">已选择</string>
 </resources>

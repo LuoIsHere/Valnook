@@ -27,11 +27,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.DragHandle
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -79,6 +74,9 @@ import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.model.GainLossColorScheme
 import dev.valnook.domain.model.NavigationItemId
 import kotlinx.coroutines.launch
+import dev.valnook.designsystem.FaIcon
+import dev.valnook.designsystem.FaIcons
+import dev.valnook.designsystem.RowChevron
 
 @Composable
 fun SettingsHome(
@@ -280,12 +278,12 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel,
                         IconButton({ vm.toggle(item) }, enabled = state.editing && !state.busy && item != NavigationItemId.SETTINGS,
                             modifier = Modifier.testTag("navigation-visible-${item.name.lowercase()}")) {
                             val visible = item in state.draft.visible
-                            Icon(if (visible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
-                                contentDescription = null, modifier = Modifier.semantics {
+                            FaIcon(if (visible) FaIcons.eye else FaIcons.eyeSlash,
+                                contentDescription = null, modifier = Modifier.size(20.dp).semantics {
                                 contentDescription = if (item in state.draft.visible) visibleLabel else hiddenLabel
                             })
                         }
-                        Icon(Icons.Outlined.DragHandle, contentDescription = null,
+                        FaIcon(FaIcons.gripLines, contentDescription = null,
                             tint = if (state.editing && !state.busy) MaterialTheme.colorScheme.onSurfaceVariant
                                 else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.38f),
                             modifier = Modifier.size(48.dp)
@@ -345,7 +343,7 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel,
                                         }
                                     }
                                 )
-                            }.padding(12.dp))
+                            }.padding(12.dp).padding(14.dp))
                     }
                 }
                 HorizontalDivider()
@@ -376,7 +374,7 @@ internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, m
             Text(summary, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Text("›", style = MaterialTheme.typography.titleLarge)
+        RowChevron()
     }
 }
 

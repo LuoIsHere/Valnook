@@ -35,6 +35,7 @@ import java.time.format.DateTimeFormatter
 import java.time.LocalDate
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import dev.valnook.designsystem.ChevronIcon
 
 @Composable
 fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = {}) {
@@ -116,9 +117,9 @@ private fun StatisticChart(
                 InteractiveChart(series ?: StatisticsSeries(chart.metric,chart.period,chart.series?.currency,emptyList()),title)
             }
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.Center,verticalAlignment=Alignment.CenterVertically) {
-                IconButton(previous,modifier=Modifier.semantics { contentDescription=previousLabel }) { Text("‹",style=MaterialTheme.typography.titleLarge) }
+                IconButton(previous,modifier=Modifier.semantics { contentDescription=previousLabel }) { ChevronIcon(false) }
                 Text(periodLabel(chart.period),style=MaterialTheme.typography.labelLarge)
-                IconButton(next,enabled=canGoNext,modifier=Modifier.semantics { contentDescription=nextLabel }) { Text("›",style=MaterialTheme.typography.titleLarge) }
+                IconButton(next,enabled=canGoNext,modifier=Modifier.semantics { contentDescription=nextLabel }) { ChevronIcon(true) }
                 Box(Modifier.size(18.dp)) { if(loading) CircularProgressIndicator(Modifier.fillMaxSize().testTag("statistics-loading-${chart.metric.name.lowercase()}"),strokeWidth=2.dp) }
             }
         }

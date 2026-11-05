@@ -1,9 +1,9 @@
 import { $, state, t, el } from "./core.js";
 import { staticPhotoSize } from "./photo-validation.js";
-import { symbols } from "./symbols.js";
+import { symbols, uiSymbols } from "./symbols.js";
 
 export function symbol(key) {
-  const data = symbols[key] || symbols.account_balance;
+  const data = symbols[key] || uiSymbols[key] || symbols.account_balance;
   return el("svg", { class: "symbol", viewBox: data.viewBox, "aria-hidden": "true" },
     data.paths.map(d => el("path", { d, fill: "currentColor" })));
 }

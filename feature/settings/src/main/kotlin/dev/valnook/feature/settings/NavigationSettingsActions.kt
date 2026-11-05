@@ -1,10 +1,6 @@
 package dev.valnook.feature.settings
 
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -13,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.valnook.designsystem.FaIcon
+import dev.valnook.designsystem.FaIcons
 
 /** The page owns the draft; the root toolbar only renders its current actions. */
 data class NavigationToolbarState(val editing: Boolean, val busy: Boolean, val dragging: Boolean,
@@ -25,13 +23,13 @@ fun NavigationSettingsActions(state: NavigationToolbarState?) {
     if (state.editing) {
         IconButton(state.cancel, enabled = !state.busy && !state.dragging,
             modifier = Modifier.testTag("navigation-cancel")) {
-            Icon(Icons.Outlined.Close, stringResource(R.string.settings_cancel))
+            FaIcon(FaIcons.xmark, stringResource(R.string.settings_cancel))
         }
         IconButton(state.save, enabled = !state.busy && !state.dragging && state.dirty,
             modifier = Modifier.testTag("navigation-save")) {
-            Icon(Icons.Outlined.Check, stringResource(R.string.settings_save))
+            FaIcon(FaIcons.check, stringResource(R.string.settings_save))
         }
     } else IconButton(state.edit, modifier = Modifier.testTag("navigation-edit")) {
-        Icon(Icons.Outlined.Edit, stringResource(R.string.settings_edit))
+        FaIcon(FaIcons.pen, stringResource(R.string.settings_edit))
     }
 }

@@ -12,13 +12,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,7 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -40,6 +36,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import dev.valnook.designsystem.pageContentPadding
 import dev.valnook.domain.cloud.*
 import dev.valnook.domain.portability.PortabilityErrorCode
+import dev.valnook.designsystem.FaIcon
+import dev.valnook.designsystem.FaIcons
 
 @Composable
 fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
@@ -164,8 +162,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    Image(painterResource(R.drawable.ic_onedrive), contentDescription = null,
-                        modifier = Modifier.size(24.dp).testTag("cloud-title-icon"))
+                    FaIcon(FaIcons.cloud, modifier = Modifier.size(24.dp).testTag("cloud-title-icon"))
                     Text(stringResource(R.string.cloud_title), style = MaterialTheme.typography.titleLarge)
                 }
             }
@@ -294,10 +291,10 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             else stringResource(R.string.cloud_unverified), style = MaterialTheme.typography.labelMedium,
             color = if (value.verificationState == "verified") MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.error)
-        Icon(Icons.Outlined.ExpandMore,
+        FaIcon(FaIcons.chevronDown,
             contentDescription = stringResource(if (expanded) R.string.cloud_collapse_detail
                 else R.string.cloud_expand_detail),
-            modifier = Modifier.padding(start = Space.sm).rotate(arrowRotation))
+            modifier = Modifier.padding(start = Space.sm).size(16.dp).rotate(arrowRotation))
     }
 }
 

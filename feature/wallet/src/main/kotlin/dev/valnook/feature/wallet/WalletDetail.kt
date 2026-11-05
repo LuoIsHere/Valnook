@@ -118,9 +118,9 @@ import java.time.*
                                 val last=bounds.lastMs?.let{YearMonth.from(Instant.ofEpochMilli(it).atZone(vm.zone))}?:current
                                 val minimum=minOf(first,current);val maximum=maxOf(last,current)
                                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                                    TextButton({vm.month(maxOf(ledger.month.minusMonths(1),minimum))},enabled=ledger.month>minimum,modifier=Modifier.testTag("wallet-month-previous")){Text("‹")}
+                                    TextButton({vm.month(maxOf(ledger.month.minusMonths(1),minimum))},enabled=ledger.month>minimum,modifier=Modifier.testTag("wallet-month-previous")){ChevronIcon(false,wording("Previous month","上个月"))}
                                     TextButton({chooseMonth=true},Modifier.testTag("wallet-month")){Text(ledger.month.toString())}
-                                    TextButton({vm.month(minOf(ledger.month.plusMonths(1),maximum))},enabled=ledger.month<maximum,modifier=Modifier.testTag("wallet-month-next")){Text("›")}
+                                    TextButton({vm.month(minOf(ledger.month.plusMonths(1),maximum))},enabled=ledger.month<maximum,modifier=Modifier.testTag("wallet-month-next")){ChevronIcon(true,wording("Next month","下个月"))}
                                 }
                             }
                             if(ledger.loading && ledger.rows.isEmpty())item("loading"){Box(Modifier.fillMaxWidth().height(80.dp),contentAlignment=Alignment.Center){CircularProgressIndicator(Modifier.size(22.dp))}}

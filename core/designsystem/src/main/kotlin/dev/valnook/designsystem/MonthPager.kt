@@ -1,12 +1,10 @@
 package dev.valnook.designsystem
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -32,14 +30,8 @@ import java.time.format.FormatStyle
 }
 
 @Composable private fun MonthArrow(label: String, right: Boolean, click: () -> Unit, enabled: Boolean) {
-    val color = LocalContentColor.current
     IconButton(click, Modifier.size(36.dp).testTag(if (right) "month-next" else "month-previous")
         .semantics { contentDescription = label }, enabled = enabled) {
-        Canvas(Modifier.size(16.dp)) {
-            val x = if (right) .65f else .35f
-            val other = 1f - x
-            drawLine(color, Offset(size.width * other, size.height*.2f), Offset(size.width*x, size.height*.5f), 2.dp.toPx())
-            drawLine(color, Offset(size.width*x, size.height*.5f), Offset(size.width * other, size.height*.8f), 2.dp.toPx())
-        }
+        ChevronIcon(right)
     }
 }

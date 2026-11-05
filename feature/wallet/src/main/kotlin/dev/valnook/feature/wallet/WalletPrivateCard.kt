@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -30,32 +29,19 @@ import dev.valnook.domain.repository.WalletPrivateContent
 import dev.valnook.domain.repository.walletNumberLines
 import kotlin.math.abs
 import kotlin.math.sin
+import dev.valnook.designsystem.FaIcon
+import dev.valnook.designsystem.FaIcons
+
+@Composable fun walletAddLabel()=wording("Add card","添加卡片")
 
 @Composable fun walletFlipLabel(toBack:Boolean)=if(toBack)wording("Show card back","翻到卡片背面")else wording("Show card front","翻到卡片正面")
 
 @Composable fun WalletFlipIcon(modifier: Modifier = Modifier) {
-    val color = LocalContentColor.current
-    Canvas(modifier.size(22.dp)) {
-        val stroke = 1.6.dp.toPx()
-        drawRoundRect(color, Offset(size.width*.32f,size.height*.17f),
-            androidx.compose.ui.geometry.Size(size.width*.36f,size.height*.66f),
-            androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()), style=Stroke(stroke))
-        drawArc(color, 25f, 285f, false, Offset(size.width*.02f,size.height*.31f),
-            androidx.compose.ui.geometry.Size(size.width*.96f,size.height*.42f), style=Stroke(stroke,cap=StrokeCap.Round))
-        drawLine(color,Offset(size.width*.91f,size.height*.3f),Offset(size.width*.94f,size.height*.48f),stroke,StrokeCap.Round)
-        drawLine(color,Offset(size.width*.77f,size.height*.44f),Offset(size.width*.94f,size.height*.48f),stroke,StrokeCap.Round)
-    }
+    FaIcon(FaIcons.rotate, null, modifier.size(20.dp))
 }
 
 @Composable internal fun WalletPaletteIcon(modifier: Modifier = Modifier) {
-    val color = LocalContentColor.current
-    Canvas(modifier.size(22.dp)) {
-        drawOval(color, Offset(size.width*.1f,size.height*.1f),
-            androidx.compose.ui.geometry.Size(size.width*.8f,size.height*.8f),style=Stroke(1.6.dp.toPx()))
-        listOf(.32f to .32f,.59f to .27f,.72f to .49f,.3f to .6f).forEach { (x,y) ->
-            drawCircle(color,1.6.dp.toPx(),Offset(size.width*x,size.height*y))
-        }
-    }
+    FaIcon(FaIcons.palette, null, modifier.size(20.dp))
 }
 
 @Composable internal fun WalletFlippingCard(card: WalletCard, cache: WalletImageCache,
@@ -196,13 +182,7 @@ import kotlin.math.sin
 
 @Composable private fun PrivateCopyButton(label:String,tag:String,ink:Color,enabled:Boolean,copy:()->Unit) {
     IconButton(copy,Modifier.size(32.dp).testTag(tag).semantics{contentDescription=label},enabled=enabled) {
-        Canvas(Modifier.size(15.dp)) {
-            val color=ink.copy(alpha=.62f);val stroke=Stroke(1.3.dp.toPx())
-            drawRoundRect(color,Offset(size.width*.3f,size.height*.28f),androidx.compose.ui.geometry.Size(size.width*.58f,size.height*.62f),
-                androidx.compose.ui.geometry.CornerRadius(1.5.dp.toPx()),style=stroke)
-            drawLine(color,Offset(size.width*.13f,size.height*.68f),Offset(size.width*.13f,size.height*.1f),stroke.width,StrokeCap.Round)
-            drawLine(color,Offset(size.width*.13f,size.height*.1f),Offset(size.width*.7f,size.height*.1f),stroke.width,StrokeCap.Round)
-        }
+        FaIcon(FaIcons.copy,null,Modifier.size(15.dp),ink.copy(alpha=.62f))
     }
 }
 

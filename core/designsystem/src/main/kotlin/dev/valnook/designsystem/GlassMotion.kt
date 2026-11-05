@@ -8,14 +8,11 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
@@ -31,12 +28,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 fun ExpansionChevron(expanded: Boolean, modifier: Modifier = Modifier) {
     val rotation by animateFloatAsState(if (expanded) 180f else 0f, tween(160), label = "expansion-arrow")
     val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Canvas(modifier.size(16.dp).graphicsLayer { rotationZ = rotation }) {
-        drawLine(color, Offset(size.width * .25f, size.height * .4f),
-            Offset(size.width * .5f, size.height * .65f), 1.5.dp.toPx(), StrokeCap.Round)
-        drawLine(color, Offset(size.width * .5f, size.height * .65f),
-            Offset(size.width * .75f, size.height * .4f), 1.5.dp.toPx(), StrokeCap.Round)
-    }
+    FaIcon(FaIcons.chevronDown, null, modifier.size(14.dp).graphicsLayer { rotationZ = rotation }, color)
 }
 
 /** Retains the window and its blur through exit; closing content cannot be activated again. */

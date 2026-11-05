@@ -63,28 +63,28 @@ fun AccountAvatar(symbol: String = "account_balance", imageKey: String? = null,
 }
 
 fun accountSymbolResource(key: String): Int = when (key) {
-    "account_balance_wallet" -> R.drawable.account_symbol_account_balance_wallet
-    "credit_card" -> R.drawable.account_symbol_credit_card
-    "savings" -> R.drawable.account_symbol_savings
-    "payments" -> R.drawable.account_symbol_payments
-    "wallet" -> R.drawable.account_symbol_wallet
-    "trending_up" -> R.drawable.account_symbol_trending_up
-    "show_chart" -> R.drawable.account_symbol_show_chart
-    "monitoring" -> R.drawable.account_symbol_monitoring
-    "business_center" -> R.drawable.account_symbol_business_center
-    "home" -> R.drawable.account_symbol_home
-    "apartment" -> R.drawable.account_symbol_apartment
-    "storefront" -> R.drawable.account_symbol_storefront
-    "shopping_bag" -> R.drawable.account_symbol_shopping_bag
-    "work" -> R.drawable.account_symbol_work
-    "paid" -> R.drawable.account_symbol_paid
-    "currency_exchange" -> R.drawable.account_symbol_currency_exchange
-    "public" -> R.drawable.account_symbol_public
-    "flight" -> R.drawable.account_symbol_flight
-    "directions_car" -> R.drawable.account_symbol_directions_car
-    "school" -> R.drawable.account_symbol_school
-    "family_restroom" -> R.drawable.account_symbol_family_restroom
-    "favorite" -> R.drawable.account_symbol_favorite
-    "star" -> R.drawable.account_symbol_star
-    else -> R.drawable.account_symbol_account_balance
+    "account_balance_wallet" -> R.drawable.fa_wallet
+    "credit_card" -> R.drawable.fa_credit_card
+    "savings" -> R.drawable.fa_piggy_bank
+    "payments" -> R.drawable.fa_money_bills
+    "wallet" -> R.drawable.fa_money_check
+    "trending_up" -> R.drawable.fa_arrow_trend_up
+    "show_chart" -> R.drawable.fa_chart_line
+    "monitoring" -> R.drawable.fa_chart_column
+    "business_center" -> R.drawable.fa_briefcase
+    "home" -> R.drawable.fa_house
+    "apartment" -> R.drawable.fa_building
+    "storefront" -> R.drawable.fa_store
+    "shopping_bag" -> R.drawable.fa_bag_shopping
+    "work" -> R.drawable.fa_suitcase
+    "paid" -> R.drawable.fa_circle_dollar_to_slot
+    "currency_exchange" -> R.drawable.fa_money_bill_transfer
+    "public" -> R.drawable.fa_earth_asia
+    "flight" -> R.drawable.fa_plane
+    "directions_car" -> R.drawable.fa_car
+    "school" -> R.drawable.fa_graduation_cap
+    "family_restroom" -> R.drawable.fa_people_roof
+    "favorite" -> R.drawable.fa_heart
+    "star" -> R.drawable.fa_star
+    else -> R.drawable.fa_building_columns
 }

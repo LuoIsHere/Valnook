@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -14,8 +13,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
@@ -105,12 +102,7 @@ private fun ReadyScreen(state: OnboardingState, onStart: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally) {
             Column(Modifier.padding(top = (pageHeight * .16f).coerceAtMost(120.dp)),
                 verticalArrangement = Arrangement.spacedBy(Space.lg), horizontalAlignment = Alignment.CenterHorizontally) {
-                Canvas(Modifier.size(76.dp)) {
-                    drawLine(color, Offset(size.width * .18f, size.height * .52f),
-                        Offset(size.width * .42f, size.height * .76f), 5.dp.toPx(), StrokeCap.Round)
-                    drawLine(color, Offset(size.width * .42f, size.height * .76f),
-                        Offset(size.width * .84f, size.height * .26f), 5.dp.toPx(), StrokeCap.Round)
-                }
+                dev.valnook.designsystem.FaIcon(dev.valnook.designsystem.FaIcons.check, null, Modifier.size(76.dp), color)
                 Text(stringResource(R.string.onboarding_ready), style = MaterialTheme.typography.headlineSmall)
                 Text(stringResource(R.string.onboarding_demo_hint), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

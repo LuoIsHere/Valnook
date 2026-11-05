@@ -1,7 +1,6 @@
 package dev.valnook.designsystem
 
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -19,7 +18,6 @@ import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -41,14 +39,7 @@ data class ReorderItem(val key: String, val title: String, val subtitle: String 
 
 @Composable
 fun SortIcon(modifier: Modifier = Modifier) {
-    val color = LocalContentColor.current
-    Canvas(modifier.size(24.dp)) {
-        for (line in 0..2) {
-            val y = size.height * (0.25f + line * 0.25f)
-            drawLine(color, Offset(size.width * 0.15f, y),
-                Offset(size.width * (0.85f - line * 0.2f), y), 2.dp.toPx(), StrokeCap.Round)
-        }
-    }
+    FaIcon(FaIcons.sort, null, modifier.size(22.dp))
 }
 
 /**
@@ -165,7 +156,7 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             val handleColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = if (enabled) 1f else 0.38f)
-                            Canvas(Modifier.size(48.dp).testTag("sort-handle-$key").semantics {
+                            FaIcon(FaIcons.gripLines, null, Modifier.size(48.dp).testTag("sort-handle-$key").semantics {
                                 contentDescription = reorderLabel
                                 customActions = listOf(
                                     CustomAccessibilityAction(moveUpLabel) {
@@ -177,13 +168,7 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                                         canMoveDown
                                     })
                                 if (!enabled) disabled()
-                            }) {
-                                for (line in 0..2) {
-                                    val y = size.height / 2f + (line - 1) * 5.dp.toPx()
-                                    drawLine(handleColor, Offset(size.width / 2f - 9.dp.toPx(), y),
-                                        Offset(size.width / 2f + 9.dp.toPx(), y), 2.dp.toPx(), StrokeCap.Round)
-                                }
-                            }
+                            }.padding(14.dp), handleColor)
                         }
                     }
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)

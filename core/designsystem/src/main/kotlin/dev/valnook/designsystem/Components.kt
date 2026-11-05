@@ -4,7 +4,6 @@ import android.app.DatePickerDialog as NativeDatePickerDialog
 import android.app.TimePickerDialog as NativeTimePickerDialog
 import android.content.DialogInterface
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.*
@@ -18,8 +17,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
@@ -114,9 +111,7 @@ import java.util.Locale
             IconButton(onClick={
                 cursor=toggleSign(shown)
                 on_change(cursor.text)
-            },enabled=enabled) { Text("±",modifier=Modifier.semantics {
-                contentDescription=toggle_sign_description
-            }) }
+            },enabled=enabled) { FaIcon(FaIcons.plusMinus,toggle_sign_description,Modifier.size(18.dp)) }
         }} else null,
         keyboardOptions=KeyboardOptions(keyboardType=if(numeric) KeyboardType.Decimal else KeyboardType.Text,imeAction=ImeAction.Done),
         keyboardActions=KeyboardActions(onDone={focus.clearFocus();keyboard?.hide()}))
@@ -135,11 +130,7 @@ import java.util.Locale
         else OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},
             singleLine=true,textStyle=MaterialTheme.typography.bodyLarge,shape=shape,
             enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
-            trailingIcon={Canvas(Modifier.size(18.dp)) {
-                val stroke=2.dp.toPx()
-                drawLine(arrow_color,Offset(size.width*0.2f,size.height*0.4f),Offset(size.width*0.5f,size.height*0.7f),stroke,StrokeCap.Round)
-                drawLine(arrow_color,Offset(size.width*0.5f,size.height*0.7f),Offset(size.width*0.8f,size.height*0.4f),stroke,StrokeCap.Round)
-            }},
+            trailingIcon={FaIcon(FaIcons.chevronDown,null,Modifier.size(14.dp),arrow_color)},
             colors=OutlinedTextFieldDefaults.colors(
                 disabledTextColor=MaterialTheme.colorScheme.onSurface,
                 disabledLabelColor=MaterialTheme.colorScheme.onSurfaceVariant))
@@ -199,7 +190,7 @@ import java.util.Locale
                                     if(configured==null)Text(stringResource(R.string.currency_rate_missing),style=MaterialTheme.typography.bodySmall,
                                         color=MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-                                if(code==selected)Text("✓",color=MaterialTheme.colorScheme.primary)
+                                if(code==selected)SelectedIcon(tint=MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
