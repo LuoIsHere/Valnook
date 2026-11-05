@@ -83,8 +83,8 @@ import java.util.Locale
 @Composable fun ActionButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
     destructive:Boolean=false,content:@Composable RowScope.()->Unit) {
     val colors=MaterialTheme.colorScheme
-    OutlinedButton(onClick=onClick,modifier=modifier.heightIn(min=48.dp),enabled=enabled,
-        shape=RoundedCornerShape(12.dp),
+    // Keeps Material's capsule shape and height, so it matches a Button beside it.
+    OutlinedButton(onClick=onClick,modifier=modifier,enabled=enabled,
         border=BorderStroke(1.dp,if(destructive)colors.error else colors.outlineVariant),
         colors=ButtonDefaults.outlinedButtonColors(
             containerColor=if(destructive)colors.errorContainer else colors.surfaceContainerLow,
