@@ -30,6 +30,8 @@ import java.util.Locale
 import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import org.json.JSONException
+import org.json.JSONObject
 
 internal data class WorkbookPackage(
     val file: File,
@@ -38,6 +40,26 @@ internal data class WorkbookPackage(
     val createdAtUtc: String,
     val sha256: String
 )
+
+/**
+ * What the records sheet shows from an audit event's after_json. Read here and not in SQL because Android 13's SQLite
+ * has no JSON functions. Keep it matching json_extract: a missing field and a JSON null are both absent, and an empty
+ * string is a value. Numbers keep their digits.
+ */
+internal class AuditRecordFields(afterJson: String, relatedId: String) {
+    private val json = try { JSONObject(afterJson) } catch (_: JSONException) { JSONObject() }
+    private fun field(name: String): String? = if (json.isNull(name)) null else json.get(name).toString()
+
+    val subaccount = field("audit_cash_account_name").orEmpty()
+    val objectName = field("audit_instrument_name")?.let { "$it / ${field("audit_instrument_symbol").orEmpty()}" }
+        ?: field("name") ?: relatedId
+    val currency = field("currency_code") ?: field("audit_instrument_currency") ?: field("audit_cash_currency")
+        ?: field("audit_deposit_currency").orEmpty()
+    val quantity = field("quantity_e8").orEmpty()
+    val unitPrice = field("execution_price_e8").orEmpty()
+    val fee = field("fee_minor").orEmpty()
+    val amount = field("amount_minor") ?: field("delta_minor") ?: field("principal_minor").orEmpty()
+}
 
 internal class SpreadsheetWriter(
     private val db: ValnookDatabase,
@@ -258,7 +280,10 @@ internal class SpreadsheetWriter(
             recordCursor(accountId).use { cursor ->
                 while (cursor.moveToNext()) {
                     val businessValue = cursor.getString(1).orEmpty()
-                    val currencyCode = cursor.getString(5).orEmpty()
+                    // Only audit events have an event ID; the other rows carry these columns in the query itself.
+                    val audit = cursor.getString(15).orEmpty().takeIf { it.isNotEmpty() }
+                        ?.let { AuditRecordFields(cursor.getString(12).orEmpty(), cursor.getString(16).orEmpty()) }
+                    val currencyCode = audit?.currency ?: cursor.getString(5).orEmpty()
                     val currency = Currency.supported.firstOrNull { it.code == currencyCode }
                     sheet.row(
                         text(instantText(cursor.getLong(0))),
@@ -267,9 +292,11 @@ internal class SpreadsheetWriter(
                             businessValue.contains('-') -> businessValue
                             else -> businessValue.toLongOrNull()?.let(::instantText).orEmpty()
                         }),
-                        text(cursor.getString(2)), text(cursor.getString(3).orEmpty()), text(cursor.getString(4).orEmpty()),
-                        text(currencyCode), scaled(cursor.getString(6).orEmpty(), 8), scaled(cursor.getString(7).orEmpty(), 8),
-                        currencyScaled(cursor.getString(8).orEmpty(), currency), currencyScaled(cursor.getString(9).orEmpty(), currency),
+                        text(cursor.getString(2)), text(audit?.subaccount ?: cursor.getString(3).orEmpty()),
+                        text(audit?.objectName ?: cursor.getString(4).orEmpty()), text(currencyCode),
+                        scaled(audit?.quantity ?: cursor.getString(6).orEmpty(), 8), scaled(audit?.unitPrice ?: cursor.getString(7).orEmpty(), 8),
+                        currencyScaled(audit?.fee ?: cursor.getString(8).orEmpty(), currency),
+                        currencyScaled(audit?.amount ?: cursor.getString(9).orEmpty(), currency),
                         text(cursor.getString(10).orEmpty()),
                         text(cursor.getString(11).orEmpty()), text(cursor.getString(12).orEmpty()), text(cursor.getString(13).orEmpty()),
                         text(cursor.getString(14).orEmpty()), text(cursor.getString(15).orEmpty()), text(cursor.getString(16).orEmpty())
@@ -287,20 +314,7 @@ internal class SpreadsheetWriter(
         SELECT e.recorded_at_ms operation_time,
             COALESCE(e.business_local_date,CAST(e.business_at_ms AS TEXT),'') business_time,
             e.action||' '||e.entity_kind operation_type,
-            COALESCE(json_extract(e.after_json,'$.audit_cash_account_name'),'') subaccount,
-            CASE WHEN json_extract(e.after_json,'$.audit_instrument_name') IS NOT NULL
-                THEN json_extract(e.after_json,'$.audit_instrument_name')||' / '||
-                    COALESCE(json_extract(e.after_json,'$.audit_instrument_symbol'),'')
-                ELSE COALESCE(json_extract(e.after_json,'$.name'),e.entity_id,'') END object_name,
-            COALESCE(json_extract(e.after_json,'$.currency_code'),
-                json_extract(e.after_json,'$.audit_instrument_currency'),
-                json_extract(e.after_json,'$.audit_cash_currency'),
-                json_extract(e.after_json,'$.audit_deposit_currency'),'') currency,
-            COALESCE(json_extract(e.after_json,'$.quantity_e8'),'') quantity,
-            COALESCE(json_extract(e.after_json,'$.execution_price_e8'),'') unit_price,
-            COALESCE(json_extract(e.after_json,'$.fee_minor'),'') fee,
-            COALESCE(json_extract(e.after_json,'$.amount_minor'),json_extract(e.after_json,'$.delta_minor'),
-                json_extract(e.after_json,'$.principal_minor'),'') amount,
+            '' subaccount,'' object_name,'' currency,'' quantity,'' unit_price,'' fee,'' amount,
             e.changed_fields_json change_summary,COALESCE(e.before_json,'') before_value,COALESCE(e.after_json,'') after_value,
             e.cash_effects_json cash_effects,e.source source_state,e.event_id event_id,COALESCE(e.entity_id,'') related_id,
             'A'||e.event_id stable_id

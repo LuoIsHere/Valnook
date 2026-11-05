@@ -5,7 +5,7 @@ plugins {
 android {
     namespace = "dev.valnook.feature.deposits"
     compileSdk { version = release(37) }
-    defaultConfig { minSdk = 36; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig { minSdk = 33; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
     buildFeatures { compose = true }
 }

@@ -25,7 +25,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.valnook.app"
-        minSdk = 36
+        minSdk = 33
         targetSdk = 36
         versionCode = releaseVersion.getProperty("version.code").toInt()
         versionName = releaseVersion.getProperty("version.name")

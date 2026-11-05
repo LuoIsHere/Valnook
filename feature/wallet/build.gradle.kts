@@ -5,7 +5,7 @@ plugins {
 android {
     namespace = "dev.valnook.feature.wallet"
     compileSdk { version = release(37) }
-    defaultConfig { minSdk = 36 }
+    defaultConfig { minSdk = 33 }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
     buildFeatures { compose = true }
 }

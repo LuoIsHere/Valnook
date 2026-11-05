@@ -490,7 +490,7 @@ class MigrationTest {
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
-            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22).build()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23).build()
             try {
                 val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
                 assertEquals(listOf("shared", "orphan"), faces.map { it.key })
