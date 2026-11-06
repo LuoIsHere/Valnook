@@ -22,6 +22,9 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -50,6 +53,7 @@ fun FxRateEditor(base: Currency?, rows: List<FxRateDraft>, busy: Boolean,
     val language = interfaceLanguage()
     val options = remember(language) { Currency.options(language) }
     val names = remember(options) { options.toMap() }
+    val currencyWidth = currencyColumnWidth(rows.map { it.sourceCurrency.code }, names, arrow = editable)
     Column(verticalArrangement = Arrangement.spacedBy(Space.lg)) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             // The row already says what it is, so the card needs no title of its own.
@@ -67,7 +71,7 @@ fun FxRateEditor(base: Currency?, rows: List<FxRateDraft>, busy: Boolean,
                     if (index > 0) FormDivider()
                     val note = notes[row.sourceCurrency.code]
                     if (readOnly) RateLine(index, row, names[row.sourceCurrency.code], note)
-                    else RateRow(index, row, names[row.sourceCurrency.code], note, editable, options,
+                    else RateRow(index, row, names[row.sourceCurrency.code], note, editable, currencyWidth, options,
                         rows.filterIndexed { i, _ -> i != index }.map { it.sourceCurrency.code }.toSet() + base.code,
                         onUpdate, onRemove)
                 }
@@ -159,33 +163,56 @@ private fun RateLine(index: Int, row: FxRateDraft, name: String?, note: String?)
 }
 
 @Composable
-private fun RateRow(index: Int, row: FxRateDraft, name: String?, note: String?, editable: Boolean,
+private fun RateRow(index: Int, row: FxRateDraft, name: String?, note: String?, editable: Boolean, currencyWidth: Dp,
     options: List<Pair<String, String>>, excluded: Set<String>,
     onUpdate: (Int, Currency?, String?) -> Unit, onRemove: (Int) -> Unit) {
     val code = row.sourceCurrency.code
     Column(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 4.dp, bottom = 4.dp)) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
-            SignButton(plus = false, enabled = editable, description = stringResource(R.string.settings_remove_rate, code),
-                modifier = Modifier.testTag("remove-rate-$code")) { onRemove(index) }
-            Box(Modifier.weight(1f)) {
-                CurrencyChoice(code, { onUpdate(index, Currency.of(it), null) }, editable, options, excluded, glass = true,
-                    field = { open ->
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
-                            .clickable(editable, onClickLabel = stringResource(R.string.settings_change_currency),
-                                role = Role.Button, onClick = open)
-                            .padding(horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically) {
-                            CurrencyLabel(code, name, arrow = editable)
-                        }
-                    })
-            }
-            Box(Modifier.weight(1.35f).padding(start = 8.dp).testTag("fx-rate-$index")) {
-                RateField(row.rateInput, { onUpdate(index, null, it) }, editable, stringResource(R.string.settings_rate_of, code))
+        // Every row's currency gets the width the widest one needs, up to 45% of the line, so the fields line up;
+        // the field gets the rest, since twelve decimal places are the longer part, more so with a large font.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val currencyMax = minOf(currencyWidth, (maxWidth - 48.dp) * .45f)
+            Row(Modifier.fillMaxWidth().heightIn(min = 52.dp), verticalAlignment = Alignment.CenterVertically) {
+                SignButton(plus = false, enabled = editable, description = stringResource(R.string.settings_remove_rate, code),
+                    modifier = Modifier.testTag("remove-rate-$code")) { onRemove(index) }
+                Box(Modifier.width(currencyMax)) {
+                    CurrencyChoice(code, { onUpdate(index, Currency.of(it), null) }, editable, options, excluded, glass = true,
+                        field = { open ->
+                            Row(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(8.dp))
+                                .clickable(editable, onClickLabel = stringResource(R.string.settings_change_currency),
+                                    role = Role.Button, onClick = open)
+                                .padding(horizontal = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                CurrencyLabel(code, name, arrow = editable)
+                            }
+                        })
+                }
+                Box(Modifier.weight(1f).padding(start = 8.dp).testTag("fx-rate-$index")) {
+                    RateField(row.rateInput, { onUpdate(index, null, it) }, editable, stringResource(R.string.settings_rate_of, code))
+                }
             }
         }
         note?.let {
             Text(it, Modifier.padding(start = 48.dp, bottom = 8.dp).testTag("fx-note-$code"),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** What the widest of [codes] needs as a [CurrencyLabel] with its padding, in the current font size. */
+@Composable
+private fun currencyColumnWidth(codes: List<String>, names: Map<String, String>, arrow: Boolean): Dp {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val codeStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
+    val nameStyle = MaterialTheme.typography.bodyMedium
+    return remember(codes, names, arrow, density, codeStyle, nameStyle) {
+        with(density) {
+            codes.maxOfOrNull { code ->
+                val codePx = measurer.measure(code, codeStyle, maxLines = 1).size.width
+                val namePx = names[code]?.let { measurer.measure(it, nameStyle, maxLines = 1).size.width } ?: 0
+                codePx.toDp() + (if (namePx > 0) 6.dp + namePx.toDp() else 0.dp) + (if (arrow) 18.dp else 0.dp)
+            }?.plus(8.dp + 1.dp) ?: 0.dp
         }
     }
 }
