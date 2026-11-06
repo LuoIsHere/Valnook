@@ -117,10 +117,9 @@ class SettingsGlassUiTest {
             }
         }
         rule.runOnIdle { vm.addRate() }
-        val label = InstrumentationRegistry.getInstrumentation().targetContext
-            .getString(dev.valnook.feature.settings.R.string.settings_rate)
-        rule.onNode(hasSetTextAction() and hasText(label)).performScrollTo().performTextReplacement("7.2345")
-        rule.onNode(hasSetTextAction() and hasText(label)).performImeAction()
+        val field = hasSetTextAction() and hasAnyAncestor(hasTestTag("fx-rate-0"))
+        rule.onNode(field).performScrollTo().performTextReplacement("7.2345")
+        rule.onNode(field).performImeAction()
         rule.runOnIdle { assertEquals("7.2345", vm.state.value.rows.single().rateInput); vm.saveRates() }
         rule.waitForIdle()
         assertEquals("7.2345", store.value.value.rates.single().rate.toPlainString())

@@ -762,7 +762,6 @@ class UiFlowTest {
         }
     }
     @Test fun all_account_totals_settings_and_root_scroll_survive_switches() {
-        val rateLabel = localized(dev.valnook.feature.settings.R.string.settings_rate)
         val baseCurrencyLabel = localized(dev.valnook.feature.settings.R.string.settings_base_currency)
         runBlocking {
             graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), account_id, 1,
@@ -785,15 +784,15 @@ class UiFlowTest {
         rule.onNode(hasText("主币种") and hasClickAction()).performClick()
         wait_text("主币种")
         wait_text("未设置")
-        rule.onNodeWithContentDescription("币种:", substring = true).performScrollTo().performClick()
+        rule.onNodeWithTag("fx-base").performScrollTo().performClick()
         rule.onNodeWithText("搜索代码或币种名称").performTextInput("CNY")
         rule.onNode(hasText("CNY") and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
-        rule.onNodeWithText("＋ 添加汇率").performScrollTo().performClick()
+        rule.onNodeWithTag("fx-add").performScrollTo().performClick()
         rule.onNode(hasText(Currency.supported.first { it.code != "CNY" }.code) and hasClickAction()).performScrollTo().performClick()
         rule.onNodeWithText("搜索代码或币种名称").performTextInput("USD")
         rule.onNode(hasText("USD") and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
-        rule.onNode(hasText(rateLabel) and hasSetTextAction()).performScrollTo().performTextReplacement("7.2")
-        rule.onNode(hasText(rateLabel) and hasSetTextAction()).performImeAction()
+        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("fx-rate-0"))).performScrollTo().performTextReplacement("7.2")
+        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("fx-rate-0"))).performImeAction()
         rule.onNodeWithText("保存设置").performScrollTo().performClick()
         wait_text("设置已保存")
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()

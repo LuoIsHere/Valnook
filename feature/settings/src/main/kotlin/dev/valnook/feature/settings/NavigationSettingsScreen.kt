@@ -254,19 +254,23 @@ private fun GroupRow(index: Int, count: Int, raised: Boolean, modifier: Modifier
 
 /** A filled circle with − or +, in the same red and green as the status tags. */
 @Composable
-private fun SignButton(plus: Boolean, enabled: Boolean, description: String, modifier: Modifier, onClick: () -> Unit) {
+internal fun SignButton(plus: Boolean, enabled: Boolean, description: String, modifier: Modifier, onClick: () -> Unit) {
+    IconButton(onClick, modifier.semantics { contentDescription = description }, enabled = enabled) { SignIcon(plus, enabled) }
+}
+
+/** The round ⊕ / ⊖ mark alone, for a row that is itself the button. */
+@Composable
+internal fun SignIcon(plus: Boolean, enabled: Boolean) {
     val palette = LocalTagPalette.current
     val base = if (plus) palette.positive.content else palette.negative.content
     val color = if (enabled) base else base.copy(alpha = .3f)
     // The dark theme's tag colours are light, so the sign on them is drawn dark.
     val sign = if (base.luminance() > .5f) Color(0xFF202023) else Color.White
-    IconButton(onClick, modifier.semantics { contentDescription = description }, enabled = enabled) {
-        Canvas(Modifier.size(22.dp)) {
-            drawCircle(color)
-            val arm = size.minDimension * .26f
-            val width = 2.dp.toPx()
-            drawLine(sign, Offset(center.x - arm, center.y), Offset(center.x + arm, center.y), width, StrokeCap.Round)
-            if (plus) drawLine(sign, Offset(center.x, center.y - arm), Offset(center.x, center.y + arm), width, StrokeCap.Round)
-        }
+    Canvas(Modifier.size(22.dp)) {
+        drawCircle(color)
+        val arm = size.minDimension * .26f
+        val width = 2.dp.toPx()
+        drawLine(sign, Offset(center.x - arm, center.y), Offset(center.x + arm, center.y), width, StrokeCap.Round)
+        if (plus) drawLine(sign, Offset(center.x, center.y - arm), Offset(center.x, center.y + arm), width, StrokeCap.Round)
     }
 }
