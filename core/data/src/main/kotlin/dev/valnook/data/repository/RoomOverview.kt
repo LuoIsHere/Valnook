@@ -47,7 +47,12 @@ private fun accountGroups(rows: List<AccountGroupEntity>): List<AccountGroup> {
     return if (groups.any { it.isDefault }) groups else listOf(AccountGroup(AccountGroup.DEFAULT_ID, "", 0)) + groups
 }
 
-class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : SettingsRepository, SettingsWriter {
+/**
+ * [systemLanguage] is the device's language, which "System" means. The app passes it in: `Locale.getDefault()`
+ * follows the app's own choice, so right after leaving English for "System" it still says English.
+ */
+class RoomSettings(private val db: ValnookDatabase, private val clock: Clock,
+    private val systemLanguage: () -> String = { java.util.Locale.getDefault().language }) : SettingsRepository, SettingsWriter {
     private val audit = AuditRecorder(db, clock)
     override fun observeSettings(): Flow<AppSettings> = db.invalidationTracker.createFlow("app_settings", "fx_rates")
         .map { val (settings, rates) = db.overview().settingsSnapshot()
@@ -88,7 +93,7 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock) : 
                 throw DomainException(ErrorCode.STALE_RECORD)
             if (change is SaveLanguage) {
                 val english = change.language == AppLanguage.ENGLISH ||
-                    (change.language == AppLanguage.SYSTEM && java.util.Locale.getDefault().language != "zh")
+                    (change.language == AppLanguage.SYSTEM && systemLanguage() != "zh")
                 dao.localizeAccountNames(english)
                 dao.localizeAccountNotes(english)
                 dao.localizeCashNames(english)

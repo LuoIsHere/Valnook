@@ -73,7 +73,11 @@ internal fun createDatabaseGraph(
 ): DatabaseGraph {
     val cash = RoomCash(database.cash())
     val deposits = RoomDeposits(database.deposits())
-    val settings = RoomSettings(database, clock)
+    // The device's own language, unaffected by the language chosen in this app.
+    val localeManager = context.getSystemService(android.app.LocaleManager::class.java)
+    val settings = RoomSettings(database, clock) {
+        localeManager.systemLocales.get(0)?.language ?: java.util.Locale.getDefault().language
+    }
     return DatabaseGraph(
         database = database,
         accounts = RoomAccounts(database),
