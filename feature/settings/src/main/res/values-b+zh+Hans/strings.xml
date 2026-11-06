@@ -98,6 +98,8 @@
     <string name="settings_fx_discard_body">打开自动获取汇率后，未保存的修改将被丢弃。</string>
     <string name="settings_fx_discard_keep">继续编辑</string>
     <string name="settings_fx_discard_confirm">放弃并继续</string>
+    <string name="settings_leave_body">离开此页面后，未保存的修改将被丢弃。</string>
+    <string name="settings_leave_confirm">放弃修改</string>
     <string name="settings_fx_notice_title">自动获取汇率说明</string>
     <string name="settings_fx_notice_source">数据来源：汇率取自 Frankfurter 公开汇率服务（api.frankfurter.dev），数据汇总自各国央行及其他公开来源。</string>
     <string name="settings_fx_notice_when">联网时机：每天首次打开应用、修改主货币、开启本功能或手动更新时，应用会向该服务发送请求；请求失败后，最多每 30 分钟自动重试一次。</string>

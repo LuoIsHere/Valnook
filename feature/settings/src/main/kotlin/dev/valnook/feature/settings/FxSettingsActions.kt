@@ -11,8 +11,11 @@ import androidx.compose.ui.unit.dp
 import dev.valnook.designsystem.FaIcon
 import dev.valnook.designsystem.FaIcons
 
-/** The rates page owns the draft; the root toolbar only renders its save. Automatic rates have nothing to save. */
-data class FxToolbarState(val busy: Boolean, val canSave: Boolean, val save: () -> Unit)
+/**
+ * The rates page owns the draft; the root toolbar only renders its save, and asks before leaving while [dirty].
+ * Automatic rates have nothing to save.
+ */
+data class FxToolbarState(val busy: Boolean, val dirty: Boolean, val canSave: Boolean, val save: () -> Unit)
 
 @Composable
 fun FxSettingsActions(state: FxToolbarState?) {

@@ -276,13 +276,32 @@ private fun SessionRoot(
             stack.add(route)
         }
     }
-    val back: () -> Unit = {
+    var navigationToolbar by remember(graph.sessionId) { mutableStateOf<NavigationToolbarState?>(null) }
+    val updateNavigationToolbar = remember(graph.sessionId) {
+        { value: NavigationToolbarState? -> navigationToolbar = value }
+    }
+    var fxToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.settings.FxToolbarState?>(null) }
+    val updateFxToolbar = remember(graph.sessionId) {
+        { value: dev.valnook.feature.settings.FxToolbarState? -> fxToolbar = value }
+    }
+    var leavePrompt by remember(graph.sessionId) { mutableStateOf(false) }
+    val pop: () -> Unit = {
         if (stack.last() == BackupKey) scope.launch { sessions.cancelPendingRestore(active.id) }
         if (!stack.last().isRoot()) stack.removeAt(stack.lastIndex)
         else if (stack.last() != firstRoot) {
             stack.remove(firstRoot)
             stack.add(firstRoot)
         } else onExit()
+    }
+    // The toolbar's back and the system back both come here: a page that saves from the toolbar asks first while
+    // its draft has changes. Leaving drops the page, and with it the draft.
+    val back: () -> Unit = {
+        val unsaved = when (stack.last()) {
+            NavigationSettingsKey -> navigationToolbar?.dirty == true
+            FxSettingsKey -> fxToolbar?.dirty == true
+            else -> false
+        }
+        if (unsaved) leavePrompt = true else pop()
     }
     val walletCurrent = current == WalletKey || current == HiddenWalletKey
     val walletDetail = walletCurrent && walletToolbar?.detail == true
@@ -377,17 +396,11 @@ private fun SessionRoot(
     val updateWalletFacesToolbar = remember(graph.sessionId) {
         { value: dev.valnook.feature.wallet.WalletFaceLibraryToolbar? -> walletFacesToolbar = value }
     }
-    var navigationToolbar by remember(graph.sessionId) { mutableStateOf<NavigationToolbarState?>(null) }
-    val updateNavigationToolbar = remember(graph.sessionId) {
-        { value: NavigationToolbarState? -> navigationToolbar = value }
-    }
-    var fxToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.settings.FxToolbarState?>(null) }
-    val updateFxToolbar = remember(graph.sessionId) {
-        { value: dev.valnook.feature.settings.FxToolbarState? -> fxToolbar = value }
-    }
 
     var accountTitleReserve by remember(graph.sessionId) { mutableIntStateOf(0) }
     val updateAccountTitleReserve = remember(graph.sessionId) { { value: Int -> accountTitleReserve = value } }
+    if (leavePrompt) dev.valnook.feature.settings.UnsavedChangesDialog(onKeep = { leavePrompt = false },
+        onDiscard = { leavePrompt = false; pop() })
     var deleteTarget by remember(graph.sessionId) { mutableStateOf<Pair<Long, Long?>?>(null) }
     deleteTarget?.let { (accountId, cashId) ->
         dev.valnook.feature.accounts.AccountDeletionDialog(graph.commands, accountId, cashId,

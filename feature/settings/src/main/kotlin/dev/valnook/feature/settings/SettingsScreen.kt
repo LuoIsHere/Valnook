@@ -244,7 +244,7 @@ fun FxSettingsScreen(vm: SettingsViewModel, onToolbarChange: (FxToolbarState?) -
     }
     val base = state.shownBase
     // Automatic rates save themselves, so the ✓ goes away; by hand it waits for a change.
-    val toolbar = if (state.automatic) null else FxToolbarState(state.busy, state.dirty && base != null, vm::saveRates)
+    val toolbar = if (state.automatic) null else FxToolbarState(state.busy, state.dirty, state.dirty && base != null, vm::saveRates)
     SideEffect { onToolbarChange(toolbar) }
     val listState = rememberLazyListState()
     // The ✓ is at the top and the message at the end of the list, so a failed save scrolls to its reason.

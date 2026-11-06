@@ -57,16 +57,30 @@ fun FxNetworkNoticeDialog(onCancel: () -> Unit, onAccept: (dontShowAgain: Boolea
 
 @Composable
 internal fun FxDiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit) {
+    DiscardDialog(stringResource(R.string.settings_fx_discard_body), stringResource(R.string.settings_fx_discard_confirm),
+        "fx-discard-confirm", onKeep, onDiscard)
+}
+
+/** Asked when leaving the rates or navigation page with changes that were not saved. */
+@Composable
+fun UnsavedChangesDialog(onKeep: () -> Unit, onDiscard: () -> Unit) {
+    DiscardDialog(stringResource(R.string.settings_leave_body), stringResource(R.string.settings_leave_confirm),
+        "leave-discard", onKeep, onDiscard, keepTag = "leave-keep")
+}
+
+@Composable
+private fun DiscardDialog(body: String, confirm: String, confirmTag: String, onKeep: () -> Unit, onDiscard: () -> Unit,
+    keepTag: String? = null) {
     AnimatedGlassDialog(true, onKeep) {
         GlassCard {
             Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.settings_fx_discard_title), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.settings_fx_discard_body), style = MaterialTheme.typography.bodyMedium)
+                Text(body, style = MaterialTheme.typography.bodyMedium)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onKeep) { Text(stringResource(R.string.settings_fx_discard_keep)) }
-                    TextButton(onDiscard, Modifier.testTag("fx-discard-confirm")) {
-                        Text(stringResource(R.string.settings_fx_discard_confirm))
+                    TextButton(onKeep, if (keepTag != null) Modifier.testTag(keepTag) else Modifier) {
+                        Text(stringResource(R.string.settings_fx_discard_keep))
                     }
+                    TextButton(onDiscard, Modifier.testTag(confirmTag)) { Text(confirm) }
                 }
             }
         }

@@ -102,6 +102,8 @@
     <string name="settings_fx_discard_body">Turning on automatic exchange rates discards your unsaved changes.</string>
     <string name="settings_fx_discard_keep">Keep editing</string>
     <string name="settings_fx_discard_confirm">Discard and continue</string>
+    <string name="settings_leave_body">Leaving this page discards your unsaved changes.</string>
+    <string name="settings_leave_confirm">Discard changes</string>
     <string name="settings_fx_notice_title">About automatic exchange rates</string>
     <string name="settings_fx_notice_source">Source: rates come from the public Frankfurter exchange rate service (api.frankfurter.dev), which compiles data from central banks and other public sources.</string>
     <string name="settings_fx_notice_when">When the app connects: it sends a request on the first launch each day, when the base currency changes, when this feature is turned on, and when you update manually. After a failed request it retries automatically at most once every 30 minutes.</string>
