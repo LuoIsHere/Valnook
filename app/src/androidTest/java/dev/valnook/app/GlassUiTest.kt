@@ -108,8 +108,15 @@ class GlassUiTest {
         rule.onNodeWithContentDescription(addAccount).performClick()
         rule.mainClock.advanceTimeBy(500)
         rule.onNodeWithTag("root-toolbar-background").assertDoesNotExist()
-        // A new account with no balance accounts fits on screen; add an unsaved row to scroll.
-        rule.onNodeWithText(activity.getString(dev.valnook.feature.accounts.R.string.account_add_balance_account)).performClick()
+        // A new account fits on screen; unsaved rows make it scroll. Each new row opens its panel, closed here.
+        repeat(8) {
+            rule.onNodeWithTag("account-add-row").performScrollTo().performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("subaccount-sheet-done").fetchSemanticsNodes().isNotEmpty() }
+            rule.onNodeWithTag("subaccount-sheet-done").performClick()
+            rule.waitUntil(5_000) { rule.onAllNodesWithTag("subaccount-sheet").fetchSemanticsNodes().isEmpty() }
+        }
+        repeat(4) { rule.onNode(hasScrollAction()).performTouchInput { swipeDown(durationMillis = 150) } }
+        rule.mainClock.advanceTimeBy(500)
         val scroll = rule.onNode(hasScrollAction())
         scroll.performTouchInput { swipeUp(durationMillis = 400) }
         rule.mainClock.advanceTimeBy(500)

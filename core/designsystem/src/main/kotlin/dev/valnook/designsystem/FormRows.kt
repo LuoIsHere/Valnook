@@ -160,7 +160,8 @@ fun FilledField(label: String, value: String, onChange: (String) -> Unit, modifi
             keyboardActions = KeyboardActions(onDone = { focus.clearFocus(); keyboard?.hide() }),
             decorationBox = { inner ->
                 FilledFrame(label, message != null, enabled, if (numeric && signed) ({
-                    IconButton({ cursor = toggleSign(shown); onChange(cursor.text) }, enabled = enabled) {
+                    // 40dp keeps this field as tall as a plain one beside it.
+                    IconButton({ cursor = toggleSign(shown); onChange(cursor.text) }, Modifier.size(40.dp), enabled = enabled) {
                         FaIcon(FaIcons.plusMinus, toggle, Modifier.size(18.dp))
                     }
                 }) else null) {

@@ -100,4 +100,17 @@
     <string name="account_delete_code_input">Confirmation code</string>
     <string name="account_delete_refresh">Refresh preview and code</string>
     <string name="account_delete_draft_notice">Deletion uses saved data. Unsaved edits will be discarded.</string>
+    <string name="account_detail_settings">Account page</string>
+    <string name="account_subaccount_count">Subaccounts %1$d</string>
+    <string name="account_optional">Optional</string>
+    <string name="account_new_subaccount">New subaccount</string>
+    <string name="account_sheet_done">Done</string>
+    <string name="account_hidden">Hidden</string>
+    <string name="account_credit_owed">Amount owed</string>
+    <string name="account_credit_balance">Credit balance</string>
+    <string name="account_credit_clear">No amount owed</string>
+    <plurals name="account_issue_count">
+        <item quantity="one">%1$d field to fix</item>
+        <item quantity="other">%1$d fields to fix</item>
+    </plurals>
 </resources>

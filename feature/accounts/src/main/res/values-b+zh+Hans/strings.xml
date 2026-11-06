@@ -99,4 +99,16 @@
     <string name="account_delete_code_input">确认码</string>
     <string name="account_delete_refresh">重新检查并生成确认码</string>
     <string name="account_delete_draft_notice">删除以已保存的数据为准，尚未保存的编辑将被放弃。</string>
+    <string name="account_detail_settings">账户详情页</string>
+    <string name="account_subaccount_count">子账户 %1$d</string>
+    <string name="account_optional">可选</string>
+    <string name="account_new_subaccount">新子账户</string>
+    <string name="account_sheet_done">完成</string>
+    <string name="account_hidden">已隐藏</string>
+    <string name="account_credit_owed">欠款</string>
+    <string name="account_credit_balance">溢缴款</string>
+    <string name="account_credit_clear">无欠款</string>
+    <plurals name="account_issue_count">
+        <item quantity="other">%1$d 项需修改</item>
+    </plurals>
 </resources>

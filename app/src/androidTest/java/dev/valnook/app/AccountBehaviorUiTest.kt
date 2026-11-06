@@ -31,7 +31,8 @@ class AccountBehaviorUiTest {
         rule.runOnUiThread { rule.activity.setContent(content=content) };rule.waitForIdle()
     }
     private fun image(name:String) {
-        val bitmap=rule.onRoot().captureToImage().asAndroidBitmap()
+        // The topmost window: a subaccount panel opens over the form when its fields need fixing.
+        val bitmap=rule.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)
         }

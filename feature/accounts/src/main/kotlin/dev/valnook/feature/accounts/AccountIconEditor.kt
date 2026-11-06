@@ -1,5 +1,7 @@
 package dev.valnook.feature.accounts
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.foundation.selection.selectable
@@ -24,11 +26,23 @@ import dev.valnook.domain.model.*
 internal fun AccountIconEditor(state: AccountEditUiState, enabled: Boolean,
     onSymbol: (String) -> Unit, onPickImage: () -> Unit) {
     var expanded by rememberSaveable { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        AccountAvatar(state.icon.symbol, state.icon.imageKey, size = 64.dp, preview = state.iconImage,
-            modifier = Modifier.testTag("account-icon-preview"))
-        TextButton({ expanded = true }, enabled = enabled, modifier = Modifier.testTag("account-icon-edit")) {
-            Text(stringResource(R.string.account_icon_change))
+    val change = stringResource(R.string.account_icon_change)
+    // The avatar itself opens the picker; the pen only says that it can.
+    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+        Box {
+            Box(Modifier.testTag("account-icon-edit").clip(CircleShape)
+                .clickable(enabled = enabled, role = Role.Button, onClickLabel = change) { expanded = true }
+                .semantics { contentDescription = change }) {
+                AccountAvatar(state.icon.symbol, state.icon.imageKey, size = 76.dp, preview = state.iconImage,
+                    modifier = Modifier.testTag("account-icon-preview"))
+            }
+            if (enabled) Surface(Modifier.align(Alignment.BottomEnd).size(26.dp), shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.background)) {
+                Box(contentAlignment = Alignment.Center) {
+                    FaIcon(FaIcons.pen, null, Modifier.size(11.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
     }
     AnimatedGlassDialog(expanded, { expanded = false }) {

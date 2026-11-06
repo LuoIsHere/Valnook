@@ -109,8 +109,17 @@ class UiFlowTest {
     private fun open_account_edit(){
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
     }
+    /** Subaccounts are edited in a panel over the account form; the toolbar save is under it. */
+    private fun open_subaccount(name:String){
+        rule.onNodeWithText(name).performScrollTo().performClick()
+        rule.waitUntil(5000){rule.onAllNodesWithTag("subaccount-sheet").fetchSemanticsNodes().isNotEmpty()}
+    }
     private fun save_account(){
         finish_input()
+        if(rule.onAllNodesWithTag("subaccount-sheet-done").fetchSemanticsNodes().isNotEmpty()) {
+            rule.onNodeWithTag("subaccount-sheet-done").performClick()
+            rule.waitUntil(5000){rule.onAllNodesWithTag("subaccount-sheet").fetchSemanticsNodes().isEmpty()}
+        }
         rule.onNodeWithTag("account-edit-save").performClick()
     }
     private fun native_picker(date:Boolean) {
@@ -204,6 +213,7 @@ class UiFlowTest {
         wait_text("-1.00 CNY")
         runBlocking { assertEquals(-100L, db.cash().cash_one(account_id, "CNY")!!.balance_minor) }
         open_account_edit()
+        open_subaccount("人民币现金")
         rule.onNodeWithText("余额").performScrollTo().performTextReplacement("20000.00")
         save_account()
         wait_text("20 000.00")
@@ -1155,8 +1165,7 @@ class UiFlowTest {
         open_account_edit()
         wait_text("编辑账户")
         rule.onNodeWithText("＋ 添加账户").performScrollTo().performClick()
-        rule.onNodeWithTag("input-账户类型").performScrollTo().performClick()
-        rule.onNodeWithText("信用").performClick()
+        rule.onNode(hasText("信用") and isSelectable()).performClick()
         rule.onNodeWithText("账户名称").performScrollTo().performTextReplacement("Visa 测试卡")
         rule.onNodeWithText("余额").performScrollTo().performTextReplacement("-52.00")
         rule.onNodeWithText("信用额度").performScrollTo().performTextInput("50.00")
@@ -1167,9 +1176,12 @@ class UiFlowTest {
         wait_text("已超出信用额度 2.00 CNY")
         open_account_edit()
         wait_text("Visa 测试卡")
-        rule.onNodeWithContentDescription("账户类型: 信用").performScrollTo().assertIsNotEnabled()
+        open_subaccount("Visa 测试卡")
+        rule.onNode(hasText("信用") and isSelectable()).assertIsSelected().assertIsNotEnabled()
         // Deletion now asks for a confirmation code and removes everything; AccountDeletionUiTest covers it.
         window_shot("credit-account-form")
+        rule.onNodeWithTag("subaccount-sheet-done").performClick()
+        rule.waitUntil(5000){rule.onAllNodesWithTag("subaccount-sheet").fetchSemanticsNodes().isEmpty()}
         rule.onNodeWithContentDescription("返回").performClick()
         runBlocking {
             val credit = graph.overview.snapshot().cash.single { it.account_id == account_id && it.name == "Visa 测试卡" }
