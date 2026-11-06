@@ -31,6 +31,12 @@ object FaIcons {
     val rotate = R.drawable.fa_rotate
     val trash = R.drawable.fa_trash_can
     val xmark = R.drawable.fa_xmark
+    // Bottom navigation: one per page.
+    val buildingColumns = R.drawable.fa_building_columns
+    val wallet = R.drawable.fa_wallet
+    val chartLine = R.drawable.fa_chart_line
+    val chartColumn = R.drawable.fa_chart_column
+    val gear = R.drawable.fa_gear
     internal val bars = R.drawable.fa_bars
     internal val ellipsis = R.drawable.fa_ellipsis
     internal val layers = R.drawable.fa_layer_group
