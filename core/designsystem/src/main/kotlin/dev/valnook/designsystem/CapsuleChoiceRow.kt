@@ -50,6 +50,7 @@ fun <T> CapsuleChoiceRow(
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     indicatorInset: Dp = 3.dp,
     spacing: Dp = 0.dp,
+    enabled: Boolean = true,
     label: @Composable RowScope.(T) -> Unit,
 ) {
     val capsuleShape = RoundedCornerShape(percent = 50)
@@ -84,8 +85,8 @@ fun <T> CapsuleChoiceRow(
         Row(Modifier.fillMaxSize().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(spacing)) {
             options.forEach { option -> key(option) {
                 val isSelected = option == selectedOption
-                val contentColor by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+                val shownColor = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                val contentColor by animateColorAsState(if (enabled) shownColor else shownColor.copy(alpha = .45f),
                     tween(120), label = "capsule-content")
                 Box(Modifier.weight(optionWeight(option)).fillMaxHeight()
                     .onGloballyPositioned { coordinates ->
@@ -94,7 +95,7 @@ fun <T> CapsuleChoiceRow(
                             origin.x + coordinates.size.width, origin.y + coordinates.size.height)
                     }
                     .then(optionModifier(option)).clip(capsuleShape)
-                    .selectable(selected = isSelected, onClick = { onOptionSelected(option) }, role = Role.Tab),
+                    .selectable(selected = isSelected, enabled = enabled, onClick = { onOptionSelected(option) }, role = Role.Tab),
                     contentAlignment = Alignment.Center) {
                     CompositionLocalProvider(LocalContentColor provides contentColor) {
                         Row(Modifier.fillMaxSize().padding(horizontal = 3.dp),

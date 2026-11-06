@@ -39,6 +39,10 @@ import java.util.Locale
 
 @Composable fun ErrorMessage(code:String?) {
     if(code==null) return
+    HintMessage(errorText(code), isError = true)
+}
+/** The sentence shown for an error code, for inputs that show it under themselves. */
+@Composable fun errorText(code:String):String {
     val resource=when(code) {
         "NOT_FOUND"->R.string.error_not_found
         "INSUFFICIENT_CASH"->R.string.error_cash
@@ -69,7 +73,7 @@ import java.util.Locale
         "BALANCE_ACCOUNT_IN_USE"->R.string.error_balance_account_in_use
         else->R.string.error_format
     }
-    HintMessage(stringResource(resource), isError = true)
+    return stringResource(resource)
 }
 @Composable fun AmountText(amount:String,currency:String) {
     Column(verticalArrangement=Arrangement.spacedBy(4.dp)) {
