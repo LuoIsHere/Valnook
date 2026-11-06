@@ -83,6 +83,13 @@ class UiFlowTest {
             positionId,Direction.BUY,quantityE8,costPriceE8,Long.MIN_VALUE,false))
         positionId
     }
+    /** A scrolled root page folds the bar to one tab; open it before choosing another page, as a person would. */
+    private fun openNavigation() {
+        if (rule.onAllNodesWithTag("navigation-expand").fetchSemanticsNodes().isEmpty()) return
+        rule.onNodeWithTag("navigation-expand").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("navigation-expand").fetchSemanticsNodes().isEmpty() }
+        rule.waitForIdle()
+    }
     private fun wait_text(text:String) {
         try {
             rule.waitUntil(15000){rule.onAllNodesWithText(text,substring=true).fetchSemanticsNodes().isNotEmpty()}
@@ -804,11 +811,13 @@ class UiFlowTest {
         val capsuleTop = rule.onNodeWithTag("root-capsule").fetchSemanticsNode().boundsInWindow.top
         assertTrue(rule.onNodeWithText("合成长列表 40").fetchSemanticsNode().boundsInWindow.bottom <= capsuleTop)
         window_shot("long-list-above-capsule")
+        openNavigation()
         rule.onNode(hasText("投资") and hasClickAction()).performClick()
         wait_text("总投资市值"); wait_text("7 200.00 CNY")
         rule.onNodeWithTag("investment-market-total").assertTextEquals("7 200.00 CNY")
         rule.onNodeWithTag("investment-account-toggle-$account_id").performScrollTo().performClick()
         wait_text("QQQ")
+        openNavigation()
         rule.onNode(hasText("设置") and hasClickAction()).performClick()
         wait_text(baseCurrencyLabel)
         rule.onNode(hasText("投资") and hasClickAction()).performClick()

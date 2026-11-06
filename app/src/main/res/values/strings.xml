@@ -38,4 +38,5 @@
     <string name="fx_notice_using">Using rates from %1$s.</string>
     <string name="fx_notice_using_none">No rates are available yet.</string>
     <string name="fx_notice_sentences">%1$s %2$s</string>
+    <string name="nav_expand_bar">Current page: %1$s. Tap to show the navigation bar</string>
 </resources>

@@ -15,6 +15,13 @@ class StatisticsNavigationUiTest {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
     @get:Rule(order = 1) val rule = createAndroidComposeRule<MainActivity>()
 
+    /** A scrolled root page folds the bar to one tab; open it before choosing another page, as a person would. */
+    private fun openNavigation() {
+        if (rule.onAllNodesWithTag("navigation-expand").fetchSemanticsNodes().isEmpty()) return
+        rule.onNodeWithTag("navigation-expand").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("navigation-expand").fetchSemanticsNodes().isEmpty() }
+        rule.waitForIdle()
+    }
     @Test fun defaultNavigationOpensThreeIndependentChartsAndSettingsEditor() {
         rule.waitUntil(5_000) {
             rule.onAllNodesWithTag("nav-accounts").fetchSemanticsNodes().isNotEmpty()
@@ -65,6 +72,7 @@ class StatisticsNavigationUiTest {
 
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("statistics-investment_value"))
         rule.onNodeWithTag("statistics-investment_value").assertExists()
+        openNavigation()
         rule.onNodeWithTag("nav-settings").performClick()
         rule.waitUntil(5_000) {
             rule.onAllNodesWithText(rule.activity.getString(dev.valnook.feature.settings.R.string.settings_navigation))

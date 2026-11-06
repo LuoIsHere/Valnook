@@ -4,6 +4,7 @@ import androidx.compose.material3.CircularProgressIndicator
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,6 +39,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -333,6 +336,27 @@ private fun SessionRoot(
     var overlayHeightPx by remember { mutableIntStateOf(0) }
     val systemBottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
     val bottomSpace = if (showCapsule) with(density) { overlayHeightPx.toDp() } else systemBottom
+    // The bottom navigation folds to one tab while a root page scrolls down (see NavigationCollapse). It is left
+    // alone under a card's details, the keyboard or a sub-page, so it comes back as it was.
+    val navigationFolded = rememberSaveable(graph.sessionId) { mutableStateOf(false) }
+    val navigationCollapse = remember(graph.sessionId) {
+        NavigationCollapse(navigationFolded, with(density) { 24.dp.toPx() })
+    }
+    val navigationPaused = !current.isRoot() || keyboardOpen || walletDetail || walletNavigationHidden
+    SideEffect { navigationCollapse.paused = navigationPaused }
+    // The same top the toolbar's background goes by.
+    val atPageTop = if (walletCurrent) walletToolbar?.scrolled != true else toolbarScrollState.contentOffset >= -0.5f
+    LaunchedEffect(atPageTop, navigationPaused) { if (atPageTop) navigationCollapse.atTop() }
+    // Another root page opens with the whole bar; coming back from a sub-page keeps the bar as it was.
+    var lastRoot by remember(graph.sessionId) { mutableStateOf<NavKey?>(null) }
+    LaunchedEffect(current) {
+        if (current.isRoot() && current != lastRoot) {
+            if (lastRoot != null) navigationCollapse.expand()
+            lastRoot = current
+        }
+    }
+    val navigationFold by animateFloatAsState(if (navigationCollapse.folded) 1f else 0f,
+        tween(300, easing = FastOutSlowInEasing), label = "navigation-fold")
     var switching by remember { mutableStateOf(false) }
     var switchFailed by remember { mutableStateOf(false) }
     val addAccountDescription = stringResource(R.string.nav_add_account)
@@ -374,7 +398,8 @@ private fun SessionRoot(
             }, discardDraft = current is AccountEditKey)
     }
     Box(Modifier.fillMaxSize()) {
-        Scaffold(modifier = Modifier.nestedScroll(toolbarScrollBehavior.nestedScrollConnection),
+        Scaffold(modifier = Modifier.nestedScroll(toolbarScrollBehavior.nestedScrollConnection)
+            .nestedScroll(navigationCollapse.connection),
             contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
             Box(Modifier.testTag("root-toolbar")) {
             if (toolbarBackgroundAlpha > 0f) GlassSurface(
@@ -613,7 +638,8 @@ private fun SessionRoot(
             // Taps wait until the card has returned, like the wallet toolbar actions.
             FloatingNavigationBar(current, settings.navigation.visibleInOrder, { if (!walletDetail) selectRoot(it) },
                 Modifier.fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
-                    .testTag("floating-navigation-overlay"), backdrop)
+                    .testTag("floating-navigation-overlay"), backdrop,
+                fold = navigationFold, onExpand = navigationCollapse::expand)
         }
     }
 }

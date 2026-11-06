@@ -43,6 +43,13 @@ class GlassUiTest {
     @get:Rule(order = 1) val rule = createAndroidComposeRule<MainActivity>()
     @Before fun prepare() { hilt.inject() }
 
+    /** A scrolled root page folds the bar to one tab; open it before choosing another page, as a person would. */
+    private fun openNavigation() {
+        if (rule.onAllNodesWithTag("navigation-expand").fetchSemanticsNodes().isEmpty()) return
+        rule.onNodeWithTag("navigation-expand").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("navigation-expand").fetchSemanticsNodes().isEmpty() }
+        rule.waitForIdle()
+    }
     private fun scene(content: @Composable () -> Unit) {
         rule.runOnUiThread { rule.activity.setContent(content = content) }
         rule.waitForIdle()
@@ -81,6 +88,7 @@ class GlassUiTest {
             rule.onNodeWithTag("root-toolbar-background").assertExists()
             assertEquals(toolbar, rule.onNodeWithTag("root-toolbar").fetchSemanticsNode().boundsInWindow)
             save("root-$theme-scrolled", rule.onRoot().captureToImage().asAndroidBitmap())
+            openNavigation()
             rule.onNodeWithTag("nav-investments").performClick()
             rule.waitUntil(10_000) { rule.onAllNodesWithTag("investment-month-trend").fetchSemanticsNodes().isNotEmpty() }
             rule.mainClock.advanceTimeBy(200)
