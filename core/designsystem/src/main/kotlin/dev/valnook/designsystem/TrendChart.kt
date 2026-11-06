@@ -155,7 +155,8 @@ fun TrendChart(
         }.then(gesture)) {
         val split = fingerFraction?.let { inset+plotWidth*it } ?: selection?.let(::x)
         val stroke = Stroke(if(compact) 1.8.dp.toPx() else 2.dp.toPx(), cap=StrokeCap.Round)
-        val revealRight = if(interrupted) size.width else inset+plotWidth*reveal.value
+        // Once revealed, nothing is clipped: the reveal edge would otherwise cut the end dot in half.
+        val revealRight = if(interrupted || reveal.value>=.999f) size.width else inset+plotWidth*reveal.value
         // A shared reveal clip includes BOTH the line and area; month dividers cannot appear early.
         // 同一个入场裁切包含曲线、底部面积和月份分隔线，防止面积提前铺满。
         clipRect(right=revealRight) {
