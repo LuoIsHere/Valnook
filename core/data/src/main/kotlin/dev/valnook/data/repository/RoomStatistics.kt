@@ -63,6 +63,26 @@ class RoomStatistics(
         }
     }
 
+    // Computed on each read: the daily cache holds whole-book values only, and one account's days are few and cheap.
+    // 每次现算：每日缓存只存全部账户的值，单个账户的天数少、计算量小。
+    override suspend fun loadAccountTrend(accountId: Long): List<StatisticsPoint> = withContext(Dispatchers.IO) {
+        replayMutex.withLock {
+            val today = LocalDate.now(clock)
+            val dates = generateSequence(today.minusMonths(3)) { it.plusDays(1) }.takeWhile { it <= today }.toList()
+            val header = readHeader()
+            val baselineDate = instantDate(header.state.baseline_at_ms)
+            val history = dates.filter { it >= baselineDate && it != today }
+            val computed = if (history.isEmpty()) emptyMap() else compute(readSource(header, history), history, accountId)
+            val live = if (today >= baselineDate) mapOf(today to readCurrentAccount(header, accountId)) else emptyMap()
+            val values = computed.mapValues { (_, value) -> value.point(StatisticsMetric.TOTAL_ASSETS) } + live
+            dates.map { date ->
+                if (date < baselineDate) StatisticsPoint(date, BigDecimal.ZERO, reliable = false)
+                else StatisticsPoint(date, values[date]?.value, reliable = values[date]?.value != null,
+                    complete = values[date]?.complete ?: true)
+            }
+        }
+    }
+
     override suspend fun loadCurrent(): CurrentStatistics = withContext(Dispatchers.IO) {
         replayMutex.withLock {
             val today = LocalDate.now(clock)
@@ -107,6 +127,13 @@ class RoomStatistics(
         fun known(total: ConvertedTotal) = total.amount.takeIf { total.currency != null }
         Values(known(overview.total), known(overview.availableCash), known(overview.investmentValue),
             overview.total.complete, overview.availableCash.complete, overview.investmentValue.complete)
+    }
+
+    private suspend fun readCurrentAccount(header: Header, accountId: Long): Point = db.withTransaction {
+        if (db.statistics().state()?.source_revision != header.state.source_revision)
+            throw DomainException(ErrorCode.STALE_RECORD)
+        val total = AssetValuation.calculate(RoomOverview(db).snapshot()).accounts.firstOrNull { it.account.id == accountId }?.total
+        Point(total?.amount?.takeIf { total.currency != null }, total?.complete ?: true)
     }
 
     private suspend fun readHeader(): Header = db.withTransaction {
@@ -178,8 +205,12 @@ class RoomStatistics(
         }
     }
 
-    private fun compute(source: Source, dates: List<LocalDate>): Map<LocalDate, Values> {
+    /** The whole book, or with [accountId] only what that account holds. Prices still come from every account's trades. */
+    private fun compute(source: Source, dates: List<LocalDate>, accountId: Long? = null): Map<LocalDate, Values> {
         val base = source.settings.baseCurrency?.code ?: return dates.associateWith { Values(null, null, null) }
+        val cashAccounts = source.cash.filter { accountId == null || it.savings_account_id == accountId }
+        val heldDeposits = source.deposits.filter { accountId == null || it.savings_account_id == accountId }
+        val heldPositions = source.positions.filter { accountId == null || it.savings_account_id == accountId }
         val entriesByCash = source.entries.groupBy { it.cash_account_id }
         val tradesByPosition = source.trades.groupBy { it.investment_id }
         val observationsByInstrument = priceObservations(source)
@@ -194,7 +225,7 @@ class RoomStatistics(
             var investmentComplete = true
             val creditIds = source.creditProfiles.asSequence().map { it.account_id }.toHashSet()
             var availableCash = BigDecimal.ZERO
-            val balanceAccounts = source.cash.fold(BigDecimal.ZERO) { total, account ->
+            val balanceAccounts = cashAccounts.fold(BigDecimal.ZERO) { total, account ->
                 val after = entriesByCash[account.id].orEmpty().asSequence()
                     .filter { it.occurred_at_ms > cutoff }.sumOf { it.delta_minor }
                 val minor = account.balance_minor - after
@@ -208,7 +239,7 @@ class RoomStatistics(
                 if (available) availableCash += value
                 total + value
             }
-            val deposits = source.deposits.asSequence().filter { deposit ->
+            val deposits = heldDeposits.asSequence().filter { deposit ->
                 deposit.start_epoch_day <= day &&
                     (deposit.closed_at_ms == null || deposit.closed_at_ms > cutoff)
             }.fold(BigDecimal.ZERO) { total, deposit ->
@@ -218,7 +249,7 @@ class RoomStatistics(
             }
             var investment = BigDecimal.ZERO
             var investmentKnown = true
-            source.positions.forEach { position ->
+            heldPositions.forEach { position ->
                 var quantity = 0L
                 tradesByPosition[position.id].orEmpty().forEach { trade ->
                     if (trade.occurred_at_ms <= cutoff) quantity += if (trade.direction == Direction.BUY.name)

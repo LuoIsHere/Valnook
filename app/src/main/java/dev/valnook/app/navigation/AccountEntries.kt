@@ -1,5 +1,9 @@
 package dev.valnook.app.navigation
 
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.navigation3.runtime.*
 import dev.valnook.app.di.AppGraph
@@ -49,6 +53,10 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
         val cashVm = pageViewModel { CashViewModel(route.id, graph.cash, graph.cashPages, createSavedStateHandle(), graph.overview, graph.clock) }
         val depositVm = pageViewModel { DepositsViewModel(route.id, false, graph.depositPages, graph.clock) }
         val portfolioVm = pageViewModel { PortfolioViewModel(graph.overview) }
+        val trendVm = pageViewModel { AccountTrendViewModel(route.id, graph.statistics) }
+        val trend by trendVm.points.collectAsStateWithLifecycle()
+        // Today's point and the date range move on while the page is away.
+        LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { trendVm.refresh() }
         val initial = if (route.section == "CASH") AccountDetailSection.ACCOUNTS else
             runCatching { AccountDetailSection.valueOf(route.section) }.getOrDefault(AccountDetailSection.ACCOUNTS)
         AccountDetailScreen(summaryVm, route.id, initial,
@@ -60,7 +68,7 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
             investmentContent = {
                 AccountInvestments(portfolioVm, route.id, false, { open(AssetKey(route.id, it)) },
                     { open(PositionCreateKey(route.id)) }, { open(AccountInvestmentsKey(route.id, true)) })
-            }, onTitleReserve = onTitleReserve)
+            }, trend = trend, onTitleReserve = onTitleReserve)
     }
     entry<AccountInvestmentsKey> { route ->
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }

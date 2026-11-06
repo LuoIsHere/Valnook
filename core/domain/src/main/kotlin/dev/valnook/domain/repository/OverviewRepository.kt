@@ -24,6 +24,8 @@ interface StatisticsRepository {
     fun observeRevision(): Flow<Long>
     suspend fun loadSeries(request: StatisticsRequest): StatisticsSeries
     suspend fun loadCurrent(): CurrentStatistics
+    /** One account's net assets for each day of the last three months, ending with today's live value. */
+    suspend fun loadAccountTrend(accountId: Long): List<StatisticsPoint> = emptyList()
 }
 
 interface InstrumentRepository {

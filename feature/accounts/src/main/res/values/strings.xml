@@ -56,6 +56,7 @@
     <string name="account_unknown_result">Save result not yet confirmed. Retry safely without creating a duplicate.</string>
     <string name="account_section_total">Total</string>
     <string name="account_trend_description">Net assets trend</string>
+    <string name="account_trend_incomplete">%1$s · some currencies left out</string>
     <string name="account_tab_deposits">Deposits</string>
     <string name="account_order_children">Sort subaccounts</string>
     <string name="account_order_cancel">Cancel</string>

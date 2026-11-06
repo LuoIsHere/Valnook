@@ -43,6 +43,8 @@ import dev.valnook.domain.calculation.MonotoneCurve
 import dev.valnook.domain.model.StatisticsPoint
 import java.math.BigDecimal
 import java.math.RoundingMode
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import java.time.format.TextStyle as DateTextStyle
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -128,8 +130,16 @@ internal class HeaderCollapse(private val saved: MutableFloatState, private val 
  * slide over it. The month labels go first, then the line and its area fade while rising a little.
  */
 @Composable internal fun AccountDetailHeader(collapse: HeaderCollapse, name: String, total: String, totalColor: Color,
-    points: List<StatisticsPoint>, accountId: Long, onTitleReserve: (Int) -> Unit) {
+    points: List<StatisticsPoint>, accountId: Long, pointText: (BigDecimal?) -> String, onTitleReserve: (Int) -> Unit) {
     val density = LocalDensity.current
+    // A finger on the chart shows that day's value in the balance's place.
+    var selectedIndex by remember(points) { mutableStateOf<Int?>(null) }
+    val selected = selectedIndex?.let(points::getOrNull)
+    val locale = LocalConfiguration.current.locales[0]
+    val selectedDate = selected?.date?.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
+    val shownText = if (selected != null) pointText(selected.value) else total
+    val shownColor = if (selected?.value != null) { if (selected.value!!.signum() < 0) MaterialTheme.colorScheme.error
+        else MaterialTheme.colorScheme.onSurface } else totalColor
     val barHeight = with(density) { LocalPageTopBarHeight.current.toPx() }
     val baseStyle = MaterialTheme.typography.headlineMedium.copy(fontSize = BALANCE_FONT, lineHeight = 38.sp, fontFeatureSettings = "tnum")
     var fontSize by remember { mutableStateOf(BALANCE_FONT) }
@@ -158,9 +168,13 @@ internal class HeaderCollapse(private val saved: MutableFloatState, private val 
         Spacer(Modifier.height(4.dp))
         if (LocalPageTitle.current != name) Text(name, fading, style = MaterialTheme.typography.titleMedium,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(stringResource(R.string.accounts_total_assets), fading, style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        BalanceText(total, totalColor, baseStyle, Modifier
+        Text(when {
+            selected == null -> stringResource(R.string.accounts_total_assets)
+            selected.complete -> selectedDate.orEmpty()
+            else -> stringResource(R.string.account_trend_incomplete, selectedDate.orEmpty())
+        }, fading.testTag("account-detail-total-label"), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        BalanceText(shownText, shownColor, baseStyle, Modifier
             .onPlaced { textTop = it.positionInParent().y }
             .onSizeChanged { textSize = it }
             .graphicsLayer {
@@ -176,7 +190,10 @@ internal class HeaderCollapse(private val saved: MutableFloatState, private val 
                 translationY = (endY - textTop) * eased
             }.testTag("account-detail-total")) { fontSize = it }
         Spacer(Modifier.height(4.dp))
-        AccountTrendChart(accountId, points, total, labelAlpha = { (1f - collapse.progress * 7f).coerceAtLeast(0f) },
+        AccountTrendChart(accountId, points, selectedIndex, { index ->
+            // Ignored while closing: the chart is on its way out and may sit under the finger.
+            selectedIndex = index.takeIf { collapse.progress <= 0f }
+        }, (selectedDate?.let { "$it · " } ?: "") + shownText, labelAlpha = { (1f - collapse.progress * 7f).coerceAtLeast(0f) },
             modifier = Modifier.graphicsLayer {
                 alpha = (1f - collapse.progress * 3f).coerceAtLeast(0f)
                 translationY = -collapse.progress * 30.dp.toPx()
@@ -191,8 +208,8 @@ internal class HeaderCollapse(private val saved: MutableFloatState, private val 
 }
 
 /** Same drawing as the statistics page, with the sub-account trend's month labels. */
-@Composable private fun AccountTrendChart(accountId: Long, points: List<StatisticsPoint>, readout: String,
-    labelAlpha: () -> Float, modifier: Modifier) {
+@Composable private fun AccountTrendChart(accountId: Long, points: List<StatisticsPoint>, selected: Int?, onSelect: (Int?) -> Unit,
+    readout: String, labelAlpha: () -> Float, modifier: Modifier) {
     val normalized = remember(points) {
         val values = points.mapNotNull { it.value }
         val low = values.minOrNull() ?: BigDecimal.ZERO
@@ -205,8 +222,7 @@ internal class HeaderCollapse(private val saved: MutableFloatState, private val 
     val labels = remember(points, locale) { points.mapIndexedNotNull { index, point ->
         if (index == 0 || point.date.dayOfMonth == 1) index to point.date.month.getDisplayName(DateTextStyle.SHORT, locale) else null
     } }
-    var selected by remember(points) { mutableStateOf<Int?>(null) }
-    TrendChart(normalized, labels, selected, { selected = it }, curvePath = { group ->
+    TrendChart(normalized, labels, selected, onSelect, curvePath = { group ->
         Path().apply {
             moveTo(group.first().x, group.first().y)
             MonotoneCurve.segments(group.map { CurvePoint(it.x, it.y) }).forEach { s ->

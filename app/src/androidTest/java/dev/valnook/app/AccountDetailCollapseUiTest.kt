@@ -148,6 +148,19 @@ class AccountDetailCollapseUiTest {
         assertEquals("Ends before the edit button", pageRight - with(rule.density) { 44.dp.toPx() }, closed.right, 3f)
     }
 
+    @Test fun a_finger_on_the_chart_shows_that_days_value_then_restores_the_balance() {
+        show(30)
+        rule.waitForIdle()
+        rule.onNodeWithTag("account-detail-total", useUnmergedTree = true).assertTextEquals("1 234.50 CNY")
+        rule.onNodeWithTag("account-trend-chart").performTouchInput { down(centerRight) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("account-detail-total", useUnmergedTree = true).assertTextEquals("29.00 CNY")
+        rule.onNodeWithTag("account-detail-total-label", useUnmergedTree = true).assertTextContains("2026", substring = true)
+        rule.onNodeWithTag("account-trend-chart").performTouchInput { up() }
+        rule.waitForIdle()
+        rule.onNodeWithTag("account-detail-total", useUnmergedTree = true).assertTextEquals("1 234.50 CNY")
+    }
+
     /** Resizing would rebuild and squash the curve, so collapsing must leave the chart's size alone. */
     @Test fun the_chart_keeps_its_size_while_closing() {
         show(30)

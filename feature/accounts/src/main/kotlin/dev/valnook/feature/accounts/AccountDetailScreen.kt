@@ -18,8 +18,6 @@ import dev.valnook.designsystem.UnderlineTabRow
 import dev.valnook.domain.model.ConvertedTotal
 import dev.valnook.domain.model.StatisticsPoint
 import dev.valnook.domain.money.DecimalRules
-import java.math.BigDecimal
-import java.time.LocalDate
 
 enum class AccountDetailSection { ACCOUNTS, DEPOSITS, INVESTMENTS }
 
@@ -31,7 +29,7 @@ class AccountCashSlot(val expansion: () -> Float, val note: String)
 @Composable
 fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: AccountDetailSection,
     cashContent: @Composable (AccountCashSlot) -> Unit, depositContent: @Composable () -> Unit,
-    investmentContent: @Composable () -> Unit, onTitleReserve: (Int) -> Unit = {}) {
+    investmentContent: @Composable () -> Unit, trend: List<StatisticsPoint> = emptyList(), onTitleReserve: (Int) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         AccountsState.Loading -> PageLoading()
@@ -51,18 +49,9 @@ fun AccountDetailScreen(vm: AccountsViewModel, accountId: Long, initialSection: 
                     AccountDetailSection.DEPOSITS to AccountSectionSummary(depositCount, assets.depositValue),
                     AccountDetailSection.INVESTMENTS to AccountSectionSummary(investmentCount, assets.investmentValue))
                 AccountDetailContent(accountId, assets.account.name, assets.account.note, assets.total, sections,
-                    initialSection, flatTrend(assets.total.amount), cashContent, depositContent, investmentContent, onTitleReserve)
+                    initialSection, trend, cashContent, depositContent, investmentContent, onTitleReserve)
             }
         }
-    }
-}
-
-/** A straight line at today's value until the account's own history is read. */
-@Composable private fun flatTrend(value: BigDecimal): List<StatisticsPoint> {
-    val today = LocalDate.now()
-    return remember(value, today) {
-        generateSequence(today.minusMonths(3)) { it.plusDays(1) }.takeWhile { it <= today }
-            .map { StatisticsPoint(it, value, reliable = true) }.toList()
     }
 }
 
@@ -81,7 +70,11 @@ fun AccountDetailContent(accountId: Long, name: String, note: String, total: Con
         AccountDetailSection.INVESTMENTS to stringResource(R.string.accounts_investments))
     val cashSlot = remember(collapse, note) { AccountCashSlot({ collapse.eased }, note) }
     Column(Modifier.fillMaxSize().nestedScroll(collapse)) {
-        AccountDetailHeader(collapse, name, detailTotal(total), detailAmountColor(total), trend, accountId, onTitleReserve)
+        AccountDetailHeader(collapse, name, detailTotal(total), detailAmountColor(total), trend, accountId, { value ->
+            val currency = total.currency
+            if (value == null || currency == null) "—"
+            else DecimalRules.format_display(value, currency.fraction_digits) + " " + currency.code
+        }, onTitleReserve)
         // The tabs and the content are opaque: they slide over the chart as the header closes.
         UnderlineTabRow(AccountDetailSection.entries, selected, { selected = it },
             label = { "${names.getValue(it)} ${sections.getValue(it).count}" },

@@ -98,6 +98,35 @@ class StatisticsRepositoryTest {
         assertNull(series.points[2].value)
     }
 
+    @Test fun accountTrendEndsAtTheLiveTotalAndAccountsAddUpToTheWholeBook() = runBlocking {
+        val other = db.accounts().insert_account(AccountEntity(name = "B", note = "", created_at_ms = at(OctoberDay.START),
+            updated_at_ms = at(OctoberDay.START)))
+        db.cash().insert_cash(CashEntity(other, "CNY", 3_000, 1, at(OctoberDay.START), name = "other",
+            created_at_ms = at(OctoberDay.START)))
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val repository = RoomStatistics(db, clock)
+        val first = repository.loadAccountTrend(1)
+        val second = repository.loadAccountTrend(other)
+        val today = LocalDate.now(clock)
+        assertEquals(today.minusMonths(3), first.first().date)
+        assertEquals(today, first.last().date)
+        decimal("370", requireNotNull(first.last().value))
+        decimal("30", requireNotNull(second.last().value))
+        val whole = repository.loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        whole.points.filter { !it.future }.forEach { point ->
+            val parts = listOf(first, second).map { trend -> requireNotNull(trend.first { it.date == point.date }.value) }
+            decimal(requireNotNull(point.value).toPlainString(), parts.reduce(BigDecimal::add))
+        }
+    }
+
+    @Test fun accountTrendLeavesOutWhatOtherAccountsHold() = runBlocking {
+        val other = db.accounts().insert_account(AccountEntity(name = "B", note = "", created_at_ms = at(OctoberDay.START),
+            updated_at_ms = at(OctoberDay.START)))
+        val trend = RoomStatistics(db, clock).loadAccountTrend(other)
+        trend.forEach { decimal("0", requireNotNull(it.value)) }
+    }
+
     @Test fun creditBalanceLowersTotalButIsExcludedFromAvailableCashHistory() = runBlocking {
         db.credit().upsert(CreditAccountProfileEntity(2, 100_000, 12,
             "AFTER_STATEMENT_DAYS", 20, null))
