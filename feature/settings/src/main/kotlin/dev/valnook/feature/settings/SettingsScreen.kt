@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,6 +44,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.pointer.pointerInput
@@ -77,6 +79,7 @@ import kotlinx.coroutines.launch
 import dev.valnook.designsystem.FaIcon
 import dev.valnook.designsystem.FaIcons
 import dev.valnook.designsystem.RowChevron
+import dev.valnook.designsystem.FormDivider
 
 @Composable
 fun SettingsHome(
@@ -229,15 +232,24 @@ internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, m
     }
 }
 
+/** Saving sits in the root toolbar as a ✓, as on the navigation page; [onToolbarChange] hands it over. */
 @Composable
-fun FxSettingsScreen(vm: SettingsViewModel) {
+fun FxSettingsScreen(vm: SettingsViewModel, onToolbarChange: (FxToolbarState?) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
+    DisposableEffect(onToolbarChange) { onDispose { onToolbarChange(null) } }
     if (!state.loaded) {
+        SideEffect { onToolbarChange(null) }
         if (state.loadFailed) Text(stringResource(R.string.settings_load_failed)) else CircularProgressIndicator()
         return
     }
     val base = state.shownBase
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
+    // Automatic rates save themselves, so the ✓ goes away; by hand it waits for a change.
+    val toolbar = if (state.automatic) null else FxToolbarState(state.busy, state.dirty && base != null, vm::saveRates)
+    SideEffect { onToolbarChange(toolbar) }
+    val listState = rememberLazyListState()
+    // The ✓ is at the top and the message at the end of the list, so a failed save scrolls to its reason.
+    LaunchedEffect(state.error) { if (state.error != null) listState.animateScrollToItem(2) }
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.lg)) {
         item { AutomaticRates(state, vm) }
         item {
@@ -248,16 +260,13 @@ fun FxSettingsScreen(vm: SettingsViewModel) {
         }
         item {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                state.error?.let { Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error) }
+                state.error?.let { Text(settingsErrorMessage(it), Modifier.testTag("fx-error"), color = MaterialTheme.colorScheme.error) }
                 if (state.error == ErrorCode.STALE_RECORD) TextButton(vm::discardAndReload) {
                     Text(stringResource(R.string.settings_reload_draft))
                 }
                 if (state.saved && !state.automatic) Text(stringResource(R.string.settings_saved),
+                    Modifier.padding(horizontal = 4.dp).testTag("fx-saved"),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (!state.automatic) Button(vm::saveRates, enabled = !state.busy && base != null,
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = MaterialTheme.shapes.medium) {
-                    Text(if (state.busy) stringResource(R.string.settings_saving) else stringResource(R.string.settings_save))
-                }
             }
         }
     }
@@ -275,20 +284,23 @@ private fun AutomaticRates(state: SettingsUiState, vm: SettingsViewModel) {
     val locale = LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         GlassCard {
-            Row(Modifier.fillMaxWidth().padding(horizontal = Space.cardInset, vertical = Space.md),
+            // The whole line toggles, as on the account edit page.
+            Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("fx-auto-switch")
+                .toggleable(fx.autoEnabled, enabled = fx.available && !state.busy, role = Role.Switch,
+                    onValueChange = vm::requestAutomatic)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).padding(end = Space.md), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                    Text(stringResource(R.string.settings_fx_auto), style = MaterialTheme.typography.titleMedium)
+                Column(Modifier.weight(1f).padding(end = Space.md), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stringResource(R.string.settings_fx_auto), style = MaterialTheme.typography.bodyLarge)
                     Text(stringResource(if (fx.available) R.string.settings_fx_auto_summary else R.string.settings_fx_demo),
                         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Switch(fx.autoEnabled, vm::requestAutomatic, enabled = fx.available && !state.busy,
-                    modifier = Modifier.testTag("fx-auto-switch"))
+                Switch(fx.autoEnabled, onCheckedChange = null, enabled = fx.available && !state.busy)
             }
             if (state.automatic) {
-                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                FormDivider()
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    .padding(start = Space.cardInset, end = Space.xs, top = Space.xs, bottom = Space.xs),
+                    .padding(start = 16.dp, end = Space.xs, top = Space.xs, bottom = Space.xs),
                     verticalAlignment = Alignment.CenterVertically) {
                     Text(fxStatusLine(fx, locale), Modifier.weight(1f).testTag("fx-auto-status"),
                         style = MaterialTheme.typography.bodySmall,
@@ -304,11 +316,11 @@ private fun AutomaticRates(state: SettingsUiState, vm: SettingsViewModel) {
                 }
                 if (fx.missingCurrencies.isNotEmpty()) Text(
                     stringResource(R.string.settings_fx_missing, fx.missingCurrencies.joinToString(", ")),
-                    Modifier.padding(start = Space.cardInset, end = Space.cardInset, bottom = Space.md).testTag("fx-missing"),
+                    Modifier.padding(start = 16.dp, end = 16.dp, bottom = Space.md).testTag("fx-missing"),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
         }
-        if (state.automatic) Text(stringResource(R.string.settings_fx_readonly), Modifier.padding(horizontal = Space.xs),
+        if (state.automatic) Text(stringResource(R.string.settings_fx_readonly), Modifier.padding(horizontal = 4.dp),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

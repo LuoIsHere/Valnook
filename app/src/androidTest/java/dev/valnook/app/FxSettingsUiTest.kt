@@ -1,5 +1,7 @@
 package dev.valnook.app
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.lifecycle.SavedStateHandle
@@ -11,7 +13,9 @@ import dev.valnook.domain.fx.FxSyncNotice
 import dev.valnook.domain.fx.FxSyncStatus
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
+import dev.valnook.feature.settings.FxSettingsActions
 import dev.valnook.feature.settings.FxSettingsScreen
+import dev.valnook.feature.settings.FxToolbarState
 import dev.valnook.feature.settings.SettingsViewModel
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -59,9 +63,20 @@ class FxSettingsUiTest {
     private val settings = AppSettings(cny, listOf(FxRate(usd, cny, BigDecimal("6.66")), FxRate(eur, cny, BigDecimal("7.5"))), 2,
         language = AppLanguage.ZH_HANS)
 
+    /** The page with the root toolbar's ✓ above it, as the app shows them. */
     private fun show(repository: Repository, sync: Sync) {
         rule.runOnIdle { models += SettingsViewModel(repository, repository, SavedStateHandle(), sync) }
-        rule.setContent { ValnookTheme { FxSettingsScreen(models.last()) } }
+        rule.setContent {
+            ValnookTheme {
+                var toolbar by androidx.compose.runtime.remember {
+                    androidx.compose.runtime.mutableStateOf<FxToolbarState?>(null)
+                }
+                androidx.compose.foundation.layout.Column {
+                    FxSettingsActions(toolbar)
+                    FxSettingsScreen(models.last()) { toolbar = it }
+                }
+            }
+        }
         rule.waitUntil(5_000) { models.last().state.value.loaded }
     }
 
@@ -138,6 +153,28 @@ class FxSettingsUiTest {
         rule.onNodeWithTag("fx-auto-switch").assertIsOff()
         assertEquals(emptyList<String>(), sync.calls)
         rate(0).assertIsEnabled()
+    }
+
+    @Test fun the_toolbar_check_saves_changes_and_scrolls_to_a_failure() {
+        val repository = Repository(settings)
+        show(repository, Sync(FxSyncStatus(available = true)))
+        rule.onNodeWithTag("fx-save").assertIsNotEnabled()
+        rule.onAllNodes(hasText("保存设置")).assertCountEquals(0)
+        rate(0).performTextReplacement("0")
+        rule.onNodeWithTag("fx-save").assertIsEnabled().performClick()
+        rule.onNodeWithTag("fx-error").assertIsDisplayed()
+        assertEquals(BigDecimal("6.66"), repository.values.value.rates.first().rate)
+
+        rate(0).performTextReplacement("7.1")
+        rule.onNodeWithTag("fx-save").performClick()
+        rule.waitUntil(5_000) { repository.values.value.rates.first().rate == BigDecimal("7.1") }
+        rule.onNodeWithTag("fx-saved").assertExists()
+        rule.onNodeWithTag("fx-save").assertIsNotEnabled()
+    }
+
+    @Test fun automatic_mode_has_no_check() {
+        show(Repository(settings), Sync(FxSyncStatus(available = true, autoEnabled = true, noticeDismissed = true)))
+        rule.onAllNodesWithTag("fx-save").assertCountEquals(0)
     }
 
     @Test fun demo_shows_the_switch_disabled() {

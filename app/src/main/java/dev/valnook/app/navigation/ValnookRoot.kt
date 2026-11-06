@@ -381,6 +381,10 @@ private fun SessionRoot(
     val updateNavigationToolbar = remember(graph.sessionId) {
         { value: NavigationToolbarState? -> navigationToolbar = value }
     }
+    var fxToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.settings.FxToolbarState?>(null) }
+    val updateFxToolbar = remember(graph.sessionId) {
+        { value: dev.valnook.feature.settings.FxToolbarState? -> fxToolbar = value }
+    }
 
     var accountTitleReserve by remember(graph.sessionId) { mutableIntStateOf(0) }
     val updateAccountTitleReserve = remember(graph.sessionId) { { value: Int -> accountTitleReserve = value } }
@@ -456,6 +460,7 @@ private fun SessionRoot(
                             {walletToolbar?.delete?.invoke()},Modifier.testTag("wallet-delete"),enabled=walletToolbar?.enabled==true)
                     }
                     NavigationSettingsKey -> NavigationSettingsActions(navigationToolbar)
+                    FxSettingsKey -> dev.valnook.feature.settings.FxSettingsActions(fxToolbar)
                     AccountGroupsKey -> dev.valnook.feature.accounts.AccountGroupsActions(accountGroupsToolbar)
                     WalletFaceLibraryKey -> dev.valnook.feature.wallet.WalletFaceLibraryActions(walletFacesToolbar)
                     AccountsKey, HiddenAccountsKey -> {
@@ -600,7 +605,7 @@ private fun SessionRoot(
                             entry<FxSettingsKey> {
                                 FxSettingsScreen(pageViewModel {
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle(), graph.fxSync)
-                                })
+                                }, onToolbarChange = updateFxToolbar)
                             }
                             entry<LanguageSettingsKey> {
                                 LanguageSettingsScreen(pageViewModel {

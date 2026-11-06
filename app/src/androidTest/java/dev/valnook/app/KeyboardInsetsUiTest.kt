@@ -67,14 +67,9 @@ class KeyboardInsetsUiTest {
         last.performScrollTo().performClick()
         showScreenKeyboard()
         assertAboveKeyboard("fx-last-rate", last)
-        // Scroll by finger like a user would; the keyboard stays open on the focused rate.
-        val saveLabel = text(dev.valnook.feature.settings.R.string.settings_save)
-        repeat(4) {
-            if (rule.onAllNodesWithText(saveLabel).fetchSemanticsNodes().isEmpty())
-                rule.onNode(hasScrollToNodeAction()).performTouchInput { swipeUp(startY = centerY, endY = top) }
-        }
-        rule.onNode(hasScrollToNodeAction()).performTouchInput { swipeUp(startY = centerY, endY = top) }
-        assertAboveKeyboard("fx-save", rule.onNodeWithText(saveLabel))
+        // Saving is the ✓ in the toolbar: with the keyboard open it is still there to press, without scrolling.
+        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("fx-rate-${sources.lastIndex}"))).performTextInput("5")
+        assertAboveKeyboard("fx-save", rule.onNodeWithTag("fx-save").assertIsEnabled())
     }
 
     @Test fun clear_data_input_and_confirm_stay_above_the_keyboard() {

@@ -793,7 +793,7 @@ class UiFlowTest {
         rule.onNode(hasText("USD") and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
         rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("fx-rate-0"))).performScrollTo().performTextReplacement("7.2")
         rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("fx-rate-0"))).performImeAction()
-        rule.onNodeWithText("保存设置").performScrollTo().performClick()
+        rule.onNodeWithTag("fx-save").performClick()
         wait_text("设置已保存")
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_back)).performClick()
         rule.onNode(hasText("账户") and hasClickAction()).performClick()
