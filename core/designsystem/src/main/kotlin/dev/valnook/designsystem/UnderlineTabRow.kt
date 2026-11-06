@@ -5,17 +5,22 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.indication
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.*
 import androidx.compose.ui.AbsoluteAlignment
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -28,6 +33,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+
+/** How far the press capsule reaches past the text on each side. Less than half the gap between tabs. */
+private val TAB_PRESS_OVERHANG = 10.dp
 
 /**
  * Text tabs with one underline that slides between them. Tabs keep their natural width, and a name that does not fit
@@ -58,6 +66,7 @@ fun <T> UnderlineTabRow(
                         if (isSelected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                         tween(120), label = "tab-content")
                     val text = label(option)
+                    val interaction = remember { MutableInteractionSource() }
                     Box(Modifier.weight(text.length.coerceAtLeast(1).toFloat(), fill = false).fillMaxHeight()
                         .onGloballyPositioned { coordinates ->
                             val origin = coordinates.positionInParent()
@@ -65,8 +74,17 @@ fun <T> UnderlineTabRow(
                                 origin.x + coordinates.size.width, origin.y + coordinates.size.height)
                         }
                         .then(optionModifier(option))
-                        .selectable(selected = isSelected, onClick = { onSelected(option) }, role = Role.Tab),
+                        .selectable(selected = isSelected, interactionSource = interaction, indication = null,
+                            role = Role.Tab, onClick = { onSelected(option) }),
                         contentAlignment = Alignment.Center) {
+                        // The press shows as a capsule a little wider than the text; the touch area stays the full tab.
+                        Box(Modifier.matchParentSize().padding(vertical = 8.dp)
+                            .layout { measurable, constraints ->
+                                val extra = TAB_PRESS_OVERHANG.roundToPx() * 2
+                                val placeable = measurable.measure(Constraints.fixed(constraints.maxWidth + extra, constraints.maxHeight))
+                                layout(constraints.maxWidth, constraints.maxHeight) { placeable.place(-extra / 2, 0) }
+                            }
+                            .clip(RoundedCornerShape(percent = 50)).indication(interaction, ripple()))
                         Text(text, color = color, style = style, maxLines = 1,
                             autoSize = TextAutoSize.StepBased(6.sp, style.fontSize, .25.sp))
                     }
