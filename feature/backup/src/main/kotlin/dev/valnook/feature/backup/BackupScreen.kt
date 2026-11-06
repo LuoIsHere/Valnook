@@ -21,6 +21,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -162,7 +164,10 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             item {
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    FaIcon(FaIcons.cloud, modifier = Modifier.size(24.dp).testTag("cloud-title-icon"))
+                    // A plain cloud in blue, not the OneDrive logo; lighter on a dark page so it stays clear.
+                    val cloudBlue = if (MaterialTheme.colorScheme.background.luminance() < .5f) Color(0xFF4FA8F0)
+                        else Color(0xFF0078D4)
+                    FaIcon(FaIcons.cloud, modifier = Modifier.size(24.dp).testTag("cloud-title-icon"), tint = cloudBlue)
                     Text(stringResource(R.string.cloud_title), style = MaterialTheme.typography.titleLarge)
                 }
             }

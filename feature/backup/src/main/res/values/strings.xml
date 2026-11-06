@@ -88,7 +88,7 @@
     <string name="cloud_error_drive_missing">The cloud backup folder or file is no longer available. Refresh or reconnect.</string>
     <string name="cloud_error_interval">Enter a whole number from 1 to 720 hours.</string>
     <string name="cloud_error_generic">The OneDrive operation could not be completed.</string>
-    <string name="cloud_microsoft_attribution">Microsoft, OneDrive and their logos are trademarks of Microsoft Corporation.</string>
+    <string name="cloud_microsoft_attribution">Microsoft and OneDrive are trademarks of Microsoft Corporation.</string>
     <string name="cloud_error_config">Microsoft sign-in is not configured for this build.</string>
     <string name="cloud_error_quota">OneDrive storage is full. Free some space and try again.</string>
     <string name="cloud_error_rate">OneDrive is busy. Try again later.</string>
