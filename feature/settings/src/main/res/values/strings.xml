@@ -115,4 +115,14 @@
     <string name="settings_fx_auto_on">Automatic, updated daily</string>
     <string name="settings_fx_updated_today">Updated today</string>
     <string name="settings_fx_auto_empty">No account uses a foreign currency yet. Its rate appears here once one does.</string>
+    <string name="settings_navigation_preview_label">Preview</string>
+    <string name="settings_navigation_preview">Navigation preview: %1$s</string>
+    <string name="settings_navigation_separator">, </string>
+    <string name="settings_navigation_shown">On the navigation bar %1$d</string>
+    <string name="settings_navigation_hidden_count">Hidden %1$d</string>
+    <string name="settings_navigation_none_hidden">No hidden pages</string>
+    <string name="settings_navigation_always">Always shown</string>
+    <string name="settings_navigation_hide_page">Hide %1$s</string>
+    <string name="settings_navigation_show_page">Show %1$s</string>
+    <string name="settings_navigation_hint">Hidden pages can still be opened from Settings → Hidden pages.</string>
 </resources>

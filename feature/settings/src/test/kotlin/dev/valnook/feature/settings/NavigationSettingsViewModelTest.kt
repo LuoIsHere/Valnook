@@ -19,28 +19,60 @@ class NavigationSettingsViewModelTest {
     @Before fun setup() = Dispatchers.setMain(dispatcher)
     @After fun tearDown() = Dispatchers.resetMain()
 
-    @Test fun cancelKeepsSavedConfigurationAndSaveUsesStableIds() = runTest(dispatcher) {
+    @Test fun changesStayInTheDraftUntilSavedAndSettingsCannotBeHidden() = runTest(dispatcher) {
         val repository = Repository()
         val vm = NavigationSettingsViewModel(repository, repository, SavedStateHandle())
         advanceUntilIdle()
-        vm.edit()
-        vm.move(NavigationItemId.STATISTICS, -1)
-        vm.toggle(NavigationItemId.ACCOUNTS)
-        vm.cancel()
-        assertEquals(NavigationConfiguration(), vm.state.value.draft)
+        assertFalse(vm.state.value.dirty)
+        vm.hide(NavigationItemId.ACCOUNTS)
+        vm.hide(NavigationItemId.SETTINGS)
+        vm.reorderShown(listOf(NavigationItemId.STATISTICS, NavigationItemId.WALLET,
+            NavigationItemId.INVESTMENTS, NavigationItemId.SETTINGS))
         assertEquals(0, repository.writes)
+        assertTrue(vm.state.value.dirty)
+        assertEquals(listOf(NavigationItemId.ACCOUNTS), vm.state.value.hidden)
+        assertTrue(NavigationItemId.SETTINGS in vm.state.value.draft.visible)
 
-        vm.edit()
-        vm.move(NavigationItemId.STATISTICS, -1)
-        vm.toggle(NavigationItemId.ACCOUNTS)
-        vm.toggle(NavigationItemId.SETTINGS)
         vm.save()
         advanceUntilIdle()
         assertEquals(1, repository.writes)
+        assertFalse(vm.state.value.dirty)
+        assertEquals(listOf(NavigationItemId.STATISTICS, NavigationItemId.WALLET, NavigationItemId.INVESTMENTS,
+            NavigationItemId.SETTINGS, NavigationItemId.ACCOUNTS), repository.value.value.navigation.order)
         assertFalse(NavigationItemId.ACCOUNTS in repository.value.value.navigation.visible)
-        assertTrue(NavigationItemId.SETTINGS in repository.value.value.navigation.visible)
-        assertEquals(listOf(NavigationItemId.ACCOUNTS, NavigationItemId.WALLET, NavigationItemId.STATISTICS,
-            NavigationItemId.INVESTMENTS, NavigationItemId.SETTINGS), repository.value.value.navigation.order)
+    }
+
+    @Test fun aShownPageGoesToTheEndAndAReorderMustKeepTheSamePages() = runTest(dispatcher) {
+        val repository = Repository()
+        val vm = NavigationSettingsViewModel(repository, repository, SavedStateHandle())
+        advanceUntilIdle()
+        vm.hide(NavigationItemId.WALLET)
+        vm.show(NavigationItemId.WALLET)
+        assertEquals(NavigationItemId.WALLET, vm.state.value.shown.last())
+        val before = vm.state.value.draft
+        vm.reorderShown(listOf(NavigationItemId.SETTINGS))
+        assertEquals(before, vm.state.value.draft)
+        vm.save()
+        advanceUntilIdle()
+        assertEquals(1, repository.writes)
+    }
+
+    @Test fun withoutChangesThePageFollowsOtherWritersButADraftIsKept() = runTest(dispatcher) {
+        val repository = Repository()
+        val vm = NavigationSettingsViewModel(repository, repository, SavedStateHandle())
+        advanceUntilIdle()
+        val elsewhere = NavigationConfiguration(visible = NavigationItemId.entries.toSet() - NavigationItemId.WALLET)
+        repository.value.value = repository.value.value.copy(revision = 5, navigation = elsewhere)
+        advanceUntilIdle()
+        assertEquals(elsewhere, vm.state.value.draft)
+        assertEquals(5, vm.state.value.baselineRevision)
+
+        vm.hide(NavigationItemId.STATISTICS)
+        val draft = vm.state.value.draft
+        repository.value.value = repository.value.value.copy(revision = 6, navigation = NavigationConfiguration())
+        advanceUntilIdle()
+        assertEquals(draft, vm.state.value.draft)
+        assertEquals(5, vm.state.value.baselineRevision)
     }
 
     private class Repository : SettingsRepository, SettingsWriter {

@@ -111,4 +111,14 @@
     <string name="settings_fx_auto_on">自动获取，每天更新</string>
     <string name="settings_fx_updated_today">今日已更新</string>
     <string name="settings_fx_auto_empty">还没有使用外币的账户。新增后会在这里列出它的汇率。</string>
+    <string name="settings_navigation_preview_label">预览</string>
+    <string name="settings_navigation_preview">导航栏预览：%1$s</string>
+    <string name="settings_navigation_separator">、</string>
+    <string name="settings_navigation_shown">显示在导航栏 %1$d</string>
+    <string name="settings_navigation_hidden_count">已隐藏 %1$d</string>
+    <string name="settings_navigation_none_hidden">没有隐藏的页面</string>
+    <string name="settings_navigation_always">始终显示</string>
+    <string name="settings_navigation_hide_page">隐藏%1$s</string>
+    <string name="settings_navigation_show_page">显示%1$s</string>
+    <string name="settings_navigation_hint">隐藏的页面仍可在「设置 → 隐藏的页面」中打开。</string>
 </resources>

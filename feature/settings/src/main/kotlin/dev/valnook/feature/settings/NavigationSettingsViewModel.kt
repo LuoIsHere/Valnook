@@ -15,12 +15,16 @@ data class NavigationSettingsState(
     val draft: NavigationConfiguration = NavigationConfiguration(),
     val baselineRevision: Long = 0,
     val loaded: Boolean = false,
-    val editing: Boolean = false,
     val busy: Boolean = false,
     val savedNotice: Boolean = false,
     val error: ErrorCode? = null
-)
+) {
+    val dirty: Boolean get() = draft != saved
+    val shown: List<NavigationItemId> get() = draft.visibleInOrder
+    val hidden: List<NavigationItemId> get() = draft.order.filter { it !in draft.visible }
+}
 
+/** The page is a draft from the moment it opens; nothing is written until [save]. */
 class NavigationSettingsViewModel(
     repository: SettingsRepository,
     private val writer: SettingsWriter,
@@ -47,10 +51,10 @@ class NavigationSettingsViewModel(
                         else NavigationConfiguration(restoredOrder, restoredVisible)
                     }.getOrDefault(settings.navigation)
                     mutable.value = NavigationSettingsState(settings.navigation, restored,
-                        handle.get<Long>(KEY_BASELINE) ?: settings.revision,
-                        loaded = true, editing = handle[KEY_EDITING] ?: false)
+                        handle.get<Long>(KEY_BASELINE) ?: settings.revision, loaded = true)
                 } else {
-                    mutable.value = if (current.editing) current.copy(saved = settings.navigation) else
+                    // Unsaved changes stay; without any, the page follows a change made elsewhere.
+                    mutable.value = if (current.dirty) current.copy(saved = settings.navigation) else
                         current.copy(saved = settings.navigation, draft = settings.navigation,
                             baselineRevision = settings.revision)
                 }
@@ -58,35 +62,33 @@ class NavigationSettingsViewModel(
         }
     }
 
-    fun edit() = update(state.value.copy(editing = true, savedNotice = false, error = null))
-    fun cancel() = update(state.value.copy(draft = state.value.saved, editing = false, error = null))
     fun discardAndReload() = update(state.value.copy(draft = state.value.saved,
         baselineRevision = latestRevision, error = null, savedNotice = false))
 
-    fun toggle(item: NavigationItemId) {
+    /** Takes [item] off the bar; it goes to the end of the hidden pages. Settings always stays. */
+    fun hide(item: NavigationItemId) {
         val current = state.value
-        if (!current.editing || item == NavigationItemId.SETTINGS) return
-        val visible = current.draft.visible.toMutableSet().apply {
-            if (!add(item)) remove(item)
-        }
-        update(current.copy(draft = NavigationConfiguration(current.draft.order, visible), savedNotice = false))
+        if (!editable(current) || item == NavigationItemId.SETTINGS || item !in current.draft.visible) return
+        change(current, current.shown - item, current.hidden + item)
     }
 
-    fun move(item: NavigationItemId, delta: Int) {
+    /** Puts [item] back on the bar, after the pages already there. */
+    fun show(item: NavigationItemId) {
         val current = state.value
-        if (!current.editing) return
-        val order = current.draft.order.toMutableList()
-        val from = order.indexOf(item)
-        val to = (from + delta).coerceIn(order.indices)
-        if (from == to) return
-        order.removeAt(from)
-        order.add(to, item)
-        update(current.copy(draft = NavigationConfiguration(order, current.draft.visible), savedNotice = false))
+        if (!editable(current) || item in current.draft.visible) return
+        change(current, current.shown + item, current.hidden - item)
+    }
+
+    /** A new order for the pages on the bar; hidden pages keep theirs. */
+    fun reorderShown(order: List<NavigationItemId>) {
+        val current = state.value
+        if (!editable(current) || order.size != current.shown.size || order.toSet() != current.shown.toSet()) return
+        change(current, order, current.hidden)
     }
 
     fun save() {
         val current = state.value
-        if (current.busy || !current.editing) return
+        if (!editable(current) || !current.dirty) return
         mutable.value = current.copy(busy = true, error = null)
         viewModelScope.launch {
             try {
@@ -103,18 +105,21 @@ class NavigationSettingsViewModel(
         }
     }
 
+    private fun editable(current: NavigationSettingsState) = current.loaded && !current.busy
+
+    private fun change(current: NavigationSettingsState, shown: List<NavigationItemId>, hidden: List<NavigationItemId>) =
+        update(current.copy(draft = NavigationConfiguration(shown + hidden, shown.toSet()), savedNotice = false))
+
     private fun update(value: NavigationSettingsState) {
         mutable.value = value
         handle[KEY_ORDER] = ArrayList(value.draft.order.map { it.name })
         handle[KEY_VISIBLE] = ArrayList(value.draft.visibleInOrder.map { it.name })
-        handle[KEY_EDITING] = value.editing
         handle[KEY_BASELINE] = value.baselineRevision
     }
 
     private companion object {
         const val KEY_ORDER = "navigation-order"
         const val KEY_VISIBLE = "navigation-visible"
-        const val KEY_EDITING = "navigation-editing"
         const val KEY_BASELINE = "navigation-baseline-revision"
     }
 }

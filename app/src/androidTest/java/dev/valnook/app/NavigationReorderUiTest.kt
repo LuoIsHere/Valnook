@@ -12,27 +12,45 @@ import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
+import dev.valnook.domain.model.NavigationConfiguration
 import dev.valnook.domain.model.NavigationItemId
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
+/** The navigation settings page is a draft from the start; only the toolbar's save writes it. */
 @HiltAndroidTest
 class NavigationReorderUiTest {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
     @get:Rule(order = 1) val rule = createAndroidComposeRule<MainActivity>()
 
-    @Test fun draggingPastTheAdjacentRowCenterMovesExactlyOnePosition() {
+    private fun openPage() {
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("nav-settings").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("nav-settings").performClick()
         val navigationSettings = rule.activity.getString(dev.valnook.feature.settings.R.string.settings_navigation)
         rule.onNodeWithText(navigationSettings).performScrollTo().performClick()
         rule.onNodeWithTag("navigation-row-statistics").assertExists()
-        rule.onNodeWithTag("navigation-edit").performClick()
+    }
+
+    private fun stored(): NavigationConfiguration = runBlocking {
+        rule.activity.sessions.session.value.graph.settings.observeSettings().first().navigation
+    }
+
+    private fun save() {
+        rule.onNodeWithTag("navigation-save").assertIsEnabled().performClick()
+        rule.waitUntil(5_000) {
+            rule.onAllNodesWithTag("navigation-save").fetchSemanticsNodes().single()
+                .config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
+        }
+    }
+
+    @Test fun draggingPastTheAdjacentRowCenterMovesExactlyOnePosition() {
+        openPage()
         rule.onNodeWithTag("navigation-save").assertIsNotEnabled()
 
         val initialOrder = rowsInVisualOrder()
@@ -51,21 +69,28 @@ class NavigationReorderUiTest {
         }
         assertEquals(expected, rowsInVisualOrder())
         val toolbar = rule.onNodeWithTag("root-toolbar").fetchSemanticsNode().boundsInRoot
-        val save = rule.onNodeWithTag("navigation-save").assertIsEnabled()
-        assertTrue(toolbar.contains(save.fetchSemanticsNode().boundsInRoot.center))
-        save.performClick()
-        rule.onNodeWithTag("navigation-edit").assertExists()
-        assertEquals(expected, runBlocking {
-            rule.activity.sessions.session.value.graph.settings.observeSettings().first().navigation.order
-        })
-        rule.onNodeWithTag("navigation-edit").performClick()
-        val item = expected.first { it != NavigationItemId.SETTINGS }
-        rule.onNodeWithTag("navigation-visible-${item.name.lowercase()}").performClick()
-        rule.onNodeWithTag("navigation-cancel").performClick()
-        rule.onNodeWithTag("navigation-edit").assertExists()
-        assertTrue(runBlocking {
-            item in rule.activity.sessions.session.value.graph.settings.observeSettings().first().navigation.visible
-        })
+        assertTrue(toolbar.contains(rule.onNodeWithTag("navigation-save").fetchSemanticsNode().boundsInRoot.center))
+        save()
+        assertEquals(expected, stored().order)
+    }
+
+    @Test fun hiddenPagesMoveToTheirOwnGroupAndComeBackAtTheEnd() {
+        openPage()
+        val page = NavigationItemId.INVESTMENTS
+        rule.onNodeWithTag("navigation-visible-${page.name.lowercase()}").performClick()
+        rule.waitForIdle()
+        // The page now sits below every page left on the bar.
+        val shown = NavigationItemId.entries - page
+        assertTrue(shown.all { rowCenterY(it) < rowCenterY(page) })
+        save()
+        assertFalse(page in stored().visible)
+
+        rule.onNodeWithTag("navigation-visible-${page.name.lowercase()}").performClick()
+        rule.waitForIdle()
+        save()
+        val navigation = stored()
+        assertTrue(page in navigation.visible)
+        assertEquals(page, navigation.visibleInOrder.last())
     }
 
     private fun rowsInVisualOrder(): List<NavigationItemId> = NavigationItemId.entries.sortedBy(::rowCenterY)
