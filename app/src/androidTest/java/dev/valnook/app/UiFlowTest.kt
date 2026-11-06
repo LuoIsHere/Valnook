@@ -1171,7 +1171,7 @@ class UiFlowTest {
         rule.onNodeWithText("信用额度").performScrollTo().performTextInput("50.00")
         save_account()
         wait_text("Visa 测试卡")
-        wait_text("信用账户")
+        wait_text("信用卡")
         wait_text("欠款")
         wait_text("已超出信用额度 2.00 CNY")
         open_account_edit()
