@@ -1267,21 +1267,24 @@ class UiFlowTest {
         rule.onNodeWithContentDescription("所有投资品").performClick()
         wait_text("丙债券")
         fun shown(name:String)=rule.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty()
-        fun choose(option:String) {
-            rule.onNodeWithContentDescription("资产类型: ",substring=true).performClick()
-            rule.onNodeWithText(option).performClick()
+        // The asset classes are capsules, each with how many instruments it has.
+        fun capsule(name:String)=hasText(name) and hasAnyAncestor(hasTestTag("instrument-type-filter"))
+        fun choose(option:String,count:String) {
+            rule.onNodeWithTag("instrument-type-filter").performScrollToNode(capsule(option))
+            rule.onNode(capsule(option)).assert(hasText(count)).performClick()
             rule.waitForIdle()
+            rule.onNode(capsule(option)).assertIsSelected()
         }
-        rule.onNodeWithContentDescription("资产类型: 全部类型（3）").assertExists()
-        choose("合成股票（2）")
+        rule.onNode(capsule("全部")).assert(hasText("3")).assertIsSelected()
+        choose("合成股票","2")
         assertTrue(shown("甲股票")&&shown("乙股票")&&!shown("丙债券"))
         rule.onNode(hasSetTextAction()).performTextInput("乙")
         rule.waitForIdle()
         assertTrue(!shown("甲股票")&&shown("乙股票")&&!shown("丙债券"))
         rule.onNode(hasSetTextAction()).performTextClearance()
-        choose("合成空类型（0）")
+        choose("合成空类型","0")
         assertTrue(shown("该资产类型下暂无标的")&&!shown("甲股票")&&!shown("丙债券"))
-        choose("全部类型（3）")
+        choose("全部","3")
         assertTrue(shown("甲股票")&&shown("乙股票")&&shown("丙债券"))
     }
 
@@ -1296,7 +1299,8 @@ class UiFlowTest {
         rule.onNodeWithContentDescription("所有投资品").performClick()
         wait_text("请先创建资产类型，再新增标的")
         rule.onNodeWithTag("root-capsule").assertDoesNotExist()
-        rule.onNodeWithText("新增标的").assertIsNotEnabled()
+        // Adding sits in the title bar and waits for an asset class.
+        rule.onNodeWithContentDescription("新增标的").assertIsNotEnabled()
         window_shot("library-type-required")
         click_list("创建资产类型")
         click_list("新增类型")
@@ -1304,8 +1308,8 @@ class UiFlowTest {
         save()
         wait_text("ETF · 编辑")
         rule.onNodeWithContentDescription("返回").performClick()
-        wait_text("新增标的")
-        rule.onNodeWithText("新增标的").assertIsEnabled().performClick()
+        rule.waitUntil(15000){rule.onAllNodes(hasContentDescription("新增标的") and androidx.compose.ui.test.isEnabled()).fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithContentDescription("新增标的").performClick()
         wait_text("标的资料与当前价")
         rule.onNodeWithText("名称").performScrollTo().performTextInput("新建测试标的")
         rule.onNodeWithText("代码").performScrollTo().performTextInput("NEW")
@@ -1330,13 +1334,10 @@ class UiFlowTest {
         save()
         wait_text("新建测试标的")
         runBlocking { assertEquals(1, graph.instruments.observeInstruments().first().size) }
-        val nameBounds = rule.onNodeWithTag("instrument-name-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val typeBounds = rule.onNodeWithTag("instrument-type-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertTrue("Type should immediately follow the name", typeBounds.left - nameBounds.right in 0f..24f)
-        val codeBounds = rule.onNodeWithTag("instrument-code-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val currencyBounds = rule.onNodeWithTag("instrument-currency-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        assertEquals(codeBounds.top, currencyBounds.top, 1f)
-        assertTrue(codeBounds.top >= nameBounds.bottom)
+        // Symbol, currency and class share the line under the name.
+        val nameBounds = rule.onNodeWithTag("library-name-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+        val meta = rule.onNodeWithTag("library-meta-1", useUnmergedTree = true).assertTextEquals("NEW · USD · ETF")
+        assertTrue(meta.fetchSemanticsNode().boundsInRoot.top >= nameBounds.bottom)
         window_shot("library-management-complete")
         rule.onNodeWithText("新建测试标的").performClick()
         wait_text("交易历史")

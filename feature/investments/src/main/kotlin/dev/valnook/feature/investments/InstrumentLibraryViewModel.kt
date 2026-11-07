@@ -13,14 +13,18 @@ import kotlinx.coroutines.flow.*
 sealed interface InstrumentLibraryState {
     data object Loading : InstrumentLibraryState
     data object Failed : InstrumentLibraryState
-    data class Ready(val instruments: List<InstrumentAssets>, val types: List<AssetType>) : InstrumentLibraryState {
+    /** [soldOut]: instruments some account has traded but none holds any longer. */
+    data class Ready(val instruments: List<InstrumentAssets>, val types: List<AssetType>,
+        val soldOut: Set<Long> = emptySet()) : InstrumentLibraryState {
         val hasTypes get() = types.isNotEmpty()
     }
 }
 
 class InstrumentLibraryViewModel(overview: OverviewRepository, investments: InvestmentRepository) : ViewModel() {
     val state = combine(overview.observeSnapshot(), investments.observe_types()) { snapshot, types ->
-        InstrumentLibraryState.Ready(AssetValuation.instrumentSummaries(snapshot), types) as InstrumentLibraryState
+        val soldOut = snapshot.positions.groupBy { it.instrumentId }
+            .filterValues { positions -> positions.none { it.holding_quantity_e8 > 0 } }.keys
+        InstrumentLibraryState.Ready(AssetValuation.instrumentSummaries(snapshot), types, soldOut) as InstrumentLibraryState
     }.flowOn(Dispatchers.Default).catch { emit(InstrumentLibraryState.Failed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), InstrumentLibraryState.Loading)
 }

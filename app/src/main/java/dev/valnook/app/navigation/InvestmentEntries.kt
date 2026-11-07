@@ -9,7 +9,8 @@ import dev.valnook.domain.model.Direction
 import dev.valnook.domain.model.StatisticsMetric
 
 internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
-    accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit) {
+    accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit,
+    onLibraryToolbar: (InstrumentLibraryToolbarState?) -> Unit = {}) {
     entry<InvestmentsKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
@@ -28,7 +29,7 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     }
     entry<InstrumentLibraryKey> {
         val vm = pageViewModel { InstrumentLibraryViewModel(graph.overview, graph.investments) }
-        InstrumentLibrary(vm, { open(InstrumentKey(it)) }, { open(TypesKey) }, { open(InstrumentEditKey()) })
+        InstrumentLibrary(vm, { open(InstrumentKey(it)) }, { open(TypesKey) }, onLibraryToolbar)
     }
     entry<InstrumentKey> { route ->
         val vm = pageViewModel { InstrumentDetailViewModel(route.id, graph.overview, graph.investments, graph.instruments,
