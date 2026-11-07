@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.map
 
 internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
     accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit,
-    onTypeToolbar: (TypeEditToolbarState?) -> Unit = {}) {
+    onTypeToolbar: (TypeEditToolbarState?) -> Unit = {}, onInstrumentToolbar: (InstrumentEditToolbarState?) -> Unit = {}) {
     entry<InvestmentsKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
@@ -48,11 +48,12 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     }
     entry<InstrumentEditKey> { route ->
         val vm = pageViewModel { InstrumentEditViewModel(route.id, graph.instruments, graph.investments, graph.commands, createSavedStateHandle()) }
-        InstrumentEditScreen(vm, back)
+        InstrumentEditScreen(vm, back, onInstrumentToolbar)
     }
     entry<TypesKey> {
-        val vm = pageViewModel { AssetTypesViewModel(graph.investments) }
-        TypesScreen(vm, { open(TypeEditKey()) }, { open(TypeEditKey(it.id, it.name)) })
+        val vm = pageViewModel { AssetTypesViewModel(graph.investments,
+            graph.instruments.observeInstruments().map { rows -> rows.map { it.typeId } }) }
+        TypesScreen(vm) { open(TypeEditKey(it.id, it.name)) }
     }
     entry<TypeEditKey> { route ->
         val vm = pageViewModel { TypeEditViewModel(route.id, route.name, graph.commands, createSavedStateHandle(),

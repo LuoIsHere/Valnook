@@ -334,6 +334,8 @@ private fun SessionRoot(
         AccountGroupsKey -> stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
         is TypeEditKey -> dev.valnook.feature.investments.typeEditTitle(current.id)
+        TypesKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_manage_types)
+        is InstrumentEditKey -> dev.valnook.feature.investments.instrumentEditTitle(current.id)
         is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
         is InstrumentKey -> selectedInstrument?.name.orEmpty()
         is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
@@ -391,6 +393,8 @@ private fun SessionRoot(
     val subaccountSortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_children)
     var balanceToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.cash.CashBalanceToolbarState?>(null) }
     val updateBalanceToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.cash.CashBalanceToolbarState? -> balanceToolbar=value } }
+    var instrumentToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.InstrumentEditToolbarState?>(null) }
+    val updateInstrumentToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.investments.InstrumentEditToolbarState? -> instrumentToolbar=value } }
     var typeToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.TypeEditToolbarState?>(null) }
     val updateTypeToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.investments.TypeEditToolbarState? -> typeToolbar=value } }
     var depositToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.deposits.DepositToolbarState?>(null) }
@@ -514,9 +518,13 @@ private fun SessionRoot(
                     InstrumentLibraryKey -> dev.valnook.feature.investments.InstrumentLibraryActions(
                         { open(TypesKey) }, { open(InstrumentEditKey()) })
                     is TypeEditKey -> dev.valnook.feature.investments.TypeEditActions(typeToolbar)
-                    is InstrumentEditKey -> current.id?.let { id -> dev.valnook.designsystem.DeleteIconButton(
-                        stringResource(dev.valnook.feature.investments.R.string.instrument_delete),
-                        { instrumentDeleteTarget = id }, Modifier.testTag("instrument-delete-open")) }
+                    is InstrumentEditKey -> {
+                        current.id?.let { id -> dev.valnook.designsystem.DeleteIconButton(
+                            stringResource(dev.valnook.feature.investments.R.string.instrument_delete),
+                            { instrumentDeleteTarget = id }, Modifier.testTag("instrument-delete-open")) }
+                        dev.valnook.feature.investments.InstrumentEditSaveAction(instrumentToolbar)
+                    }
+                    TypesKey -> dev.valnook.feature.investments.TypesActions { open(TypeEditKey()) }
                     is AccountKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
                     is InstrumentKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
@@ -564,7 +572,7 @@ private fun SessionRoot(
                                 updateTitleReserve) { parent, cash ->
                                 deleteTarget = parent to cash
                             }
-                            investmentEntries(graph, open, back, accountName, updateTitleReserve, updateTypeToolbar)
+                            investmentEntries(graph, open, back, accountName, updateTitleReserve, updateTypeToolbar, updateInstrumentToolbar)
                             ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve, updateDepositToolbar)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),

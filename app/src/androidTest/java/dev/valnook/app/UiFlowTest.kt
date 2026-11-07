@@ -107,6 +107,20 @@ class UiFlowTest {
         finish_input()
         rule.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
     }
+    /** The instrument editor is named in the title bar and saves from there. */
+    private fun wait_instrument_editor(){
+        rule.waitUntil(15000){rule.onAllNodesWithTag("instrument-edit-save").fetchSemanticsNodes().isNotEmpty()}
+        rule.waitForIdle()
+    }
+    private fun save_instrument(){
+        finish_input()
+        rule.onNodeWithTag("instrument-edit-save").assertIsEnabled().performClick()
+    }
+    /** The asset class list is one card; its default row has nothing to open. */
+    private fun wait_type_list(){
+        rule.waitUntil(15000){rule.onAllNodesWithTag("type-default").fetchSemanticsNodes().isNotEmpty()}
+        rule.waitForIdle()
+    }
     /** The deposit form saves from the toolbar. */
     private fun save_deposit(){
         finish_input()
@@ -390,8 +404,10 @@ class UiFlowTest {
         wait_text("交易历史")
         // Editing the instrument sits in the title bar.
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
-        rule.onNodeWithText("当前每份价格（最多5位小数）").performScrollTo().performTextReplacement("120")
-        save()
+        wait_instrument_editor()
+        wait_text("编辑标的")
+        rule.onNodeWithTag("input-每份价格").performScrollTo().performTextReplacement("120")
+        save_instrument()
         wait_text("交易历史")
         shot("investment-price")
         runBlocking {
@@ -1308,7 +1324,7 @@ class UiFlowTest {
         rule.onNodeWithText("合成删除基金").performClick()
         wait_text("交易历史")
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
-        wait_text("标的资料与当前价")
+        wait_instrument_editor()
         rule.onNodeWithTag("instrument-delete-open").performClick()
         wait_text("确认码：")
         rule.onNodeWithText("将删除它在 1 个账户中的持仓、1 笔交易记录", substring = true).assertExists()
@@ -1332,7 +1348,7 @@ class UiFlowTest {
         rule.onNodeWithText("合成无交易标的").performClick()
         wait_text("交易历史")
         rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
-        wait_text("标的资料与当前价")
+        wait_instrument_editor()
         rule.onNodeWithTag("instrument-delete-open").performClick()
         wait_text("确定删除「合成无交易标的」吗？它没有交易记录。")
         rule.onNodeWithTag("instrument-delete-code").assertDoesNotExist()
@@ -1353,7 +1369,10 @@ class UiFlowTest {
         rule.onNodeWithContentDescription("所有投资品").performClick()
         wait_text("合成待移基金")
         rule.onNodeWithContentDescription("资产类型管理").performClick()
-        click_list("合成基金 · 编辑")
+        wait_type_list()
+        window_shot("type-list")
+        rule.onNodeWithTag("type-default").assertHasNoClickAction()
+        rule.onNode(hasText("合成基金") and hasAnyAncestor(hasTestTag("type-list"))).assert(hasText("1 个标的")).performClick()
         wait_text("编辑资产类型")
         rule.onNodeWithTag("type-edit-count").assertTextEquals("该类型下有 1 个标的。")
         window_shot("type-edit-existing")
@@ -1361,17 +1380,17 @@ class UiFlowTest {
         wait_text("删除「合成基金」后，它下面的 1 个标的将移到「未分类」。")
         window_shot("type-delete-confirm")
         rule.onNodeWithTag("type-delete-confirm").performClick()
-        wait_text("未分类 · 默认")
-        rule.onNodeWithText("合成基金 · 编辑").assertDoesNotExist()
+        wait_type_list()
+        rule.onNode(hasText("合成基金") and hasAnyAncestor(hasTestTag("type-list"))).assertDoesNotExist()
         // An empty class just asks.
-        click_list("合成空类型 · 编辑")
+        rule.onNode(hasText("合成空类型") and hasAnyAncestor(hasTestTag("type-list"))).assert(hasText("0 个标的")).performClick()
         rule.onNodeWithTag("type-delete-open").performClick()
         wait_text("确定删除「合成空类型」吗？它下面没有标的。")
         rule.onNodeWithTag("type-delete-confirm").performClick()
-        wait_text("未分类 · 默认")
-        rule.onNodeWithText("合成空类型 · 编辑").assertDoesNotExist()
+        wait_type_list()
+        rule.onNode(hasText("合成空类型") and hasAnyAncestor(hasTestTag("type-list"))).assertDoesNotExist()
         // The default class offers no deleting at all.
-        rule.onNodeWithTag("type-default").assertIsNotEnabled()
+        rule.onNodeWithTag("type-default").assertHasNoClickAction()
         rule.onNodeWithContentDescription("返回").performClick()
         wait_text("合成待移基金")
         rule.onNode(hasText("未分类") and hasAnyAncestor(hasTestTag("instrument-type-filter"))).assert(hasText("1"))
@@ -1394,9 +1413,10 @@ class UiFlowTest {
         rule.onNodeWithTag("instrument-type-filter").assertDoesNotExist()
         window_shot("library-empty")
         rule.onNodeWithContentDescription("资产类型管理").performClick()
-        wait_text("未分类 · 默认")
-        rule.onNodeWithTag("type-default").assertIsNotEnabled()
-        click_list("新增类型")
+        wait_type_list()
+        wait_text("资产类型管理")
+        rule.onNodeWithTag("type-default").assertHasNoClickAction()
+        rule.onNodeWithTag("type-add").performClick()
         // The editor is named in the title bar and saves from there.
         wait_text("新增资产类型")
         rule.onNodeWithTag("type-delete-open").assertDoesNotExist()
@@ -1405,11 +1425,11 @@ class UiFlowTest {
         finish_input()
         window_shot("type-edit-new")
         rule.onNodeWithTag("type-edit-save").assertIsEnabled().performClick()
-        wait_text("ETF · 编辑")
+        rule.waitUntil(15000){rule.onAllNodes(hasText("ETF") and hasAnyAncestor(hasTestTag("type-list"))).fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithContentDescription("返回").performClick()
         wait_text("尚无标的")
         rule.onNodeWithContentDescription("新增标的").assertIsEnabled().performClick()
-        wait_text("标的资料与当前价")
+        wait_instrument_editor()
         rule.onNodeWithContentDescription("资产类型: 未分类").performScrollTo().assertExists()
         rule.onNodeWithText("名称").performScrollTo().performTextInput("新建测试标的")
         rule.onNodeWithText("代码").performScrollTo().performTextInput("NEW")
@@ -1428,8 +1448,9 @@ class UiFlowTest {
         window_shot("currency-configured-rate")
         rule.onNode(hasText("USD") and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
         rule.onNodeWithContentDescription("币种: USD").assertExists()
-        rule.onNodeWithText("当前每份价格（最多5位小数）").performScrollTo().performTextInput("10")
-        save()
+        rule.onNodeWithTag("input-每份价格").performScrollTo().performTextInput("10")
+        window_shot("instrument-edit-new")
+        save_instrument()
         wait_text("新建测试标的")
         runBlocking { assertEquals(1, graph.instruments.observeInstruments().first().size) }
         // Symbol, currency and class share the line under the name.

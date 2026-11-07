@@ -99,11 +99,35 @@ import java.time.*
         if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
     }
 }
-@Composable fun InstrumentEditScreen(vm: InstrumentEditViewModel, onBack: () -> Unit) {
+/** What the title bar needs to save the instrument; deleting it is offered beside, by the navigation. */
+data class InstrumentEditToolbarState(val busy: Boolean, val enabled: Boolean, val save: () -> Unit)
+
+@Composable fun InstrumentEditSaveAction(state: InstrumentEditToolbarState?) {
+    val label = stringResource(dev.valnook.core.designsystem.R.string.save)
+    IconButton({ state?.save?.invoke() }, enabled = state?.enabled == true,
+        modifier = Modifier.testTag("instrument-edit-save").semantics { contentDescription = label }) {
+        if (state?.busy == true) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        else FaIcon(FaIcons.check, modifier = Modifier.size(22.dp))
+    }
+}
+
+@Composable fun instrumentEditTitle(instrumentId: Long?): String =
+    stringResource(if (instrumentId == null) R.string.instrument_add else R.string.instrument_edit)
+
+/** Name, symbol and class in one card, then the currency and price; saving is in the title bar. */
+@Composable fun InstrumentEditScreen(vm: InstrumentEditViewModel, onBack: () -> Unit,
+    onToolbar: (InstrumentEditToolbarState?) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     val typeState by vm.types.collectAsStateWithLifecycle()
     val types = (typeState as? AssetTypesState.Ready)?.rows.orEmpty()
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val busy = submission.phase == SubmissionPhase.WORKING
+    // Read during composition, so the title bar follows what is typed and loaded.
+    val canSave = state.loaded && !busy && submission.phase != SubmissionPhase.SUCCEEDED && types.isNotEmpty()
+    SideEffect { onToolbar(InstrumentEditToolbarState(busy, canSave) { focus.clearFocus(); keyboard?.hide(); vm.submit() }) }
+    DisposableEffect(onToolbar) { onDispose { onToolbar(null) } }
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
     // A new instrument starts in the default class until another is chosen.
     LaunchedEffect(state.loaded, types) {
@@ -111,25 +135,43 @@ import java.time.*
     }
     if (!state.loaded) { Text(stringResource(if (state.loadFailed) R.string.instrument_load_failed else R.string.instrument_loading))
         return }
-    FormLayout(stringResource(R.string.instrument_edit_title), submission.phase == SubmissionPhase.WORKING,
-        submission.phase != SubmissionPhase.SUCCEEDED && types.isNotEmpty(), vm::submit) {
-        Field(stringResource(R.string.instrument_name), state.name, { value -> vm.update { it.copy(name = value) } }, enabled = submission.editable)
-        when {
-            typeState == AssetTypesState.Loading -> Text(stringResource(R.string.instrument_types_loading))
-            typeState == AssetTypesState.Failed -> Text(stringResource(R.string.instrument_types_failed), color = MaterialTheme.colorScheme.error)
+    val editable = submission.editable
+    FormLayout(instrumentEditTitle(vm.instrumentId), busy, canSave, vm::submit, showSaveButton = false) {
+        GlassCard {
+            Column(Modifier.padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FilledField(stringResource(R.string.instrument_name), state.name, { value -> vm.update { it.copy(name = value) } },
+                    enabled = editable)
+                FilledField(stringResource(R.string.instrument_symbol), state.symbol, { value -> vm.update { it.copy(symbol = value) } },
+                    enabled = editable && !state.symbolLocked)
+                when (typeState) {
+                    AssetTypesState.Loading -> Text(stringResource(R.string.instrument_types_loading))
+                    AssetTypesState.Failed -> Text(stringResource(R.string.instrument_types_failed), color = MaterialTheme.colorScheme.error)
+                    else -> FilledDropdownField(stringResource(R.string.instrument_asset_class), state.typeId?.toString().orEmpty(),
+                        types.map { it.id.toString() to typeLabel(it.name) }, { value -> vm.update { it.copy(typeId = value.toLong()) } },
+                        enabled = editable)
+                }
+            }
         }
-        Field(stringResource(R.string.instrument_symbol), state.symbol, { value -> vm.update { it.copy(symbol = value) } },
-            enabled = submission.editable && !state.symbolLocked)
-        ChoiceField(stringResource(R.string.instrument_asset_class), state.typeId?.toString().orEmpty(), types.map { it.id.toString() to typeLabel(it.name) },
-            { value -> vm.update { it.copy(typeId = value.toLong()) } }, submission.editable)
-        CurrencyChoice(state.currency.code, { value -> vm.update {
-            it.copy(currency = Currency.of(value), currencyPriceConfirmed = false)
-        } }, submission.editable && !state.currencyLocked, Currency.options(interfaceLanguage()))
-        Field(stringResource(R.string.instrument_current_price), state.priceInput,
-            { value -> vm.update { it.copy(priceInput = value) } }, true, submission.editable)
-        if (!state.currencyLocked && state.expectedRevision != null)
-            CheckboxRow(stringResource(R.string.instrument_confirm_currency_price), state.currencyPriceConfirmed,
-                { value -> vm.update { it.copy(currencyPriceConfirmed = value) } }, enabled = submission.editable)
+        FormSection(stringResource(R.string.instrument_price_section)) {
+            Column(Modifier.padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                val currencyLabel = stringResource(dev.valnook.core.designsystem.R.string.currency)
+                val currencyEditable = editable && !state.currencyLocked
+                CurrencyChoice(state.currency.code, { value -> vm.update {
+                    it.copy(currency = Currency.of(value), currencyPriceConfirmed = false)
+                } }, currencyEditable, Currency.options(interfaceLanguage())) { open ->
+                    FilledChoiceField(currencyLabel, state.currency.code, open, enabled = currencyEditable)
+                }
+                FilledField(stringResource(R.string.instrument_unit_price), state.priceInput,
+                    { value -> vm.update { it.copy(priceInput = value) } }, numeric = true, enabled = editable)
+            }
+            if (!state.currencyLocked && state.expectedRevision != null) {
+                FormDivider()
+                FormSwitchRow(stringResource(R.string.instrument_confirm_currency_price), state.currencyPriceConfirmed,
+                    { value -> vm.update { it.copy(currencyPriceConfirmed = value) } }, enabled = editable)
+            }
+        }
+        Text(stringResource(R.string.instrument_price_hint), Modifier.padding(start = 4.dp),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         when (submission.error) {
             ErrorCode.CURRENCY_LOCKED -> Text(stringResource(R.string.instrument_currency_locked_error), color = MaterialTheme.colorScheme.error)
             ErrorCode.SYMBOL_LOCKED -> Text(stringResource(R.string.instrument_symbol_locked_error), color = MaterialTheme.colorScheme.error)

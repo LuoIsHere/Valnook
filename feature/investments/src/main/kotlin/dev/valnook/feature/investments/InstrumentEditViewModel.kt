@@ -14,7 +14,7 @@ data class InstrumentEditUiState(val name: String = "", val symbol: String = "",
     val currencyLocked: Boolean = false, val symbolLocked: Boolean = false,
     val currencyPriceConfirmed: Boolean = false, val loaded: Boolean = false,
     val loadFailed: Boolean = false)
-class InstrumentEditViewModel(private val instrumentId: Long?, private val instruments: InstrumentRepository,
+class InstrumentEditViewModel(val instrumentId: Long?, private val instruments: InstrumentRepository,
     investments: InvestmentRepository, commands: FinancialCommands, private val saved: SavedStateHandle) : ViewModel() {
     private val operationId = saved.get<String>("operationId") ?: UUID.randomUUID().toString().also { saved["operationId"] = it }
     private val session = SubmissionSession(commands, viewModelScope,
