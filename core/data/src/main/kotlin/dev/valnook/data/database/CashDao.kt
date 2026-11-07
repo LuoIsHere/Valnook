@@ -41,14 +41,27 @@ interface CashDao {
         ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size""")
     suspend fun cashAccountLedgerPage(cashAccountId: Long, time: Long?, id: Long?, size: Int): List<CashEntryWithSource>
 
-    @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
+    /**
+     * Newest first, with the balance right after each row: the current balance less every later entry. The later
+     * entries are those newer than the page (from the cursor on, or from the next month when there is no cursor) plus
+     * the rows above it on the page. One statement, so the balance and the rows are read together. cash_entries is
+     * canonical; cash_movements keeps the balance as it was written and goes stale once older entries change.
+     */
+    @Query("""SELECT p.*,(SELECT balance_minor FROM cash_accounts WHERE id=:cashAccountId)
+        -COALESCE((SELECT SUM(n.delta_minor) FROM cash_entries n WHERE n.cash_account_id=:cashAccountId AND n.is_deleted=0
+            AND (CASE WHEN :time IS NULL THEN n.occurred_at_ms>=:endMs
+                ELSE n.occurred_at_ms>:time OR (n.occurred_at_ms=:time AND n.id>=:id) END)),0)
+        -COALESCE(SUM(p.delta_minor) OVER (ORDER BY p.occurred_at_ms DESC,p.id DESC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS balance_after_minor
+        FROM (SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
         LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
         WHERE e.cash_account_id=:cashAccountId AND e.is_deleted=0
         AND e.occurred_at_ms>=:startMs AND e.occurred_at_ms<:endMs
         AND (:time IS NULL OR e.occurred_at_ms<:time OR (e.occurred_at_ms=:time AND e.id<:id))
-        ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size""")
-    suspend fun cashAccountMonthPage(cashAccountId: Long, startMs: Long, endMs: Long, time: Long?, id: Long?, size: Int): List<CashEntryWithSource>
+        ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size) p
+        ORDER BY p.occurred_at_ms DESC,p.id DESC""")
+    suspend fun cashAccountMonthPage(cashAccountId: Long, startMs: Long, endMs: Long, time: Long?, id: Long?, size: Int): List<CashEntryWithBalance>
 
     @Query("""SELECT c.*,p.account_id AS profile_account_id,p.credit_limit_minor,p.statement_day,
         p.due_rule_type,p.due_rule_value,p.limit_source_account_id FROM cash_accounts c

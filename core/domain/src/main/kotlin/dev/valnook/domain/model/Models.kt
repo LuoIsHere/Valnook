@@ -114,10 +114,14 @@ sealed interface CashLinkSelection {
 
 enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE }
 
+/**
+ * [balanceAfterMinor] is the sub-account's balance right after this entry, worked out from the current balance and the
+ * entries after it when a month page is read; null where a query does not work it out.
+ */
 data class CashEntry(val id: Long, val account_id: Long, val currency: Currency,
     val delta_minor: Long, val occurred_at_ms: Long, val source: CashSource,
     val source_id: Long?, val investment_id: Long?, val note: String, val revision: Long,
-    val cashAccountId: Long = 0, val cashAccountName: String = "") {
+    val cashAccountId: Long = 0, val cashAccountName: String = "", val balanceAfterMinor: Long? = null) {
     val editable: Boolean get() = source == CashSource.CASH_SET
 }
 data class TradeCursor(val occurred_at_ms: Long, val id: Long)

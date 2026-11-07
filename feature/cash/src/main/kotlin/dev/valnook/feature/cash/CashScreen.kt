@@ -97,20 +97,16 @@ import java.time.*
         LazyColumn(Modifier.fillMaxWidth().weight(1f).background(background).testTag("cash-detail-list"),state=listState,
             contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
             item(key="info") { CashDetailInfo(balance,ledger.allAccounts,ledger.creditSourceLabels,Modifier.padding(bottom=Space.md)) }
-            item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
-            item { MonthPager(ledger.month, vm::selectMonth) }
-            if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}
-            itemsIndexed(entries,key={_,entry->entry.id}){index,entry->
-                val time=Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault())
-                val previous_date=entries.getOrNull(index-1)?.let{Instant.ofEpochMilli(it.occurred_at_ms).atZone(ZoneId.systemDefault()).toLocalDate()}
-                Column {
-                    if(previous_date!=time.toLocalDate())Text(time.toLocalDate().toString(),
-                        modifier=Modifier.padding(top=Space.sm,bottom=4.dp),style=MaterialTheme.typography.labelLarge,
-                        color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    CashEntryItem(entry,index<entries.lastIndex||ledger.hasMore){on_entry(entry.id)}
-                }
+            item(key="changes-header"){CashChangesHeader(ledger.month,vm::selectMonth,Modifier.padding(top=Space.sm))}
+            if(entries.isEmpty())item(key="empty"){Box(Modifier.padding(top=8.dp)){CashMonthEmpty()}}
+            // One card per day, newest first, as the rows arrive page by page.
+            entries.groupBy{it.localDate()}.forEach{(date,group)->
+                item(key="day-$date"){CashDayGroup(date,group,on_entry)}
             }
-            if(ledger.hasMore)item{LaunchedEffect(entries.size,ledger.month){vm.load_more_entries()}; CircularProgressIndicator()}
+            if(ledger.hasMore)item(key="more"){
+                LaunchedEffect(entries.size,ledger.month){vm.load_more_entries()}
+                Box(Modifier.fillMaxWidth().padding(top=12.dp),contentAlignment=androidx.compose.ui.Alignment.Center){CircularProgressIndicator()}
+            }
         }
     }
 }

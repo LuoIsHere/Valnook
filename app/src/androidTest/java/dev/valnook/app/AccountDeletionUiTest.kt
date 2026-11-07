@@ -113,7 +113,8 @@ class AccountDeletionUiTest {
         val vm=rule.runOnUiThread{CashViewModel(parent,graph.cash,graph.cashPages,SavedStateHandle(),graph.overview,clock)}
         scene {ValnookTheme {Box(Modifier.width(360.dp)){CashDetail(vm,cash.id,{},{})}}}
         rule.waitUntil(10000){vm.entries.value is CashLedgerState.Ready}
-        rule.onNodeWithText("2026-10").assertExists()
+        val october=android.text.format.DateFormat.getBestDateTimePattern(rule.activity.resources.configuration.locales[0],"yMMM")
+        rule.onNodeWithTag("ledger-month").assertTextEquals(YearMonth.of(2026,10).format(java.time.format.DateTimeFormatter.ofPattern(october,rule.activity.resources.configuration.locales[0])))
         rule.onNodeWithTag("month-previous").performClick()
         rule.waitUntil{(vm.entries.value as? CashLedgerState.Ready)?.month==YearMonth.of(2026,9)}
         assertTrue((vm.entries.value as CashLedgerState.Ready).rows.isEmpty())

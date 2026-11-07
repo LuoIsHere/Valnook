@@ -56,6 +56,8 @@ class CashDetailUiTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-11T12:00:00Z"), ZoneId.of("Asia/Hong_Kong"))
     private val graph get() = rule.activity.sessions.session.value.graph
     private var edits = 0
+    private var opened = 0L
+    private var vmClock = clock
     private val bar = 56.dp
     private val width = 360.dp
 
@@ -77,7 +79,7 @@ class CashDetailUiTest {
         val cash = runBlocking { graph.cash.observe_cash(parent).first().let { rows ->
             if (cashName == null) rows.single() else rows.single { it.name == cashName } } }
         rule.runOnUiThread {
-            val vm = CashViewModel(parent, graph.cash, graph.cashPages, SavedStateHandle(), graph.overview, clock)
+            val vm = CashViewModel(parent, graph.cash, graph.cashPages, SavedStateHandle(), graph.overview, vmClock)
             store.put("cash", vm)
             rule.activity.setContent {
                 val config = Configuration(LocalConfiguration.current).apply { setLocales(LocaleList(Locale.SIMPLIFIED_CHINESE)) }
@@ -88,7 +90,7 @@ class CashDetailUiTest {
                     ValnookTheme(dark_theme = dark) { Surface(Modifier.fillMaxSize()) { Box {
                         // Room above the page stands in for the title bar, so the balance's final place stays on screen.
                         Box(Modifier.padding(top = bar).width(width).height(640.dp).testTag("cash-detail-shot")) {
-                            CashDetail(vm, cash.id, { edits++ }, {})
+                            CashDetail(vm, cash.id, { edits++ }, { opened = it })
                         }
                     } } }
                 }
@@ -207,10 +209,70 @@ class CashDetailUiTest {
         rule.onAllNodesWithTag("cash-info-card").assertCountEquals(0)
     }
 
+    private fun septemberAt(day: Int, hour: Int) =
+        java.time.LocalDateTime.of(2026, 9, day, hour, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
+    /** A savings account with 1 000.00 on 1 September, then +200.00 and -50.00 on the 3rd. */
+    private fun septemberLedger(): Long {
+        val parent = create(CashBalanceChange("CNY", 100_000, null, name = "Everyday savings"))
+        fun cash() = runBlocking { graph.cash.observe_cash(parent).first().single() }
+        listOf(120_000L to "Salary", 115_000L to "Lunch").forEach { (balance, note) ->
+            val current = cash()
+            runBlocking { graph.commands.execute(dev.valnook.domain.repository.SetCashBalance(UUID.randomUUID().toString(), parent,
+                "CNY", balance, current.revision, current.id, current.name, entryNote = note)) }
+        }
+        val id = cash().id
+        // Oldest first, so each record lands at its own time in order.
+        val times = listOf(septemberAt(1, 12), septemberAt(3, 9), septemberAt(3, 18))
+        runBlocking { graph.cash.observeCashEntries(id, 10).first().sortedBy { it.id } }.forEachIndexed { index, entry ->
+            val fresh = runBlocking { graph.cash.observeCashEntry(id, entry.id).first()!! }
+            runBlocking { graph.commands.execute(dev.valnook.domain.repository.EditCashEntry(UUID.randomUUID().toString(),
+                entry.id, fresh.revision, fresh.delta_minor, times[index], fresh.note)) }
+        }
+        vmClock = Clock.fixed(Instant.ofEpochMilli(septemberAt(15, 12)), ZoneId.systemDefault())
+        return parent
+    }
+
+    @Test fun changes_group_by_day_in_one_card_each_with_the_balance_after() {
+        show(septemberLedger())
+        rule.onNodeWithTag("ledger-month").assertTextEquals("2026年9月")
+        rule.onNodeWithTag("cash-day-2026-09-03").assertExists()
+        rule.onNodeWithTag("cash-day-2026-09-01").assertExists()
+        val third = hasAnyAncestor(hasTestTag("cash-day-2026-09-03"))
+        // Newest first within the day: lunch left 1 150.00, the salary before it 1 200.00.
+        val lunch = rule.onNode(hasText("Lunch") and third).fetchSemanticsNode().boundsInRoot
+        val salary = rule.onNode(hasText("Salary") and third).fetchSemanticsNode().boundsInRoot
+        assertTrue("Lunch is above salary", lunch.top < salary.top)
+        rule.onNode(hasText("-50.00 CNY") and third).assertExists()
+        rule.onNode(hasText("+200.00 CNY") and third).assertExists()
+        rule.onNode(hasText("1 150.00") and third, useUnmergedTree = true).assertExists()
+        rule.onNode(hasText("1 200.00") and third, useUnmergedTree = true).assertExists()
+        rule.onNode(hasText("1 000.00") and hasAnyAncestor(hasTestTag("cash-day-2026-09-01")), useUnmergedTree = true).assertExists()
+        rule.onAllNodes(hasContentDescription("变化后余额 1 150.00"), useUnmergedTree = true).assertCountEquals(1)
+        save("ledger-september")
+
+        rule.onNode(hasText("Lunch") and third).performClick()
+        rule.runOnIdle { assertTrue(opened != 0L) }
+    }
+
+    @Test fun a_month_without_changes_says_so_in_a_card() {
+        show(septemberLedger())
+        rule.onNodeWithTag("month-next").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("cash-month-empty").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("ledger-month").assertTextEquals("2026年10月")
+        rule.onNodeWithText("本月没有余额变化").assertIsDisplayed()
+    }
+
     @Test fun dark_and_large_font_shots() {
         show(credit = true, dark = true, fontScale = 1.3f)
         rule.onNodeWithTag("cash-trend-value").assertIsDisplayed()
         editButtons().assertCountEquals(1)
         save("credit-dark-large-font")
+    }
+
+    @Test fun ledger_dark_and_large_font_shot() {
+        show(septemberLedger(), dark = true, fontScale = 1.3f)
+        rule.onNodeWithTag("cash-day-2026-09-03").assertExists()
+        save("ledger-dark-large-font")
     }
 }

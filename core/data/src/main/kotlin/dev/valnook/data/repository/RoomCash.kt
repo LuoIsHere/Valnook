@@ -14,6 +14,9 @@ private fun CashEntryWithSource.to_model():CashEntry {
         CashSource.valueOf(e.source_kind),e.source_id,investment_id,e.note,e.revision,e.cash_account_id,cash_account_name)
 }
 
+private fun dev.valnook.data.database.CashEntryWithBalance.to_model():CashEntry =
+    CashEntryWithSource(entry,investment_id,cash_account_name).to_model().copy(balanceAfterMinor=balance_after_minor)
+
 class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
     override fun observeTrends(accountId:Long,now:java.time.Instant,zone:java.time.ZoneId) =
         dao.trends(accountId,CashTrendRules.dates(now,zone).first().atStartOfDay(zone).toInstant().toEpochMilli())

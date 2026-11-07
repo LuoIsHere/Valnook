@@ -128,6 +128,10 @@ data class CashEntryEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0,
 data class CashEntryWithSource(@Embedded val entry: CashEntryEntity, val investment_id: Long?,
     val cash_account_name: String)
 
+/** A month page row with the sub-account's balance right after it (see [CashDao.cashAccountMonthPage]). */
+data class CashEntryWithBalance(@Embedded val entry: CashEntryEntity, val investment_id: Long?,
+    val cash_account_name: String, val balance_after_minor: Long)
+
 @Entity(tableName = "cash_movements", foreignKeys = [ForeignKey(entity = OperationEntity::class, parentColumns = ["operation_id"], childColumns = ["operation_id"], onDelete = ForeignKey.RESTRICT),
     ForeignKey(entity = CashEntity::class, parentColumns = ["id"], childColumns = ["cash_account_id"], onDelete = ForeignKey.RESTRICT)],
     indices = [Index(value = ["operation_id", "cash_account_id"], unique = true), Index(value = ["cash_account_id", "id"]),

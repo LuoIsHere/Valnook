@@ -15,15 +15,21 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-@Composable fun MonthPager(month: YearMonth, onChange: (YearMonth) -> Unit) {
+/**
+ * The month between its two arrows, centered on its own line by default. [label] names the month; it defaults to
+ * the numeric year and month.
+ */
+@Composable fun MonthPager(month: YearMonth, onChange: (YearMonth) -> Unit, modifier: Modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.Center,
+    label: (YearMonth, java.util.Locale) -> String = { value, locale -> value.format(DateTimeFormatter.ofPattern("yyyy-MM", locale)) }) {
     val previous = stringResource(R.string.ledger_previous_month)
     val next = stringResource(R.string.ledger_next_month)
     // Read through the configuration so a language change recomposes the label.
     val locale = LocalConfiguration.current.locales[0]
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.Center) {
+    Row(modifier, verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = horizontalArrangement) {
         MonthArrow(previous, false, { onChange(month.minusMonths(1)) }, month.year > 1)
-        Text(month.format(DateTimeFormatter.ofPattern("yyyy-MM", locale)),
+        Text(label(month, locale),
             Modifier.padding(horizontal = 16.dp).testTag("ledger-month"), style = MaterialTheme.typography.titleSmall)
         MonthArrow(next, true, { onChange(month.plusMonths(1)) }, month.year < 9999)
     }
