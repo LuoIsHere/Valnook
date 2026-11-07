@@ -1060,7 +1060,8 @@ class WalletUiTest {
         rule.waitUntil(10000){rule.onAllNodesWithText(rule.activity.getString(dev.valnook.core.designsystem.R.string.cash_entry_detail)).fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithContentDescription(rule.activity.getString(dev.valnook.app.R.string.nav_back)).performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isNotEmpty()}
-        rule.onNodeWithTag("wallet-month").performScrollTo().assertTextContains("2026-09")
+        rule.onNodeWithTag("wallet-month").performScrollTo().assertTextContains(
+            dev.valnook.designsystem.localMonthLabel(YearMonth.of(2026,9),rule.activity.resources.configuration.locales[0]))
         save("wallet-record-return-month")
         rule.onNodeWithTag("wallet-delete").performClick()
         rule.onNodeWithTag("wallet-delete-confirm").performClick()

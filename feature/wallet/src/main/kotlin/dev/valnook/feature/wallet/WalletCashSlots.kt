@@ -6,11 +6,14 @@ import androidx.compose.ui.Modifier
 import dev.valnook.domain.model.CashAccount
 import dev.valnook.domain.model.CashEntry
 import dev.valnook.domain.model.CashTrendPoint
+import java.time.LocalDate
 
 /** Cash UI supplied by the app so the wallet does not depend on another feature module. */
 @Immutable
 class WalletCashSlots(
     val balanceSummary: @Composable (account: CashAccount, parentName: String, trend: List<CashTrendPoint>,
         onEdit: () -> Unit, modifier: Modifier, allAccounts: List<CashAccount>, accountLabels: Map<Long, String>) -> Unit,
-    val entryItem: @Composable (entry: CashEntry, showDivider: Boolean, onOpen: () -> Unit) -> Unit
+    /** One day's changes in one card, newest first. */
+    val dayGroup: @Composable (date: LocalDate, entries: List<CashEntry>, onOpen: (Long) -> Unit) -> Unit,
+    val emptyMonth: @Composable (modifier: Modifier) -> Unit
 )

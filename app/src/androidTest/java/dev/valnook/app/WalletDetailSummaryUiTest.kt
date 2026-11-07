@@ -17,6 +17,12 @@ import dev.valnook.domain.model.CreditAccountInput
 import dev.valnook.domain.model.CreditDueRule
 import dev.valnook.domain.repository.CashBalanceChange
 import dev.valnook.domain.repository.SaveAccount
+import dev.valnook.domain.repository.SetCashBalance
+import dev.valnook.domain.money.DecimalRules
+import dev.valnook.designsystem.localMonthLabel
+import java.time.Instant
+import java.time.YearMonth
+import java.time.ZoneId
 import dev.valnook.feature.cash.R as CashR
 import dev.valnook.feature.wallet.WalletImageCodec
 import dev.valnook.feature.wallet.WalletScreen
@@ -38,6 +44,7 @@ class WalletDetailSummaryUiTest {
     private val graph get() = rule.activity.sessions.session.value.graph
     private val wallet get() = requireNotNull(graph.wallet)
     private val edits = mutableListOf<Pair<Long, Long>>()
+    private val opened = mutableListOf<Long>()
 
     @Before fun prepare() { hilt.inject(); rule.waitForIdle() }
 
@@ -49,7 +56,7 @@ class WalletDetailSummaryUiTest {
     }
 
     /** Opens a card bound to [cashId] straight into its detail. */
-    private fun show(cashId: Long, dark: Boolean = false) {
+    private fun show(cashId: Long, dark: Boolean = false): WalletViewModel {
         val card = runBlocking {
             val bitmap = Bitmap.createBitmap(1000, 631, Bitmap.Config.ARGB_8888); bitmap.eraseColor(0xffe0874f.toInt())
             val image = WalletImageCodec.encode(bitmap, 1f, 0f, 0f); bitmap.recycle()
@@ -60,11 +67,12 @@ class WalletDetailSummaryUiTest {
         rule.waitUntil(10_000) { vm.cards.value != null }
         rule.runOnUiThread { vm.select(card) }
         rule.runOnUiThread { rule.activity.setContent { ValnookTheme(dark_theme = dark) {
-            WalletScreen(vm, {}, { _, _, _ -> }, { parent, cash -> edits += parent to cash }, walletCashSlots)
+            WalletScreen(vm, {}, { _, _, id -> opened += id }, { parent, cash -> edits += parent to cash }, walletCashSlots)
         } } }
         rule.waitUntil(10_000) { rule.onAllNodesWithTag("wallet-cash-summary").fetchSemanticsNodes().isNotEmpty() }
-        rule.waitUntil(10_000) { vm.trend.value.isNotEmpty() }
+        rule.waitUntil(10_000) { vm.trend.value.isNotEmpty() && !vm.ledger.value.loading }
         rule.waitForIdle()
+        return vm
     }
 
     private fun bounds(tag: String): Rect = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
@@ -123,5 +131,44 @@ class WalletDetailSummaryUiTest {
         rule.onAllNodesWithText(string(CashR.string.cash_statement_day, 7), useUnmergedTree = true).assertCountEquals(0)
         assertTrue(bounds("cash-limit-card").top > bounds("wallet-cash-balance").bottom)
         save("credit-dark")
+    }
+
+    @Test fun changes_sit_in_one_card_per_day_with_the_balance_after_each() {
+        val cash = create(CashBalanceChange("CNY", 100_000, null, name = "Everyday savings"))
+        listOf(120_000L to "Salary", 115_000L to "Lunch").forEach { (balance, note) ->
+            val current = runBlocking { graph.cash.observe_cash(cash.account_id).first().single() }
+            runBlocking { graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(), cash.account_id, "CNY", balance,
+                current.revision, current.id, current.name, entryNote = note)) }
+        }
+        val vm = show(cash.id)
+        val entries = runBlocking { graph.cash.observeCashEntries(cash.id, 10).first() }
+            .sortedWith(compareByDescending<dev.valnook.domain.model.CashEntry> { it.occurred_at_ms }.thenByDescending { it.id })
+        assertEquals(3, entries.size)
+        val date = Instant.ofEpochMilli(entries.first().occurred_at_ms).atZone(ZoneId.systemDefault()).toLocalDate()
+        val locale = rule.activity.resources.configuration.locales[0]
+        rule.onNodeWithTag("wallet-month").assertTextEquals(localMonthLabel(vm.ledger.value.month, locale))
+        // The title and the month share one line.
+        val header = bounds("wallet-changes-header")
+        assertTrue(bounds("wallet-month").center.y in header.top..header.bottom)
+
+        rule.onNodeWithTag("wallet-ledger").performScrollToKey("day-$date")
+        val day = hasAnyAncestor(hasTestTag("cash-day-$date"))
+        entries.forEach { rule.onNodeWithTag("cash-entry-${it.id}").assert(day) }
+        // Newest first; under each change the balance it left.
+        assertTrue(bounds("cash-entry-${entries[0].id}").top < bounds("cash-entry-${entries[1].id}").top)
+        listOf(115_000L, 120_000L, 100_000L).forEachIndexed { index, after ->
+            rule.onNodeWithTag("cash-entry-balance-${entries[index].id}", useUnmergedTree = true)
+                .assertTextEquals(DecimalRules.format_display(after, 2))
+        }
+        rule.onNodeWithTag("cash-day-$date").performScrollTo()
+        save("ledger-light")
+        rule.onNodeWithTag("cash-entry-${entries[1].id}").performClick()
+        assertEquals(listOf(entries[1].id), opened)
+
+        rule.runOnUiThread { vm.month(vm.ledger.value.month.minusMonths(1)) }
+        rule.waitUntil(10_000) { !vm.ledger.value.loading }
+        rule.onNodeWithTag("wallet-ledger").performScrollToKey("empty")
+        rule.onNodeWithTag("cash-month-empty").assertExists()
+        rule.onNodeWithTag("cash-day-$date").assertDoesNotExist()
     }
 }

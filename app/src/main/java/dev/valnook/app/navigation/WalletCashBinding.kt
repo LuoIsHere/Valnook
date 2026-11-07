@@ -1,6 +1,7 @@
 package dev.valnook.app.navigation
 
-import dev.valnook.feature.cash.CashEntryItem
+import dev.valnook.feature.cash.CashDayGroup
+import dev.valnook.feature.cash.CashMonthEmpty
 import dev.valnook.feature.cash.CashWalletSummary
 import dev.valnook.feature.wallet.WalletCashSlots
 
@@ -9,5 +10,6 @@ internal val walletCashSlots = WalletCashSlots(
     balanceSummary = { account, parentName, trend, onEdit, modifier, allAccounts, accountLabels ->
         CashWalletSummary(account, parentName, trend, onEdit, allAccounts, accountLabels, modifier)
     },
-    entryItem = { entry, showDivider, onOpen -> CashEntryItem(entry, showDivider, onOpen) }
+    dayGroup = { date, entries, onOpen -> CashDayGroup(date, entries, onOpen) },
+    emptyMonth = { modifier -> CashMonthEmpty(modifier) }
 )

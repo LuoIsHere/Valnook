@@ -17,7 +17,9 @@ import androidx.compose.ui.input.nestedscroll.*
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -115,25 +117,29 @@ import java.time.*
                                     Modifier.padding(bottom=12.dp),snapshot?.cash.orEmpty(),names)
                             }
                             item("month") {
-                                Text(wording("Funds activity","资金变动"),Modifier.padding(top=16.dp),style=MaterialTheme.typography.titleLarge)
                                 val current=YearMonth.from(today)
                                 val first=bounds.firstMs?.let{YearMonth.from(Instant.ofEpochMilli(it).atZone(vm.zone))}?:current
                                 val last=bounds.lastMs?.let{YearMonth.from(Instant.ofEpochMilli(it).atZone(vm.zone))}?:current
                                 val minimum=minOf(first,current);val maximum=maxOf(last,current)
-                                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                                    TextButton({vm.month(maxOf(ledger.month.minusMonths(1),minimum))},enabled=ledger.month>minimum,modifier=Modifier.testTag("wallet-month-previous")){ChevronIcon(false,wording("Previous month","上个月"))}
-                                    TextButton({chooseMonth=true},Modifier.testTag("wallet-month")){Text(ledger.month.toString())}
-                                    TextButton({vm.month(minOf(ledger.month.plusMonths(1),maximum))},enabled=ledger.month<maximum,modifier=Modifier.testTag("wallet-month-next")){ChevronIcon(true,wording("Next month","下个月"))}
+                                val locale=LocalConfiguration.current.locales[0]
+                                // As on the sub-account page: the title, with the month and its arrows at the end of its line.
+                                Row(Modifier.fillMaxWidth().padding(top=12.dp).testTag("wallet-changes-header"),verticalAlignment=Alignment.CenterVertically) {
+                                    Text(wording("Funds activity","资金变动"),Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleMedium)
+                                    IconButton({vm.month(maxOf(ledger.month.minusMonths(1),minimum))},Modifier.size(36.dp).testTag("wallet-month-previous"),
+                                        enabled=ledger.month>minimum){ChevronIcon(false,wording("Previous month","上个月"))}
+                                    TextButton({chooseMonth=true},Modifier.testTag("wallet-month"),contentPadding=PaddingValues(horizontal=8.dp)) {
+                                        Text(localMonthLabel(ledger.month,locale),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface)
+                                    }
+                                    IconButton({vm.month(minOf(ledger.month.plusMonths(1),maximum))},Modifier.size(36.dp).testTag("wallet-month-next"),
+                                        enabled=ledger.month<maximum){ChevronIcon(true,wording("Next month","下个月"))}
                                 }
                             }
                             if(ledger.loading && ledger.rows.isEmpty())item("loading"){Box(Modifier.fillMaxWidth().height(80.dp),contentAlignment=Alignment.Center){CircularProgressIndicator(Modifier.size(22.dp))}}
                             else if(ledger.failed)item("error"){TextButton(vm::retry){Text(wording("Could not load this month. Retry","本月记录加载失败，点击重试"))}}
-                            else if(ledger.rows.isEmpty())item("empty"){Text(wording("No activity this month","本月暂无资金变动"),Modifier.padding(vertical=28.dp),color=MaterialTheme.colorScheme.onSurfaceVariant)}
-                            itemsIndexed(ledger.rows,key={_,row->row.id}){index,row->
-                                val date=Instant.ofEpochMilli(row.occurred_at_ms).atZone(vm.zone).toLocalDate()
-                                val previous=ledger.rows.getOrNull(index-1)?.let{Instant.ofEpochMilli(it.occurred_at_ms).atZone(vm.zone).toLocalDate()}
-                                if(date!=previous)Text(date.toString(),Modifier.padding(top=16.dp,bottom=6.dp),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                cashSlots.entryItem(row,index<ledger.rows.lastIndex){onEntry(account.account_id,account.id,row.id)}
+                            else if(ledger.rows.isEmpty())item("empty"){cashSlots.emptyMonth(Modifier.padding(top=8.dp))}
+                            // Newest first, so each day's changes stay together in their order.
+                            ledger.rows.groupBy{Instant.ofEpochMilli(it.occurred_at_ms).atZone(vm.zone).toLocalDate()}.forEach { (date,rows) ->
+                                item("day-$date"){cashSlots.dayGroup(date,rows){id->onEntry(account.account_id,account.id,id)}}
                             }
                             if(ledger.more)item("more") {
                                 if(ledger.appendFailed)TextButton(vm::more){Text(wording("Retry loading more","继续加载失败，点击重试"))}

@@ -23,6 +23,7 @@ import dev.valnook.designsystem.FormDivider
 import dev.valnook.designsystem.GlassCard
 import dev.valnook.designsystem.LocalTagPalette
 import dev.valnook.designsystem.MonthPager
+import dev.valnook.designsystem.localMonthLabel
 import dev.valnook.domain.model.CashEntry
 import dev.valnook.domain.money.DecimalRules
 import java.time.Instant
@@ -31,10 +32,6 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-
-/** "2026年9月" or "Sep 2026": the month as the language writes it. */
-internal fun cashMonthLabel(month: YearMonth, locale: Locale): String =
-    month.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "yMMM"), locale))
 
 /** "9月25日周五" or "Fri, Sep 25". */
 internal fun cashDayLabel(date: LocalDate, locale: Locale): String =
@@ -47,12 +44,12 @@ internal fun CashEntry.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at
     Row(modifier.fillMaxWidth().testTag("cash-changes-header"), verticalAlignment = Alignment.CenterVertically) {
         Text(stringResource(CoreR.string.cash_changes), Modifier.weight(1f).semantics { heading() },
             style = MaterialTheme.typography.titleMedium)
-        MonthPager(month, onMonth, Modifier, Arrangement.End, ::cashMonthLabel)
+        MonthPager(month, onMonth, Modifier, Arrangement.End, ::localMonthLabel)
     }
 }
 
 /** One day: its date, then its changes in one card with faint lines between them. */
-@Composable internal fun CashDayGroup(date: LocalDate, entries: List<CashEntry>, onEntry: (Long) -> Unit) {
+@Composable fun CashDayGroup(date: LocalDate, entries: List<CashEntry>, onEntry: (Long) -> Unit) {
     val locale = LocalConfiguration.current.locales[0]
     Column(Modifier.fillMaxWidth().testTag("cash-day-$date")) {
         Text(cashDayLabel(date, locale), Modifier.padding(start = 4.dp, top = 12.dp, bottom = 6.dp),
@@ -96,8 +93,8 @@ internal fun CashEntry.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at
     }
 }
 
-@Composable internal fun CashMonthEmpty() {
-    GlassCard(Modifier.testTag("cash-month-empty")) {
+@Composable fun CashMonthEmpty(modifier: Modifier = Modifier) {
+    GlassCard(modifier.testTag("cash-month-empty")) {
         Text(stringResource(R.string.cash_month_empty), Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center)

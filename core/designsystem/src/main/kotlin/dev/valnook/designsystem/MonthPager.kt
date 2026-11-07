@@ -15,6 +15,10 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
+/** "2026年9月" or "Sep 2026": the month as the language writes it. */
+fun localMonthLabel(month: YearMonth, locale: java.util.Locale): String =
+    month.format(DateTimeFormatter.ofPattern(android.text.format.DateFormat.getBestDateTimePattern(locale, "yMMM"), locale))
+
 /**
  * The month between its two arrows, centered on its own line by default. [label] names the month; it defaults to
  * the numeric year and month.
