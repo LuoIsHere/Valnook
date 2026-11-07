@@ -530,6 +530,43 @@ class WalletUiTest {
         assertEquals(edge,top(stack[1]),2f)
         assertEquals(edge+peek*.5f,top(stack[2]),2f)
     }
+    @Test fun a_one_line_title_replacing_a_two_line_one_stays_centred() {
+        val cash=runBlocking {
+            graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),null,null,"Example bank","",
+                listOf(CashBalanceChange("CNY",100_000,null,name="Daily"))))
+            graph.overview.snapshot().cash.single()
+        }
+        val id=card("Synthetic travel rewards platinum card",cash.id)
+        root();rule.onNodeWithTag("nav-wallet").performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-card-$id",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("wallet-card-$id",useUnmergedTree=true).performClick()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-cash-summary").fetchSemanticsNodes().isNotEmpty()}
+        rule.waitForIdle()
+        val inTitle=hasAnyAncestor(hasTestTag("wallet-title"))
+        fun titleBox(text:String)=rule.onAllNodes(hasText(text,substring=true) and inTitle,useUnmergedTree=true)
+            .fetchSemanticsNodes().singleOrNull()?.boundsInRoot
+        val cardTitle=titleBox("Synthetic travel")!!
+        val centres=mutableListOf<Float>()
+        rule.mainClock.autoAdvance=false
+        try {
+            val ledger=rule.onNodeWithTag("wallet-ledger")
+            ledger.performTouchInput{down(center)}
+            // A slow finger: the title changes half way and its fade runs while the header keeps moving.
+            repeat(60){
+                ledger.performTouchInput{moveBy(androidx.compose.ui.geometry.Offset(0f,-12f))}
+                rule.mainClock.advanceTimeByFrame()
+                titleBox("Daily")?.let{centres+=it.center.y}
+            }
+            ledger.performTouchInput{up()}
+            rule.mainClock.advanceTimeBy(1000)
+        } finally { rule.mainClock.autoAdvance=true }
+        rule.waitForIdle()
+        val settled=titleBox("Daily")!!
+        assertTrue("The card's name took two lines: ${cardTitle.height} vs ${settled.height}",cardTitle.height>settled.height*1.5f)
+        assertTrue("The sub-account's name came in while sliding",centres.size>3)
+        centres.forEach{assertEquals("Each frame keeps the new title centred",settled.center.y,it,2f)}
+        save("wallet-title-one-line")
+    }
     @Test fun navigation_bar_slides_out_and_back_with_the_card_detail() {
         val id=card("Detail card")
         root();rule.onNodeWithTag("nav-wallet").performClick()

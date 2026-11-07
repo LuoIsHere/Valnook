@@ -3,6 +3,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -464,7 +465,12 @@ private fun SessionRoot(
                                 dev.valnook.designsystem.AccountAvatar(icon.symbol, icon.imageKey, size = 32.dp)
                             }
                         }
-                        if(walletCurrent) androidx.compose.animation.Crossfade(title,Modifier.weight(1f),animationSpec=tween(160),label="wallet-title") { value ->
+                        // Both titles stay centred while the box eases between their heights, so a one-line title
+                        // replacing a two-line one neither starts high nor drops once the old one has gone.
+                        if(walletCurrent) androidx.compose.animation.AnimatedContent(title,Modifier.weight(1f).testTag("wallet-title"),
+                            transitionSpec={ (androidx.compose.animation.fadeIn(tween(160)) togetherWith androidx.compose.animation.fadeOut(tween(160)))
+                                .using(androidx.compose.animation.SizeTransform(clip=false){ _, _ -> tween(160) }) },
+                            contentAlignment=androidx.compose.ui.Alignment.CenterStart,label="wallet-title") { value ->
                             Text(value,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         } else Text(title, Modifier.weight(1f).padding(end =
                             with(density) { (titleReserves[current] ?: 0).toDp() }), maxLines = 2)
