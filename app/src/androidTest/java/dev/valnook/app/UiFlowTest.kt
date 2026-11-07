@@ -750,7 +750,8 @@ class UiFlowTest {
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performClick()
         wait_text(investmentsLabel)
-        rule.onNodeWithText(investmentsLabel).performClick()
+        // The tab reads its name with a count ("投资 1"), so it is found by its tag.
+        rule.onNodeWithTag("account-section-INVESTMENTS").performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("holding-$positionId").fetchSemanticsNodes().isNotEmpty() }
         wait_text("1209.22727")
         rule.onNodeWithTag("holding-$positionId").performClick()
