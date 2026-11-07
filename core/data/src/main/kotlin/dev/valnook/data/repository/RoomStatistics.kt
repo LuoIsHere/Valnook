@@ -252,8 +252,12 @@ class RoomStatistics(
             heldPositions.forEach { position ->
                 var quantity = 0L
                 tradesByPosition[position.id].orEmpty().forEach { trade ->
-                    if (trade.occurred_at_ms <= cutoff) quantity += if (trade.direction == Direction.BUY.name)
-                        trade.quantity_e8 else -trade.quantity_e8
+                    // Dividends move no units.
+                    if (trade.occurred_at_ms <= cutoff) quantity += when (trade.direction) {
+                        Direction.BUY.name -> trade.quantity_e8
+                        Direction.SELL.name -> -trade.quantity_e8
+                        else -> 0L
+                    }
                 }
                 if (quantity > 0) {
                     val price = observationsByInstrument[position.instrument_id].orEmpty()

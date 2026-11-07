@@ -30,6 +30,7 @@ import dev.valnook.domain.model.CreditDueRule
 import dev.valnook.domain.portability.PortabilityException
 import dev.valnook.domain.portability.PortabilityErrorCode
 import dev.valnook.domain.repository.*
+import dev.valnook.domain.money.DecimalRules
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.time.Clock
@@ -216,6 +217,28 @@ class BackupPortabilityTest {
         val summary = zipText(bytes, "xl/worksheets/sheet1.xml")
         assertTrue(summary.contains("For analysis only"))
         assertFalse(summary.contains("<f>"))
+    }
+
+    /** A dividend survives a round trip, and the restore's cost check counts it in realized profit. */
+    @Test fun dividends_round_trip_and_pass_the_restore_cost_check() = runBlocking {
+        val source = database("dividend-source")
+        val commands = RoomFinancialCommands(source, clock)
+        val account = commands.testAccount("合成账户")
+        val type = commands.testType("合成类型")
+        val position = commands.testInvestment(account, "合成派息基金", "SYND", type, "CNY",
+            DecimalRules.parse_e8("10"), DecimalRules.parse_e8("10"), DecimalRules.parse_e8("10"))
+        commands.execute(RecordDividend(testOperationId(), position, 1234, clock.millis(), false))
+        val realized = source.ledger().investment(position)!!.realized_profit
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(UUID.randomUUID().toString(), output) {}
+        val target = database("dividend-target")
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(output.toByteArray()), "dividend.val_backup") {}
+        try { targetEngine.commitRestore(staged) {} } finally { targetEngine.close(staged) }
+        val restored = target.ledger().investment(position)!!
+        assertEquals(0, java.math.BigDecimal("12.34").compareTo(java.math.BigDecimal(restored.realized_profit)))
+        assertEquals(realized, restored.realized_profit)
+        assertEquals("DIVIDEND", target.trades().replayTrades(position).single { it.quantity_e8 == 0L }.direction)
     }
 
     @Test fun data_schema_v1_restores_all_legacy_balance_accounts_as_savings() = runBlocking {

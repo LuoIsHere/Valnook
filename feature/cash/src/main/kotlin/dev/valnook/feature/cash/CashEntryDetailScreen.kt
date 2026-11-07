@@ -40,11 +40,12 @@ import java.time.format.DateTimeFormatter
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
         // A deleted instrument's trade has nothing left to open.
-        if(entry.source!=CashSource.TRADE_REMOVED) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
+        if(entry.source!=CashSource.TRADE_REMOVED&&entry.source!=CashSource.DIVIDEND_REMOVED) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
             Text(stringResource(when(entry.source) {
                 CashSource.TRADE->R.string.view_source_trade
+                CashSource.DIVIDEND->R.string.view_source_dividend
                 CashSource.TERM_OPEN,CashSource.TERM_CLOSE->R.string.view_source_deposit
-                CashSource.CASH_SET,CashSource.TRADE_REMOVED->R.string.edit_cash_change
+                CashSource.CASH_SET,CashSource.TRADE_REMOVED,CashSource.DIVIDEND_REMOVED->R.string.edit_cash_change
             }))
         }
     }

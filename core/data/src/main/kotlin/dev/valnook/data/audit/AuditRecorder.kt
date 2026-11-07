@@ -139,8 +139,9 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is OpenTermDeposit -> null
         is CloseTermDeposit -> "term_deposits" to command.deposit_id
         is EditTermDeposit -> "term_deposits" to command.deposit_id
-        is RecordInvestmentTrade -> null
+        is RecordInvestmentTrade, is RecordDividend -> null
         is EditInvestmentTrade -> "investment_trades" to command.trade_id
+        is EditDividend -> "investment_trades" to command.trade_id
         is DeleteInvestmentTrade -> "investment_trades" to command.trade_id
         is AccountGroupCommand -> null
     }
@@ -164,7 +165,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is SaveAccount -> if (command.accountId == null) "CREATE" else "UPDATE"
         is DeleteBalanceAccount, is DeleteAccount, is DeleteAccountGroup, is DeleteAssetType, is DeleteInstrument -> "DELETE"
         is SaveInstrument -> if (command.instrumentId == null) "CREATE" else "UPDATE"
-        is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade -> "CREATE"
+        is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade, is RecordDividend -> "CREATE"
         is DeleteInvestmentTrade -> "DELETE"
         else -> "UPDATE"
     }
@@ -172,6 +173,8 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     private fun businessTime(command: FinancialCommand): Long? = when (command) {
         is RecordInvestmentTrade -> command.occurred_at_ms
         is EditInvestmentTrade -> command.occurred_at_ms
+        is RecordDividend -> command.occurred_at_ms
+        is EditDividend -> command.occurred_at_ms
         is EditCashEntry -> command.occurred_at_ms
         else -> null
     }
@@ -200,8 +203,9 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is SaveAssetType -> accountsForType(result.id).forEach(accounts::add)
             is DeleteAssetType -> Unit
             is CreateInvestmentPosition -> accounts.add(command.accountId)
-            is RecordInvestmentTrade -> accountForTrade(result.id)?.let(accounts::add)
+            is RecordInvestmentTrade, is RecordDividend -> accountForTrade(result.id)?.let(accounts::add)
             is EditInvestmentTrade -> accountForTrade(command.trade_id)?.let(accounts::add)
+            is EditDividend -> accountForTrade(command.trade_id)?.let(accounts::add)
             is DeleteInvestmentTrade -> accountForTrade(command.trade_id)?.let(accounts::add)
             is EditCashEntry -> accountForCashEntry(command.entry_id)?.let(accounts::add)
             is CloseTermDeposit -> accountForDeposit(command.deposit_id)?.let(accounts::add)

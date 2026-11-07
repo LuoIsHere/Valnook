@@ -115,7 +115,8 @@ data class Investment(val id: Long, val account_id: Long, val type_id: Long, val
     val chronologyValid: Boolean = true,
     val algorithmVersion: Int = dev.valnook.domain.calculation.InvestmentProfitCalculator.ALGORITHM_VERSION,
     val isClosed: Boolean = false)
-enum class Direction { BUY, SELL }
+/** [DIVIDEND]: income from a holding; it moves no units and adds to realized profit. */
+enum class Direction { BUY, SELL, DIVIDEND }
 /** One recorded price of an instrument, as the price trend draws it. */
 data class InstrumentPricePoint(val atMs: Long, val priceE5: Long)
 data class Trade(val id: Long, val investment_id: Long, val direction: Direction,
@@ -128,8 +129,11 @@ sealed interface CashLinkSelection {
     data class Selected(val cashAccountId: Long) : CashLinkSelection
 }
 
-/** [TRADE_REMOVED]: cash a trade moved before its instrument was deleted; it no longer points at the trade. */
-enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED }
+/**
+ * [TRADE_REMOVED] / [DIVIDEND_REMOVED]: cash a trade or dividend moved before its instrument was deleted; it no
+ * longer points at the record.
+ */
+enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED, DIVIDEND, DIVIDEND_REMOVED }
 
 /**
  * [balanceAfterMinor] is the sub-account's balance right after this entry, worked out from the current balance and the

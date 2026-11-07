@@ -29,6 +29,8 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
     }
 
     suspend fun record(command: RecordInvestmentTrade, now: Long): OperationResult {
+        // Dividends have their own command; a trade never carries that direction.
+        if (command.direction == Direction.DIVIDEND) throw DomainException(ErrorCode.FORMAT)
         val position = if (command.investment_id != 0L) {
             positions.investment(command.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         } else {
@@ -67,6 +69,7 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
 
     suspend fun edit(command: EditInvestmentTrade, now: Long): OperationResult {
         val old = active(command.trade_id, command.expected_revision)
+        if (command.direction == Direction.DIVIDEND || old.direction == Direction.DIVIDEND.name) throw DomainException(ErrorCode.FORMAT)
         val position = positions.investment(old.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         val amount = R.amount(command.quantity_e8, command.execution_price_e8, cash.currency(instrument.currency_code), true)
@@ -80,6 +83,46 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         rebuild(position, now)
         syncCash(command.operation_id, old, position, command.direction, amount, command.fee_minor, cashAccountId,
             command.occurred_at_ms, now, "TRADE_EDIT")
+        return OperationResult("INVESTMENT_TRADE", old.id)
+    }
+
+    /** Requires the position to exist and to have bought before the date; cash, when linked, rises by the amount. */
+    suspend fun recordDividend(command: RecordDividend, now: Long): OperationResult {
+        val position = positions.investment(command.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        cash.currency(instrument.currency_code)
+        R.check_nonnegative(command.amount_minor, positive = true)
+        val cashAccountId = cash.resolveLink(position.savings_account_id, instrument.currency_code,
+            command.cash_linked, command.cashAccountId)
+        val id = trades.insert_trade(TradeEntity(investment_id = position.id, operation_id = command.operation_id,
+            direction = Direction.DIVIDEND.name, quantity_e8 = 0, execution_price_e8 = 0,
+            amount_minor = command.amount_minor, currency_code = instrument.currency_code, cash_linked = cashAccountId != null,
+            cash_account_id = cashAccountId, occurred_at_ms = command.occurred_at_ms, created_at_ms = now,
+            updated_at_ms = now, fee_minor = 0))
+        fault(TransactionPoint.AFTER_BUSINESS)
+        rebuild(position, now)
+        if (cashAccountId != null) {
+            cash.change(command.operation_id, cashAccountId, command.amount_minor, Direction.DIVIDEND.name, now)
+            cash.entry(command.operation_id, cashAccountId, CashSource.DIVIDEND.name, id, command.amount_minor,
+                command.occurred_at_ms, now)
+        }
+        return OperationResult("INVESTMENT_TRADE", id)
+    }
+
+    suspend fun editDividend(command: EditDividend, now: Long): OperationResult {
+        val old = active(command.trade_id, command.expected_revision)
+        if (old.direction != Direction.DIVIDEND.name) throw DomainException(ErrorCode.FORMAT)
+        val position = positions.investment(old.investment_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        val instrument = db.instruments().instrument(position.instrument_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        R.check_nonnegative(command.amount_minor, positive = true)
+        val cashAccountId = cash.resolveLink(position.savings_account_id, instrument.currency_code,
+            command.cash_linked, command.cashAccountId)
+        if (trades.edit_trade(old.id, old.revision, Direction.DIVIDEND.name, 0, 0, command.amount_minor, 0,
+                cashAccountId, command.occurred_at_ms, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
+        fault(TransactionPoint.AFTER_BUSINESS)
+        rebuild(position, now)
+        syncCash(command.operation_id, old, position, Direction.DIVIDEND, command.amount_minor, 0, cashAccountId,
+            command.occurred_at_ms, now, "DIVIDEND_EDIT")
         return OperationResult("INVESTMENT_TRADE", old.id)
     }
 
@@ -106,7 +149,11 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         val history = trades.replayTrades(position.id).map { it.toModel() }
         var holding = 0L
         for (trade in history) {
-            holding = R.add(holding, if (trade.direction == Direction.BUY) trade.quantity_e8 else -trade.quantity_e8)
+            holding = R.add(holding, when (trade.direction) {
+                Direction.BUY -> trade.quantity_e8
+                Direction.SELL -> -trade.quantity_e8
+                Direction.DIVIDEND -> 0
+            })
             if (holding < 0) throw DomainException(ErrorCode.HISTORY_CONFLICT)
         }
         val result = InvestmentProfitCalculator.calculate(projection.toModel().copy(holding_quantity_e8 = holding), history)
@@ -120,20 +167,26 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
     private fun impact(direction: Direction, amount: Long, fee: Long): Long = when (direction) {
         Direction.BUY -> -R.add(amount, fee)
         Direction.SELL -> R.replace_contribution(amount, fee, 0)
+        Direction.DIVIDEND -> amount
     }
+
+    /** The cash entry kind a record of this direction keeps. */
+    private fun sourceKind(direction: Direction): String =
+        if (direction == Direction.DIVIDEND) CashSource.DIVIDEND.name else CashSource.TRADE.name
 
     private suspend fun syncCash(operationId: String, old: TradeEntity, position: InvestmentEntity,
         direction: Direction, amount: Long, fee: Long, cashAccountId: Long?, occurred: Long, now: Long, reason: String) {
         val oldImpact = if (old.cash_account_id != null)
             impact(Direction.valueOf(old.direction), old.amount_minor, old.fee_minor) else 0
         val newImpact = if (cashAccountId != null) impact(direction, amount, fee) else 0
-        val entry = db.cash().source_entry("TRADE", old.id)
+        val kind = sourceKind(Direction.valueOf(old.direction))
+        val entry = db.cash().source_entry(kind, old.id)
         if (old.cash_account_id != null) check(entry != null && !entry.is_deleted && entry.delta_minor == oldImpact)
         if (old.cash_account_id == null && cashAccountId == null) return
         // Only this record's difference affects cash; replay never repeats previous cash effects.
         cash.applyPlan(operationId, old.cash_account_id, oldImpact, cashAccountId, newImpact, reason, now)
         if (entry == null) cash.entry(old.operation_id, requireNotNull(cashAccountId),
-            "TRADE", old.id, newImpact, occurred, now)
+            kind, old.id, newImpact, occurred, now)
         else {
             val targetId = cashAccountId ?: entry.cash_account_id
             val target = db.cash().cashAccount(targetId) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)

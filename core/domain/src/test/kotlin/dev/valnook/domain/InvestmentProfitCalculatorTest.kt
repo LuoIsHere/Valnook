@@ -20,6 +20,29 @@ class InvestmentProfitCalculatorTest {
     private fun decimal(expected: String, actual: BigDecimal?) = assertEquals(0, BigDecimal(expected).compareTo(requireNotNull(actual)))
     private fun displayed(expected: String, actual: BigDecimal?) = decimal(expected, actual?.setScale(2, RoundingMode.HALF_UP))
 
+    private fun dividend(id: Long, amountMinor: Long, time: Long = id) =
+        Trade(id, 1, Direction.DIVIDEND, 0, 0, amountMinor, currency, false, time)
+
+    @Test fun dividends_add_to_realized_without_moving_units_or_cost() {
+        val history = listOf(trade(1, Direction.BUY, "10", "100"), dividend(2, 1234))
+        val held = Calculator.calculate(asset("10", price = "110"), history)
+        decimal("12.34", held.realized); decimal("1000", held.remainingCost); decimal("100", held.average_cost)
+        decimal("100", held.unrealized); assertTrue(held.chronology_valid)
+        // Sold out, a later payment still counts, on top of what the sale realized.
+        val closed = Calculator.calculate(asset("0", price = "110"),
+            history + trade(3, Direction.SELL, "10", "120") + dividend(4, 500))
+        decimal("217.34", closed.realized); decimal("0", closed.remainingCost); assertTrue(closed.chronology_valid)
+    }
+
+    @Test fun a_dividend_before_any_purchase_breaks_the_history() {
+        val early = Calculator.calculate(asset("10"), listOf(dividend(1, 100, time = 1), trade(2, Direction.BUY, "10", "100", time = 2)))
+        assertFalse(early.chronology_valid)
+        assertEquals(1L, early.conflictTradeId)
+        // At the same moment, the purchase recorded first comes first.
+        assertTrue(Calculator.calculate(asset("10"), listOf(trade(1, Direction.BUY, "10", "100", time = 5),
+            dividend(2, 100, time = 5))).chronology_valid)
+    }
+
     @Test fun partial_sale_and_new_purchase_use_remaining_cost() {
         val history = listOf(trade(1, Direction.BUY, "10", "100"), trade(2, Direction.BUY, "10", "200"),
             trade(3, Direction.SELL, "5", "180"))

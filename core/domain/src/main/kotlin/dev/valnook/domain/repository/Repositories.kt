@@ -87,6 +87,14 @@ data class EditInvestmentTrade(override val operation_id: String, val trade_id: 
 data class DeleteInvestmentTrade(override val operation_id: String, val trade_id: Long,
     val expected_revision: Long) : FinancialCommand
 
+/** Income received on a position, net of tax, in the instrument's currency; it adds to realized profit. */
+data class RecordDividend(override val operation_id: String, val investment_id: Long, val amount_minor: Long,
+    val occurred_at_ms: Long, val cash_linked: Boolean, val cashAccountId: Long? = null) : FinancialCommand
+
+data class EditDividend(override val operation_id: String, val trade_id: Long, val expected_revision: Long,
+    val amount_minor: Long, val occurred_at_ms: Long, val cash_linked: Boolean,
+    val cashAccountId: Long? = null) : FinancialCommand
+
 data class EditCashEntry(override val operation_id: String, val entry_id: Long,
     val expected_revision: Long, val delta_minor: Long, val occurred_at_ms: Long,
     val note: String) : FinancialCommand

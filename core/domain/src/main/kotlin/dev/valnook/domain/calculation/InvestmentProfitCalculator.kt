@@ -16,11 +16,21 @@ object InvestmentProfitCalculator {
         var realized: BigDecimal? = BigDecimal.ZERO
         var conflictTradeId: Long? = null
         var chronological = true
+        var bought = false
         for (trade in trades.sortedWith(compareBy<Trade> { it.occurred_at_ms }.thenBy { it.id })) {
             require(trade.investment_id == asset.id && trade.currency == asset.currency)
             val amount = BigDecimal.valueOf(trade.amount_minor, asset.currency.fraction_digits)
             val fee = BigDecimal.valueOf(trade.fee_minor, asset.currency.fraction_digits)
-            if (trade.direction == Direction.BUY) {
+            if (trade.direction == Direction.DIVIDEND) {
+                // Income needs something bought before it; it moves no units and no cost.
+                if (!bought) {
+                    chronological = false
+                    conflictTradeId = conflictTradeId ?: trade.id
+                    break
+                }
+                realized = realized?.add(amount)
+            } else if (trade.direction == Direction.BUY) {
+                bought = true
                 quantityE8 = DecimalRules.add(quantityE8, trade.quantity_e8)
                 remainingCost = remainingCost?.add(buyNotional(trade.quantity_e8, trade.execution_price_e8))?.add(fee)
             } else {

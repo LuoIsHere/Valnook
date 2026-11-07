@@ -78,6 +78,8 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is EditTermDeposit -> deposits.edit(command, now)
                 is RecordInvestmentTrade -> positions.record(command, now)
                 is EditInvestmentTrade -> positions.edit(command, now)
+                is RecordDividend -> positions.recordDividend(command, now)
+                is EditDividend -> positions.editDividend(command, now)
                 is DeleteInvestmentTrade -> positions.delete(command, now)
                 is AccountGroupCommand -> groups.execute(command, now)
             }
@@ -115,6 +117,11 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             // Deleting an instrument takes its value out of every day it was held.
             is DeleteBalanceAccount, is DeleteAccount, is DeleteInstrument -> baseline
             is RecordInvestmentTrade -> day(command.occurred_at_ms).coerceAtLeast(baseline)
+            is RecordDividend -> day(command.occurred_at_ms).coerceAtLeast(baseline)
+            is EditDividend -> {
+                val old = db.trades().trade(command.trade_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)
+                minOf(old, day(command.occurred_at_ms)).coerceAtLeast(baseline)
+            }
             is EditInvestmentTrade -> {
                 val old = db.trades().trade(command.trade_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)
                 minOf(old, day(command.occurred_at_ms)).coerceAtLeast(baseline)

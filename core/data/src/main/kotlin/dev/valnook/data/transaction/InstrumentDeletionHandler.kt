@@ -32,7 +32,7 @@ internal class InstrumentDeletionHandler(private val db: ValnookDatabase, privat
             count("SELECT COUNT(DISTINCT savings_account_id) FROM investments WHERE instrument_id=?", instrumentId),
             tradeCount,
             count("SELECT COUNT(*) FROM instrument_price_history WHERE instrument_id=? AND is_deleted=0", instrumentId),
-            count("SELECT COUNT(*) FROM cash_entries WHERE source_kind='TRADE' AND is_deleted=0 AND source_id IN ($trades)", instrumentId),
+            count("SELECT COUNT(*) FROM cash_entries WHERE source_kind IN ('TRADE','DIVIDEND') AND is_deleted=0 AND source_id IN ($trades)", instrumentId),
             holding, BigDecimal.valueOf(holding, 8).multiply(BigDecimal.valueOf(instrument.current_price_e5, 5)))
         pending.entries.removeAll { it.value.expires <= clock.millis() }
         while (pending.size >= 32) pending.remove(pending.keys.first())
@@ -64,6 +64,8 @@ internal class InstrumentDeletionHandler(private val db: ValnookDatabase, privat
         // Cash keeps what the trades moved, so balances stay; the entries just stop pointing at the trades.
         exec("""UPDATE cash_entries SET source_kind='${CashSource.TRADE_REMOVED.name}',source_id=NULL,revision=revision+1,
             updated_at_ms=? WHERE source_kind='${CashSource.TRADE.name}' AND source_id IN ($trades)""", now, id)
+        exec("""UPDATE cash_entries SET source_kind='${CashSource.DIVIDEND_REMOVED.name}',source_id=NULL,revision=revision+1,
+            updated_at_ms=? WHERE source_kind='${CashSource.DIVIDEND.name}' AND source_id IN ($trades)""", now, id)
         // The history of the instrument goes with it; the event recording this deletion keeps only IDs.
         val events = """(entity_kind='INSTRUMENT' AND entity_id=CAST(? AS TEXT))
             OR (entity_kind='INVESTMENT' AND entity_id IN (SELECT CAST(id AS TEXT) FROM investments WHERE instrument_id=?))

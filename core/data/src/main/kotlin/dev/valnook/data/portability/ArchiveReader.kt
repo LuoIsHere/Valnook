@@ -498,6 +498,8 @@ internal class ArchiveReader(
             remaining = remaining.add(cost).add(fee)
         }
 
+        fun dividend(amount: BigDecimal) { realized = realized.add(amount) }
+
         fun sell(quantityE8: Long, heldE8: Long, amount: BigDecimal, fee: BigDecimal) {
             val allocated = if (quantityE8 == heldE8) remaining else remaining
                 .multiply(BigDecimal.valueOf(quantityE8))
@@ -531,6 +533,7 @@ internal class ArchiveReader(
             var declared = CostChain(rule)
             var latest = CostChain(BackupContract.POSITION_COST_RULE)
             var hasTrade = false
+            var bought = false
             fun finish() {
                 if (positionId == Long.MIN_VALUE) return
                 val expectedState = if (quantity > 0) "HOLDING" else if (hasTrade) "CLOSED" else "PENDING"
@@ -555,15 +558,24 @@ internal class ArchiveReader(
                     declared = CostChain(rule)
                     latest = CostChain(BackupContract.POSITION_COST_RULE)
                     hasTrade = false
+                    bought = false
                 }
                 if (cursor.isNull(7) || cursor.getInt(12) != 0) continue
                 hasTrade = true
                 val direction = cursor.getString(8)
                 val tradeQuantity = cursor.getLong(9)
-                if (tradeQuantity <= 0) invalid()
                 val amount = BigDecimal.valueOf(cursor.getLong(10), fractionDigits)
                 val fee = BigDecimal.valueOf(cursor.getLong(11), fractionDigits)
+                // A dividend moves no units, has no fee, and follows a purchase.
+                if (direction == "DIVIDEND") {
+                    if (tradeQuantity != 0L || cursor.getLong(11) != 0L || cursor.getLong(10) <= 0 || !bought) invalid()
+                    declared.dividend(amount)
+                    latest.dividend(amount)
+                    continue
+                }
+                if (tradeQuantity <= 0) invalid()
                 if (direction == "BUY") {
+                    bought = true
                     quantity = checkedAdd(quantity, tradeQuantity)
                     declared.buy(tradeQuantity, cursor.getLong(13), amount, fee)
                     latest.buy(tradeQuantity, cursor.getLong(13), amount, fee)

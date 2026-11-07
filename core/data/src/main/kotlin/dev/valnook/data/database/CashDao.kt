@@ -27,7 +27,7 @@ interface CashDao {
 
     @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
-        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         WHERE e.savings_account_id=:accountId AND e.currency_code=:code AND e.is_deleted=0
         AND (:time IS NULL OR e.occurred_at_ms<:time OR (e.occurred_at_ms=:time AND e.id<:id))
         ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size""")
@@ -35,7 +35,7 @@ interface CashDao {
 
     @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
-        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         WHERE e.cash_account_id=:cashAccountId AND e.is_deleted=0
         AND (:time IS NULL OR e.occurred_at_ms<:time OR (e.occurred_at_ms=:time AND e.id<:id))
         ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :size""")
@@ -55,7 +55,7 @@ interface CashDao {
             ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS balance_after_minor
         FROM (SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
-        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         WHERE e.cash_account_id=:cashAccountId AND e.is_deleted=0
         AND e.occurred_at_ms>=:startMs AND e.occurred_at_ms<:endMs
         AND (:time IS NULL OR e.occurred_at_ms<:time OR (e.occurred_at_ms=:time AND e.id<:id))
@@ -111,27 +111,27 @@ interface CashDao {
 
     @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
-        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         WHERE e.cash_account_id=:cashAccountId AND e.is_deleted=0
         ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :limit""")
     fun cashAccountEntries(cashAccountId: Long, limit: Int): Flow<List<CashEntryWithSource>>
 
     @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
-        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         WHERE e.savings_account_id=:accountId AND e.currency_code=:code AND e.is_deleted=0
         ORDER BY e.occurred_at_ms DESC,e.id DESC LIMIT :limit""")
     fun cash_entries(accountId: Long, code: String, limit: Int): Flow<List<CashEntryWithSource>>
 
     @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
-        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         WHERE e.cash_account_id=:cashAccountId AND e.id=:entryId AND e.is_deleted=0""")
     fun observeCashAccountEntry(cashAccountId: Long, entryId: Long): Flow<CashEntryWithSource?>
 
     @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
-        LEFT JOIN investment_trades t ON e.source_kind='TRADE' AND t.id=e.source_id
+        LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         WHERE e.savings_account_id=:accountId AND e.id=:entryId AND e.is_deleted=0""")
     fun observe_cash_entry(accountId: Long, entryId: Long): Flow<CashEntryWithSource?>
 
