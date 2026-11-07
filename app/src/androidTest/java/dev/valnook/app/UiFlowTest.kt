@@ -1304,6 +1304,70 @@ class UiFlowTest {
         assertTrue(shown("甲股票")&&shown("乙股票")&&shown("丙债券"))
     }
 
+    @Test fun dividends_are_recorded_from_the_instrument_and_add_to_realized_profit() {
+        var other=0L
+        runBlocking {
+            graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(),account_id,"CNY",100_000,null))
+            val type=createType("合成基金")
+            createInvestment(account_id,"合成派息基金","SYNDV",type,"CNY",R.parse_e8("10"),R.parse_e8("10"),R.parse_e8("10"))
+            other=graph.overview.snapshot().accounts.first { it.name=="合成账户 B" }.id
+            val instrument=graph.instruments.observeInstruments().first().single().id
+            val position=graph.commands.execute(CreateInvestmentPosition(UUID.randomUUID().toString(),other,instrument)).id
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(),position,Direction.BUY,
+                R.parse_e8("1"),R.parse_e8("10"),Long.MIN_VALUE,false))
+        }
+        val balance=runBlocking { db.cash().cash_one(account_id,"CNY")!!.balance_minor }
+        wait_text("合成账户 A")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值")
+        rule.onNodeWithContentDescription("所有投资品").performClick()
+        wait_text("合成派息基金")
+        rule.onNodeWithText("合成派息基金").performClick()
+        wait_text("交易历史")
+        rule.onNodeWithTag("instrument-dividends").assertDoesNotExist()
+        // Two accounts have held it, so the dividend asks which one received it.
+        rule.onNodeWithTag("instrument-dividend").performClick()
+        wait_text("派息到哪个账户")
+        rule.onNodeWithTag("instrument-account-pick-$account_id").performClick()
+        rule.waitUntil(15000){rule.onAllNodesWithTag("dividend-save").fetchSemanticsNodes().isNotEmpty()}
+        wait_text("记录派息")
+        rule.onNodeWithTag("dividend-subject").assertTextEquals("合成派息基金 · 合成账户 A")
+        rule.onNodeWithTag("dividend-save").assertIsNotEnabled()
+        rule.onNodeWithTag("switch-同时计入现金").assertIsOn()
+        rule.onNodeWithTag("input-税后到账金额（CNY）").performTextInput("12.34")
+        finish_input()
+        window_shot("dividend-form")
+        rule.onNodeWithTag("dividend-save").assertIsEnabled().performClick()
+        wait_text("交易历史")
+        rule.waitUntil(15000){rule.onAllNodesWithTag("instrument-dividends").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("instrument-dividends").assertTextEquals("其中派息 12.34")
+        rule.onNodeWithTag("instrument-realized").assert(hasText("+12.34", substring = true))
+        runBlocking { assertEquals(balance+1234,db.cash().cash_one(account_id,"CNY")!!.balance_minor) }
+        val dividend=runBlocking { db.openHelper.readableDatabase.query("SELECT id FROM investment_trades WHERE direction='DIVIDEND'").use {
+            it.moveToFirst(); it.getLong(0) } }
+        rule.onNodeWithTag("instrument-detail-list").performScrollToNode(hasTestTag("trade-record-$dividend"))
+        rule.onNodeWithTag("trade-record-$dividend").assert(hasText("派息 · 合成账户 A")).assert(hasText("+12.34 CNY"))
+        window_shot("dividend-history")
+        // Its detail edits it in the dividend form, then deletes it.
+        rule.onNodeWithTag("trade-record-$dividend").performClick()
+        wait_text("派息记录")
+        rule.onNodeWithTag("dividend-edit").performScrollTo().performClick()
+        wait_text("修改派息")
+        rule.onNodeWithTag("input-税后到账金额（CNY）").performTextReplacement("20")
+        finish_input()
+        rule.onNodeWithTag("dividend-save").assertIsEnabled().performClick()
+        wait_text("派息记录")
+        wait_text("+20.00 CNY")
+        runBlocking { assertEquals(balance+2000,db.cash().cash_one(account_id,"CNY")!!.balance_minor) }
+        rule.onNodeWithTag("dividend-delete").performScrollTo().performClick()
+        save("确认删除")
+        wait_text("这笔交易已删除或不存在。")
+        rule.onNodeWithContentDescription("返回").performClick()
+        wait_text("交易历史")
+        rule.waitUntil(15000){rule.onAllNodesWithTag("instrument-dividends").fetchSemanticsNodes().isEmpty()}
+        runBlocking { assertEquals(balance,db.cash().cash_one(account_id,"CNY")!!.balance_minor) }
+    }
+
     @Test fun deleting_an_instrument_with_trades_asks_for_the_code_and_keeps_cash() {
         var position=0L; var simple=0L
         runBlocking {

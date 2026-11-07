@@ -11,7 +11,8 @@ import kotlinx.coroutines.flow.map
 
 internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
     accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit,
-    onTypeToolbar: (TypeEditToolbarState?) -> Unit = {}, onInstrumentToolbar: (InstrumentEditToolbarState?) -> Unit = {}) {
+    onTypeToolbar: (TypeEditToolbarState?) -> Unit = {}, onInstrumentToolbar: (InstrumentEditToolbarState?) -> Unit = {},
+    onDividendToolbar: (DividendToolbarState?) -> Unit = {}) {
     entry<InvestmentsKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
@@ -40,7 +41,8 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
             onBuy = { accountId, positionId -> open(TradeFormKey(accountId, TradeFormMode.CREATE, route.id, positionId,
                 direction = Direction.BUY)) },
             onSell = { accountId, positionId -> open(TradeFormKey(accountId, TradeFormMode.CREATE, route.id, positionId,
-                direction = Direction.SELL)) })
+                direction = Direction.SELL)) },
+            onDividend = { accountId, positionId -> open(DividendFormKey(accountId, positionId)) })
     }
     entry<PositionCreateKey> { route ->
         val vm = pageViewModel { PositionCreateViewModel(graph.instruments, createSavedStateHandle()) }
@@ -62,7 +64,10 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     }
     entry<TradeDetailKey> { route ->
         val vm = pageViewModel { TradeDetailViewModel(route.account_id, route.trade_id, graph.investments) }
-        TradeDetailScreen(vm, accountName(route.account_id), { _, trade -> open(TradeFormKey(route.account_id, TradeFormMode.EDIT, tradeId = trade.id)) },
+        TradeDetailScreen(vm, accountName(route.account_id), { _, trade ->
+            // A dividend is edited in its own form; buys and sells in the trade form.
+            if (trade.direction == Direction.DIVIDEND) open(DividendFormKey(route.account_id, tradeId = trade.id))
+            else open(TradeFormKey(route.account_id, TradeFormMode.EDIT, tradeId = trade.id)) },
             { _, trade -> open(TradeFormKey(route.account_id, TradeFormMode.DELETE, tradeId = trade.id)) })
     }
     entry<TradeFormKey> { route ->
@@ -70,5 +75,10 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
             route.tradeId, route.direction, graph.investments, graph.instruments, graph.cash,
             graph.commands, graph.clock, createSavedStateHandle()) }
         TradeForm(vm, back)
+    }
+    entry<DividendFormKey> { route ->
+        val vm = pageViewModel { DividendFormViewModel(route.accountId, route.positionId, route.tradeId, graph.investments,
+            graph.instruments, graph.cash, graph.commands, graph.clock, createSavedStateHandle()) }
+        DividendForm(vm, accountName(route.accountId), back, onDividendToolbar)
     }
 }

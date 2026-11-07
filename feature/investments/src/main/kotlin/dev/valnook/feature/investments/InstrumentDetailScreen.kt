@@ -57,22 +57,22 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
  */
 @Composable fun InstrumentDetail(vm: InstrumentDetailViewModel, contextAccountId: Long?, onTitleReserve: (Int) -> Unit,
     onTrade: (accountId: Long, tradeId: Long) -> Unit, onBuy: (accountId: Long, positionId: Long?) -> Unit,
-    onSell: (accountId: Long, positionId: Long) -> Unit) {
+    onSell: (accountId: Long, positionId: Long) -> Unit, onDividend: (accountId: Long, positionId: Long) -> Unit = { _, _ -> }) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         InstrumentDetailState.Loading -> PageLoading()
         InstrumentDetailState.Failed -> Text(stringResource(R.string.instrument_load_failed))
         InstrumentDetailState.Missing -> EmptyState(stringResource(R.string.instrument_not_found))
         is InstrumentDetailState.Ready -> InstrumentDetailContent(vm, current, contextAccountId, onTitleReserve,
-            onTrade, onBuy, onSell)
+            onTrade, onBuy, onSell, onDividend)
     }
 }
 
-private enum class Picking { BUY, SELL }
+private enum class Picking { BUY, SELL, DIVIDEND }
 
 @Composable private fun InstrumentDetailContent(vm: InstrumentDetailViewModel, ready: InstrumentDetailState.Ready,
     contextAccountId: Long?, onTitleReserve: (Int) -> Unit, onTrade: (Long, Long) -> Unit,
-    onBuy: (Long, Long?) -> Unit, onSell: (Long, Long) -> Unit) {
+    onBuy: (Long, Long?) -> Unit, onSell: (Long, Long) -> Unit, onDividend: (Long, Long) -> Unit) {
     val trades by vm.trades.collectAsStateWithLifecycle()
     val priceEditor by vm.priceEditor.collectAsStateWithLifecycle()
     val month by vm.month.collectAsStateWithLifecycle()
@@ -91,6 +91,11 @@ private enum class Picking { BUY, SELL }
         else picking = Picking.BUY
     }
     fun sell() { if (held.size == 1) onSell(held[0].account.id, held[0].position.id) else picking = Picking.SELL }
+    // Any account that has held it may receive one, sold out or not.
+    fun dividend() {
+        if (ready.holdings.size == 1) onDividend(ready.holdings[0].account.id, ready.holdings[0].position.id)
+        else picking = Picking.DIVIDEND
+    }
     val collapse = rememberHeaderCollapse("instrument-${instrument.id}")
     val accountNames = remember(ready.holdings) { ready.holdings.associate { it.position.id to it.account } }
     Column(Modifier.fillMaxSize().nestedScroll(collapse)) {
@@ -104,6 +109,8 @@ private enum class Picking { BUY, SELL }
                         Text(stringResource(R.string.investment_buy)) }
                     ActionButton(::sell, Modifier.weight(1f).testTag("instrument-sell"), enabled = held.isNotEmpty()) {
                         Text(stringResource(R.string.investment_sell)) }
+                    ActionButton(::dividend, Modifier.weight(1f).testTag("instrument-dividend"), enabled = ready.holdings.isNotEmpty()) {
+                        Text(stringResource(R.string.investment_dividend), maxLines = 1) }
                 }
             }
             item("accounts") { AccountHoldings(ready.holdings, currency, filter) { id -> vm.selectAccount(if (filter == id) null else id) } }
@@ -136,11 +143,19 @@ private enum class Picking { BUY, SELL }
     }
     priceEditor?.let { editor -> PriceDialog(editor, vm::savePrice, vm::closePriceEditor) }
     picking?.let { mode ->
-        val choices = if (mode == Picking.BUY) ready.accounts else held.map { it.account }
+        val choices = when (mode) {
+            Picking.BUY -> ready.accounts
+            Picking.SELL -> held.map { it.account }
+            Picking.DIVIDEND -> ready.holdings.map { it.account }
+        }
         AccountPicker(mode, choices, ready.holdings, contextAccountId, currency, { picking = null }) { account ->
             picking = null
             val position = ready.holdings.firstOrNull { it.account.id == account.id }?.position
-            if (mode == Picking.BUY) onBuy(account.id, position?.id) else position?.let { onSell(account.id, it.id) }
+            when (mode) {
+                Picking.BUY -> onBuy(account.id, position?.id)
+                Picking.SELL -> position?.let { onSell(account.id, it.id) }
+                Picking.DIVIDEND -> position?.let { onDividend(account.id, it.id) }
+            }
         }
     }
 }
@@ -211,8 +226,15 @@ private enum class Picking { BUY, SELL }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Metric(stringResource(R.string.instrument_cost_label), totals.cost?.let { DecimalRules.format_display(it, currency.fraction_digits) } ?: "—",
                     Modifier.weight(1f).testTag("instrument-cost"))
-                Metric(stringResource(R.string.instrument_realized_label), signed(totals.realized, currency),
-                    Modifier.weight(1f).testTag("instrument-realized"), profitColor(displayedSign(totals.realized, currency.fraction_digits)))
+                Column(Modifier.weight(1f)) {
+                    Metric(stringResource(R.string.instrument_realized_label), signed(totals.realized, currency),
+                        Modifier.testTag("instrument-realized"), profitColor(displayedSign(totals.realized, currency.fraction_digits)))
+                    // What dividends added, so the realized figure can be checked against statements.
+                    if (totals.dividends.signum() > 0) Text(stringResource(R.string.instrument_dividends_part,
+                        DecimalRules.format_display(totals.dividends, currency.fraction_digits)),
+                        Modifier.testTag("instrument-dividends"), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer)
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -324,27 +346,35 @@ private fun dayLabel(date: LocalDate, locale: java.util.Locale): String =
     val large = MaterialTheme.typography.bodyLarge
     val time = Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
     val buy = trade.direction == Direction.BUY
+    val dividend = trade.direction == Direction.DIVIDEND
     val settled = tradeAmountWithFee(trade.direction, trade.amount_minor, trade.fee_minor)
     val digits = trade.currency.fraction_digits
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClick = onOpen)
         .testTag("trade-record-${trade.id}").padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            val direction = stringResource(if (buy) dev.valnook.core.designsystem.R.string.buy else dev.valnook.core.designsystem.R.string.sell)
-            val color = profitColor(if (buy) 1 else -1)
+            val direction = stringResource(when (trade.direction) {
+                Direction.BUY -> dev.valnook.core.designsystem.R.string.buy
+                Direction.SELL -> dev.valnook.core.designsystem.R.string.sell
+                Direction.DIVIDEND -> dev.valnook.core.designsystem.R.string.source_dividend
+            })
+            // A dividend is income, coloured as a gain.
+            val color = profitColor(if (buy || dividend) 1 else -1)
             // One line, read as one: only the direction takes its colour.
             Text(buildAnnotatedString {
                 withStyle(SpanStyle(color = color)) { append(direction) }
                 if (account.isNotEmpty()) append(" · $account")
             }, style = large, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(time + " · " + stringResource(R.string.investment_units, DecimalRules.format_e8(trade.quantity_e8)) +
+            // Dividends are dated by day only: their stored time just orders them, so it is not shown.
+            Text(if (dividend) stringResource(R.string.dividend_row_detail) else
+                time + " · " + stringResource(R.string.investment_units, DecimalRules.format_e8(trade.quantity_e8)) +
                 " × " + DecimalRules.format_e8(trade.execution_price_e8), style = small, color = muted, maxLines = 1,
                 overflow = TextOverflow.Ellipsis)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(DecimalRules.format_display(settled, digits) + " " + trade.currency.code,
+            Text((if (dividend) "+" else "") + DecimalRules.format_display(settled, digits) + " " + trade.currency.code,
                 style = large.copy(fontFeatureSettings = "tnum"), maxLines = 1)
-            Text(stringResource(R.string.investment_trade_fee) + " " + DecimalRules.format_display(trade.fee_minor, digits),
+            if (!dividend) Text(stringResource(R.string.investment_trade_fee) + " " + DecimalRules.format_display(trade.fee_minor, digits),
                 style = small.copy(fontFeatureSettings = "tnum"), color = muted, maxLines = 1)
         }
     }
@@ -401,7 +431,11 @@ private fun dayLabel(date: LocalDate, locale: java.util.Locale): String =
     AnimatedGlassDialog(true, onDismiss) {
         GlassCard(Modifier.testTag("instrument-account-picker")) {
             Column(Modifier.padding(vertical = 16.dp)) {
-                Text(stringResource(if (mode == Picking.BUY) R.string.instrument_buy_into else R.string.instrument_sell_from),
+                Text(stringResource(when (mode) {
+                    Picking.BUY -> R.string.instrument_buy_into
+                    Picking.SELL -> R.string.instrument_sell_from
+                    Picking.DIVIDEND -> R.string.instrument_dividend_to
+                }),
                     Modifier.padding(horizontal = 20.dp).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
                 Spacer(Modifier.height(8.dp))
                 ordered.forEach { account ->

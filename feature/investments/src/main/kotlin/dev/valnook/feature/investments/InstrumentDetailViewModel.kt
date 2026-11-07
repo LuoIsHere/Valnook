@@ -22,7 +22,8 @@ data class InstrumentHolding(val account: SavingsAccount, val position: Investme
 
 /** Sums over every account. One instrument has one currency, so the amounts add up as they are. */
 data class InstrumentTotals(val quantityE8: Long, val marketValue: BigDecimal, val cost: BigDecimal?,
-    val average: BigDecimal?, val realized: BigDecimal?, val unrealized: BigDecimal?, val unrealizedPercent: BigDecimal?)
+    val average: BigDecimal?, val realized: BigDecimal?, val unrealized: BigDecimal?, val unrealizedPercent: BigDecimal?,
+    val dividends: BigDecimal = BigDecimal.ZERO)
 
 sealed interface InstrumentDetailState {
     data object Loading : InstrumentDetailState
@@ -59,12 +60,13 @@ class InstrumentDetailViewModel(val instrumentId: Long, overview: OverviewReposi
     private val snapshots = overview.observeSnapshot()
 
     val state: StateFlow<InstrumentDetailState> = combine(snapshots,
-        instruments.observePriceHistory(instrumentId).catch { emit(emptyList()) }) { snapshot, prices ->
-        build(snapshot, prices)
+        instruments.observePriceHistory(instrumentId).catch { emit(emptyList()) },
+        investments.observeInstrumentDividends(instrumentId).catch { emit(0L) }) { snapshot, prices, dividends ->
+        build(snapshot, prices, dividends)
     }.flowOn(Dispatchers.Default).catch { emit(InstrumentDetailState.Failed) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), InstrumentDetailState.Loading)
 
-    private fun build(snapshot: AssetSnapshot, prices: List<InstrumentPricePoint>): InstrumentDetailState {
+    private fun build(snapshot: AssetSnapshot, prices: List<InstrumentPricePoint>, dividendsMinor: Long): InstrumentDetailState {
         val instrument = snapshot.instruments.firstOrNull { it.id == instrumentId } ?: return InstrumentDetailState.Missing
         val order = snapshot.accounts.withIndex().associate { it.value.id to it.index }
         val accounts = snapshot.accounts.associateBy { it.id }
@@ -76,7 +78,8 @@ class InstrumentDetailViewModel(val instrumentId: Long, overview: OverviewReposi
             // Held first, largest first; closed ones after, in the accounts' order.
             .sortedWith(compareByDescending<InstrumentHolding> { it.position.holding_quantity_e8 > 0 }
                 .thenByDescending { it.marketValue }.thenBy { order[it.account.id] ?: Int.MAX_VALUE })
-        return InstrumentDetailState.Ready(instrument, holdings, snapshot.accounts, totals(holdings), prices)
+        return InstrumentDetailState.Ready(instrument, holdings, snapshot.accounts,
+            totals(holdings).copy(dividends = BigDecimal.valueOf(dividendsMinor, instrument.currency.fraction_digits)), prices)
     }
 
     private fun totals(holdings: List<InstrumentHolding>): InstrumentTotals {

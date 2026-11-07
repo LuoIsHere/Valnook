@@ -336,6 +336,7 @@ private fun SessionRoot(
         is TypeEditKey -> dev.valnook.feature.investments.typeEditTitle(current.id)
         TypesKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_manage_types)
         is InstrumentEditKey -> dev.valnook.feature.investments.instrumentEditTitle(current.id)
+        is DividendFormKey -> dev.valnook.feature.investments.dividendFormTitle(current.tradeId == null)
         is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
         is InstrumentKey -> selectedInstrument?.name.orEmpty()
         is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
@@ -393,6 +394,8 @@ private fun SessionRoot(
     val subaccountSortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_children)
     var balanceToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.cash.CashBalanceToolbarState?>(null) }
     val updateBalanceToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.cash.CashBalanceToolbarState? -> balanceToolbar=value } }
+    var dividendToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.DividendToolbarState?>(null) }
+    val updateDividendToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.investments.DividendToolbarState? -> dividendToolbar=value } }
     var instrumentToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.InstrumentEditToolbarState?>(null) }
     val updateInstrumentToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.investments.InstrumentEditToolbarState? -> instrumentToolbar=value } }
     var typeToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.TypeEditToolbarState?>(null) }
@@ -525,6 +528,7 @@ private fun SessionRoot(
                         dev.valnook.feature.investments.InstrumentEditSaveAction(instrumentToolbar)
                     }
                     TypesKey -> dev.valnook.feature.investments.TypesActions { open(TypeEditKey()) }
+                    is DividendFormKey -> dev.valnook.feature.investments.DividendSaveAction(dividendToolbar)
                     is AccountKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
                     is InstrumentKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
@@ -572,7 +576,8 @@ private fun SessionRoot(
                                 updateTitleReserve) { parent, cash ->
                                 deleteTarget = parent to cash
                             }
-                            investmentEntries(graph, open, back, accountName, updateTitleReserve, updateTypeToolbar, updateInstrumentToolbar)
+                            investmentEntries(graph, open, back, accountName, updateTitleReserve, updateTypeToolbar, updateInstrumentToolbar,
+                                updateDividendToolbar)
                             ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve, updateDepositToolbar)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),

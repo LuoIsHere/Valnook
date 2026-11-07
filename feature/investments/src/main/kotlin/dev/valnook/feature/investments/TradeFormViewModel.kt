@@ -18,9 +18,12 @@ data class TradeFormUiState(val mode: TradeFormMode, val instrumentId: Long?, va
     val loaded: Boolean = false, val failed: Boolean = false,
     val originalCashImpactMinor: Long = 0)
 
-internal fun tradeAmountWithFee(direction: Direction, amountMinor: Long, feeMinor: Long): Long =
-    if (direction == Direction.BUY) R.add(amountMinor, feeMinor)
-    else R.replace_contribution(amountMinor, feeMinor, 0)
+internal fun tradeAmountWithFee(direction: Direction, amountMinor: Long, feeMinor: Long): Long = when (direction) {
+    Direction.BUY -> R.add(amountMinor, feeMinor)
+    Direction.SELL -> R.replace_contribution(amountMinor, feeMinor, 0)
+    // Dividends carry no fee: what arrived is the amount.
+    Direction.DIVIDEND -> amountMinor
+}
 
 class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instrumentId: Long?,
     positionId: Long?, tradeId: Long?, direction: Direction, private val repository: InvestmentRepository,

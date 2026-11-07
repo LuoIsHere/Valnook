@@ -41,6 +41,8 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data class CashEntryKey(val accountId: Long, val cashAccountId: Long, val entryId: Long) : NavKey
 @Serializable data class CashEntryEditKey(val accountId: Long, val cashAccountId: Long, val entryId: Long) : NavKey
 @Serializable data class TradeDetailKey(val account_id: Long, val trade_id: Long) : NavKey
+/** A new dividend on [positionId], or the existing one [tradeId]. */
+@Serializable data class DividendFormKey(val accountId: Long, val positionId: Long? = null, val tradeId: Long? = null) : NavKey
 @Serializable data class DepositDetailKey(val account_id: Long, val deposit_id: Long) : NavKey
 @Serializable data class SettledDepositsKey(val accountId: Long) : NavKey
 @Serializable data class TradeFormKey(val accountId: Long, val mode: TradeFormMode,

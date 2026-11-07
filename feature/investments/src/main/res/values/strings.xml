@@ -115,6 +115,17 @@
         <item quantity="other">%1$d instruments</item>
     </plurals>
     <string name="instrument_types_note">Deleting a class moves its instruments to Uncategorized. Uncategorized itself cannot be renamed or deleted.</string>
+    <string name="investment_dividend">Dividend</string>
+    <string name="instrument_dividend_to">Which account received it</string>
+    <string name="dividend_record_title">Record dividend</string>
+    <string name="dividend_edit_title">Edit dividend</string>
+    <string name="dividend_amount">Amount received after tax (%1$s)</string>
+    <string name="dividend_date">Dividend date</string>
+    <string name="dividend_link_cash">Also add to cash</string>
+    <string name="dividend_hint">A dividend adds to realized profit; it changes neither units nor cost.</string>
+    <string name="dividend_history_conflict">This account bought nothing before this date.</string>
+    <string name="instrument_dividends_part">Dividends %1$s</string>
+    <string name="dividend_row_detail">Dividend received</string>
     <string name="instrument_type_no_match">No instruments of this asset class</string>
     <string name="investment_cost_includes_fees">Cost includes fees</string>
     <string name="investment_trade_history">Trade history</string>

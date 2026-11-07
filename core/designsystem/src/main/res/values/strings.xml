@@ -118,6 +118,10 @@
     <string name="source_dividend">Dividend</string>
     <string name="source_dividend_removed">Dividend of a deleted instrument</string>
     <string name="view_source_dividend">View dividend</string>
+    <string name="dividend_detail_title">Dividend</string>
+    <string name="edit_dividend">Edit dividend</string>
+    <string name="delete_dividend">Delete dividend</string>
+    <string name="dividend_received">Received</string>
     <string name="error_default_type">Uncategorized is the default class and cannot be renamed or deleted.</string>
     <string name="error_small">The trade amount is below the smallest currency unit.</string>
     <string name="error_date">Invalid date. The maturity date must be after the start date.</string>

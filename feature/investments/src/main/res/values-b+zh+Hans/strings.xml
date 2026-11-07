@@ -111,6 +111,17 @@
         <item quantity="other">%1$d 个标的</item>
     </plurals>
     <string name="instrument_types_note">删除类型后，它下面的标的会移到「未分类」；「未分类」不能改名或删除。</string>
+    <string name="investment_dividend">派息</string>
+    <string name="instrument_dividend_to">派息到哪个账户</string>
+    <string name="dividend_record_title">记录派息</string>
+    <string name="dividend_edit_title">修改派息</string>
+    <string name="dividend_amount">税后到账金额（%1$s）</string>
+    <string name="dividend_date">派息日期</string>
+    <string name="dividend_link_cash">同时计入现金</string>
+    <string name="dividend_hint">派息计入已实现盈亏，不改变持有份额和成本。</string>
+    <string name="dividend_history_conflict">派息日期之前，这个账户没有买入记录。</string>
+    <string name="instrument_dividends_part">其中派息 %1$s</string>
+    <string name="dividend_row_detail">派息到账</string>
     <string name="instrument_type_no_match">该资产类型下暂无标的</string>
     <string name="investment_cost_includes_fees">成本含手续费</string>
     <string name="investment_trade_history">交易历史</string>

@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.core.designsystem.R
@@ -33,6 +34,21 @@ import java.time.format.DateTimeFormatter
 @Composable fun TradeDetailContent(asset:Investment,trade:Trade,account_name:String,on_edit:()->Unit,on_delete:()->Unit) {
     val time=Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault())
     val settledAmount=tradeAmountWithFee(trade.direction,trade.amount_minor,trade.fee_minor)
+    if(trade.direction==Direction.DIVIDEND){
+        // A dividend has no units, price or fee: what arrived, when, and whether it reached cash.
+        val dividendRows=listOf(
+            stringResource(R.string.entry_account) to account_name,
+            stringResource(R.string.record_investment) to listOf(asset.name,asset.symbol).filter{it.isNotBlank()}.joinToString(" · "),
+            stringResource(R.string.trade_direction) to stringResource(R.string.source_dividend),
+            stringResource(R.string.dividend_received) to ("+"+Decimal.format_display(settledAmount,trade.currency.fraction_digits)+" "+trade.currency.code),
+            stringResource(R.string.trade_date) to time.toLocalDate().toString(),
+            stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
+        RecordDetailLayout(stringResource(R.string.dividend_detail_title),dividendRows) {
+            ActionButton(onClick=on_edit,modifier=Modifier.fillMaxWidth().testTag("dividend-edit")){Text(stringResource(R.string.edit_dividend))}
+            ActionButton(onClick=on_delete,modifier=Modifier.fillMaxWidth().testTag("dividend-delete"),destructive=true){Text(stringResource(R.string.delete_dividend))}
+        }
+        return
+    }
     val rows=listOf(
         stringResource(R.string.entry_account) to account_name,
         stringResource(R.string.record_investment) to listOf(asset.name,asset.symbol).filter{it.isNotBlank()}.joinToString(" · "),

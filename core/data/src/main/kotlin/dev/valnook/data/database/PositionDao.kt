@@ -36,4 +36,7 @@ interface PositionDao {
     /** Every position of the instrument with its revision, so any change to one of them changes the text. */
     @Query("SELECT COALESCE(GROUP_CONCAT(id||':'||revision),'') FROM (SELECT id,revision FROM investments WHERE instrument_id=:instrumentId ORDER BY id)")
     fun instrumentTradeRevision(instrumentId: Long): Flow<String>
+    @Query("""SELECT COALESCE(SUM(t.amount_minor),0) FROM investment_trades t JOIN investments p ON p.id=t.investment_id
+        WHERE p.instrument_id=:instrumentId AND t.direction='DIVIDEND' AND t.is_deleted=0""")
+    fun instrumentDividends(instrumentId: Long): Flow<Long>
 }

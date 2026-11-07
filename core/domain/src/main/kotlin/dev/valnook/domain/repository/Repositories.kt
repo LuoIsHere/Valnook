@@ -22,6 +22,8 @@ interface DepositRepository {
     fun observe_deposits(account_id: Long, limit: Int, closed: Boolean = false): Flow<List<TermDeposit>>
 }
 interface InvestmentRepository {
+    /** The dividends received on an instrument across accounts, in its currency's minor units. */
+    fun observeInstrumentDividends(instrumentId: Long): Flow<Long> = kotlinx.coroutines.flow.flowOf(0L)
     suspend fun tradeMonthPage(positionId: Long, month: LedgerMonth, cursor: TradeCursor?, size: Int): List<Trade> =
         readMonthPage(month, cursor, size, { it: Trade -> it.occurred_at_ms },
             { TradeCursor(it.occurred_at_ms, it.id) }) { next, limit -> trade_page(positionId, next, limit) }
