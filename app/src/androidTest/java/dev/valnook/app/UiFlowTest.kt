@@ -793,7 +793,8 @@ class UiFlowTest {
         }
         wait_text("合成账户 A")
         rule.onNode(hasText("设置") and hasClickAction()).performClick()
-        rule.onNode(hasText("主币种") and hasClickAction()).performClick()
+        // The base currency and the rates share one entry.
+        rule.onNodeWithTag("settings-fx").performClick()
         wait_text("主币种")
         wait_text("未设置")
         rule.onNodeWithTag("fx-base").performScrollTo().performClick()

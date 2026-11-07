@@ -129,4 +129,6 @@
     <string name="settings_navigation_show_page">Show %1$s</string>
     <string name="settings_navigation_hint">Hidden pages can still be opened from Settings → Hidden pages.</string>
     <string name="settings_navigation_full">The bar shows up to %1$d pages. Hide one to add another.</string>
+    <string name="settings_fx_summary">Base currency %1$s · %2$s</string>
+    <string name="settings_fx_summary_unset">No base currency · %1$s</string>
 </resources>

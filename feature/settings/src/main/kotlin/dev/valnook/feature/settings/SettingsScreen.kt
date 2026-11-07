@@ -113,11 +113,11 @@ fun SettingsHome(
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item {
             GlassCard {
-            SettingEntry(stringResource(R.string.settings_base_currency),
-                state.savedSettings.baseCurrency?.code ?: stringResource(R.string.settings_not_set), onRates)
-            HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+            // One entry for one page: the base currency is set there with the rates, so both are summed up here.
+            val rates = stringResource(if (state.automatic) R.string.settings_fx_auto_on else R.string.settings_fx_default)
             SettingEntry(stringResource(R.string.settings_exchange_rates),
-                stringResource(if (state.automatic) R.string.settings_fx_auto_on else R.string.settings_fx_default), onRates)
+                state.savedSettings.baseCurrency?.let { stringResource(R.string.settings_fx_summary, it.code, rates) }
+                    ?: stringResource(R.string.settings_fx_summary_unset, rates), onRates, Modifier.testTag("settings-fx"))
             }
         }
         item {
