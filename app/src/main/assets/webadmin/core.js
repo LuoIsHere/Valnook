@@ -341,6 +341,8 @@ Object.assign(copy["zh-CN"], { editAssetType: "编辑资产类型", instrumentCo
 Object.assign(copy.en, { editAssetType: "Edit asset type", instrumentCount: "Instruments", createTypeFirst: "Create an asset type before adding an instrument." });
 Object.assign(copy["zh-CN"], { uncategorized: "未分类", defaultType: "默认", deletedInstrumentTrade: "已删除标的的交易" });
 Object.assign(copy.en, { uncategorized: "Uncategorized", defaultType: "Default", deletedInstrumentTrade: "Deleted instrument's trade" });
+Object.assign(copy["zh-CN"], { dividend: "派息", deletedInstrumentDividend: "已删除标的的派息", dividendOnPhone: "派息只能在手机上记录和修改。" });
+Object.assign(copy.en, { dividend: "Dividend", deletedInstrumentDividend: "Deleted instrument's dividend", dividendOnPhone: "Dividends are recorded and edited on the phone." });
 // The built-in class is stored under its Chinese name; other classes read as the user named them.
 const DEFAULT_TYPE_NAME = "未分类";
 function typeLabel(name, isDefault = false) { return isDefault || name === DEFAULT_TYPE_NAME ? t("uncategorized") : name; }

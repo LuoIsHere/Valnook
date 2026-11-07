@@ -296,6 +296,46 @@ class WebAdminEndToEndTest {
         }
     }
 
+    /** Dividends are listed over HTTP, with their amount and cash, but cannot be submitted from the browser. */
+    @Test fun dividends_are_shown_but_not_submitted_over_http() = runBlocking<Unit> {
+        val commands=RoomFinancialCommands(database,java.time.Clock.systemUTC())
+        fun id()=UUID.randomUUID().toString()
+        val account=commands.execute(SaveAccount(id(),null,null,"Synthetic broker","",emptyList())).id
+        commands.execute(SetCashBalance(id(),account,"CNY",100_000,null))
+        val type=commands.execute(SaveAssetType(id(),null,"Synthetic funds")).id
+        val instrument=commands.execute(SaveInstrument(id(),null,null,"Synthetic income fund","SYNI",type,"CNY",1000000)).id
+        val position=commands.execute(CreateInvestmentPosition(id(),account,instrument)).id
+        commands.execute(RecordInvestmentTrade(id(),position,dev.valnook.domain.model.Direction.BUY,
+            200000000,1000000000,System.currentTimeMillis()-60_000,false))
+        commands.execute(RecordDividend(id(),position,1234,System.currentTimeMillis(),true))
+        web.start()
+        val endpoint=URI(requireNotNull(web.state.value.url) { "web admin did not start: ${web.state.value}" })
+        val origin="http://${endpoint.host}:${endpoint.port}"
+        val paired=http(endpoint,"POST","/api/v1/pair/code",origin=origin,body=JSONObject().put("code",web.state.value.pairingCode).toString())
+        val cookie=paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf=JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint,origin,cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            val records=JSONObject(http(endpoint,"GET","/api/v1/records",cookie=cookie).body).getJSONArray("items")
+            val listed=(0 until records.length()).map { records.getJSONObject(it) }
+            val trade=listed.single { it.getString("kind")=="TRADE" && it.getString("action")=="DIVIDEND" }
+            assertEquals("12.34",trade.getString("amount"))
+            assertEquals("Synthetic income fund",listed.single { it.getString("kind")=="CASH" && it.getString("action")=="DIVIDEND" }
+                .getString("objectName"))
+            val detail=JSONObject(http(endpoint,"GET","/api/v1/positions/$position",cookie=cookie).body)
+            assertTrue(detail.toString(),(0 until detail.getJSONArray("trades").length())
+                .any { detail.getJSONArray("trades").getJSONObject(it).getString("action")=="DIVIDEND" })
+            // The browser cannot submit a dividend as a trade, even with units and a price that would pass as one.
+            val generation=JSONObject(http(endpoint,"GET","/api/v1/asset-types",cookie=cookie).body).getLong("dataGeneration")
+            val refused=http(endpoint,"POST","/api/v1/trades",origin=origin,cookie=cookie,csrf=csrf,body=JSONObject()
+                .put("operationId",id()).put("dataGeneration",generation).put("accountId",account).put("instrumentId",instrument)
+                .put("currencyCode","CNY").put("direction","DIVIDEND").put("quantity","1").put("executionPrice","10").put("fee","0")
+                .put("occurredAtMs",System.currentTimeMillis()).put("cashLinked",false).toString())
+            assertEquals(refused.body,400,refused.status)
+            assertEquals("FORMAT",JSONObject(refused.body).getJSONObject("error").getString("code"))
+        }
+    }
+
     @Test fun account_groups_are_listed_and_managed_over_http() = runBlocking<Unit> {
         val commands = RoomFinancialCommands(database, java.time.Clock.systemUTC())
         fun id() = UUID.randomUUID().toString()

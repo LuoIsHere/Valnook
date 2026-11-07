@@ -79,7 +79,7 @@ class RoomWebAdminReadRepository(
                 SELECT 'CASH' kind,e.id id,e.revision revision,e.occurred_at_ms business_ms,
                     e.savings_account_id account_id,a.name account_name,e.cash_account_id child_id,
                     c.name child_name,e.source_kind action,
-                    CASE WHEN e.source_kind='TRADE' THEN COALESCE(i.name,'')
+                    CASE WHEN e.source_kind IN ('TRADE','DIVIDEND') THEN COALESCE(i.name,'')
                          WHEN e.source_kind IN ('TERM_OPEN','TERM_CLOSE') THEN 'Term deposit'
                          ELSE c.name END object_name,
                     e.delta_minor raw_amount,NULL raw_quantity,NULL raw_unit_price,NULL raw_fee,
@@ -92,7 +92,7 @@ class RoomWebAdminReadRepository(
                 JOIN savings_accounts a ON a.id=e.savings_account_id
                 JOIN cash_accounts c ON c.id=e.cash_account_id
                 JOIN currencies curr ON curr.code=c.currency_code
-                LEFT JOIN investment_trades linked_trade ON e.source_kind='TRADE' AND linked_trade.id=e.source_id
+                LEFT JOIN investment_trades linked_trade ON e.source_kind IN ('TRADE','DIVIDEND') AND linked_trade.id=e.source_id
                 LEFT JOIN investments p ON p.id=linked_trade.investment_id
                 LEFT JOIN instruments i ON i.id=p.instrument_id
                 WHERE e.is_deleted=0

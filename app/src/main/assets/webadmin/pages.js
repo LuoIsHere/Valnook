@@ -497,7 +497,7 @@ async function renderRecords(reset) {
   state.recordsHistory = reset ? data.items : [...state.recordsHistory, ...data.items]; state.recordsCursor = data.nextCursor;
   const rows = state.recordsHistory.map(v => el("tr", { "data-clickable": "true", onclick: () => openRecord(v) },
     el("td", { text: when(v.businessAtMs) }), el("td", { text: v.accountName }), el("td", { text: v.childName || "—" }),
-    el("td", {}, el("strong", { class: v.action === "BUY" ? "gain" : v.action === "SELL" ? "loss" : "", text: actionLabel(v.action) })),
+    el("td", {}, el("strong", { class: v.action === "BUY" || v.action === "DIVIDEND" ? "gain" : v.action === "SELL" ? "loss" : "", text: actionLabel(v.action) })),
     el("td", { text: v.objectName || "—" }), el("td", { class: "numeric", text: v.amount ? fmt(v.amount, v.currencyCode) : fmtQuantity(v.quantity) }),
     el("td", { text: v.currencyCode }), el("td", { text: v.note || "—" }), el("td", { text: when(v.updatedAtMs) }), el("td", { text: t("edit") })));
   const holder = $("#records-table", root); holder.append(table([t("time"), t("account"), t("subaccount"), t("type"), t("object"), t("amountQuantity"), t("currency"), t("note"), t("updated"), t("operation")], rows));
@@ -505,14 +505,16 @@ async function renderRecords(reset) {
   replacePage(root, !!oldControls);
 }
 function actionLabel(action) {
-  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE_REMOVED: t("deletedInstrumentTrade") })[action] || action;
+  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE_REMOVED: t("deletedInstrumentTrade"), DIVIDEND: t("dividend"), DIVIDEND_REMOVED: t("deletedInstrumentDividend") })[action] || action;
 }
 async function openRecord(record) {
   state.viewEpoch++;
   try {
     if (record.kind === "CASH" && record.action === "CASH_SET") return cashRecordForm(record);
     // A deleted instrument's trade has nothing left to open; its cash stays as it was.
-    if (record.kind === "CASH" && record.action === "TRADE_REMOVED") return;
+    if (record.kind === "CASH" && (record.action === "TRADE_REMOVED" || record.action === "DIVIDEND_REMOVED")) return;
+    // Dividends are shown here but kept on the phone.
+    if (record.action === "DIVIDEND") return notify(t("dividendOnPhone"));
     if (record.kind === "TRADE" || (record.kind === "CASH" && record.action === "TRADE")) {
       const positionId = record.kind === "TRADE" ? record.childId : record.sourceParentId;
       const tradeId = record.kind === "TRADE" ? record.id : record.sourceId;
@@ -661,7 +663,10 @@ async function positionDetail(id, returnState = null, parentDrawer = captureDraw
   const summary = el("div", { class: "cards" }, metric(t("quantity"), fmtQuantity(p.quantity)), metric(t("marketValue"), fmt(p.marketValue, p.currencyCode)), metric(t("realized"), fmt(p.realized, p.currencyCode), gainClass(p.realized)), metric(t("unrealized"), fmt(p.unrealized, p.currencyCode), gainClass(p.unrealized)));
   summary.append(metric(t("currentPrice"), fmtPrice(p.currentPrice, p.currencyCode)),
     metric(t("averageCost"), fmtPrice(p.averageCost, p.currencyCode)), metric(t("holdingCost"), fmt(p.remainingCost, p.currencyCode)));
-  const tradeRow = v => el("tr", { "data-clickable": "true", onclick: () => tradeForm(p, v, cash) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: v.action === "BUY" ? "gain" : "loss", text: v.action === "BUY" ? t("buy") : t("sell") }), el("td", { class: "numeric", text: fmtQuantity(v.quantity) }), el("td", { class: "numeric", text: fmtPrice(v.unitPrice, p.currencyCode, 8) }), el("td", { class: "numeric", text: fmt(v.fee, p.currencyCode) }), el("td", { text: v.cashLinked ? "✓" : "—" }));
+  // A dividend has no units, price or fee: what arrived sits in the price column; it opens nothing, being kept on the phone.
+  const tradeRow = v => v.action === "DIVIDEND"
+    ? el("tr", { onclick: () => notify(t("dividendOnPhone")) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: "gain", text: t("dividend") }), el("td", { class: "numeric", text: "—" }), el("td", { class: "numeric gain", text: "+" + fmt(v.amount, p.currencyCode) }), el("td", { class: "numeric", text: "—" }), el("td", { text: v.cashLinked ? "✓" : "—" }))
+    : el("tr", { "data-clickable": "true", onclick: () => tradeForm(p, v, cash) }, el("td", { text: when(v.businessAtMs) }), el("td", { class: v.action === "BUY" ? "gain" : "loss", text: v.action === "BUY" ? t("buy") : t("sell") }), el("td", { class: "numeric", text: fmtQuantity(v.quantity) }), el("td", { class: "numeric", text: fmtPrice(v.unitPrice, p.currencyCode, 8) }), el("td", { class: "numeric", text: fmt(v.fee, p.currencyCode) }), el("td", { text: v.cashLinked ? "✓" : "—" }));
   const trades = table([t("time"), t("direction"), t("quantity"), t("executionPrice"), t("fee"), t("cashLink")], data.trades.map(tradeRow));
   let cursor = data.nextCursor;
   const more = toolbar(el("div", { class: "spacer" }), button(t("loadMore"), async () => {
