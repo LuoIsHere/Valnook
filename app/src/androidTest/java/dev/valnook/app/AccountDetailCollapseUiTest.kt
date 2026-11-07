@@ -182,12 +182,12 @@ class AccountDetailCollapseUiTest {
         rule.onNodeWithTag("account-section-total").assertExists()
     }
 
-    private fun credit(id: Long, name: String, balance: Long) = CashAccount(id, cny, balance, 1, id, name,
-        creditProfile = CreditAccountProfile(500000, 7, CreditDueRule.AfterStatementDays(20), null))
+    private fun credit(id: Long, name: String, balance: Long, note: String = "") = CashAccount(id, cny, balance, 1, id, name,
+        note = note, creditProfile = CreditAccountProfile(500000, 7, CreditDueRule.AfterStatementDays(20), null))
 
     private fun showCash(expanded: Float) = rule.setContent {
         ValnookTheme { Box { Box(Modifier.width(360.dp).height(640.dp)) {
-            CashContent(listOf(CashAccount(2, cny, 1000, 1, 1, "Savings"), credit(3, "Card", -2000)),
+            CashContent(listOf(CashAccount(2, cny, 1000, 1, 1, "Savings"), credit(3, "Card", -2000, "Travel only")),
                 creditExpansion = { expanded }, accountNote = "Salary", on_open = {})
         } } }
     }
@@ -202,6 +202,17 @@ class AccountDetailCollapseUiTest {
         showCash(0f)
         assertEquals(0f, bounds("cash-credit-details-3").height, 0.5f)
         rule.onNodeWithTag("cash-row-3").assertTextContains(rule.activity.getString(dev.valnook.feature.cash.R.string.cash_limit_used))
+    }
+
+    @Test fun a_credit_note_shows_under_the_amount_while_the_details_are_closed() {
+        showCash(0f)
+        val note = bounds("cash-credit-note-3")
+        assertTrue("The note takes room while closed", note.height > 0f)
+        // A clipped-away node reports no bounds, so the amount line's sparkline places it.
+        assertTrue("…under the amount line", note.top >= bounds("cash-sparkline-3").bottom - 1f)
+        assertEquals("The details stay closed", 0f, bounds("cash-credit-details-3").height, 0.5f)
+        rule.onNodeWithTag("cash-credit-note-3", useUnmergedTree = true).assertTextEquals("Travel only")
+        rule.onAllNodesWithText("Travel only").assertCountEquals(1)
     }
 
     @Test fun open_details_are_visible() {

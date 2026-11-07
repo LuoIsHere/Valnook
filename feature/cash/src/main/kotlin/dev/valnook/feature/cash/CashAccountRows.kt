@@ -91,7 +91,9 @@ internal const val BILL_ATTENTION_DAYS = 3L
     }
 }
 
-/** The name, state and amount are always visible; [expansion] from 0 to 1 opens the limits and bill details below. */
+/**
+ * The name, state, amount and note are always visible; [expansion] from 0 to 1 opens the limits and bill details below.
+ */
 @Composable internal fun CreditAccountRow(account: CashAccount, allAccounts: List<CashAccount>,
     creditSourceLabels: Map<Long, String>, trend: List<CashTrendPoint>, expansion: () -> Float, on_open: () -> Unit) {
     val profile = account.creditProfile!!
@@ -113,6 +115,8 @@ internal const val BILL_ATTENTION_DAYS = 3L
             AccountAmount(account, Modifier.weight(1f))
             CashTrendChart(trend, account, Modifier.width(72.dp), compact = true)
         }
+        if (account.note.isNotBlank()) Text(account.note, Modifier.testTag("cash-credit-note-${account.id}"),
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         CreditDetails(account, allAccounts, creditSourceLabels, profile.statementDay, profile.limitSourceAccountId, expansion)
     }
 }
@@ -150,7 +154,6 @@ internal const val BILL_ATTENTION_DAYS = 3L
                 style = small, color = muted)
         }
         Text(stringResource(R.string.cash_statement_day, statementDay), style = small, color = muted)
-        if (account.note.isNotBlank()) Text(account.note, style = small, color = muted)
     }
 }
 
