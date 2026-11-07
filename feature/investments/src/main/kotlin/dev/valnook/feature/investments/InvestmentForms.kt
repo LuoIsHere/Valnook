@@ -129,28 +129,6 @@ import java.time.*
         if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
     }
 }
-@Composable fun InstrumentPriceEditScreen(vm: InstrumentEditViewModel, onBack: () -> Unit) {
-    val state by vm.state.collectAsStateWithLifecycle()
-    val submission by vm.submission.collectAsStateWithLifecycle()
-    LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
-    if (!state.loaded) {
-        Text(stringResource(if (state.loadFailed) R.string.instrument_load_failed else R.string.instrument_loading))
-        return
-    }
-    FormLayout(stringResource(R.string.instrument_price_edit_title),
-        submission.phase == SubmissionPhase.WORKING,
-        submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
-        Text(listOf(state.name, state.symbol, state.currency.code).filter { it.isNotBlank() }.joinToString(" · "),
-            style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.instrument_price_shared_hint),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Field(stringResource(R.string.instrument_current_price), state.priceInput,
-            { value -> vm.update { it.copy(priceInput = value) } }, true, submission.editable)
-        ErrorMessage(submission.error?.name)
-        if (submission.phase == SubmissionPhase.UNKNOWN)
-            Text(stringResource(R.string.investment_unknown_result))
-    }
-}
 @Composable fun TypeEditScreen(vm: TypeEditViewModel, onBack: () -> Unit) {
     val name by vm.name.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()

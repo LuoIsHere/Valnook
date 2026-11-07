@@ -85,7 +85,6 @@
     <string name="investment_no_trades">No trade records</string>
     <string name="investment_load_more">Load more</string>
     <string name="instrument_not_found">Instrument not found</string>
-    <string name="instrument_price_edit_title">Update current price</string>
     <string name="instrument_price_shared_hint">This current price is shared by this instrument across all accounts.</string>
     <string name="instrument_types_failed_short">Could not load asset classes. Go back and try again.</string>
     <string name="instrument_types_loading_short">Loading asset classes</string>
@@ -112,4 +111,5 @@
     <string name="instrument_sell_from">Sell from which account</string>
     <string name="instrument_price_trend">Price trend</string>
     <string name="instrument_holding_cost">%1$s units · cost %2$s</string>
+    <string name="instrument_price_last">Last updated %1$s · %2$s</string>
 </resources>

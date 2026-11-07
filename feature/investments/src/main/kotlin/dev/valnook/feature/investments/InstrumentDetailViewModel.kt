@@ -3,7 +3,10 @@ package dev.valnook.feature.investments
 import androidx.lifecycle.*
 import dev.valnook.domain.calculation.AssetValuation
 import dev.valnook.domain.calculation.InvestmentProfitCalculator
+import dev.valnook.domain.command.SubmissionPhase
+import dev.valnook.domain.command.SubmissionSession
 import dev.valnook.domain.model.*
+import dev.valnook.domain.money.DecimalRules
 import dev.valnook.domain.repository.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,6 +33,12 @@ sealed interface InstrumentDetailState {
         val totals: InstrumentTotals, val prices: List<InstrumentPricePoint>) : InstrumentDetailState
 }
 
+/** The price dialog's input and its one request. */
+class PriceEditor(val operationId: String, val instrument: Instrument, val session: SubmissionSession) {
+    val input = MutableStateFlow(priceText(instrument.currentPriceE5))
+    fun update(value: String) { if (session.state.value.editable) input.value = value }
+}
+
 data class InstrumentTradesState(val rows: List<Trade> = emptyList(), val hasMore: Boolean = false,
     val loaded: Boolean = false, val failed: Boolean = false)
 
@@ -39,7 +48,8 @@ data class InstrumentTradesState(val rows: List<Trade> = emptyList(), val hasMor
  */
 class InstrumentDetailViewModel(val instrumentId: Long, overview: OverviewRepository,
     private val investments: InvestmentRepository, instruments: InstrumentRepository,
-    private val saved: SavedStateHandle = SavedStateHandle(), private val clock: Clock = Clock.systemDefaultZone()) : ViewModel() {
+    private val saved: SavedStateHandle = SavedStateHandle(), private val clock: Clock = Clock.systemDefaultZone(),
+    private val commands: FinancialCommands? = null) : ViewModel() {
     val month = saved.getStateFlow("ledgerMonth", YearMonth.now(clock).toString())
     /** The account whose trades are shown, or null for all of them. */
     val accountFilter = saved.getStateFlow<Long?>("accountFilter", null)
@@ -125,6 +135,30 @@ class InstrumentDetailViewModel(val instrumentId: Long, overview: OverviewReposi
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), InstrumentTradesState())
 
     fun loadMore() { requests.value++ }
+
+    /** Open while the price dialog is shown; each opening is a new request. */
+    val priceEditor = MutableStateFlow<PriceEditor?>(null)
+
+    fun openPriceEditor() {
+        val ready = state.value as? InstrumentDetailState.Ready ?: return
+        val commands = commands ?: return
+        priceEditor.value = PriceEditor(java.util.UUID.randomUUID().toString(), ready.instrument,
+            SubmissionSession(commands, viewModelScope))
+    }
+
+    /** Kept open while saving, so an answer is not lost. */
+    fun closePriceEditor() {
+        if (priceEditor.value?.session?.state?.value?.phase != SubmissionPhase.WORKING) priceEditor.value = null
+    }
+
+    fun savePrice() {
+        val editor = priceEditor.value ?: return
+        editor.session.submit {
+            // Saved by hand, so the same price still counts as today's update and is drawn.
+            UpdateInstrumentPrices(editor.operationId, listOf(InstrumentPriceChange(editor.instrument.id,
+                editor.instrument.revision, DecimalRules.parse_units(editor.input.value.trim(), 5))), recordUnchanged = true)
+        }
+    }
 
     companion object {
         const val PAGE_SIZE = 50

@@ -85,7 +85,6 @@
     <string name="investment_no_trades">暂无交易记录</string>
     <string name="investment_load_more">加载更多</string>
     <string name="instrument_not_found">标的不存在</string>
-    <string name="instrument_price_edit_title">更新当前价格</string>
     <string name="instrument_price_shared_hint">该当前价格由此标的在所有账户中共用。</string>
     <string name="instrument_types_failed_short">类别读取失败，请返回后重试</string>
     <string name="instrument_types_loading_short">正在读取类别</string>
@@ -112,4 +111,5 @@
     <string name="instrument_sell_from">从哪个账户卖出</string>
     <string name="instrument_price_trend">价格走势</string>
     <string name="instrument_holding_cost">%1$s 份 · 成本 %2$s</string>
+    <string name="instrument_price_last">上次更新 %1$s · %2$s</string>
 </resources>

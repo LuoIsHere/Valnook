@@ -82,7 +82,7 @@ class InstrumentDetailUiTest {
     private fun show(contextAccount: Long? = null) {
         rule.runOnUiThread {
             vm = InstrumentDetailViewModel(instrument, graph.overview, graph.investments, graph.instruments,
-                SavedStateHandle(), graph.clock)
+                SavedStateHandle(), graph.clock, graph.commands)
             store.put("instrument", vm)
             rule.activity.setContent {
                 val config = Configuration(LocalConfiguration.current).apply { setLocales(LocaleList(Locale.SIMPLIFIED_CHINESE)) }
@@ -90,7 +90,7 @@ class InstrumentDetailUiTest {
                     LocalConfiguration provides config, LocalPageTopBarHeight provides 56.dp) {
                     ValnookTheme { Surface(Modifier.fillMaxSize()) { Box(Modifier.padding(top = 56.dp).width(360.dp).height(720.dp)) {
                         InstrumentDetail(vm, contextAccount, {}, { account, trade -> opened += account to trade },
-                            { account, position -> bought += account to position }, { account, position -> sold += account to position }, {})
+                            { account, position -> bought += account to position }, { account, position -> sold += account to position })
                     } } }
                 }
             }
@@ -204,5 +204,39 @@ class InstrumentDetailUiTest {
         chart.performTouchInput { up() }
         rule.waitForIdle()
         line.assertTextContains("浮动盈亏", substring = true)
+    }
+
+    private fun prices() = (vm.state.value as dev.valnook.feature.investments.InstrumentDetailState.Ready).prices
+    private fun dialogGone() = rule.waitUntil(5_000) { rule.onAllNodesWithTag("instrument-price-dialog").fetchSemanticsNodes().isEmpty() }
+
+    @Test fun the_price_dialog_records_a_save_even_at_the_same_price() {
+        seed(); show()
+        val before = prices().size
+        rule.onNodeWithTag("instrument-price-update").performClick()
+        rule.onNodeWithTag("instrument-price-dialog").assertExists()
+        rule.onNodeWithText("上次更新", substring = true).assertExists()
+        save("price-dialog")
+        // Saved unchanged: still a new point on the trend.
+        rule.onNodeWithTag("instrument-price-save").performClick()
+        dialogGone()
+        rule.waitUntil(5_000) { prices().size == before + 1 }
+        assertEquals(12_000_000L, prices().first().priceE5)
+
+        // A wrong price says so and keeps the dialog; cancelling changes nothing.
+        rule.onNodeWithTag("instrument-price-update").performClick()
+        rule.onNode(hasSetTextAction()).performTextReplacement("abc")
+        rule.onNodeWithTag("instrument-price-save").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("instrument-price-dialog").assertExists()
+        rule.onNodeWithTag("instrument-price-cancel").performClick()
+        dialogGone()
+        assertEquals(before + 1, prices().size)
+
+        rule.onNodeWithTag("instrument-price-update").performClick()
+        rule.onNode(hasSetTextAction()).performTextReplacement("130")
+        rule.onNodeWithTag("instrument-price-save").performClick()
+        dialogGone()
+        rule.waitUntil(5_000) { prices().first().priceE5 == 13_000_000L }
+        rule.onNodeWithTag("instrument-price").assertTextContains("现价 130 CNY", substring = true)
     }
 }

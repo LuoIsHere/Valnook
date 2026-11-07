@@ -32,14 +32,13 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     }
     entry<InstrumentKey> { route ->
         val vm = pageViewModel { InstrumentDetailViewModel(route.id, graph.overview, graph.investments, graph.instruments,
-            createSavedStateHandle(), graph.clock) }
+            createSavedStateHandle(), graph.clock, graph.commands) }
         InstrumentDetail(vm, route.accountId, { onTitleReserve(route, it) },
             onTrade = { accountId, tradeId -> open(TradeDetailKey(accountId, tradeId)) },
             onBuy = { accountId, positionId -> open(TradeFormKey(accountId, TradeFormMode.CREATE, route.id, positionId,
                 direction = Direction.BUY)) },
             onSell = { accountId, positionId -> open(TradeFormKey(accountId, TradeFormMode.CREATE, route.id, positionId,
-                direction = Direction.SELL)) },
-            onPrice = { open(InstrumentPriceEditKey(route.id)) })
+                direction = Direction.SELL)) })
     }
     entry<PositionCreateKey> { route ->
         val vm = pageViewModel { PositionCreateViewModel(graph.instruments, createSavedStateHandle()) }
@@ -48,10 +47,6 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     entry<InstrumentEditKey> { route ->
         val vm = pageViewModel { InstrumentEditViewModel(route.id, graph.instruments, graph.investments, graph.commands, createSavedStateHandle()) }
         InstrumentEditScreen(vm, back)
-    }
-    entry<InstrumentPriceEditKey> { route ->
-        val vm = pageViewModel { InstrumentEditViewModel(route.id, graph.instruments, graph.investments, graph.commands, createSavedStateHandle()) }
-        InstrumentPriceEditScreen(vm, back)
     }
     entry<TypesKey> {
         val vm = pageViewModel { AssetTypesViewModel(graph.investments) }

@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
+import dev.valnook.domain.command.SubmissionPhase
 import dev.valnook.domain.model.*
 import dev.valnook.domain.money.DecimalRules
 import java.math.BigDecimal
@@ -54,14 +57,14 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
  */
 @Composable fun InstrumentDetail(vm: InstrumentDetailViewModel, contextAccountId: Long?, onTitleReserve: (Int) -> Unit,
     onTrade: (accountId: Long, tradeId: Long) -> Unit, onBuy: (accountId: Long, positionId: Long?) -> Unit,
-    onSell: (accountId: Long, positionId: Long) -> Unit, onPrice: () -> Unit) {
+    onSell: (accountId: Long, positionId: Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         InstrumentDetailState.Loading -> PageLoading()
         InstrumentDetailState.Failed -> Text(stringResource(R.string.instrument_load_failed))
         InstrumentDetailState.Missing -> EmptyState(stringResource(R.string.instrument_not_found))
         is InstrumentDetailState.Ready -> InstrumentDetailContent(vm, current, contextAccountId, onTitleReserve,
-            onTrade, onBuy, onSell, onPrice)
+            onTrade, onBuy, onSell)
     }
 }
 
@@ -69,8 +72,9 @@ private enum class Picking { BUY, SELL }
 
 @Composable private fun InstrumentDetailContent(vm: InstrumentDetailViewModel, ready: InstrumentDetailState.Ready,
     contextAccountId: Long?, onTitleReserve: (Int) -> Unit, onTrade: (Long, Long) -> Unit,
-    onBuy: (Long, Long?) -> Unit, onSell: (Long, Long) -> Unit, onPrice: () -> Unit) {
+    onBuy: (Long, Long?) -> Unit, onSell: (Long, Long) -> Unit) {
     val trades by vm.trades.collectAsStateWithLifecycle()
+    val priceEditor by vm.priceEditor.collectAsStateWithLifecycle()
     val month by vm.month.collectAsStateWithLifecycle()
     val filter by vm.accountFilter.collectAsStateWithLifecycle()
     val instrument = ready.instrument
@@ -93,7 +97,7 @@ private enum class Picking { BUY, SELL }
         InstrumentHeader(collapse, ready, onTitleReserve)
         LazyColumn(Modifier.fillMaxWidth().weight(1f).background(MaterialTheme.colorScheme.background)
             .testTag("instrument-detail-list"), state = listState, contentPadding = pageContentPadding()) {
-            item("summary") { HoldingSummary(instrument, ready.totals, onPrice) }
+            item("summary") { HoldingSummary(instrument, ready.totals, vm::openPriceEditor) }
             item("actions") {
                 Row(Modifier.fillMaxWidth().padding(top = Space.md), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionButton(::buy, Modifier.weight(1f).testTag("instrument-buy"), enabled = ready.accounts.isNotEmpty()) {
@@ -130,6 +134,7 @@ private enum class Picking { BUY, SELL }
             }
         }
     }
+    priceEditor?.let { editor -> PriceDialog(editor, vm::savePrice, vm::closePriceEditor) }
     picking?.let { mode ->
         val choices = if (mode == Picking.BUY) ready.accounts else held.map { it.account }
         AccountPicker(mode, choices, ready.holdings, contextAccountId, currency, { picking = null }) { account ->
@@ -341,6 +346,50 @@ private fun dayLabel(date: LocalDate, locale: java.util.Locale): String =
                 style = large.copy(fontFeatureSettings = "tnum"), maxLines = 1)
             Text(stringResource(R.string.investment_trade_fee) + " " + DecimalRules.format_display(trade.fee_minor, digits),
                 style = small.copy(fontFeatureSettings = "tnum"), color = muted, maxLines = 1)
+        }
+    }
+}
+
+/**
+ * Today's price for every account holding it. Saving the same price again still records it as today's update; the
+ * dialog stays while saving and closes once saved.
+ */
+@Composable private fun PriceDialog(editor: PriceEditor, onSave: () -> Unit, onDismiss: () -> Unit) {
+    val input by editor.input.collectAsStateWithLifecycle()
+    val submission by editor.session.state.collectAsStateWithLifecycle()
+    val locale = LocalConfiguration.current.locales[0]
+    val instrument = editor.instrument
+    val working = submission.phase == SubmissionPhase.WORKING
+    LaunchedEffect(submission.phase) { if (submission.phase == SubmissionPhase.SUCCEEDED) onDismiss() }
+    AnimatedGlassDialog(true, onDismiss) {
+        GlassCard(Modifier.testTag("instrument-price-dialog")) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.instrument_price_update_action), Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.titleLarge)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(listOf(instrument.name, instrument.symbol, instrument.currency.code).filter { it.isNotBlank() }.joinToString(" · "),
+                        style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.instrument_price_shared_hint), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Field(stringResource(R.string.instrument_current_price), input, editor::update, numeric = true,
+                    enabled = submission.editable)
+                Text(stringResource(R.string.instrument_price_last, shortDate(instrument.priceUpdatedAtMs, locale),
+                    priceText(instrument.currentPriceE5) + " " + instrument.currency.code),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                ErrorMessage(submission.error?.name)
+                if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onDismiss, Modifier.testTag("instrument-price-cancel"), enabled = !working) {
+                        Text(stringResource(dev.valnook.core.designsystem.R.string.cancel)) }
+                    Button(onSave, Modifier.testTag("instrument-price-save"), enabled = !working) {
+                        if (working) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        else Text(stringResource(dev.valnook.core.designsystem.R.string.save))
+                    }
+                }
+            }
         }
     }
 }

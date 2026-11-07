@@ -462,6 +462,9 @@ class UiFlowTest {
         wait_text("成本基金")
         rule.onNodeWithText("成本基金").performClick()
         wait_text("交易历史")
+        // The title bar names the instrument and offers to edit it.
+        rule.onNodeWithText("成本基金").assertIsDisplayed()
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).assertIsDisplayed()
         // One page for every account: the average over all of them and on the account's own line.
         rule.onNodeWithText("69.33731").assertIsDisplayed()
         rule.onNodeWithText("2.309 份 · 成本 69.33731").assertExists()
