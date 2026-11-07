@@ -17,7 +17,7 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
             CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, graph.statistics, graph.clock) })
-        }) { accountId, instrumentId ->
+        }, onRealized = { open(RealizedProfitKey) }) { accountId, instrumentId ->
             open(InstrumentKey(instrumentId, accountId))
         }
     }
@@ -25,9 +25,13 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
             CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, graph.statistics, graph.clock) })
-        }) { accountId, instrumentId ->
+        }, onRealized = { open(RealizedProfitKey) }) { accountId, instrumentId ->
             open(InstrumentKey(instrumentId, accountId))
         }
+    }
+    entry<RealizedProfitKey> {
+        val vm = pageViewModel { PortfolioViewModel(graph.overview) }
+        RealizedProfitScreen(vm) { open(InstrumentKey(it)) }
     }
     entry<InstrumentLibraryKey> {
         val vm = pageViewModel { InstrumentLibraryViewModel(graph.overview, graph.investments) }

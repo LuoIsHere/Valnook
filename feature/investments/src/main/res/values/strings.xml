@@ -160,4 +160,16 @@
     <string name="instrument_price_last">Last updated %1$s · %2$s</string>
     <string name="investment_holding_detail">%1$s units · price %2$s · cost %3$s</string>
     <string name="investment_realized_label">Realized</string>
+    <string name="realized_title">Realized profit</string>
+    <string name="realized_open">Open realized profit by instrument</string>
+    <plurals name="realized_count">
+        <item quantity="one">At today\'s rates · %1$d instrument</item>
+        <item quantity="other">At today\'s rates · %1$d instruments</item>
+    </plurals>
+    <string name="realized_held">Held</string>
+    <string name="realized_sold_out">Sold out</string>
+    <string name="realized_unknown">Can\'t be worked out</string>
+    <string name="realized_in_base">≈ %1$s</string>
+    <string name="realized_empty">No realized profit yet</string>
+    <string name="realized_footer">Largest first · tap one for its details</string>
 </resources>

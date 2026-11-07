@@ -335,6 +335,7 @@ private fun SessionRoot(
         is AccountEditKey -> stringResource(R.string.title_edit_account)
         AccountGroupsKey -> stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
+        RealizedProfitKey -> stringResource(dev.valnook.feature.investments.R.string.realized_title)
         is TypeEditKey -> dev.valnook.feature.investments.typeEditTitle(current.id)
         TypesKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_manage_types)
         is InstrumentEditKey -> dev.valnook.feature.investments.instrumentEditTitle(current.id)

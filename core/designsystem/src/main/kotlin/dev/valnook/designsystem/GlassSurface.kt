@@ -110,9 +110,15 @@ fun GlassCard(modifier: Modifier = Modifier, prominent: Boolean = false,
 
 @Composable
 fun SummaryMetric(label: String, value: String, modifier: Modifier = Modifier,
-    valueColor: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+    valueColor: Color = MaterialTheme.colorScheme.onSurfaceVariant, labelTrailing: (@Composable () -> Unit)? = null) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (labelTrailing == null) Text(label, style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(label, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            labelTrailing()
+        }
         Text(value, style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"), color = valueColor)
     }
 }

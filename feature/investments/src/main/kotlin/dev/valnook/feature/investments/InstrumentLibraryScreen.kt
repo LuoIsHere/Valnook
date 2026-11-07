@@ -211,7 +211,7 @@ fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long)
  * The name on up to two lines, cut with "…" past that, and its symbol line under it. The tag follows the name
  * when both fit on one line; otherwise it starts the second line, so it never wraps on its own.
  */
-@Composable private fun NameAndTag(name: String, meta: String, tag: (@Composable () -> Unit)?, id: Long, modifier: Modifier) {
+@Composable internal fun NameAndTag(name: String, meta: String, tag: (@Composable () -> Unit)?, id: Long, modifier: Modifier) {
     Layout(content = {
         Text(name, Modifier.testTag("library-name-$id"), style = MaterialTheme.typography.bodyLarge, maxLines = 2,
             overflow = TextOverflow.Ellipsis)

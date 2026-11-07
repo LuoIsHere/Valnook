@@ -39,11 +39,25 @@ internal fun money(value: BigDecimal?, currency: Currency): String =
 /** Converted totals follow their displayed rounding; an unknown base currency stays neutral. */
 private fun displayedSign(total: ConvertedTotal): Int =
     total.currency?.let { displayedSign(total.amount, it.fraction_digits) } ?: 0
-@Composable private fun TotalLine(label: String, total: ConvertedTotal, colorByValue: Boolean = false) {
+/**
+ * A summary figure and, when part of it is missing, why. With [onOpen] the whole figure opens its details, a small
+ * chevron after the label saying so.
+ */
+@Composable private fun TotalLine(label: String, total: ConvertedTotal, colorByValue: Boolean = false,
+    onOpen: (() -> Unit)? = null, openDescription: String = "", modifier: Modifier = Modifier) {
     val valueColor = if (colorByValue && total.complete) profitColor(displayedSign(total))
         else MaterialTheme.colorScheme.onSurfaceVariant
-    SummaryMetric(label, converted(total), valueColor = valueColor)
-    // Currencies without any rate are named together in one reason.
+    // Both figures of a row take the 48dp the one that opens needs, so the reasons under them stay level.
+    if (onOpen == null) SummaryMetric(label, converted(total), modifier.heightIn(min = 48.dp), valueColor = valueColor)
+    else SummaryMetric(label, converted(total), modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .clickable(role = Role.Button, onClickLabel = openDescription, onClick = onOpen), valueColor = valueColor) {
+        FaIcon(FaIcons.chevronRight, null, Modifier.size(10.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+    IncompleteReason(total)
+}
+
+/** Why a total is incomplete, in red under it; currencies without any rate are named together in one reason. */
+@Composable internal fun IncompleteReason(total: ConvertedTotal) {
     val rates = total.missing.filter { it.kind == MissingKind.EXCHANGE_RATE }.mapNotNull { it.currencyCode }.distinct().sorted()
     val rateText = if (rates.isEmpty()) null else stringResource(R.string.investment_missing_rate, rates.joinToString(", "))
     val missing = (total.missing.mapNotNull {
@@ -59,7 +73,8 @@ private fun displayedSign(total: ConvertedTotal): Int =
         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }
 @Composable fun InvestmentHome(vm: PortfolioViewModel, onAccount: (Long) -> Unit,
-    trend: @Composable () -> Unit = {}, onInstrument: (accountId: Long, instrumentId: Long) -> Unit) {
+    trend: @Composable () -> Unit = {}, onRealized: () -> Unit = {},
+    onInstrument: (accountId: Long, instrumentId: Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         PortfolioState.Loading -> PageLoading()
@@ -74,7 +89,9 @@ private fun displayedSign(total: ConvertedTotal): Int =
                         MetricGrid(2) { index ->
                             Column {
                                 if (index == 0) TotalLine(stringResource(R.string.investment_total_unrealized), current.overview.floating, colorByValue = true)
-                                else TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized, colorByValue = true)
+                                else TotalLine(stringResource(R.string.investment_total_realized), current.overview.realized,
+                                    colorByValue = true, onOpen = onRealized, openDescription = stringResource(R.string.realized_open),
+                                    modifier = Modifier.testTag("investment-realized-open"))
                             }
                         }
                     }

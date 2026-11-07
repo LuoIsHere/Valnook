@@ -34,6 +34,7 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data class InstrumentKey(val id: Long, val accountId: Long? = null) : NavKey
 @Serializable data class PositionCreateKey(val accountId: Long, val instrumentId: Long? = null) : NavKey
 @Serializable data object InstrumentLibraryKey : NavKey
+@Serializable data object RealizedProfitKey : NavKey
 @Serializable data class InstrumentEditKey(val id: Long? = null) : NavKey
 @Serializable data object TypesKey : NavKey
 @Serializable data class TypeEditKey(val id: Long? = null, val name: String = "") : NavKey
