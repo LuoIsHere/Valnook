@@ -36,6 +36,7 @@ import java.time.*
         val ledger by vm.ledger.collectAsStateWithLifecycle()
         val today by vm.today.collectAsStateWithLifecycle()
         val bounds by vm.bounds.collectAsStateWithLifecycle()
+        val trend by vm.trend.collectAsStateWithLifecycle()
         val account=snapshot?.cash?.firstOrNull{it.id==card.boundCashAccountId}
         val parent=snapshot?.accounts?.firstOrNull{it.id==account?.account_id}
         val names=snapshot?.cash.orEmpty().associate { cash->cash.id to listOf(snapshot?.accounts?.firstOrNull{it.id==cash.account_id}?.name,cash.name).filterNotNull().joinToString(" · ") }
@@ -97,6 +98,8 @@ import java.time.*
                         onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled,{glow()*glowFade()},::glowFade)
                 }
                 GlassSurface(Modifier.fillMaxWidth().weight(1f,fill=false).padding(horizontal=16.dp).then(panelMotion),RoundedCornerShape(panelCorner),tintAlpha=1f) {
+                    // Cards in the panel take a deeper colour than it, as on the page background.
+                    CompositionLocalProvider(LocalGlassInset provides true) {
                     LazyColumn(Modifier.fillMaxWidth().testTag("wallet-ledger"),state=list,
                         contentPadding=PaddingValues(start=18.dp,end=18.dp,top=16.dp,bottom=24.dp)) {
                         if(card.boundCashAccountId==null) {
@@ -108,8 +111,8 @@ import java.time.*
                         } else if(account==null) item { CircularProgressIndicator(Modifier.size(22.dp)) }
                         else {
                             item("summary") {
-                                Text(parent?.name.orEmpty(),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                cashSlots.balanceSummary(account,{onBalance(account.account_id,account.id)},Modifier.padding(vertical=12.dp),snapshot?.cash.orEmpty(),names)
+                                cashSlots.balanceSummary(account,parent?.name.orEmpty(),trend,{onBalance(account.account_id,account.id)},
+                                    Modifier.padding(bottom=12.dp),snapshot?.cash.orEmpty(),names)
                             }
                             item("month") {
                                 Text(wording("Funds activity","资金变动"),Modifier.padding(top=16.dp),style=MaterialTheme.typography.titleLarge)
@@ -137,6 +140,7 @@ import java.time.*
                                 else {LaunchedEffect(ledger.rows.size,ledger.month){vm.more()};Box(Modifier.fillMaxWidth().height(40.dp),contentAlignment=Alignment.Center){CircularProgressIndicator(Modifier.size(18.dp))}}
                             }
                         }
+                    }
                     }
                 }
             }

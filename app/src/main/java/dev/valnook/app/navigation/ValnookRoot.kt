@@ -538,14 +538,14 @@ private fun SessionRoot(
                             ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
-                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate) }, updateWalletToolbar,
+                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate,graph.cash) }, updateWalletToolbar,
                                     { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
                                     { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletCashSlots,walletOverview.scroll,
                                     maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
                             }
                             entry<HiddenWalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
-                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate) }, updateWalletToolbar,
+                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate,graph.cash) }, updateWalletToolbar,
                                     { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
                                     { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletCashSlots,walletOverview.scroll,
                                     maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)

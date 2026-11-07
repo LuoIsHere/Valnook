@@ -1,0 +1,81 @@
+package dev.valnook.feature.cash
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import dev.valnook.designsystem.CompactEditButton
+import dev.valnook.designsystem.StatusTag
+import dev.valnook.designsystem.TagTone
+import dev.valnook.domain.calculation.CreditBillingCalendar
+import dev.valnook.domain.calculation.CreditBillingFocus
+import dev.valnook.domain.calculation.CreditBillingStatus
+import dev.valnook.domain.model.BalanceAccountType
+import dev.valnook.domain.model.CashAccount
+import dev.valnook.domain.model.CashTrendPoint
+import dev.valnook.domain.money.DecimalRules
+import java.time.LocalDate
+
+/**
+ * The wallet card's sub-account, laid out like the sub-account page: the account it belongs to with the edit button,
+ * the name with a credit account's state and next bill, the balance beside its sparkline, then the limit and details
+ * cards that page shows.
+ */
+@Composable fun CashWalletSummary(account: CashAccount, parentName: String, trend: List<CashTrendPoint>,
+    onEdit: () -> Unit, allAccounts: List<CashAccount>, creditSourceLabels: Map<Long, String>,
+    modifier: Modifier = Modifier) {
+    val colors = MaterialTheme.colorScheme
+    val credit = account.type == BalanceAccountType.CREDIT
+    Column(modifier.fillMaxWidth().testTag("wallet-cash-summary")) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(parentName, Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
+                color = colors.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            CompactEditButton(stringResource(R.string.cash_edit_balance), onEdit)
+        }
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Text(account.name.ifBlank { account.currency.code }, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = MaterialTheme.typography.titleMedium, color = colors.onSurfaceVariant)
+            Text(stringResource(if (credit) R.string.cash_credit_account else R.string.cash_savings_account),
+                style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant.copy(alpha = .75f))
+            val profile = account.creditProfile
+            if (credit && profile != null) {
+                when {
+                    account.balance_minor < 0 -> StatusTag(stringResource(R.string.cash_amount_owed), TagTone.NEGATIVE)
+                    account.balance_minor > 0 -> StatusTag(stringResource(R.string.cash_credit_balance), TagTone.POSITIVE)
+                    else -> StatusTag(stringResource(R.string.cash_no_debt), TagTone.NEUTRAL)
+                }
+                val billing = CreditBillingCalendar.calculate(LocalDate.now(), profile.statementDay, profile.dueRule)
+                StatusTag(creditBillingText(billing),
+                    if (billing.daysRemaining <= BILL_ATTENTION_DAYS) TagTone.ATTENTION else TagTone.NEUTRAL,
+                    Modifier.testTag("cash-billing-tag"))
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            val style = MaterialTheme.typography.headlineSmall
+            Text(DecimalRules.format_display(account.balance_minor, account.currency.fraction_digits) + " " + account.currency.code,
+                Modifier.weight(1f).testTag("wallet-cash-balance"), maxLines = 1,
+                style = style.copy(fontFeatureSettings = "tnum"),
+                autoSize = TextAutoSize.StepBased(12.sp, style.fontSize, .5.sp),
+                color = if (!credit && account.balance_minor < 0) colors.error else colors.onSurface)
+            CashTrendChart(trend, account, Modifier.width(72.dp), compact = true)
+        }
+        CashDetailInfo(account, allAccounts, creditSourceLabels, Modifier.padding(top = 16.dp))
+    }
+}
+
+@Composable internal fun creditBillingText(billing:CreditBillingStatus):String = when {
+    billing.daysRemaining==0L && billing.focus==CreditBillingFocus.STATEMENT -> stringResource(R.string.cash_statement_today)
+    billing.daysRemaining==0L -> stringResource(R.string.cash_due_today)
+    billing.focus==CreditBillingFocus.DUE -> stringResource(R.string.cash_due_in,billing.daysRemaining)
+    else -> stringResource(R.string.cash_statement_in,billing.daysRemaining)
+}

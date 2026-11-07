@@ -35,6 +35,12 @@ internal object GlassMaterial {
     const val cardAlpha = 0.92f
 }
 
+/**
+ * Set inside an opaque panel: the cards in it take the page's own colour, a little deeper than the panel, so they stay
+ * apart from it instead of matching it.
+ */
+val LocalGlassInset = staticCompositionLocalOf { false }
+
 /** One page drawing, shared by the two overlays; never includes either overlay. */
 @Stable
 class GlassBackdrop internal constructor(internal val layer: GraphicsLayer) {
@@ -64,7 +70,8 @@ fun GlassSurface(modifier: Modifier = Modifier, shape: Shape = RoundedCornerShap
     val colors = MaterialTheme.colorScheme
     val dialogBlur = LocalGlassDialogBlur.current
     val alpha = when (dialogBlur) { true -> GlassMaterial.panelAlpha; false -> 1f; null -> tintAlpha }
-    val tint = lerp(colors.surfaceContainerLow, Color.White, 0.02f).copy(alpha = alpha)
+    val tint = (if (LocalGlassInset.current) colors.background
+        else lerp(colors.surfaceContainerLow, Color.White, 0.02f)).copy(alpha = alpha)
     val sample = if (backdrop != null) rememberGraphicsLayer() else null
     var origin by remember { mutableStateOf(Offset.Zero) }
     val radius = with(LocalDensity.current) { GlassMaterial.blurRadius.toPx() }

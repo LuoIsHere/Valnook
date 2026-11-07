@@ -19,7 +19,8 @@ class WalletViewModel(val sessionId: String, val repository: WalletRepository,
     private val overview: OverviewRepository, private val pages: PagedCashRepository,
     private val clock: Clock, private val saved: SavedStateHandle,
     preparedCards:StateFlow<List<WalletCard>?>?=null,
-    val privateRepository:WalletPrivateRepository?=null) : ViewModel() {
+    val privateRepository:WalletPrivateRepository?=null,
+    private val cash:CashRepository?=null) : ViewModel() {
     val visit = saved.getStateFlow("wallet-visit",0L)
     val today = MutableStateFlow(LocalDate.now(clock.withZone(ZoneId.systemDefault())))
     val selected = saved.getStateFlow<Long?>("wallet-selected",null)
@@ -42,6 +43,17 @@ class WalletViewModel(val sessionId: String, val repository: WalletRepository,
     private var boundsJob: Job?=null
     private var revisionJob: Job?=null
     private var observedRevision: Long?=null
+    /** The bound sub-account's sparkline, refreshed each minute so its days follow the clock and time zone. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val trend:StateFlow<List<CashTrendPoint>> = combine(cards,selected,snapshot) { cards,selected,snapshot ->
+        val cashId=cards?.firstOrNull { it.id==selected }?.boundCashAccountId
+        snapshot?.cash?.firstOrNull { it.id==cashId }?.let { it.account_id to it.id }
+    }.distinctUntilChanged().flatMapLatest { key ->
+        if(key==null || cash==null) flowOf(emptyList())
+        else flow { while(true){ emit(clock.instant() to ZoneId.systemDefault()); delay(60_000) } }
+            .flatMapLatest { (now,zone) -> cash.observeTrends(key.first,now,zone) }
+            .map { it[key.second].orEmpty() }.catch { emit(emptyList()) }
+    }.stateIn(viewModelScope,SharingStarted.WhileSubscribed(0),emptyList())
     val currentCard get()=cards.value?.firstOrNull { it.id==selected.value }
     val currentAccount get()=snapshot.value?.cash?.firstOrNull { it.id==currentCard?.boundCashAccountId }
 

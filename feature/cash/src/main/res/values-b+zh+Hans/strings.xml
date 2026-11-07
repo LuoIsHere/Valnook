@@ -24,7 +24,6 @@
     <string name="cash_amount_owed">欠款</string>
     <string name="cash_credit_balance">溢缴款</string>
     <string name="cash_no_debt">无欠款</string>
-    <string name="cash_limit_summary">已用 %1$s · 可用 %2$s · 总额度 %3$s %4$s</string>
     <string name="cash_over_limit">已超出信用额度 %1$s %2$s</string>
     <string name="cash_limit_source">额度来源：%1$s</string>
     <string name="cash_statement_day">账单日：每月 %1$d 日</string>
