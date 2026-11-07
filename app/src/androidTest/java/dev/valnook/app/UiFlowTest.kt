@@ -102,7 +102,7 @@ class UiFlowTest {
             throw error
         }
     }
-    private fun localized(resourceId: Int): String = rule.activity.getString(resourceId)
+    private fun localized(resourceId: Int, vararg args: Any): String = rule.activity.getString(resourceId, *args)
     private fun save(label:String="保存"){
         finish_input()
         rule.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
@@ -147,6 +147,11 @@ class UiFlowTest {
         rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
             .performScrollToNode(hasText(text))
         rule.onNodeWithText(text).performClick()
+    }
+    /** With more than one account, buying asks where to; [id] is the account to choose. */
+    private fun pick_account(id:Long=account_id) {
+        rule.waitUntil(5000){rule.onAllNodesWithTag("instrument-account-picker").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("instrument-account-pick-$id").performClick()
     }
     private fun click_record(tag:String) {
         // Ledgers show one month at a time; step back to the record's month when it is not in this one.
@@ -291,13 +296,14 @@ class UiFlowTest {
         wait_text("合成投资")
         rule.onNodeWithText("合成投资").performClick()
         wait_text("交易历史")
-        click_list("更新当前价格")
+        click_list("更新价格")
         wait_text("该当前价格由此标的在所有账户中共用。")
         rule.onNodeWithText("合成投资 · TEST · CNY").assertExists()
         rule.onNodeWithText("当前每份价格（最多5位小数）").performTextReplacement("105")
         save()
         wait_text("交易历史")
         click_list("买入")
+        pick_account()
         wait_text("成交单价")
         rule.onNodeWithText("份额").performScrollTo().performTextReplacement("2")
         rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("90")
@@ -343,10 +349,12 @@ class UiFlowTest {
         rule.onNodeWithContentDescription("所有投资品").performClick()
         wait_text("合成投资")
         rule.onNodeWithText("合成投资").performClick()
-        click_list("编辑标的与当前价格")
+        wait_text("交易历史")
+        // Editing the instrument sits in the title bar.
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
         rule.onNodeWithText("当前每份价格（最多5位小数）").performScrollTo().performTextReplacement("120")
         save()
-        wait_text("按账户分别计算成本")
+        wait_text("交易历史")
         shot("investment-price")
         runBlocking {
             // Only the seeded opening trade of 10 is left after deleting the recorded buy.
@@ -453,13 +461,12 @@ class UiFlowTest {
         rule.onNodeWithContentDescription("所有投资品").performClick()
         wait_text("成本基金")
         rule.onNodeWithText("成本基金").performClick()
-        wait_text("按账户分别计算成本")
-        rule.onNodeWithText("2.309 份 · 成本 69.33731 CNY /份").assertIsDisplayed()
-        shot("instrument-five-digit-cost")
-        rule.onNodeWithTag("instrument-account-$account_id").performClick()
         wait_text("交易历史")
+        // One page for every account: the average over all of them and on the account's own line.
         rule.onNodeWithText("69.33731").assertIsDisplayed()
-        rule.onNodeWithText("成本含手续费").assertIsDisplayed()
+        rule.onNodeWithText("2.309 份 · 成本 69.33731").assertExists()
+        shot("instrument-five-digit-cost")
+        rule.onNodeWithText("成本含手续费").assertExists()
         shot("position-cost-includes-fees")
     }
 
@@ -531,7 +538,8 @@ class UiFlowTest {
         rule.onNodeWithText("份额").performScrollTo().performTextReplacement("10")
         rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("130")
         save()
-        wait_text("0 份")
+        // Sold out, the account stays listed as closed.
+        wait_text(localized(dev.valnook.feature.investments.R.string.instrument_closed_position))
         rule.onNodeWithContentDescription("返回").performClick()
         wait_text("暂无持仓")
         // Closed positions have their own tab next to current holdings, so the label is always shown.
@@ -540,9 +548,10 @@ class UiFlowTest {
         click_list(localized(dev.valnook.feature.investments.R.string.investment_add_to_account))
         wait_text("QQQ")
         rule.onAllNodesWithText("QQQ")[0].performClick()
-        wait_text("累计已实现盈亏 300.00 CNY")
+        wait_text("+300.00")
         shot("global-zero-position")
         click_list("买入")
+        pick_account()
         wait_text("成交单价")
         rule.onNodeWithText("份额").performScrollTo().performTextReplacement("5")
         rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("160")
@@ -711,13 +720,13 @@ class UiFlowTest {
     @Test fun compact_holding_opens_two_column_history_and_updates_shared_price() {
         val investmentsLabel = localized(dev.valnook.core.designsystem.R.string.investments)
         val historyLabel = localized(dev.valnook.feature.investments.R.string.investment_trade_history)
-        val feeLabel = localized(dev.valnook.core.designsystem.R.string.trade_fee) + " 1.50 CNY"
-        val sellFeeLabel = localized(dev.valnook.core.designsystem.R.string.trade_fee) + " 2.00 CNY"
-        val buyTotalLabel = localized(dev.valnook.core.designsystem.R.string.buy) + " · 1 301.50 CNY"
-        val sellTotalLabel = localized(dev.valnook.core.designsystem.R.string.sell) + " · 698.00 CNY"
-        val buyUnitPriceLabel = localized(dev.valnook.core.designsystem.R.string.execution_price) + " 1300 CNY"
-        val sellUnitPriceLabel = localized(dev.valnook.core.designsystem.R.string.execution_price) + " 1400 CNY"
-        val updatePriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
+        val feeLabel = localized(dev.valnook.feature.investments.R.string.investment_trade_fee) + " 1.50"
+        val sellFeeLabel = localized(dev.valnook.feature.investments.R.string.investment_trade_fee) + " 2.00"
+        val buyTotalLabel = "1 301.50 CNY"
+        val sellTotalLabel = "698.00 CNY"
+        val buyUnitPriceLabel = localized(dev.valnook.feature.investments.R.string.investment_units, "1") + " × 1300"
+        val sellUnitPriceLabel = localized(dev.valnook.feature.investments.R.string.investment_units, "0.5") + " × 1400"
+        val updatePriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_price_update_action)
         val sharedPriceHint = localized(dev.valnook.feature.investments.R.string.instrument_price_shared_hint)
         val currentPriceLabel = localized(dev.valnook.feature.investments.R.string.instrument_current_price)
         val saveLabel = localized(dev.valnook.core.designsystem.R.string.save)
@@ -1287,19 +1296,18 @@ class UiFlowTest {
         assertTrue(codeBounds.top >= nameBounds.bottom)
         window_shot("library-management-complete")
         rule.onNodeWithText("新建测试标的").performClick()
-        wait_text("按账户分别计算成本")
-        rule.onNodeWithText("买入").assertDoesNotExist()
-        rule.onNodeWithText("卖出").assertDoesNotExist()
-        rule.onNodeWithText("录入期初持仓").assertDoesNotExist()
-        runBlocking { assertTrue(graph.overview.observeSnapshot().first().positions.isEmpty()) }
-        window_shot("compact-global-instrument")
-        rule.onNodeWithTag("instrument-account-$account_id").performClick()
         wait_text("交易历史")
+        // Opening it creates nothing: no account holds it yet, so there is nothing to sell.
+        wait_text(localized(dev.valnook.feature.investments.R.string.instrument_no_holdings))
+        rule.onNodeWithTag("instrument-sell").assertIsNotEnabled()
+        rule.onNodeWithText("录入期初持仓").assertDoesNotExist()
+        rule.onNodeWithTag("instrument-detail-list").performScrollToNode(hasText("暂无交易记录"))
         rule.onNodeWithText("暂无交易记录").assertIsDisplayed()
         runBlocking { assertTrue(graph.overview.observeSnapshot().first().positions.isEmpty()) }
-        // The first buy creates the position in this account; there is no separate add step.
-        window_shot("account-instrument-empty", "买入")
+        window_shot("compact-global-instrument")
+        // The first buy creates the position in the account chosen.
         click_list("买入")
+        pick_account()
         wait_text("份额")
         rule.onNodeWithText("份额").performScrollTo().performTextInput("2")
         rule.onNodeWithText("成交单价").performScrollTo().performTextReplacement("10")

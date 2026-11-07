@@ -59,7 +59,7 @@ private fun displayedSign(total: ConvertedTotal): Int =
         color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
 }
 @Composable fun InvestmentHome(vm: PortfolioViewModel, onAccount: (Long) -> Unit,
-    trend: @Composable () -> Unit = {}, onPosition: (Long, Long) -> Unit) {
+    trend: @Composable () -> Unit = {}, onInstrument: (accountId: Long, instrumentId: Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
         PortfolioState.Loading -> PageLoading()
@@ -129,7 +129,7 @@ private fun displayedSign(total: ConvertedTotal): Int =
                         AnimatedVisibility(expanded, enter = expandVertically(tween(140)) + fadeIn(tween(90)),
                             exit = shrinkVertically(tween(120)) + fadeOut(tween(80))) {
                             HoldingTable(groups[account.account.id].orEmpty()) {
-                                onPosition(account.account.id, it.id)
+                                onInstrument(account.account.id, it.instrumentId)
                             }
                         }
                     }
@@ -139,7 +139,7 @@ private fun displayedSign(total: ConvertedTotal): Int =
     }
 }
 @Composable fun AccountInvestments(vm: PortfolioViewModel, accountId: Long, all: Boolean,
-    onPosition: (Long) -> Unit, onAdd: () -> Unit, onAll: () -> Unit) {
+    onInstrument: (Long) -> Unit, onAdd: () -> Unit, onAll: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     val current = state as? PortfolioState.Ready
     if (current == null) { Text(stringResource(if (state == PortfolioState.Failed) R.string.investment_read_failed else R.string.investment_loading))
@@ -149,7 +149,7 @@ private fun displayedSign(total: ConvertedTotal): Int =
         if (!all) item { Text(stringResource(R.string.investment_current_holdings), style = MaterialTheme.typography.titleLarge) }
         if (!all) item { ActionButton(onAll, Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_closed_positions)) } }
         if (positions.isEmpty()) item { EmptyState(stringResource(if (all) R.string.investment_no_closed_positions else R.string.investment_no_holdings)) }
-        if (positions.isNotEmpty()) item { HoldingTable(positions) { onPosition(it.id) } }
+        if (positions.isNotEmpty()) item { HoldingTable(positions) { onInstrument(it.instrumentId) } }
         if (!all) item { Button(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.investment_add_to_account)) } }
     }
 }

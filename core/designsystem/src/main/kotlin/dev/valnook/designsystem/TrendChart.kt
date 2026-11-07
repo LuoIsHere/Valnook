@@ -53,6 +53,8 @@ fun TrendChart(
     animationKey: String = "trend",
     futureExtensionFrom: Int? = null,
     labelAlpha: () -> Float = { 1f },
+    /** Where each value sits across the plot, 0 to 1; evenly spaced when null. A touch picks the nearest one. */
+    positions: List<Float>? = null,
 ) {
     val palette = LocalTrendPalette.current
     val axisColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -88,11 +90,16 @@ fun TrendChart(
     val labelSpace = with(density) { if (compact) 0f else 27.dp.toPx() }
     val plotWidth = (canvasSize.width - 2 * inset).coerceAtLeast(1f)
     val bottom = (canvasSize.height - labelSpace - inset).coerceAtLeast(inset)
-    fun x(index: Int) = if (values.size <= 1) inset + plotWidth / 2f else inset + plotWidth * index / values.lastIndex
+    val spread = positions?.takeIf { it.size == values.size }
+    fun x(index: Int) = when {
+        spread != null -> inset + plotWidth * spread[index].coerceIn(0f, 1f)
+        values.size <= 1 -> inset + plotWidth / 2f
+        else -> inset + plotWidth * index / values.lastIndex
+    }
     fun point(index: Int, value: Float) = Offset(x(index), inset + (bottom-inset)*value.coerceIn(0f,1f))
     // Paths are rebuilt for data/size changes, never for each animation frame or finger movement.
     // 路径仅随数据和尺寸重建，入场和触摸只改变裁切范围。
-    val groups = remember(values, canvasSize, density) {
+    val groups = remember(values, canvasSize, density, spread) {
         val result = mutableListOf<List<Offset>>()
         var run = mutableListOf<Offset>()
         values.forEachIndexed { index, value ->
@@ -107,7 +114,7 @@ fun TrendChart(
         val area = Path().apply { addPath(line); lineTo(group.last().x,bottom); lineTo(group.first().x,bottom); close() }
         line to area
     } }
-    val gesture = if (compact) Modifier else Modifier.pointerInput(values, animationKey, extensionIndex) {
+    val gesture = if (compact) Modifier else Modifier.pointerInput(values, animationKey, extensionIndex, spread) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
             if (values.isNotEmpty()) {
@@ -115,7 +122,8 @@ fun TrendChart(
                 fun choose(position: Float) {
                     val fraction = ((position-inset)/plotWidth).coerceIn(0f,1f)
                     fingerFraction = fraction
-                    currentOnSelect((fraction*values.lastIndex).roundToInt().coerceAtMost(selectableLast))
+                    currentOnSelect((spread?.indices?.minByOrNull { abs(spread[it]-fraction) }
+                        ?: (fraction*values.lastIndex).roundToInt()).coerceAtMost(selectableLast))
                 }
                 choose(down.position.x)
                 var horizontal = false

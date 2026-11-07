@@ -66,13 +66,13 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
                     { open(DepositDetailKey(route.id, it)) }, { open(SettledDepositsKey(route.id)) })
             },
             investmentContent = {
-                AccountInvestments(portfolioVm, route.id, false, { open(AssetKey(route.id, it)) },
+                AccountInvestments(portfolioVm, route.id, false, { open(InstrumentKey(it, route.id)) },
                     { open(PositionCreateKey(route.id)) }, { open(AccountInvestmentsKey(route.id, true)) })
             }, trend = trend, onTitleReserve = { onTitleReserve(route, it) })
     }
     entry<AccountInvestmentsKey> { route ->
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
-        AccountInvestments(vm, route.accountId, route.all, { open(AssetKey(route.accountId, it)) },
+        AccountInvestments(vm, route.accountId, route.all, { open(InstrumentKey(it, route.accountId)) },
             { open(PositionCreateKey(route.accountId)) }, { open(route.copy(all = true)) })
     }
 }

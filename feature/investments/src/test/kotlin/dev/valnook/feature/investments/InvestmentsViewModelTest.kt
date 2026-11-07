@@ -86,31 +86,73 @@ class InvestmentsViewModelTest {
         assertTrue(requests.first() is DeleteInvestmentTrade)
         assertEquals(requests.first(),requests.last())
     }
-    @Test fun detail_pagination_appends_and_stops_subscription_when_hidden()=runTest(dispatcher) {
+    private fun held(id:Long,account:Long,units:String,cost:String,realized:String="0",closed:Boolean=false)=
+        Investment(id,account,1,"类型","资产","QQQ",Currency.of("CNY"),R.parse_e8(units),R.parse_e8("120"),0,
+            instrumentId=1,remainingCost=cost,realizedProfit=realized,isClosed=closed)
+    private fun overview(vararg positions:Investment)=object:OverviewRepository {
+        val snapshot=AssetSnapshot(listOf(SavingsAccount(10,"甲",""),SavingsAccount(11,"乙",""),SavingsAccount(12,"丙","")),
+            emptyList(),emptyList(),positions.toList(),listOf(instrument),AppSettings())
+        override fun observeSnapshot()=flowOf(snapshot)
+        override suspend fun snapshot()=snapshot
+    }
+    @Test fun instrument_page_adds_up_every_account_and_lists_held_ones_first()=runTest(dispatcher) {
+        val vm=InstrumentDetailViewModel(1,overview(held(3,12,"0","0","30",closed=true),held(1,10,"10","1000"),held(2,11,"5","600")),
+            repo,instruments,SavedStateHandle(),clock)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){vm.state.collect()}
+        // Built off the main thread: wait for it rather than for the test scheduler.
+        val ready=vm.state.first{it!=InstrumentDetailState.Loading} as InstrumentDetailState.Ready
+        assertEquals(listOf(10L,11L,12L),ready.holdings.map{it.account.id})
+        val totals=ready.totals
+        assertEquals(R.parse_e8("15"),totals.quantityE8)
+        assertEquals(0,java.math.BigDecimal("1800").compareTo(totals.marketValue))
+        assertEquals(0,java.math.BigDecimal("1600").compareTo(totals.cost))
+        assertEquals(0,java.math.BigDecimal("200").compareTo(totals.unrealized))
+        assertEquals(0,java.math.BigDecimal("30").compareTo(totals.realized))
+        assertEquals(0,java.math.BigDecimal("12.5").compareTo(totals.unrealizedPercent))
+        assertEquals("106.6666666667",totals.average!!.toPlainString())
+    }
+    @Test fun instrument_trades_page_all_accounts_or_one_and_stop_when_hidden()=runTest(dispatcher) {
         var active=0
         val cursors=mutableListOf<TradeCursor?>()
+        val positionPages=mutableListOf<Long>()
         val repository=object:InvestmentRepository by repo {
-            override fun observe_trade_revision(investment_id:Long)=flow {
+            override fun observeInstrumentTradeRevision(instrumentId:Long)=flow {
                 active++
-                try {emit(1L)
+                try {emit("1:1")
                     awaitCancellation()}finally {active--}
             }
-            override suspend fun tradeMonthPage(positionId:Long,month:LedgerMonth,cursor:TradeCursor?,size:Int) =
-                trade_page(positionId,cursor,size).filter { month.contains(it.occurred_at_ms) }
-            override suspend fun trade_page(investment_id:Long,cursor:TradeCursor?,limit:Int):List<Trade> {
+            override suspend fun instrumentTradeMonthPage(instrumentId:Long,month:LedgerMonth,cursor:TradeCursor?,size:Int):List<Trade> {
                 cursors+=cursor
                 return (if(cursor==null)100L downTo 51L else 50L downTo 49L).map {
                     Trade(it,1,Direction.BUY,100000000,100000000,100,Currency.of("CNY"),false,it)
                 }
             }
+            override suspend fun tradeMonthPage(positionId:Long,month:LedgerMonth,cursor:TradeCursor?,size:Int):List<Trade> {
+                positionPages+=positionId
+                return listOf(Trade(7,positionId,Direction.SELL,100000000,100000000,100,Currency.of("CNY"),false,7))
+            }
         }
-        val vm=InvestmentDetailViewModel(1,1,repository,SavedStateHandle(mapOf("ledgerMonth" to "1970-01")))
-        val collector=backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){vm.state.collect()}
+        val vm=InstrumentDetailViewModel(1,overview(held(1,10,"10","1000"),held(2,11,"5","600")),repository,instruments,
+            SavedStateHandle(mapOf("ledgerMonth" to "1970-01")),clock)
+        val collector=backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){vm.trades.collect()}
         runCurrent()
         vm.loadMore()
         runCurrent()
-        assertEquals(52,vm.state.value.trades.size)
+        assertEquals(52,vm.trades.value.rows.size)
         assertEquals(TradeCursor(51,51),cursors.last())
+        // One account: that account's position only.
+        vm.selectAccount(11)
+        runCurrent()
+        assertEquals(listOf(2L),positionPages)
+        assertEquals(listOf(7L),vm.trades.value.rows.map{it.id})
+        // An account without a position shows nothing rather than every trade.
+        vm.selectAccount(12)
+        runCurrent()
+        assertTrue(vm.trades.value.rows.isEmpty())
+        vm.selectAccount(null)
+        runCurrent()
+        assertEquals(1,active)
+        assertEquals(50,vm.trades.value.rows.size)
         collector.cancel()
         runCurrent()
         assertEquals(0,active)

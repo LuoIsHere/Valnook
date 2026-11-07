@@ -231,6 +231,10 @@ private fun SessionRoot(
         (current as? CashKey)?.let { graph.cash.observeCashAccount(it.cashAccountId) }
             ?: kotlinx.coroutines.flow.flowOf(null)
     }.collectAsStateWithLifecycle(null)
+    val selectedInstrument by remember(graph,current) {
+        (current as? InstrumentKey)?.let { graph.instruments.observeInstrument(it.id) }
+            ?: kotlinx.coroutines.flow.flowOf(null)
+    }.collectAsStateWithLifecycle(null)
     val accounts by remember(graph) { graph.accounts.observe_accounts() }.collectAsStateWithLifecycle(emptyList())
     val fxContext by remember(graph) { graph.overview.observeFxContext() }
         .collectAsStateWithLifecycle(dev.valnook.domain.fx.FxContext())
@@ -330,9 +334,8 @@ private fun SessionRoot(
         AccountGroupsKey -> stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
         is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
-        is InstrumentKey -> stringResource(R.string.title_instrument_detail)
+        is InstrumentKey -> selectedInstrument?.name.orEmpty()
         is InstrumentPriceEditKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_price_edit_title)
-        is AccountInstrumentKey -> accountName(current.accountId)
         is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
         is CashKey -> selectedCash?.name.orEmpty()
         is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
@@ -348,7 +351,7 @@ private fun SessionRoot(
     val toolbarBackgroundAlpha by animateFloatAsState(
         // The account and sub-account pages' balance moves up into the bar, so the bar stays clear there; nothing
         // scrolls under it.
-        if (current !is AccountKey && current !is CashKey && (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f)) 1f else 0f,
+        if (current !is AccountKey && current !is CashKey && current !is InstrumentKey && (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f)) 1f else 0f,
         animationSpec = tween(120), label = "toolbar-background")
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
@@ -492,6 +495,8 @@ private fun SessionRoot(
                     }) { MenuIcon() }
                     is AccountKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
+                    is InstrumentKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
+                        { open(InstrumentEditKey(current.id)) })
                     is CashBalanceEditKey -> dev.valnook.feature.cash.CashBalanceSaveAction(balanceToolbar)
                     is CashKey -> dev.valnook.designsystem.DeleteIconButton(
                         stringResource(dev.valnook.feature.accounts.R.string.account_delete_title),
@@ -534,7 +539,7 @@ private fun SessionRoot(
                                 updateTitleReserve) { parent, cash ->
                                 deleteTarget = parent to cash
                             }
-                            investmentEntries(graph, open, back, accountName)
+                            investmentEntries(graph, open, back, accountName, updateTitleReserve)
                             ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
