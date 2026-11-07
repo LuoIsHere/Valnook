@@ -1288,6 +1288,59 @@ class UiFlowTest {
         assertTrue(shown("甲股票")&&shown("乙股票")&&shown("丙债券"))
     }
 
+    @Test fun deleting_an_instrument_with_trades_asks_for_the_code_and_keeps_cash() {
+        var position=0L; var simple=0L
+        runBlocking {
+            graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(),account_id,"CNY",100_000,null))
+            val type=createType("合成基金")
+            position=createInvestment(account_id,"合成删除基金","SYNDL",type,"CNY",0,R.parse_e8("10"),0)
+            graph.commands.execute(RecordInvestmentTrade(UUID.randomUUID().toString(),position,Direction.BUY,
+                R.parse_e8("2"),R.parse_e8("10"),graph.clock.millis(),true))
+            simple=graph.commands.execute(SaveInstrument(UUID.randomUUID().toString(),null,null,
+                "合成无交易标的","SYNNT",type,"CNY",100000)).id
+        }
+        val balance=runBlocking { db.cash().cash_one(account_id,"CNY")!!.balance_minor }
+        wait_text("合成账户 A")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值")
+        rule.onNodeWithContentDescription("所有投资品").performClick()
+        wait_text("合成删除基金")
+        rule.onNodeWithText("合成删除基金").performClick()
+        wait_text("交易历史")
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
+        wait_text("标的资料与当前价")
+        rule.onNodeWithTag("instrument-delete-open").performClick()
+        wait_text("确认码：")
+        rule.onNodeWithText("将删除它在 1 个账户中的持仓、1 笔交易记录", substring = true).assertExists()
+        rule.onNodeWithText("当前持有市值 20.00 CNY 将从总资产中移除。").assertExists()
+        rule.onNodeWithText("交易产生的 1 条现金流水会保留，现金余额不变；历史统计会重新计算。").assertExists()
+        rule.onNodeWithTag("instrument-delete-confirm").assertIsNotEnabled()
+        val code=rule.onNodeWithText("确认码：",substring=true).fetchSemanticsNode()
+            .config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString("").removePrefix("确认码：")
+        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("instrument-delete-code"))).performTextInput(code)
+        finish_input()
+        window_shot("instrument-delete-code")
+        rule.onNodeWithTag("instrument-delete-confirm").assertIsEnabled().performClick()
+        // Back where the instrument was opened from, with it gone.
+        wait_text("合成无交易标的")
+        rule.onNodeWithText("合成删除基金").assertDoesNotExist()
+        runBlocking {
+            assertEquals(balance,db.cash().cash_one(account_id,"CNY")!!.balance_minor)
+            assertNull(db.ledger().investment(position))
+        }
+        // Without trades, one tap is enough.
+        rule.onNodeWithText("合成无交易标的").performClick()
+        wait_text("交易历史")
+        rule.onNodeWithContentDescription(localized(dev.valnook.app.R.string.nav_edit)).performClick()
+        wait_text("标的资料与当前价")
+        rule.onNodeWithTag("instrument-delete-open").performClick()
+        wait_text("确定删除「合成无交易标的」吗？它没有交易记录。")
+        rule.onNodeWithTag("instrument-delete-code").assertDoesNotExist()
+        rule.onNodeWithTag("instrument-delete-confirm").assertIsEnabled().performClick()
+        wait_text("尚无标的")
+        runBlocking { assertNull(db.instruments().instrument(simple)) }
+    }
+
     @Test fun deleting_an_asset_class_moves_its_instruments_to_uncategorized() {
         runBlocking {
             val funds=createType("合成基金")

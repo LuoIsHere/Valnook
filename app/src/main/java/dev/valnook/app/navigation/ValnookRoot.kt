@@ -414,6 +414,17 @@ private fun SessionRoot(
     if (leavePrompt) dev.valnook.feature.settings.UnsavedChangesDialog(onKeep = { leavePrompt = false },
         onDiscard = { leavePrompt = false; pop() })
     var deleteTarget by remember(graph.sessionId) { mutableStateOf<Pair<Long, Long?>?>(null) }
+    var instrumentDeleteTarget by remember(graph.sessionId) { mutableStateOf<Long?>(null) }
+    instrumentDeleteTarget?.let { instrumentId ->
+        dev.valnook.feature.investments.InstrumentDeletionDialog(graph.commands, instrumentId,
+            onDismiss = { instrumentDeleteTarget = null }, onDeleted = {
+                instrumentDeleteTarget = null
+                // Leave every page about the instrument: its detail, its editor and what was opened from them.
+                val first = stack.indexOfFirst { (it is InstrumentKey && it.id == instrumentId) ||
+                    (it is InstrumentEditKey && it.id == instrumentId) }
+                if (first > 0) while (stack.size > first) stack.removeAt(stack.lastIndex)
+            })
+    }
     deleteTarget?.let { (accountId, cashId) ->
         dev.valnook.feature.accounts.AccountDeletionDialog(graph.commands, accountId, cashId,
             onDismiss = { deleteTarget = null }, onDeleted = {
@@ -502,6 +513,9 @@ private fun SessionRoot(
                     InstrumentLibraryKey -> dev.valnook.feature.investments.InstrumentLibraryActions(
                         { open(TypesKey) }, { open(InstrumentEditKey()) })
                     is TypeEditKey -> dev.valnook.feature.investments.TypeEditActions(typeToolbar)
+                    is InstrumentEditKey -> current.id?.let { id -> dev.valnook.designsystem.DeleteIconButton(
+                        stringResource(dev.valnook.feature.investments.R.string.instrument_delete),
+                        { instrumentDeleteTarget = id }, Modifier.testTag("instrument-delete-open")) }
                     is AccountKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
                         { open(AccountEditKey(current.id)) })
                     is InstrumentKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),

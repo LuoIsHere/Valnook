@@ -32,18 +32,19 @@ import java.time.format.DateTimeFormatter
     val time=Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault())
     val rows=listOf(
         stringResource(R.string.change_amount) to cash_change_text(entry),
-        stringResource(R.string.entry_source) to cash_source_label(entry.source),
+        stringResource(R.string.entry_source) to cash_source_label(entry),
         stringResource(R.string.entry_account) to account_name,
         stringResource(R.string.currency) to entry.currency.code,
         stringResource(R.string.record_date) to time.toLocalDate().toString(),
         stringResource(R.string.record_time) to time.format(DateTimeFormatter.ofPattern("HH:mm")),
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
-        ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
+        // A deleted instrument's trade has nothing left to open.
+        if(entry.source!=CashSource.TRADE_REMOVED) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
             Text(stringResource(when(entry.source) {
                 CashSource.TRADE->R.string.view_source_trade
                 CashSource.TERM_OPEN,CashSource.TERM_CLOSE->R.string.view_source_deposit
-                CashSource.CASH_SET->R.string.edit_cash_change
+                CashSource.CASH_SET,CashSource.TRADE_REMOVED->R.string.edit_cash_change
             }))
         }
     }

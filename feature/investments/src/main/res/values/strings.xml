@@ -91,6 +91,15 @@
         <item quantity="one">Delete “%1$s”? Its %2$d instrument moves to Uncategorized.</item>
         <item quantity="other">Delete “%1$s”? Its %2$d instruments move to Uncategorized.</item>
     </plurals>
+    <string name="instrument_delete">Delete instrument</string>
+    <string name="instrument_delete_confirm">Delete</string>
+    <string name="instrument_delete_simple">Delete “%1$s”? It has no trades.</string>
+    <string name="instrument_delete_scope">Removes its positions in %1$d account(s), %2$d trade(s) and %3$d price record(s).</string>
+    <string name="instrument_delete_value">Its current market value of %1$s leaves your total assets.</string>
+    <string name="instrument_delete_cash">Its %1$d cash entries stay and balances do not change; past statistics are recalculated.</string>
+    <string name="instrument_delete_code">Confirmation code: %1$s</string>
+    <string name="instrument_delete_code_input">Enter the code</string>
+    <string name="instrument_delete_refresh">Try again</string>
     <string name="instrument_type_no_match">No instruments of this asset class</string>
     <string name="investment_cost_includes_fees">Cost includes fees</string>
     <string name="investment_trade_history">Trade history</string>

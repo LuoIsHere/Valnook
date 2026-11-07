@@ -403,6 +403,13 @@ class AppSessionManager @Inject internal constructor(
         override suspend fun cancelAccountDeletion(ticket: String) = writeMutex.withLock {
             delegate.cancelAccountDeletion(ticket)
         }
+        override suspend fun previewInstrumentDeletion(instrumentId: Long) = writeMutex.withLock {
+            requireMobileWrite(sessionId)
+            delegate.previewInstrumentDeletion(instrumentId)
+        }
+        override suspend fun cancelInstrumentDeletion(ticket: String) = writeMutex.withLock {
+            delegate.cancelInstrumentDeletion(ticket)
+        }
 
         override suspend fun execute(command: FinancialCommand): OperationResult = writeMutex.withLock {
             requireMobileWrite(sessionId)

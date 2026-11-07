@@ -77,7 +77,7 @@ internal fun CashEntry.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at
         .testTag("cash-entry-${entry.id}").padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(note.ifEmpty { cash_source_label(entry.source) }, style = large, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(note.ifEmpty { cash_source_label(entry) }, style = large, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(time, style = small, color = muted, maxLines = 1)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {

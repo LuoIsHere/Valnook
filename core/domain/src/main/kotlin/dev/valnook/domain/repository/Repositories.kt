@@ -48,6 +48,9 @@ interface FinancialCommands {
     suspend fun previewAccountDeletion(accountId: Long, balanceAccountId: Long? = null): AccountDeletionPreview =
         throw UnsupportedOperationException()
     suspend fun cancelAccountDeletion(ticket: String) {}
+    suspend fun previewInstrumentDeletion(instrumentId: Long): InstrumentDeletionPreview =
+        throw UnsupportedOperationException()
+    suspend fun cancelInstrumentDeletion(ticket: String) {}
 
     suspend fun execute(command: FinancialCommand): OperationResult
     suspend fun execute(command: FinancialCommand, source: CommandSource): OperationResult = execute(command)

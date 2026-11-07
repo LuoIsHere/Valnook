@@ -8,3 +8,15 @@ data class AccountDeletionPreview(
     val cashCount: Int, val entryCount: Int, val depositCount: Int, val tradeCount: Int,
     val transfers: List<CreditLimitTransfer>
 )
+
+/**
+ * What deleting an instrument removes, in every account. [code] is empty when it has no trades, which needs no
+ * code; [marketValue] is in [currencyCode] at the current price.
+ */
+data class InstrumentDeletionPreview(
+    val ticket: String, val code: String, val instrumentId: Long, val name: String, val revision: Long,
+    val currencyCode: String, val accountCount: Int, val tradeCount: Int, val priceCount: Int,
+    val cashEntryCount: Int, val holdingQuantityE8: Long, val marketValue: java.math.BigDecimal
+) {
+    val needsCode: Boolean get() = tradeCount > 0
+}

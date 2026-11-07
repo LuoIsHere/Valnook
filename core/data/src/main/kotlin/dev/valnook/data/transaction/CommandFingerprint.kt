@@ -30,6 +30,8 @@ internal object CommandFingerprint {
                 command.balanceAccountId, command.expectedRevision, command.confirmation?.ticket, command.confirmation?.code)
             is DeleteAccount -> listOf("ACCOUNT_DELETE", command.accountId, command.expectedRevision,
                 command.confirmation.ticket, command.confirmation.code)
+            is DeleteInstrument -> listOf("INSTRUMENT_DELETE", command.instrumentId, command.expectedRevision,
+                command.confirmation?.ticket, command.confirmation?.code)
             is SaveInstrument -> listOf("INSTRUMENT_SAVE", command.instrumentId, command.expectedRevision,
                 command.name.trim(), command.symbol.trim(), command.typeId, Currency.of(command.currencyCode).code,
                 command.currentPriceE5, command.currencyPriceConfirmed)

@@ -31,7 +31,7 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
                 when (entry.source) {
                     CashSource.TRADE -> open(TradeFormKey(route.accountId, TradeFormMode.EDIT, tradeId = sourceId))
                     CashSource.TERM_OPEN, CashSource.TERM_CLOSE -> open(DepositFormKey(route.accountId, DepositFormMode.EDIT, sourceId))
-                    CashSource.CASH_SET -> Unit
+                    CashSource.CASH_SET, CashSource.TRADE_REMOVED -> Unit
                 }
             }
         })

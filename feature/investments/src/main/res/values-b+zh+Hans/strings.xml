@@ -89,6 +89,15 @@
     <plurals name="instrument_type_delete_message">
         <item quantity="other">删除「%1$s」后，它下面的 %2$d 个标的将移到「未分类」。</item>
     </plurals>
+    <string name="instrument_delete">删除标的</string>
+    <string name="instrument_delete_confirm">删除</string>
+    <string name="instrument_delete_simple">确定删除「%1$s」吗？它没有交易记录。</string>
+    <string name="instrument_delete_scope">将删除它在 %1$d 个账户中的持仓、%2$d 笔交易记录和 %3$d 条历史价格。</string>
+    <string name="instrument_delete_value">当前持有市值 %1$s 将从总资产中移除。</string>
+    <string name="instrument_delete_cash">交易产生的 %1$d 条现金流水会保留，现金余额不变；历史统计会重新计算。</string>
+    <string name="instrument_delete_code">确认码：%1$s</string>
+    <string name="instrument_delete_code_input">输入确认码</string>
+    <string name="instrument_delete_refresh">重新获取</string>
     <string name="instrument_type_no_match">该资产类型下暂无标的</string>
     <string name="investment_cost_includes_fees">成本含手续费</string>
     <string name="investment_trade_history">交易历史</string>

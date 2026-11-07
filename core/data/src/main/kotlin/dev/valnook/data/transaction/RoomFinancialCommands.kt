@@ -18,6 +18,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     private val deposits = DepositCommandHandler(db, cash, clock, fault)
     private val instruments = InstrumentCommandHandler(db, cash, fault)
     private val positions = PositionCommandHandler(db, cash, fault)
+    private val instrumentDeletion = InstrumentDeletionHandler(db, clock, fault)
     private val types = AssetTypeWriter(db.instruments())
     private val groups = AccountGroupCommandHandler(db)
     private val audit = AuditRecorder(db, clock)
@@ -25,6 +26,9 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     override suspend fun previewAccountDeletion(accountId: Long, balanceAccountId: Long?) =
         db.withTransaction { deletion.preview(accountId, balanceAccountId) }
     override suspend fun cancelAccountDeletion(ticket: String) = db.withTransaction { deletion.cancel(ticket) }
+    override suspend fun previewInstrumentDeletion(instrumentId: Long) =
+        db.withTransaction { instrumentDeletion.preview(instrumentId) }
+    override suspend fun cancelInstrumentDeletion(ticket: String) = db.withTransaction { instrumentDeletion.cancel(ticket) }
 
     override suspend fun operationResult(operationId: String): OperationResult? = db.operations().operation(operationId)?.let {
         if (it.result_kind == null || it.result_id == null) null else OperationResult(it.result_kind, it.result_id)
@@ -45,6 +49,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             when (command) {
                 is DeleteBalanceAccount -> deletion.validate(command.accountId, command.balanceAccountId, command.expectedRevision, command.confirmation)
                 is DeleteAccount -> deletion.validate(command.accountId, null, command.expectedRevision, command.confirmation)
+                is DeleteInstrument -> instrumentDeletion.validate(command)
                 else -> Unit
             }
             val now = clock.millis()
@@ -61,6 +66,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is SaveAccount -> accounts.save(command, now)
                 is DeleteBalanceAccount -> deletion.deleteCash(command, now)
                 is DeleteAccount -> deletion.deleteAccount(command)
+                is DeleteInstrument -> instrumentDeletion.delete(command, now)
                 is SaveInstrument -> instruments.save(command, now)
                 is UpdateInstrumentPrices -> instruments.updatePrices(command, now)
                 is EditInstrumentPrice -> instruments.editPrice(command, now)
@@ -106,7 +112,8 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             is SaveAccount -> if (command.cashChanges.any { row ->
                 row.includeInAvailableCash != null && row.cashAccountId?.let { db.cash().cashAccount(it)?.include_in_available_cash } != row.includeInAvailableCash
             }) baseline else if (cashBalanceChanges(command)) day(now) else null
-            is DeleteBalanceAccount, is DeleteAccount -> baseline
+            // Deleting an instrument takes its value out of every day it was held.
+            is DeleteBalanceAccount, is DeleteAccount, is DeleteInstrument -> baseline
             is RecordInvestmentTrade -> day(command.occurred_at_ms).coerceAtLeast(baseline)
             is EditInvestmentTrade -> {
                 val old = db.trades().trade(command.trade_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)

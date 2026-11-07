@@ -17,7 +17,7 @@ import java.util.UUID
 /** Writes one immutable event inside the caller's existing Room transaction. */
 class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     suspend fun captureBefore(command: FinancialCommand): String? {
-        if (command is DeleteAccount) return null
+        if (command is DeleteAccount || command is DeleteInstrument) return null
         if (command is UpdateInstrumentPrices) return priceBatchJson(command).toString()
         if (command is SaveAccount) return command.accountId?.let(::accountAggregateJson)?.toString()
         if (command is DeleteBalanceAccount) return balanceAccountJson(command.balanceAccountId)?.toString()
@@ -36,7 +36,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         val after = when (command) {
             is UpdateInstrumentPrices -> priceBatchJson(command)
             is SaveAccount -> accountAggregateJson(result.id)
-            is DeleteBalanceAccount, is DeleteAccount, is DeleteAssetType -> null
+            is DeleteBalanceAccount, is DeleteAccount, is DeleteAssetType, is DeleteInstrument -> null
             is AccountGroupCommand -> groupLayoutJson()
             else -> rowJson(tableForResult(result.kind), result.id)
         }
@@ -129,7 +129,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is DeleteAssetType -> "asset_types" to command.typeId
         is SaveAccount -> command.accountId?.let { "savings_accounts" to it }
         is DeleteBalanceAccount -> "cash_accounts" to command.balanceAccountId
-        is DeleteAccount -> null
+        is DeleteAccount, is DeleteInstrument -> null
         is SaveInstrument -> command.instrumentId?.let { "instruments" to it }
         is UpdateInstrumentPrices -> null
         is EditInstrumentPrice -> "instrument_price_history" to command.priceRecordId
@@ -162,7 +162,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is SaveAssetType -> if (command.typeId == null) "CREATE" else "UPDATE"
         is SaveAccountGroup -> if (command.groupId == null) "CREATE" else "UPDATE"
         is SaveAccount -> if (command.accountId == null) "CREATE" else "UPDATE"
-        is DeleteBalanceAccount, is DeleteAccount, is DeleteAccountGroup, is DeleteAssetType -> "DELETE"
+        is DeleteBalanceAccount, is DeleteAccount, is DeleteAccountGroup, is DeleteAssetType, is DeleteInstrument -> "DELETE"
         is SaveInstrument -> if (command.instrumentId == null) "CREATE" else "UPDATE"
         is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade -> "CREATE"
         is DeleteInvestmentTrade -> "DELETE"
@@ -189,7 +189,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         when (command) {
             is SaveAccount -> command.accountId?.let(accounts::add)
             is DeleteBalanceAccount -> accounts.add(command.accountId)
-            is DeleteAccount -> Unit
+            is DeleteAccount, is DeleteInstrument -> Unit
             is SetCashBalance -> accounts.add(command.account_id)
             is OpenTermDeposit -> accounts.add(command.account_id)
             is SaveInstrument -> accountsForInstrument(result.id).forEach(accounts::add)
@@ -346,7 +346,9 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
     private fun commandJson(command: FinancialCommand): JSONObject = JSONObject().apply {
         put("command", command::class.simpleName ?: "FinancialCommand")
         put("operationId", command.operation_id)
-        if (command !is DeleteAccount && command !is DeleteBalanceAccount) put("fingerprintSource", command.toString())
+        // Deletions carry a confirmation code, and an instrument deletion should not keep its name either.
+        if (command !is DeleteAccount && command !is DeleteBalanceAccount && command !is DeleteInstrument)
+            put("fingerprintSource", command.toString())
     }
 
     private fun changedFields(beforeJson: String?, afterJson: String?): String {

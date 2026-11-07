@@ -128,7 +128,8 @@ sealed interface CashLinkSelection {
     data class Selected(val cashAccountId: Long) : CashLinkSelection
 }
 
-enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE }
+/** [TRADE_REMOVED]: cash a trade moved before its instrument was deleted; it no longer points at the trade. */
+enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED }
 
 /**
  * [balanceAfterMinor] is the sub-account's balance right after this entry, worked out from the current balance and the

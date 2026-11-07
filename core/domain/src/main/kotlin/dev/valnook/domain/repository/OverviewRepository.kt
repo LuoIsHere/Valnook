@@ -72,6 +72,10 @@ data class SaveInstrument(override val operation_id: String, val instrumentId: L
     val name: String, val symbol: String, val typeId: Long, val currencyCode: String,
     val currentPriceE5: Long, val currencyPriceConfirmed: Boolean = false) : FinancialCommand
 
+/** Removes the instrument with its positions, trades and prices everywhere; cash those trades moved stays. */
+data class DeleteInstrument(override val operation_id: String, val instrumentId: Long, val expectedRevision: Long,
+    val confirmation: DeletionConfirmation? = null) : FinancialCommand
+
 data class EditInstrumentPrice(override val operation_id: String, val priceRecordId: Long,
     val expectedRevision: Long, val priceE5: Long, val effectiveAtMs: Long) : FinancialCommand
 

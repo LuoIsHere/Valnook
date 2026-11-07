@@ -113,6 +113,8 @@
     <string name="error_overflow">The value is too large to save. Use a smaller value.</string>
     <string name="error_name">Name is required and must be at most 200 characters.</string>
     <string name="error_type">This class already exists. Choose the existing class.</string>
+    <string name="source_trade_removed_buy">Buy of a deleted instrument</string>
+    <string name="source_trade_removed_sell">Sale of a deleted instrument</string>
     <string name="error_default_type">Uncategorized is the default class and cannot be renamed or deleted.</string>
     <string name="error_small">The trade amount is below the smallest currency unit.</string>
     <string name="error_date">Invalid date. The maturity date must be after the start date.</string>
