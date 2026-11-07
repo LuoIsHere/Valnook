@@ -257,6 +257,45 @@ class WebAdminEndToEndTest {
         }
     }
 
+    /** The default class and a deleted instrument's cash read safely over HTTP; the default class keeps its name. */
+    @Test fun default_class_and_deleted_instrument_cash_are_served_over_http() = runBlocking<Unit> {
+        val commands=RoomFinancialCommands(database,java.time.Clock.systemUTC())
+        fun id()=UUID.randomUUID().toString()
+        val account=commands.execute(SaveAccount(id(),null,null,"Synthetic broker","",emptyList())).id
+        commands.execute(SetCashBalance(id(),account,"CNY",100_000,null))
+        val type=commands.execute(SaveAssetType(id(),null,"Synthetic funds")).id
+        val instrument=commands.execute(SaveInstrument(id(),null,null,"Synthetic fund","SYNW",type,"CNY",1000000)).id
+        val position=commands.execute(CreateInvestmentPosition(id(),account,instrument)).id
+        commands.execute(RecordInvestmentTrade(id(),position,dev.valnook.domain.model.Direction.BUY,
+            200000000,1000000000,System.currentTimeMillis(),true))
+        val preview=commands.previewInstrumentDeletion(instrument)
+        commands.execute(DeleteInstrument(id(),instrument,preview.revision,DeletionConfirmation(preview.ticket,preview.code)))
+        web.start()
+        val endpoint=URI(requireNotNull(web.state.value.url))
+        val origin="http://${endpoint.host}:${endpoint.port}"
+        val paired=http(endpoint,"POST","/api/v1/pair/code",origin=origin,body=JSONObject().put("code",web.state.value.pairingCode).toString())
+        val cookie=paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf=JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint,origin,cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            val types=JSONObject(http(endpoint,"GET","/api/v1/asset-types",cookie=cookie).body)
+            val items=(0 until types.getJSONArray("items").length()).map { types.getJSONArray("items").getJSONObject(it) }
+            val default=items.single { it.getBoolean("isDefault") }
+            assertEquals("未分类",default.getString("name"))
+            assertFalse(items.single { it.getString("name")=="Synthetic funds" }.getBoolean("isDefault"))
+            val rename=http(endpoint,"PUT","/api/v1/asset-types/${default.getLong("id")}",origin=origin,cookie=cookie,csrf=csrf,
+                body=JSONObject().put("operationId",id()).put("dataGeneration",types.getLong("dataGeneration")).put("name","Other").toString())
+            assertEquals(rename.body,400,rename.status)
+            assertEquals("DEFAULT_TYPE",JSONObject(rename.body).getJSONObject("error").getString("code"))
+            // The deleted position is gone; its cash is still listed, as a deleted instrument's trade.
+            assertEquals(404,http(endpoint,"GET","/api/v1/positions/$position",cookie=cookie).status)
+            val records=http(endpoint,"GET","/api/v1/records",cookie=cookie)
+            assertEquals(records.body,200,records.status)
+            val listed=JSONObject(records.body).getJSONArray("items")
+            assertTrue(records.body,(0 until listed.length()).any { listed.getJSONObject(it).optString("action")=="TRADE_REMOVED" })
+        }
+    }
+
     @Test fun account_groups_are_listed_and_managed_over_http() = runBlocking<Unit> {
         val commands = RoomFinancialCommands(database, java.time.Clock.systemUTC())
         fun id() = UUID.randomUUID().toString()

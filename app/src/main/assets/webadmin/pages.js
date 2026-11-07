@@ -1,4 +1,4 @@
-import { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion } from "./core.js";
+import { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion, typeLabel } from "./core.js";
 import { symbol, avatar, iconPicker } from "./icons.js";
 import { openPriceEditor } from "./price-editor.js";
 import { investmentGroups } from "./investment-groups.js";
@@ -505,12 +505,14 @@ async function renderRecords(reset) {
   replacePage(root, !!oldControls);
 }
 function actionLabel(action) {
-  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose") })[action] || action;
+  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE_REMOVED: t("deletedInstrumentTrade") })[action] || action;
 }
 async function openRecord(record) {
   state.viewEpoch++;
   try {
     if (record.kind === "CASH" && record.action === "CASH_SET") return cashRecordForm(record);
+    // A deleted instrument's trade has nothing left to open; its cash stays as it was.
+    if (record.kind === "CASH" && record.action === "TRADE_REMOVED") return;
     if (record.kind === "TRADE" || (record.kind === "CASH" && record.action === "TRADE")) {
       const positionId = record.kind === "TRADE" ? record.childId : record.sourceParentId;
       const tradeId = record.kind === "TRADE" ? record.id : record.sourceId;
@@ -558,14 +560,14 @@ async function renderInvestments(refresh = false) {
     if (!state.assetTypes.some(v => String(v.id) === state.instrumentTypeFilter)) state.instrumentTypeFilter = "";
     const counted = (label, count) => state.locale.startsWith("zh") ? `${label}（${count}）` : `${label} (${count})`;
     const typeFilter = selectField(t("assetType"), "instrumentTypeFilter", [{ value: "", label: counted(t("all"), state.instruments.length) },
-      ...state.assetTypes.map(v => ({ value: v.id, label: counted(v.name, state.instruments.filter(i => i.typeId === v.id).length) }))], state.instrumentTypeFilter);
+      ...state.assetTypes.map(v => ({ value: v.id, label: counted(typeLabel(v.name, v.isDefault), state.instruments.filter(i => i.typeId === v.id).length) }))], state.instrumentTypeFilter);
     typeFilter.style.flex = "0 1 240px";
     const listing = el("div");
     const showInstruments = () => {
       const rows = state.instruments.filter(v => !state.instrumentTypeFilter || String(v.typeId) === state.instrumentTypeFilter)
         .map(v => el("tr", { "data-clickable": "true", onclick: () => instrumentForm(v) },
           el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
-          el("td", { text: v.typeName }), el("td", { text: v.currencyCode }),
+          el("td", { text: typeLabel(v.typeName) }), el("td", { text: v.currencyCode }),
           el("td", { class: "numeric", text: fmtPrice(v.currentPrice, v.currencyCode) }), el("td", { text: when(v.priceUpdatedAtMs) })));
       clear(listing); listing.append(table([t("nameCode"), t("assetType"), t("currency"), t("price"), t("priceUpdated")], rows));
     };
@@ -583,8 +585,9 @@ async function assetTypeList(returnState = null) {
   const [types, instruments] = await Promise.all([api("/api/v1/asset-types"), api("/api/v1/instruments")]);
   if (returnState && returnState.cycle !== drawerCycle) return;
   state.assetTypes = types.items; state.instruments = instruments.items;
-  const rows = types.items.map(v => el("tr", { "data-clickable": "true", onclick: () => assetTypeForm(v) },
-    el("td", {}, el("strong", { text: v.name })),
+  // The default class is listed but not edited.
+  const rows = types.items.map(v => el("tr", v.isDefault ? {} : { "data-clickable": "true", onclick: () => assetTypeForm(v) },
+    el("td", {}, el("strong", { text: typeLabel(v.name, v.isDefault) }), v.isDefault ? el("span", { class: "muted", text: ` · ${t("defaultType")}` }) : null),
     el("td", { class: "numeric", text: String(instruments.items.filter(i => i.typeId === v.id).length) })));
   const content = el("div", {}, toolbar(el("div", { class: "spacer" }), button(t("newAssetType"), () => assetTypeForm(null), "primary")),
     table([t("assetTypeName"), t("instrumentCount")], rows));
@@ -632,7 +635,8 @@ function positionForm() {
 function instrumentForm(item) {
   const form = el("form", { class: "form-grid" });
   form.append(field(t("name"), "name", item?.name || "", true), field(t("symbol"), "symbol", item?.symbol || "", true, "text", false, !!item?.symbolLocked),
-    selectField(t("assetType"), "typeId", state.assetTypes.map(v => ({ value: v.id, label: v.name })), item?.typeId),
+    selectField(t("assetType"), "typeId", state.assetTypes.map(v => ({ value: v.id, label: typeLabel(v.name, v.isDefault) })),
+      item?.typeId ?? state.assetTypes.find(v => v.isDefault)?.id),
     field(t("currency"), "currencyCode", item?.currencyCode || state.session.baseCurrency || "CNY", true, "text", false, !!item?.currencyLocked),
     field(t("price"), "currentPrice", item?.currentPrice || "0", true));
   const error = el("p", { class: "drawer-error" });
@@ -727,7 +731,7 @@ async function renderStatistics(refresh = false) {
   root.append(el("div", { class: "cards" }, metric(t("totalAssets"), fmt(summary.totalAssets, summary.currency)), metric(t("availableCash"), fmt(summary.availableCash, summary.currency)), metric(t("investmentValue"), fmt(summary.investmentValue, summary.currency)), metric(t("monthlyChange"), fmt(summary.monthlyChange, summary.currency), gainClass(summary.monthlyChange))));
   if (summary.complete === false) root.append(el("p", { class: "subtle", text: t("incomplete") }));
   root.append(chart(history.items));
-  [[t("accountDistribution"), dist.accounts], [t("assetTypeDistribution"), dist.assetTypes], [t("currencyDistribution"), dist.currencies]].forEach(([title, items]) => root.append(distribution(title, items, dist.currency)));
+  [[t("accountDistribution"), dist.accounts], [t("assetTypeDistribution"), dist.assetTypes.map(v => ({ ...v, label: typeLabel(v.label) }))], [t("currencyDistribution"), dist.currencies]].forEach(([title, items]) => root.append(distribution(title, items, dist.currency)));
   replacePage(root, refresh);
 }
 function chart(points) {

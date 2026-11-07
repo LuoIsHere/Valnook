@@ -311,7 +311,7 @@ internal class WebAdminApiRouter(
     private suspend fun assetTypes(): WebHttpResponse = success(buildJsonObject {
         put("dataGeneration", reads.generation())
         put("items", buildJsonArray { reads.assetTypes().forEach { add(buildJsonObject {
-            put("id", it.id); put("name", it.name)
+            put("id", it.id); put("name", it.name); put("isDefault", it.isDefault)
         }) } })
     })
 

@@ -209,6 +209,7 @@ const domainMessages = {
   NAME: ["请填写有效名称。", "Enter a valid name."],
   AMOUNT_TOO_SMALL: ["金额低于该币种的最小单位。", "The amount is below the currency's smallest unit."],
   DUPLICATE_TYPE: ["该资产类型已存在。", "This asset type already exists."],
+  DEFAULT_TYPE: ["「未分类」是默认类型，不能改名或删除。", "Uncategorized is the default type and cannot be renamed or deleted."],
   DUPLICATE_CURRENCY: ["该币种账户已存在。", "An account for this currency already exists."],
   WRONG_CASH_ACCOUNT: ["请选择所属主账户下币种一致的储蓄账户。", "Choose a savings account with the same parent and currency."],
   INVALID_CREDIT_LIMIT: ["请输入有效的信用额度。", "Enter a valid credit limit."],
@@ -338,4 +339,9 @@ Object.assign(copy["zh-CN"], { resizePanel: "调整侧栏宽度", resizePanelHin
 Object.assign(copy.en, { resizePanel: "Resize panel", resizePanelHint: "Drag to resize; double-click to reset. Use arrow keys to resize or Enter to reset." });
 Object.assign(copy["zh-CN"], { editAssetType: "编辑资产类型", instrumentCount: "投资标的数", createTypeFirst: "请先创建资产类型，再新增投资标的。" });
 Object.assign(copy.en, { editAssetType: "Edit asset type", instrumentCount: "Instruments", createTypeFirst: "Create an asset type before adding an instrument." });
-export { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion };
+Object.assign(copy["zh-CN"], { uncategorized: "未分类", defaultType: "默认", deletedInstrumentTrade: "已删除标的的交易" });
+Object.assign(copy.en, { uncategorized: "Uncategorized", defaultType: "Default", deletedInstrumentTrade: "Deleted instrument's trade" });
+// The built-in class is stored under its Chinese name; other classes read as the user named them.
+const DEFAULT_TYPE_NAME = "未分类";
+function typeLabel(name, isDefault = false) { return isDefault || name === DEFAULT_TYPE_NAME ? t("uncategorized") : name; }
+export { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion, typeLabel };
