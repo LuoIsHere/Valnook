@@ -39,7 +39,7 @@ import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /** A bill this close gets the attention color. */
-private const val BILL_ATTENTION_DAYS = 3L
+internal const val BILL_ATTENTION_DAYS = 3L
 
 @Composable internal fun CashSection(label: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -26,12 +26,12 @@ import java.time.LocalDate
 @Composable fun CashBalanceSummary(account:CashAccount,on_edit:(()->Unit)?,
     modifier:Modifier=Modifier,allAccounts:List<CashAccount> = emptyList(),
     creditSourceLabels:Map<Long,String> = emptyMap(),
-    showBalance:Boolean = true) {
+    showBalance:Boolean = true,showTitle:Boolean = true) {
     Column(modifier.fillMaxWidth(),
         verticalArrangement=Arrangement.spacedBy(Space.sm)) {
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.sm)) {
+        if(showTitle || showBalance || on_edit!=null) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.sm)) {
             Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
-                androidx.compose.foundation.layout.FlowRow(horizontalArrangement=Arrangement.spacedBy(Space.sm),verticalArrangement=Arrangement.spacedBy(2.dp)) {
+                if(showTitle) androidx.compose.foundation.layout.FlowRow(horizontalArrangement=Arrangement.spacedBy(Space.sm),verticalArrangement=Arrangement.spacedBy(2.dp)) {
                     Text(account.name.ifBlank { account.currency.code },maxLines=2,
                         overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis,style=MaterialTheme.typography.titleMedium,
                         color=MaterialTheme.colorScheme.onSurfaceVariant)

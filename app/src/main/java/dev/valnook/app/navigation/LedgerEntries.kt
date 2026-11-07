@@ -9,13 +9,14 @@ import dev.valnook.feature.deposits.*
 import dev.valnook.feature.investments.TradeFormMode
 
 internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (NavKey) -> Unit,
-    back: () -> Unit, accountName: (Long) -> String, onBalanceToolbar:(CashBalanceToolbarState?)->Unit) {
+    back: () -> Unit, accountName: (Long) -> String, onBalanceToolbar:(CashBalanceToolbarState?)->Unit,
+    onTitleReserve: (NavKey, Int) -> Unit) {
     entry<CashKey> { route ->
         val vm = pageViewModel { CashViewModel(route.accountId, graph.cash, graph.cashPages,
             createSavedStateHandle(), graph.overview, graph.clock) }
         CashDetail(vm, route.cashAccountId,
             { open(CashBalanceEditKey(route.accountId, route.cashAccountId)) },
-            { open(CashEntryKey(route.accountId, route.cashAccountId, it)) })
+            { open(CashEntryKey(route.accountId, route.cashAccountId, it)) }, { onTitleReserve(route, it) })
     }
     entry<CashBalanceEditKey> { route ->
         val vm = pageViewModel { CashBalanceEditViewModel(route.accountId, route.cashAccountId,

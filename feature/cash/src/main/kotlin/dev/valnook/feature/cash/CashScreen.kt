@@ -1,10 +1,12 @@
 package dev.valnook.feature.cash
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -63,7 +65,12 @@ import java.time.*
         }
     }
 }
-@Composable fun CashDetail(vm:CashViewModel,cashAccountId:Long,on_form:()->Unit,on_entry:(Long)->Unit) {
+/**
+ * One sub-account: its balance and trend collapse into the title bar as the opaque list below scrolls, like the
+ * account page. [onTitleReserve] tells the bar how much room the arriving balance needs.
+ */
+@Composable fun CashDetail(vm:CashViewModel,cashAccountId:Long,on_form:()->Unit,on_entry:(Long)->Unit,
+    onTitleReserve:(Int)->Unit={}) {
     val ledgerState by vm.entries.collectAsStateWithLifecycle()
     val trends by vm.trends.collectAsStateWithLifecycle()
     LaunchedEffect(cashAccountId){vm.watchCashAccount(cashAccountId)}
@@ -83,30 +90,35 @@ import java.time.*
     LaunchedEffect(ledger.month) {
         if (displayedMonth != ledger.month?.toString()) { listState.scrollToItem(0); displayedMonth = ledger.month?.toString() }
     }
-    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
-        item{
-            GlassCard(Modifier.padding(bottom=Space.md), prominent=true) {
-            CashBalanceSummary(balance,on_edit=on_form,allAccounts=ledger.allAccounts,
-                showBalance=false,
-                creditSourceLabels=ledger.creditSourceLabels,
-                modifier=Modifier.fillMaxWidth().padding(16.dp))
+    val collapse=rememberHeaderCollapse("cash-$cashAccountId")
+    val background=MaterialTheme.colorScheme.background
+    Column(Modifier.fillMaxSize().nestedScroll(collapse)) {
+        CashDetailHeader(collapse,balance,trends[cashAccountId].orEmpty(),on_form,onTitleReserve)
+        LazyColumn(Modifier.fillMaxWidth().weight(1f).background(background).testTag("cash-detail-list"),state=listState,
+            contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
+            if(balance.type==BalanceAccountType.CREDIT || balance.note.isNotBlank()) item{
+                GlassCard(Modifier.padding(bottom=Space.md)) {
+                CashBalanceSummary(balance,on_edit=null,allAccounts=ledger.allAccounts,
+                    showBalance=false,showTitle=false,
+                    creditSourceLabels=ledger.creditSourceLabels,
+                    modifier=Modifier.fillMaxWidth().padding(16.dp))
+                }
             }
-        }
-        item { CashTrendChart(trends[cashAccountId].orEmpty(),balance,Modifier.fillMaxWidth().padding(bottom=Space.md)) }
-        item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
-        item { MonthPager(ledger.month, vm::selectMonth) }
-        if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}
-        itemsIndexed(entries,key={_,entry->entry.id}){index,entry->
-            val time=Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault())
-            val previous_date=entries.getOrNull(index-1)?.let{Instant.ofEpochMilli(it.occurred_at_ms).atZone(ZoneId.systemDefault()).toLocalDate()}
-            Column {
-                if(previous_date!=time.toLocalDate())Text(time.toLocalDate().toString(),
-                    modifier=Modifier.padding(top=Space.sm,bottom=4.dp),style=MaterialTheme.typography.labelLarge,
-                    color=MaterialTheme.colorScheme.onSurfaceVariant)
-                CashEntryItem(entry,index<entries.lastIndex||ledger.hasMore){on_entry(entry.id)}
+            item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
+            item { MonthPager(ledger.month, vm::selectMonth) }
+            if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}
+            itemsIndexed(entries,key={_,entry->entry.id}){index,entry->
+                val time=Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault())
+                val previous_date=entries.getOrNull(index-1)?.let{Instant.ofEpochMilli(it.occurred_at_ms).atZone(ZoneId.systemDefault()).toLocalDate()}
+                Column {
+                    if(previous_date!=time.toLocalDate())Text(time.toLocalDate().toString(),
+                        modifier=Modifier.padding(top=Space.sm,bottom=4.dp),style=MaterialTheme.typography.labelLarge,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    CashEntryItem(entry,index<entries.lastIndex||ledger.hasMore){on_entry(entry.id)}
+                }
             }
+            if(ledger.hasMore)item{LaunchedEffect(entries.size,ledger.month){vm.load_more_entries()}; CircularProgressIndicator()}
         }
-        if(ledger.hasMore)item{LaunchedEffect(entries.size,ledger.month){vm.load_more_entries()}; CircularProgressIndicator()}
     }
 }
 @Preview(showBackground=true,widthDp=360,fontScale=2f)

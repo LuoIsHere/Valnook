@@ -13,6 +13,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.PageLoading
+import dev.valnook.designsystem.headerDrag
+import dev.valnook.designsystem.rememberHeaderCollapse
 import dev.valnook.designsystem.PageFailure
 import dev.valnook.designsystem.UnderlineTabRow
 import dev.valnook.domain.model.ConvertedTotal

@@ -16,7 +16,7 @@ import dev.valnook.feature.investments.*
 
 internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
     onEditSortActionChanged: ((() -> Unit)?) -> Unit, onEditSaveChanged: (AccountEditToolbarState?) -> Unit,
-    onGroupsToolbarChanged: (AccountGroupsToolbarState?) -> Unit, onTitleReserve: (Int) -> Unit,
+    onGroupsToolbarChanged: (AccountGroupsToolbarState?) -> Unit, onTitleReserve: (NavKey, Int) -> Unit,
     onDeleteCash: (Long, Long) -> Unit) {
     entry<AccountGroupsKey> {
         val vm = pageViewModel { AccountGroupsViewModel(graph.overview, requireNotNull(graph.accountGroupWriter)) }
@@ -68,7 +68,7 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
             investmentContent = {
                 AccountInvestments(portfolioVm, route.id, false, { open(AssetKey(route.id, it)) },
                     { open(PositionCreateKey(route.id)) }, { open(AccountInvestmentsKey(route.id, true)) })
-            }, trend = trend, onTitleReserve = onTitleReserve)
+            }, trend = trend, onTitleReserve = { onTitleReserve(route, it) })
     }
     entry<AccountInvestmentsKey> { route ->
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }

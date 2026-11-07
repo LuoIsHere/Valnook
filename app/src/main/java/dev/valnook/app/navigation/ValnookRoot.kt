@@ -346,8 +346,9 @@ private fun SessionRoot(
     val toolbarScrollState = rememberToolbarScrollState(stack)
     val toolbarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(toolbarScrollState)
     val toolbarBackgroundAlpha by animateFloatAsState(
-        // The account page's balance moves up into the bar, so the bar stays clear there; nothing scrolls under it.
-        if (current !is AccountKey && (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f)) 1f else 0f,
+        // The account and sub-account pages' balance moves up into the bar, so the bar stays clear there; nothing
+        // scrolls under it.
+        if (current !is AccountKey && current !is CashKey && (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f)) 1f else 0f,
         animationSpec = tween(120), label = "toolbar-background")
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
@@ -397,8 +398,10 @@ private fun SessionRoot(
         { value: dev.valnook.feature.wallet.WalletFaceLibraryToolbar? -> walletFacesToolbar = value }
     }
 
-    var accountTitleReserve by remember(graph.sessionId) { mutableIntStateOf(0) }
-    val updateAccountTitleReserve = remember(graph.sessionId) { { value: Int -> accountTitleReserve = value } }
+    // Per page: while one page leaves and the next arrives, the leaving page's reset must not clear the new one's room.
+    val titleReserves = remember(graph.sessionId) { androidx.compose.runtime.mutableStateMapOf<NavKey, Int>() }
+    val updateTitleReserve: (NavKey, Int) -> Unit = remember(graph.sessionId) { { key: NavKey, value: Int ->
+        if (value == 0) titleReserves.remove(key) else titleReserves[key] = value } }
     if (leavePrompt) dev.valnook.feature.settings.UnsavedChangesDialog(onKeep = { leavePrompt = false },
         onDiscard = { leavePrompt = false; pop() })
     var deleteTarget by remember(graph.sessionId) { mutableStateOf<Pair<Long, Long?>?>(null) }
@@ -436,7 +439,7 @@ private fun SessionRoot(
                         if(walletCurrent) androidx.compose.animation.Crossfade(title,Modifier.weight(1f),animationSpec=tween(160),label="wallet-title") { value ->
                             Text(value,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         } else Text(title, Modifier.weight(1f).padding(end =
-                            if (current is AccountKey) with(density) { accountTitleReserve.toDp() } else 0.dp), maxLines = 2)
+                            with(density) { (titleReserves[current] ?: 0).toDp() }), maxLines = 2)
                     }
                     if (active.mode == DataMode.DEMO) Text(
                         stringResource(dev.valnook.feature.settings.R.string.settings_demo_banner),
@@ -528,11 +531,11 @@ private fun SessionRoot(
                         popTransitionSpec = { NavigationMotion.back(offset) },
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
                             accountEntries(graph, open, back, updateEditSortAction, updateEditSave, updateAccountGroupsToolbar,
-                                updateAccountTitleReserve) { parent, cash ->
+                                updateTitleReserve) { parent, cash ->
                                 deleteTarget = parent to cash
                             }
                             investmentEntries(graph, open, back, accountName)
-                            ledgerEntries(graph, open, back, accountName, updateBalanceToolbar)
+                            ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
                                     graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate) }, updateWalletToolbar,
