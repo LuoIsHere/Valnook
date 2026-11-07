@@ -160,7 +160,7 @@ private enum class Picking { BUY, SELL }
         Modifier.testTag("instrument-header"), Modifier.testTag("instrument-value"),
         top = { fading ->
             Column(fading.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(listOf(instrument.symbol, currency.code, instrument.typeName).filter { it.isNotBlank() }.joinToString(" · "),
+                Text(listOf(instrument.symbol, currency.code, typeLabel(instrument.typeName)).filter { it.isNotBlank() }.joinToString(" · "),
                     Modifier.testTag("instrument-code"), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Row(Modifier.fillMaxWidth().heightIn(min = 20.dp).semantics(mergeDescendants = true) {}

@@ -1288,7 +1288,7 @@ class UiFlowTest {
         assertTrue(shown("甲股票")&&shown("乙股票")&&shown("丙债券"))
     }
 
-    @Test fun library_menu_gates_instrument_creation_on_asset_types() {
+    @Test fun library_adds_instruments_into_the_default_class_without_creating_one_first() {
         runBlocking { graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
             listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),java.math.BigDecimal("7"))))) }
         wait_text("合成账户 A")
@@ -1297,24 +1297,25 @@ class UiFlowTest {
         rule.onNodeWithText("新增标的").assertDoesNotExist()
         rule.onNodeWithText("资产类型管理").assertDoesNotExist()
         rule.onNodeWithContentDescription("所有投资品").performClick()
-        wait_text("请先创建资产类型，再新增标的")
+        wait_text("尚无标的")
         rule.onNodeWithTag("root-capsule").assertDoesNotExist()
-        // Adding sits in the title bar and waits for an asset class.
-        rule.onNodeWithContentDescription("新增标的").assertIsNotEnabled()
-        window_shot("library-type-required")
-        click_list("创建资产类型")
+        // The empty default class is no capsule of its own, and adding does not wait for a class.
+        rule.onNodeWithTag("instrument-type-filter").assertDoesNotExist()
+        window_shot("library-empty")
+        rule.onNodeWithContentDescription("资产类型管理").performClick()
+        wait_text("未分类 · 默认")
+        rule.onNodeWithTag("type-default").assertIsNotEnabled()
         click_list("新增类型")
         rule.onNodeWithText("名称").performScrollTo().performTextInput("ETF")
         save()
         wait_text("ETF · 编辑")
         rule.onNodeWithContentDescription("返回").performClick()
-        rule.waitUntil(15000){rule.onAllNodes(hasContentDescription("新增标的") and androidx.compose.ui.test.isEnabled()).fetchSemanticsNodes().isNotEmpty()}
-        rule.onNodeWithContentDescription("新增标的").performClick()
+        wait_text("尚无标的")
+        rule.onNodeWithContentDescription("新增标的").assertIsEnabled().performClick()
         wait_text("标的资料与当前价")
+        rule.onNodeWithContentDescription("资产类型: 未分类").performScrollTo().assertExists()
         rule.onNodeWithText("名称").performScrollTo().performTextInput("新建测试标的")
         rule.onNodeWithText("代码").performScrollTo().performTextInput("NEW")
-        rule.onNodeWithContentDescription("资产类型:", substring = true).performScrollTo().performClick()
-        rule.onNodeWithText("ETF").performClick()
         rule.onNodeWithContentDescription("币种:", substring = true).performScrollTo().performClick()
         rule.onNodeWithText("搜索代码或币种名称").performTextInput("EUR")
         rule.onNodeWithText("欧元").assertIsDisplayed()
@@ -1336,8 +1337,10 @@ class UiFlowTest {
         runBlocking { assertEquals(1, graph.instruments.observeInstruments().first().size) }
         // Symbol, currency and class share the line under the name.
         val nameBounds = rule.onNodeWithTag("library-name-1", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
-        val meta = rule.onNodeWithTag("library-meta-1", useUnmergedTree = true).assertTextEquals("NEW · USD · ETF")
+        val meta = rule.onNodeWithTag("library-meta-1", useUnmergedTree = true).assertTextEquals("NEW · USD · 未分类")
         assertTrue(meta.fetchSemanticsNode().boundsInRoot.top >= nameBounds.bottom)
+        // Now it holds one, the default class has its capsule, after the user's own.
+        rule.onNode(hasText("未分类") and hasAnyAncestor(hasTestTag("instrument-type-filter"))).assert(hasText("1"))
         window_shot("library-management-complete")
         rule.onNodeWithText("新建测试标的").performClick()
         wait_text("交易历史")

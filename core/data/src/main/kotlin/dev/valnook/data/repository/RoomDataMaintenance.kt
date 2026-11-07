@@ -27,6 +27,7 @@ class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
             maintenance.clearPositions()
             maintenance.clearInstruments()
             maintenance.clearAssetTypes()
+            dev.valnook.data.database.ensureDefaultAssetType(db.openHelper.writableDatabase, now)
             maintenance.clearCreditProfiles()
             maintenance.clearCashAccounts()
             maintenance.clearAccounts()

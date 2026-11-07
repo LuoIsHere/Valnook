@@ -417,7 +417,7 @@ class LedgerDatabaseTest {
         val t=commands.execute(SaveAssetType(id(),null,"  Fund  ")).id
         expect(ErrorCode.DUPLICATE_TYPE) { commands.execute(SaveAssetType(id(),null,"fund")) }
         commands.execute(SaveAssetType(id(),t,"基金"))
-        assertEquals("基金",investments.observe_types().first().single().name)
+        assertEquals("基金",investments.observe_types().first().single { !it.isDefault }.name)
     } }
     @Test fun disk_reopen_preserves_all_relationships() { runBlocking {
         val context=ApplicationProvider.getApplicationContext<Context>(); val name="test-${id()}.db"

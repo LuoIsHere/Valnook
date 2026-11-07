@@ -19,7 +19,7 @@ class RoomInvestments(private val db: ValnookDatabase) : InvestmentRepository {
         db.positions().accountPositions(account_id, section.name, limit.coerceIn(1, 10000))
             .map { rows -> rows.map { it.toModel() } }
     override fun observe_profit(id: Long) = observe_investment(id).map { it?.let(InvestmentProfitCalculator::fromReadModel) }
-    override fun observe_types() = db.instruments().types().map { rows -> rows.map { AssetType(it.id, it.name) } }
+    override fun observe_types() = db.instruments().types().map { rows -> rows.map { AssetType(it.id, it.name, it.normalized_name == dev.valnook.domain.model.AssetTypeRules.DEFAULT_KEY) } }
     override fun observe_trade_revision(investment_id: Long) = db.positions().trade_revision(investment_id)
     override fun observeInstrumentTradeRevision(instrumentId: Long) = db.positions().instrumentTradeRevision(instrumentId)
     override suspend fun instrumentTradePage(instrumentId: Long, cursor: TradeCursor?, limit: Int): List<Trade> {

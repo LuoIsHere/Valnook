@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import dev.valnook.designsystem.*
@@ -36,7 +37,10 @@ class AssetTypesViewModel(repository: InvestmentRepository) : ViewModel() {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { ActionButton(onCreate, Modifier.fillMaxWidth()) { Text(stringResource(R.string.instrument_add_type)) } }
         items(types, key = { it.id }) { type ->
-            ActionButton({ onEdit(type) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.instrument_edit_type, type.name)) }
+            // The default class is shown but not edited.
+            if (type.isDefault) ActionButton({}, Modifier.fillMaxWidth().testTag("type-default"), enabled = false) {
+                Text(stringResource(R.string.instrument_type_default_label, typeLabel(type.name)))
+            } else ActionButton({ onEdit(type) }, Modifier.fillMaxWidth()) { Text(stringResource(R.string.instrument_edit_type, type.name)) }
         }
     }
 }

@@ -127,10 +127,10 @@ class BackupPerformanceTest {
     private suspend fun seed(database: ValnookDatabase, count: Int) = database.withTransaction {
         val raw = database.openHelper.writableDatabase
         raw.execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,revision) VALUES (1,'Scale account','synthetic',1,1,1)")
-        raw.execSQL("INSERT INTO asset_types(id,name,normalized_name,created_at_ms,updated_at_ms) VALUES (1,'Equity','equity',1,1)")
+        raw.execSQL("INSERT INTO asset_types(id,name,normalized_name,created_at_ms,updated_at_ms) VALUES (2,'Equity','equity',1,1)")
         raw.execSQL("""INSERT INTO instruments(id,asset_type_id,name,symbol,currency_code,current_price_e5,
             currency_locked,revision,symbol_locked,price_updated_at_ms,created_at_ms,updated_at_ms)
-            VALUES (1,1,'Synthetic scale instrument','SCALE','CNY',100000,1,1,1,1,1,1)""")
+            VALUES (1,2,'Synthetic scale instrument','SCALE','CNY',100000,1,1,1,1,1,1)""")
         raw.execSQL("""INSERT INTO investments(id,savings_account_id,instrument_id,opening_quantity_e8,
             holding_quantity_e8,revision,created_at_ms,updated_at_ms,opening_cost_price_e8,opening_at_ms,
             remaining_cost,realized_profit,chronology_valid,algorithm_version,position_state,last_activity_at_ms)

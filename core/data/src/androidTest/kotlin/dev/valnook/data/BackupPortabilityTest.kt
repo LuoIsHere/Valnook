@@ -523,7 +523,7 @@ class BackupPortabilityTest {
     private fun database(prefix: String): ValnookDatabase {
         val name = "$prefix-${UUID.randomUUID()}.db"
         val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name)
-            .addCallback(ValnookDatabase.seed).build()
+            .addCallback(ValnookDatabase.seed).addCallback(ValnookDatabase.defaults).build()
         databases += name to db
         return db
     }

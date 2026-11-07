@@ -43,6 +43,8 @@ internal class RestoreImporter(
                 clearPortableRows()
                 fault(RestorePoint.AFTER_CLEAR)
                 copyCandidate(staged.stagingDatabase)
+                // Archives from before the default class do not carry it.
+                dev.valnook.data.database.ensureDefaultAssetType(target.openHelper.writableDatabase, startedAt)
                 fault(RestorePoint.AFTER_CANDIDATE_COPY)
                 target.maintenance().clearStatisticsCache()
                 // The switch is a device setting and stays; the sync record described the replaced history.

@@ -84,9 +84,9 @@ class WebAdminReadRepositoryTest {
             db.execSQL("""INSERT INTO cash_accounts(id,savings_account_id,currency_code,balance_minor,revision,
                 updated_at_ms,name,note,currency_locked,created_at_ms)
                 VALUES(1,1,'USD',0,1,1,'USD cash','',1,1)""")
-            db.execSQL("INSERT INTO asset_types(id,name,normalized_name,created_at_ms,updated_at_ms) VALUES(1,'Stock','stock',1,1)")
+            db.execSQL("INSERT INTO asset_types(id,name,normalized_name,created_at_ms,updated_at_ms) VALUES(2,'Stock','stock',1,1)")
             db.execSQL("""INSERT INTO instruments(id,asset_type_id,name,symbol,currency_code,current_price_e5,currency_locked,revision,symbol_locked,price_updated_at_ms,created_at_ms,updated_at_ms)
-                VALUES(1,1,'Apple',?,'USD',12345000,1,1,1,1,1,1)""", arrayOf(symbol))
+                VALUES(1,2,'Apple',?,'USD',12345000,1,1,1,1,1,1)""", arrayOf(symbol))
             db.execSQL("""INSERT INTO investments(id,savings_account_id,instrument_id,opening_quantity_e8,holding_quantity_e8,revision,created_at_ms,updated_at_ms,opening_cost_price_e8,opening_at_ms,remaining_cost,realized_profit,chronology_valid,algorithm_version,position_state,last_activity_at_ms)
                 VALUES(1,1,1,0,?,1,1,1,NULL,0,'0','0',1,1,'HOLDING',?)""",
                 arrayOf(count.toLong() * 100_000_000L, count.toLong()))

@@ -1,6 +1,7 @@
 package dev.valnook.data.database
 
 import androidx.room.*
+import dev.valnook.domain.model.AssetTypeRules
 import kotlinx.coroutines.flow.Flow
 
 const val INSTRUMENT_PROJECTION = "SELECT s.*,t.name AS type_name FROM instruments s JOIN asset_types t ON t.id=s.asset_type_id"
@@ -22,7 +23,8 @@ interface InstrumentDao {
     @Query("""UPDATE instruments SET current_price_e5=:price,price_updated_at_ms=:effective,
         revision=revision+1,updated_at_ms=:now WHERE id=:id""")
     suspend fun updateCurrentPriceFromHistory(id: Long, price: Long, effective: Long, now: Long): Int
-    @Query("SELECT * FROM asset_types ORDER BY normalized_name,id")
+    /** The default class last, after the user's own. */
+    @Query("SELECT * FROM asset_types ORDER BY normalized_name='" + AssetTypeRules.DEFAULT_KEY + "',normalized_name,id")
     fun types(): Flow<List<TypeEntity>>
     @Query("SELECT * FROM asset_types WHERE id=:id")
     suspend fun type(id: Long): TypeEntity?

@@ -75,7 +75,8 @@ enum class ErrorCode { CURRENCY, FORMAT, PRECISION, OVERFLOW, POSITIVE, DATE, IN
     WRONG_CASH_ACCOUNT, CASH_ACCOUNT_IN_USE, SESSION_EXPIRED, WEB_ADMIN_ACTIVE, MAINTENANCE_ACTIVE,
     INVALID_ACCOUNT_TYPE, INVALID_CREDIT_LIMIT, INVALID_STATEMENT_DAY, INVALID_DUE_RULE,
     CREDIT_SOURCE_INVALID, CREDIT_SOURCE_CURRENCY, CREDIT_SOURCE_PARENT, CREDIT_SOURCE_CHAIN, CREDIT_SOURCE_CYCLE,
-    CREDIT_LIMIT_IN_USE, BALANCE_ACCOUNT_IN_USE, WALLET_FACE_IN_USE, WALLET_FACE_DUPLICATE, WALLET_FACE_LIBRARY_FULL }
+    CREDIT_LIMIT_IN_USE, BALANCE_ACCOUNT_IN_USE, WALLET_FACE_IN_USE, WALLET_FACE_DUPLICATE, WALLET_FACE_LIBRARY_FULL,
+    DEFAULT_TYPE }
 class DomainException(val code: ErrorCode) : IllegalArgumentException(code.name)
 data class SavingsAccount(val id: Long, val name: String, val note: String, val revision: Long = 1, val icon: AccountIcon = AccountIcon(),
     val showDepositSummary: Boolean = true, val showInvestmentSummary: Boolean = true,
@@ -92,7 +93,20 @@ data class TermDeposit(val id: Long, val account_id: Long, val currency: Currenc
     val end_epoch_day: Long, val expected_interest_minor: Long, val closed: Boolean,
     val open_cash_linked: Boolean, val close_cash_linked: Boolean?, val revision: Long = 1,
     val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null, val closedAtMs: Long? = null)
-data class AssetType(val id: Long, val name: String)
+/** [isDefault]: the built-in "uncategorized" class, which cannot be renamed or deleted. */
+data class AssetType(val id: Long, val name: String, val isDefault: Boolean = false)
+
+object AssetTypeRules {
+    /** Stored as the default class's normalized name; never produced from a name the user may save. */
+    const val DEFAULT_KEY = "~default"
+    /** Stored as the default class's name, and shown in its place by versions that do not know it. */
+    const val DEFAULT_NAME = "未分类"
+    /** Normalized names no other class may take, so the default never appears twice. */
+    val RESERVED_NAMES = setOf(DEFAULT_KEY, DEFAULT_NAME, "uncategorized")
+
+    /** Names are unique and the default's cannot change, so its stored name identifies it wherever only the name is at hand. */
+    fun isDefaultName(name: String): Boolean = name == DEFAULT_NAME
+}
 data class Investment(val id: Long, val account_id: Long, val type_id: Long, val type_name: String,
     val name: String, val symbol: String, val currency: Currency, val holding_quantity_e8: Long,
     val current_price_e8: Long, val price_updated_at_ms: Long,

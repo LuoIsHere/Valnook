@@ -33,7 +33,7 @@ internal fun InstrumentIdentity(instrument: Instrument, modifier: Modifier = Mod
             Text(instrument.name, Modifier.weight(1f, fill = false).alignByBaseline().testTag("instrument-name-${instrument.id}"),
                 style = MaterialTheme.typography.titleLarge,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(instrument.typeName, Modifier.widthIn(max = 120.dp).alignByBaseline().testTag("instrument-type-${instrument.id}"),
+            Text(typeLabel(instrument.typeName), Modifier.widthIn(max = 120.dp).alignByBaseline().testTag("instrument-type-${instrument.id}"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }

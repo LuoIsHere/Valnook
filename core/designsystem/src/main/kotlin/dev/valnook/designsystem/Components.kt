@@ -57,6 +57,7 @@ import java.util.Locale
         "OVERFLOW"->R.string.error_overflow
         "NAME"->R.string.error_name
         "DUPLICATE_TYPE"->R.string.error_type
+        "DEFAULT_TYPE"->R.string.error_default_type
         "AMOUNT_TOO_SMALL"->R.string.error_small
         "DATE"->R.string.error_date
         "POSITIVE"->R.string.error_positive

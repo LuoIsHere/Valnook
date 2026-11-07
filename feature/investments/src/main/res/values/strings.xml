@@ -58,7 +58,6 @@
     <string name="instrument_name">Name</string>
     <string name="instrument_types_loading">Loading asset classes</string>
     <string name="instrument_types_failed">Could not load asset classes. Go back and try again.</string>
-    <string name="instrument_type_required">Create an asset class in the instrument library first</string>
     <string name="instrument_symbol">Symbol</string>
     <string name="instrument_asset_class">Asset class</string>
     <string name="instrument_current_price">Current price per unit (up to 5 decimal places)</string>
@@ -71,8 +70,6 @@
     <string name="instrument_library_loading">Loading instrument library</string>
     <string name="instrument_add">Add instrument</string>
     <string name="instrument_manage_types">Manage asset classes</string>
-    <string name="instrument_create_type_first">Create an asset class before adding an instrument</string>
-    <string name="instrument_create_type">Create asset class</string>
     <string name="instrument_search">Search name or symbol</string>
     <string name="instrument_empty">No instruments yet</string>
     <string name="instrument_no_match">No matching instruments</string>
@@ -84,6 +81,8 @@
         <item quantity="one">%1$d instrument</item>
         <item quantity="other">%1$d instruments</item>
     </plurals>
+    <string name="instrument_type_default">Uncategorized</string>
+    <string name="instrument_type_default_label">%1$s · Default</string>
     <string name="instrument_type_no_match">No instruments of this asset class</string>
     <string name="investment_cost_includes_fees">Cost includes fees</string>
     <string name="investment_trade_history">Trade history</string>

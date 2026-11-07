@@ -41,44 +41,38 @@ import dev.valnook.designsystem.*
 import dev.valnook.domain.model.InstrumentAssets
 import java.math.BigDecimal
 
-/** What the title bar needs: adding an instrument waits for an asset class to put it in. */
-data class InstrumentLibraryToolbarState(val canCreate: Boolean)
-
 /** Asset classes, then adding, in the title bar, as the accounts page has its groups and adding. */
 @Composable
-fun InstrumentLibraryActions(state: InstrumentLibraryToolbarState?, onTypes: () -> Unit, onCreate: () -> Unit) {
+fun InstrumentLibraryActions(onTypes: () -> Unit, onCreate: () -> Unit) {
     val typesLabel = stringResource(R.string.instrument_manage_types)
     val addLabel = stringResource(R.string.instrument_add)
-    val canCreate = state?.canCreate == true
     IconButton(onTypes, Modifier.testTag("instrument-library-types").semantics { contentDescription = typesLabel }) {
         GroupsIcon()
     }
-    IconButton(onCreate, Modifier.testTag("instrument-library-add").semantics { contentDescription = addLabel },
-        enabled = canCreate) { AddIcon(enabled = canCreate) }
+    IconButton(onCreate, Modifier.testTag("instrument-library-add").semantics { contentDescription = addLabel }) { AddIcon() }
 }
 
 @Composable
-fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit, onTypes: () -> Unit,
-    onToolbar: (InstrumentLibraryToolbarState?) -> Unit = {}) {
+fun InstrumentLibrary(vm: InstrumentLibraryViewModel, onOpen: (Long) -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
-    DisposableEffect(onToolbar) { onDispose { onToolbar(null) } }
     val current = state as? InstrumentLibraryState.Ready
-    SideEffect { onToolbar(current?.let { InstrumentLibraryToolbarState(it.hasTypes) }) }
     if (current == null) {
         Text(stringResource(if (state == InstrumentLibraryState.Failed) R.string.instrument_library_failed
             else R.string.instrument_library_loading))
         return
     }
-    InstrumentLibraryContent(current, onOpen, onTypes)
+    InstrumentLibraryContent(current, onOpen)
 }
 
 /** A search, the asset classes as capsules, then every instrument as a row of one card. */
 @Composable
-fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long) -> Unit, onTypes: () -> Unit) {
+fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long) -> Unit) {
     var query by rememberSaveable { mutableStateOf("") }
     var typeFilter by rememberSaveable { mutableStateOf<Long?>(null) }
-    // A type deleted while selected falls back to all types.
-    val selectedType = typeFilter?.takeIf { id -> state.types.any { it.id == id } }
+    val counts = state.instruments.groupingBy { it.instrument.typeId }.eachCount()
+    // The default class shows only while it holds something; a class gone while selected falls back to all.
+    val shownTypes = state.types.filter { !it.isDefault || (counts[it.id] ?: 0) > 0 }
+    val selectedType = typeFilter?.takeIf { id -> shownTypes.any { it.id == id } }
     val matches = state.instruments.filter {
         (selectedType == null || it.instrument.typeId == selectedType) &&
             (it.instrument.name.contains(query, true) || it.instrument.symbol.contains(query, true))
@@ -87,29 +81,15 @@ fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long)
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("instrument-library"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item(key = "search") { SearchBox(stringResource(R.string.instrument_search), query) { query = it } }
-        if (state.hasTypes) item(key = "types") {
-            val counts = state.instruments.groupingBy { it.instrument.typeId }.eachCount()
+        if (shownTypes.isNotEmpty()) item(key = "types") {
             TypeCapsules(listOf(null to (stringResource(R.string.instrument_filter_all) to state.instruments.size)) +
-                state.types.map { it.id to (it.name to (counts[it.id] ?: 0)) }, selectedType) { typeFilter = it }
+                shownTypes.map { it.id to (typeLabel(it.name) to (counts[it.id] ?: 0)) }, selectedType) { typeFilter = it }
         }
-        if (!state.hasTypes) item(key = "no-types") {
-            GlassCard(Modifier.testTag("instrument-library-no-types")) {
-                Text(stringResource(R.string.instrument_create_type_first), Modifier.fillMaxWidth().padding(12.dp),
-                    style = MaterialTheme.typography.bodyMedium, color = muted)
-                HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer)
-                Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable(role = Role.Button, onClick = onTypes).padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.instrument_create_type), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    RowChevron()
-                }
-            }
-        }
-        // Without a class there can be no instrument: the card above already says what to do.
-        if (matches.isEmpty()) { if (state.hasTypes) item(key = "empty") { EmptyState(stringResource(when {
+        if (matches.isEmpty()) item(key = "empty") { EmptyState(stringResource(when {
             query.isNotBlank() -> R.string.instrument_no_match
             selectedType != null -> R.string.instrument_type_no_match
             else -> R.string.instrument_empty
-        })) } }
+        })) }
         else {
             item(key = "card") {
                 GlassCard(Modifier.testTag("instrument-library-card")) {
@@ -192,7 +172,7 @@ fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long)
         verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
             NameAndTag(instrument.name,
-                listOf(instrument.symbol, currency.code, instrument.typeName).filter { it.isNotBlank() }.joinToString(" · "),
+                listOf(instrument.symbol, currency.code, typeLabel(instrument.typeName)).filter { it.isNotBlank() }.joinToString(" · "),
                 if (soldOut) ({ StatusTag(stringResource(R.string.instrument_not_held), TagTone.NEUTRAL,
                     Modifier.testTag("library-not-held-${instrument.id}")) }) else null,
                 instrument.id, Modifier.weight(1f))

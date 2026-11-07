@@ -37,7 +37,7 @@ object TestModule {
     @Singleton
     fun database(@ApplicationContext context: Context): ValnookDatabase =
         Room.inMemoryDatabaseBuilder(context, ValnookDatabase::class.java)
-            .addCallback(ValnookDatabase.seed)
+            .addCallback(ValnookDatabase.seed).addCallback(ValnookDatabase.defaults)
             // Fixture history must precede the fixed October 3 test clock, not the host date.
             // 测试内存库的历史起点必须早于固定测试时钟，不能使用宿主机日期。
             .addCallback(object : androidx.room.RoomDatabase.Callback() {

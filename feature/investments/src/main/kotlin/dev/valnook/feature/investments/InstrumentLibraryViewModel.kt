@@ -15,9 +15,7 @@ sealed interface InstrumentLibraryState {
     data object Failed : InstrumentLibraryState
     /** [soldOut]: instruments some account has traded but none holds any longer. */
     data class Ready(val instruments: List<InstrumentAssets>, val types: List<AssetType>,
-        val soldOut: Set<Long> = emptySet()) : InstrumentLibraryState {
-        val hasTypes get() = types.isNotEmpty()
-    }
+        val soldOut: Set<Long> = emptySet()) : InstrumentLibraryState
 }
 
 class InstrumentLibraryViewModel(overview: OverviewRepository, investments: InvestmentRepository) : ViewModel() {

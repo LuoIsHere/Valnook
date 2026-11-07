@@ -98,6 +98,10 @@ import java.time.*
     val typeState by vm.types.collectAsStateWithLifecycle()
     val types = (typeState as? AssetTypesState.Ready)?.rows.orEmpty()
     LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
+    // A new instrument starts in the default class until another is chosen.
+    LaunchedEffect(state.loaded, types) {
+        if (state.loaded && state.typeId == null) types.firstOrNull { it.isDefault }?.let { type -> vm.update { it.copy(typeId = type.id) } }
+    }
     if (!state.loaded) { Text(stringResource(if (state.loadFailed) R.string.instrument_load_failed else R.string.instrument_loading))
         return }
     FormLayout(stringResource(R.string.instrument_edit_title), submission.phase == SubmissionPhase.WORKING,
@@ -106,11 +110,10 @@ import java.time.*
         when {
             typeState == AssetTypesState.Loading -> Text(stringResource(R.string.instrument_types_loading))
             typeState == AssetTypesState.Failed -> Text(stringResource(R.string.instrument_types_failed), color = MaterialTheme.colorScheme.error)
-            types.isEmpty() -> Text(stringResource(R.string.instrument_type_required), color = MaterialTheme.colorScheme.error)
         }
         Field(stringResource(R.string.instrument_symbol), state.symbol, { value -> vm.update { it.copy(symbol = value) } },
             enabled = submission.editable && !state.symbolLocked)
-        ChoiceField(stringResource(R.string.instrument_asset_class), state.typeId?.toString().orEmpty(), types.map { it.id.toString() to it.name },
+        ChoiceField(stringResource(R.string.instrument_asset_class), state.typeId?.toString().orEmpty(), types.map { it.id.toString() to typeLabel(it.name) },
             { value -> vm.update { it.copy(typeId = value.toLong()) } }, submission.editable)
         CurrencyChoice(state.currency.code, { value -> vm.update {
             it.copy(currency = Currency.of(value), currencyPriceConfirmed = false)

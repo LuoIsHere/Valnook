@@ -22,7 +22,6 @@ import dev.valnook.domain.model.*
 import dev.valnook.feature.investments.InstrumentLibraryActions
 import dev.valnook.feature.investments.InstrumentLibraryContent
 import dev.valnook.feature.investments.InstrumentLibraryState
-import dev.valnook.feature.investments.InstrumentLibraryToolbarState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -57,7 +56,7 @@ class InstrumentLibraryUiTest {
         rule.runOnUiThread { rule.activity.setContent { ValnookTheme(dark_theme = dark) {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {
-                Surface(Modifier.safeDrawingPadding()) { InstrumentLibraryContent(current, { opened += it }, {}) }
+                Surface(Modifier.safeDrawingPadding()) { InstrumentLibraryContent(current, { opened += it }) }
             }
         } } }
         rule.waitForIdle()
@@ -160,22 +159,28 @@ class InstrumentLibraryUiTest {
         rule.onNodeWithContentDescription("清除搜索").assertDoesNotExist()
     }
 
-    @Test fun without_classes_the_page_asks_for_one_and_adding_waits() {
-        show(current = InstrumentLibraryState.Ready(emptyList(), emptyList()))
-        rule.onNodeWithText("请先创建资产类型，再新增标的").assertExists()
-        rule.onNodeWithTag("instrument-type-filter").assertDoesNotExist()
-        rule.onNodeWithText("尚无标的").assertDoesNotExist()
-        save("no-types")
+    /** The default class is a capsule only while it holds something, and reads in the interface language. */
+    @Test fun the_default_class_shows_only_while_it_holds_instruments() {
+        val default = AssetType(9, AssetTypeRules.DEFAULT_NAME, isDefault = true)
+        fun capsule(name: String) = hasText(name) and hasAnyAncestor(hasTestTag("instrument-type-filter"))
+        show(current = state.copy(types = listOf(stocks, funds, default)))
+        rule.onNode(capsule("未分类")).assertDoesNotExist()
+        rule.onNode(capsule("全部")).assert(hasText("4"))
+        val loose = assets(instrument(5, "合成未分类基金", "SYNU", default, "CNY", "1"), "0", "0")
+        show(current = state.copy(instruments = state.instruments + loose, types = listOf(stocks, funds, default)))
+        rule.onNodeWithTag("instrument-type-filter").performScrollToNode(capsule("未分类"))
+        rule.onNode(capsule("未分类")).assert(hasText("1")).performClick()
+        rule.onNodeWithTag("library-meta-5", useUnmergedTree = true).assertTextEquals("SYNU · CNY · 未分类")
+        rule.onNodeWithText("共 1 个标的").assertExists()
+        save("default-class")
+        // Nothing waits for a class any more: both title bar actions work at once.
         var types = 0; var adds = 0
-        for (canCreate in listOf(false, true)) {
-            rule.runOnUiThread { rule.activity.setContent { ValnookTheme { Surface { Row {
-                InstrumentLibraryActions(InstrumentLibraryToolbarState(canCreate), { types++ }, { adds++ })
-            } } } } }
-            rule.waitForIdle()
-            rule.onNodeWithContentDescription("资产类型管理").assertIsEnabled().performClick()
-            if (canCreate) rule.onNodeWithContentDescription("新增标的").assertIsEnabled().performClick()
-            else rule.onNodeWithContentDescription("新增标的").assertIsNotEnabled()
-        }
-        assertEquals(2, types); assertEquals(1, adds)
+        rule.runOnUiThread { rule.activity.setContent { ValnookTheme { Surface { Row {
+            InstrumentLibraryActions({ types++ }, { adds++ })
+        } } } } }
+        rule.waitForIdle()
+        rule.onNodeWithContentDescription("资产类型管理").assertIsEnabled().performClick()
+        rule.onNodeWithContentDescription("新增标的").assertIsEnabled().performClick()
+        assertEquals(1, types); assertEquals(1, adds)
     }
 }
