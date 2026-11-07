@@ -28,7 +28,8 @@ internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId
         .padding(horizontal = 16.dp, vertical = 8.dp)) {
         NavigationCapsule(items, selected, { onSelect(it.rootKey()) }, ::navigationIcon, { navigationLabel(it) },
             Modifier.testTag("root-capsule"), backdrop, optionModifier = { Modifier.testTag("nav-${it.name.lowercase()}") },
-            collapse = fold, onExpand = onExpand, expandLabel = expandLabel)
+            collapse = fold, onExpand = onExpand, expandLabel = expandLabel,
+            slots = dev.valnook.domain.model.NavigationConfiguration.MAX_VISIBLE)
     }
 }
 

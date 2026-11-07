@@ -82,4 +82,15 @@ class StatisticsRulesTest {
                 NavigationItemId.STATISTICS, NavigationItemId.SETTINGS), setOf(NavigationItemId.SETTINGS))
         }
     }
+
+    @Test fun theBarHoldsAtMostFivePages() {
+        assertEquals(5, NavigationConfiguration.MAX_VISIBLE)
+        // Every page shown is exactly the limit today: allowed, with no room for another.
+        assertFalse(NavigationConfiguration().canShowMore)
+        assertTrue(NavigationConfiguration(NavigationItemId.entries, setOf(NavigationItemId.SETTINGS)).canShowMore)
+        // The same rule for a smaller limit, as more pages than places will one day exist.
+        assertTrue(NavigationConfiguration.canShowMore(2, limit = 3))
+        assertFalse(NavigationConfiguration.canShowMore(3, limit = 3))
+        assertFalse(NavigationConfiguration.canShowMore(4, limit = 3))
+    }
 }

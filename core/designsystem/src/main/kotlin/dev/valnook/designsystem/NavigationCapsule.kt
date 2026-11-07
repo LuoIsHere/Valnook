@@ -29,34 +29,44 @@ import androidx.compose.ui.unit.sp
 
 private val CAPSULE_PADDING = 4.dp
 private val TAB_SPACING = 4.dp
+/** On a wide screen a tab stops growing here; the bar stays centered. */
+private val MAX_TAB_WIDTH = 96.dp
 
 /**
  * The bottom navigation's look: pages as icons with their names below, on a translucent capsule, with the chosen
  * page on a capsule that slides between pages. Shared by the real bar and its preview so the two always match.
  *
- * [collapse] folds it towards the start: 0 is the whole bar, 1 is a one-tab capsule holding only [selected]. The tabs
- * keep their full-width places and slide together so the chosen one ends at the start; the others fade out. Past
- * halfway the capsule is one button that calls [onExpand] and reads as [expandLabel].
+ * Every tab is as wide as one of [slots] tabs filling the width (at most [MAX_TAB_WIDTH]), so fewer pages make a
+ * shorter bar, centered, rather than wider tabs.
+ *
+ * [collapse] folds it towards the start: 0 is the whole bar, 1 is a one-tab capsule holding only [selected], the same
+ * size and place however many pages there are. The tabs keep their places and slide together so the chosen one ends
+ * at the start; the others fade out. Past halfway the capsule is one button that calls [onExpand] and reads as
+ * [expandLabel].
  */
 @Composable
 fun <T> NavigationCapsule(items: List<T>, selected: T, onSelect: (T) -> Unit,
     icon: (T) -> Int, label: @Composable (T) -> String,
     modifier: Modifier = Modifier, backdrop: GlassBackdrop? = null, optionModifier: (T) -> Modifier = { Modifier },
-    collapse: Float = 0f, onExpand: () -> Unit = {}, expandLabel: String = "") {
+    collapse: Float = 0f, onExpand: () -> Unit = {}, expandLabel: String = "", slots: Int = 5) {
     val progress = collapse.coerceIn(0f, 1f)
     val shape = RoundedCornerShape(50)
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val full = maxWidth
         val count = items.size.coerceAtLeast(1)
-        val tab = (full - CAPSULE_PADDING * 2 - TAB_SPACING * (count - 1)) / count
+        val columns = maxOf(slots, count)
+        val tab = minOf((full - CAPSULE_PADDING * 2 - TAB_SPACING * (columns - 1)) / columns, MAX_TAB_WIDTH)
+        val bar = tab * count + TAB_SPACING * (count - 1) + CAPSULE_PADDING * 2
         val chosen = items.indexOf(selected).coerceAtLeast(0)
         val shift = (tab + TAB_SPACING) * chosen * progress
-        val width = lerp(full, tab + CAPSULE_PADDING * 2, progress)
+        val width = lerp(bar, tab + CAPSULE_PADDING * 2, progress)
+        // Centered while whole; it moves to the start as it folds.
+        val start = lerp((full - bar) / 2, 0.dp, progress)
         val folded = progress >= .5f
         GlassSurface(shape = shape, backdrop = backdrop,
-            modifier = Modifier.align(Alignment.CenterStart).width(width).clip(shape).testTag("navigation-capsule")) {
-            Box(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).requiredWidth(full)
+            modifier = Modifier.align(Alignment.CenterStart).offset(x = start).width(width).clip(shape).testTag("navigation-capsule")) {
+            Box(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).requiredWidth(bar)
                 .graphicsLayer { translationX = (if (rtl) shift else -shift).toPx() }
                 .testTag("navigation-tabs")
                 // Folded, the tabs stay laid out under the button but are not read out on their own.
@@ -72,7 +82,7 @@ fun <T> NavigationCapsule(items: List<T>, selected: T, onSelect: (T) -> Unit,
                         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         FaIcon(icon(item), null, Modifier.size(20.dp))
                         Text(label(item), maxLines = 1, style = style,
-                            // Tabs share the width equally. A name that does not fit shrinks instead of being cut off.
+                            // Every tab has the same width. A name that does not fit shrinks instead of being cut off.
                             autoSize = TextAutoSize.StepBased(6.sp, style.fontSize, .25.sp))
                     }
                 }

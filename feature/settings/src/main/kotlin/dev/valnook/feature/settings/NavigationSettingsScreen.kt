@@ -33,6 +33,7 @@ import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.ErrorCode
+import dev.valnook.domain.model.NavigationConfiguration
 import dev.valnook.domain.model.NavigationItemId
 
 private val GROUP_CORNER = 18.dp
@@ -181,11 +182,16 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel,
             GroupRow(index, hidden.size, false, Modifier
                 .animateItem(fadeInSpec = null, placementSpec = tween(160), fadeOutSpec = null)
                 .testTag("navigation-row-${item.name.lowercase()}")) {
-                SignButton(plus = true, enabled = editable,
+                SignButton(plus = true, enabled = editable && state.draft.canShowMore,
                     description = stringResource(R.string.settings_navigation_show_page, label),
                     modifier = Modifier.testTag("navigation-visible-${item.name.lowercase()}")) { vm.show(item) }
                 Text(label, Modifier.weight(1f).padding(vertical = 14.dp), style = MaterialTheme.typography.bodyLarge)
             }
+        }
+        if (hidden.isNotEmpty() && !state.draft.canShowMore) item(key = "full") {
+            Text(stringResource(R.string.settings_navigation_full, NavigationConfiguration.MAX_VISIBLE),
+                Modifier.padding(start = 4.dp, end = 4.dp, top = Space.md).testTag("navigation-full"),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item(key = "hint") {
             Text(stringResource(R.string.settings_navigation_hint), Modifier.padding(start = 4.dp, end = 4.dp, top = Space.md),
@@ -217,7 +223,8 @@ private fun NavigationPreview(items: List<NavigationItemId>) {
             .testTag("navigation-preview")
             .clearAndSetSemantics { contentDescription = description }
             .padding(horizontal = 12.dp, vertical = 20.dp)) {
-            NavigationCapsule(items, items.first(), {}, ::navigationIcon, { navigationLabel(it) })
+            NavigationCapsule(items, items.first(), {}, ::navigationIcon, { navigationLabel(it) },
+                slots = NavigationConfiguration.MAX_VISIBLE)
             Box(Modifier.matchParentSize().pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }

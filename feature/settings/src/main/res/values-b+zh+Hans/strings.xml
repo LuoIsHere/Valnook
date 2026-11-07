@@ -124,4 +124,5 @@
     <string name="settings_navigation_hide_page">隐藏%1$s</string>
     <string name="settings_navigation_show_page">显示%1$s</string>
     <string name="settings_navigation_hint">隐藏的页面仍可在「设置 → 隐藏的页面」中打开。</string>
+    <string name="settings_navigation_full">导航栏最多显示 %1$d 个页面，先隐藏一个再添加。</string>
 </resources>

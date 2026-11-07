@@ -19,9 +19,18 @@ data class NavigationConfiguration(
     init {
         require(order.size == NavigationItemId.entries.size && order.toSet() == NavigationItemId.entries.toSet())
         require(NavigationItemId.SETTINGS in visible)
+        require(visible.size <= MAX_VISIBLE)
     }
 
+    /** Whether one more page fits on the bar. */
+    val canShowMore: Boolean get() = canShowMore(visible.size)
+
     companion object {
+        /** The bar holds at most this many pages, so it never gets crowded as pages are added. */
+        const val MAX_VISIBLE = 5
+
+        fun canShowMore(visibleCount: Int, limit: Int = MAX_VISIBLE): Boolean = visibleCount < limit
+
         fun restore(orderRaw: String?, visibleRaw: String?): NavigationConfiguration {
             fun parse(raw: String?) = raw.orEmpty().split(",").mapNotNull {
                 runCatching { NavigationItemId.valueOf(it) }.getOrNull()

@@ -2,14 +2,16 @@ package dev.valnook.app
 
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import dev.valnook.designsystem.FaIcons
@@ -24,15 +26,21 @@ import org.junit.Test
 class NavigationCapsuleCollapseUiTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
-    private val pages = listOf("A", "B", "C", "D", "E")
+    private var pages by mutableStateOf(listOf("A", "B", "C", "D", "E"))
     private var chosen by mutableStateOf("C")
     private var collapse by mutableFloatStateOf(0f)
     private var expanded = 0
 
-    private fun scene(direction: LayoutDirection = LayoutDirection.Ltr) {
+    /** Set by [scene]: px per dp. A wide host is drawn at a low density so all of it stays on the screen. */
+    private var density = 0f
+
+    private fun scene(direction: LayoutDirection = LayoutDirection.Ltr, width: Int = 360, density: Float? = null) {
+        this.density = density ?: rule.density.density
         rule.setContent {
-            CompositionLocalProvider(LocalLayoutDirection provides direction) {
-                ValnookTheme { Box { Box(Modifier.width(360.dp).testTag("host")) {
+            val current = LocalDensity.current
+            CompositionLocalProvider(LocalLayoutDirection provides direction,
+                LocalDensity provides Density(density ?: current.density, current.fontScale)) {
+                ValnookTheme { Box { Box(Modifier.requiredWidth(width.dp).testTag("host")) {
                     NavigationCapsule(pages, chosen, { chosen = it }, { FaIcons.gear }, { it },
                         optionModifier = { Modifier.testTag("tab-$it") },
                         collapse = collapse, onExpand = { expanded++ }, expandLabel = "Current page: $chosen, tap to expand")
@@ -81,6 +89,45 @@ class NavigationCapsuleCollapseUiTest {
         val middle = bounds("navigation-capsule").width
         assertTrue(middle < full && middle > folded)
         rule.onNodeWithTag("navigation-expand").assertDoesNotExist()
+    }
+
+    private fun px(dp: Float) = dp * density
+
+    @Test fun fewer_pages_keep_the_tab_width_and_center_the_bar() {
+        scene()
+        val tab = bounds("tab-A").width
+        pages = listOf("A", "B", "C")
+        rule.waitForIdle()
+        val capsule = bounds("navigation-capsule")
+        assertEquals(tab, bounds("tab-A").width, 1f)
+        assertEquals(tab, bounds("tab-C").width, 1f)
+        // A tab is a fifth of the host less the padding and four gaps; three of them with two gaps and the padding.
+        val fifth = (bounds("host").width - px(4f * 2 + 4f * 4)) / 5
+        assertEquals("Three tabs, their gaps and the padding", 3 * fifth + px(4f * 2 + 4f * 2), capsule.width, 2f)
+        assertEquals("Centered", bounds("host").center.x, capsule.center.x, 1f)
+        rule.onNodeWithTag("tab-B").performClick()
+        assertEquals("B", chosen)
+    }
+
+    @Test fun folded_it_takes_the_same_place_and_size_for_any_number_of_pages() {
+        scene()
+        collapse = 1f
+        rule.waitForIdle()
+        val five = bounds("navigation-capsule")
+        pages = listOf("A", "C")
+        rule.waitForIdle()
+        val two = bounds("navigation-capsule")
+        assertEquals(five.left, two.left, 1f)
+        assertEquals(five.width, two.width, 1f)
+        assertEquals(bounds("host").left, two.left, 1f)
+    }
+
+    @Test fun a_wide_screen_stops_each_tab_at_its_largest_and_centers_the_bar() {
+        scene(width = 800, density = 1f)
+        val capsule = bounds("navigation-capsule")
+        assertEquals(px(96f), bounds("tab-A").width, 1f)
+        assertEquals(px(5 * 96f + 4 * 4f + 8f), capsule.width, 2f)
+        assertEquals(bounds("host").center.x, capsule.center.x, 1f)
     }
 
     @Test fun right_to_left_folds_towards_the_right() {

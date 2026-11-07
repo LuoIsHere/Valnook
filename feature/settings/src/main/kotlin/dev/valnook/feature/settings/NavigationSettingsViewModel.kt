@@ -72,10 +72,10 @@ class NavigationSettingsViewModel(
         change(current, current.shown - item, current.hidden + item)
     }
 
-    /** Puts [item] back on the bar, after the pages already there. */
+    /** Puts [item] back on the bar, after the pages already there, while the bar has room. */
     fun show(item: NavigationItemId) {
         val current = state.value
-        if (!editable(current) || item in current.draft.visible) return
+        if (!editable(current) || item in current.draft.visible || !current.draft.canShowMore) return
         change(current, current.shown + item, current.hidden - item)
     }
 
