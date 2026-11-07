@@ -41,10 +41,10 @@ class AccountInvestmentsUiTest {
     private val cny = Currency.of("CNY")
     private fun e8(text: String) = DecimalRules.parse_e8(text)
     private fun position(id: Long, account: Long, name: String, quantity: String, price: String, cost: String?,
-        realized: String = "0", closed: Boolean = false) = Investment(id, account, 1, "Fund", name, "HK000118900$id", cny,
+        realized: String = "0", closed: Boolean = false) = Investment(id, account, 1, "Fund", name, "SYN00000$id", cny,
         e8(quantity), e8(price), 0, remainingCost = cost, realizedProfit = realized, isClosed = closed)
-    private val gain = position(1, 10, "中银香港全天候中国高息股票基金 A2 累积 港元对冲类别", "545.814", "10.4749", "5699.99")
-    private val loss = position(2, 10, "联博-欧洲收益基金 AT 股", "2.309", "63.16", "160.00")
+    private val gain = position(1, 10, "合成全天候高息股票基金 A2 累积 港元对冲类别", "321.5", "8.7654", "2500.00")
+    private val loss = position(2, 10, "合成欧洲收益基金 AT 股", "3.1", "55.55", "200.00")
     private val closed = position(3, 10, "合成债券基金", "0", "1", null, realized = "3.20", closed = true)
     private val elsewhere = position(4, 20, "Other account holding", "1", "1", "1")
     private val snapshot = AssetSnapshot(listOf(SavingsAccount(10, "Example bank", ""), SavingsAccount(20, "Other", "")),
