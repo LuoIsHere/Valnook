@@ -31,6 +31,12 @@ interface InstrumentDao {
     @Query("SELECT id FROM asset_types WHERE normalized_name=:normalized")
     suspend fun type_by_name(normalized: String): Long?
     @Insert suspend fun insert_type(value: TypeEntity): Long
+    @Query("UPDATE instruments SET asset_type_id=:target,revision=revision+1,updated_at_ms=:now WHERE asset_type_id=:source")
+    suspend fun move_type(source: Long, target: Long, now: Long): Int
+    @Query("DELETE FROM asset_types WHERE id=:id")
+    suspend fun delete_type(id: Long): Int
+    @Query("DELETE FROM demo_labels WHERE entity_kind='TYPE' AND entity_id=:id")
+    suspend fun delete_type_labels(id: Long): Int
     @Query("UPDATE asset_types SET name=:name,normalized_name=:normalized,updated_at_ms=:now WHERE id=:id")
     suspend fun edit_type(id: Long, name: String, normalized: String, now: Long): Int
 }

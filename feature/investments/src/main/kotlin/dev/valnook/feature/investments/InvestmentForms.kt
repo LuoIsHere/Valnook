@@ -8,6 +8,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.command.SubmissionPhase
@@ -132,12 +135,40 @@ import java.time.*
         if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
     }
 }
-@Composable fun TypeEditScreen(vm: TypeEditViewModel, onBack: () -> Unit) {
+/** What the title bar needs to offer deleting the class being edited. */
+data class TypeEditToolbarState(val enabled: Boolean, val delete: () -> Unit)
+
+@Composable fun TypeEditActions(state: TypeEditToolbarState?) {
+    if (state == null) return
+    DeleteIconButton(stringResource(R.string.instrument_type_delete), state.delete, Modifier.testTag("type-delete-open"),
+        enabled = state.enabled)
+}
+
+@Composable fun TypeEditScreen(vm: TypeEditViewModel, onBack: () -> Unit, onToolbar: (TypeEditToolbarState?) -> Unit = {}) {
     val name by vm.name.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
-    LaunchedEffect(submission.phase) { if (vm.consumeSuccess()) onBack() }
-    FormLayout(stringResource(R.string.instrument_type_title), submission.phase == SubmissionPhase.WORKING, submission.phase != SubmissionPhase.SUCCEEDED, vm::submit) {
-        Field(stringResource(R.string.instrument_name), name, vm::updateName, enabled = submission.editable)
+    val deletion by vm.deletion.collectAsStateWithLifecycle()
+    val count by vm.instrumentCount.collectAsStateWithLifecycle()
+    var confirming by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(submission.phase, deletion.phase) { if (vm.consumeSuccess()) onBack() }
+    val idle = submission.phase != SubmissionPhase.WORKING && deletion.phase != SubmissionPhase.WORKING &&
+        submission.phase != SubmissionPhase.SUCCEEDED && deletion.phase != SubmissionPhase.SUCCEEDED
+    DisposableEffect(onToolbar) { onDispose { onToolbar(null) } }
+    SideEffect { onToolbar(if (vm.canDelete) TypeEditToolbarState(idle) { confirming = true } else null) }
+    FormLayout(stringResource(R.string.instrument_type_title), submission.phase == SubmissionPhase.WORKING,
+        idle, vm::submit) {
+        Field(stringResource(R.string.instrument_name), name, vm::updateName, enabled = submission.editable && idle)
         ErrorMessage(submission.error?.name)
+        ErrorMessage(deletion.error?.name)
     }
+    if (confirming) AlertDialog(onDismissRequest = { confirming = false },
+        title = { Text(stringResource(R.string.instrument_type_delete)) },
+        text = { Text(if (count == 0) stringResource(R.string.instrument_type_delete_empty, name)
+            else pluralStringResource(R.plurals.instrument_type_delete_message, count, name, count)) },
+        confirmButton = {
+            TextButton({ confirming = false; vm.delete() }, Modifier.testTag("type-delete-confirm")) {
+                Text(stringResource(R.string.instrument_type_delete_confirm), color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton({ confirming = false }) { Text(stringResource(R.string.instrument_delete_cancel)) } })
 }

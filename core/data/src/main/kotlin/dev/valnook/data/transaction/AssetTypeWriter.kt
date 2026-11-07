@@ -25,4 +25,15 @@ internal class AssetTypeWriter(private val dao: InstrumentDao) {
         if (dao.edit_type(id, label, normalized, now) != 1) throw DomainException(ErrorCode.NOT_FOUND)
         return id
     }
+
+    /** Expects the default class to exist; its instruments keep everything but their class. */
+    suspend fun delete(id: Long, now: Long): Long {
+        val type = dao.type(id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        if (type.normalized_name == AssetTypeRules.DEFAULT_KEY) throw DomainException(ErrorCode.DEFAULT_TYPE)
+        val default = requireNotNull(dao.type_by_name(AssetTypeRules.DEFAULT_KEY))
+        dao.move_type(id, default, now)
+        dao.delete_type_labels(id)
+        if (dao.delete_type(id) != 1) throw DomainException(ErrorCode.STALE_RECORD)
+        return id
+    }
 }

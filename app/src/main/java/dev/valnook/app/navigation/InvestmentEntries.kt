@@ -7,9 +7,11 @@ import dev.valnook.feature.investments.*
 import dev.valnook.feature.statistics.*
 import dev.valnook.domain.model.Direction
 import dev.valnook.domain.model.StatisticsMetric
+import kotlinx.coroutines.flow.map
 
 internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
-    accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit) {
+    accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit,
+    onTypeToolbar: (TypeEditToolbarState?) -> Unit = {}) {
     entry<InvestmentsKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
@@ -53,8 +55,9 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
         TypesScreen(vm, { open(TypeEditKey()) }, { open(TypeEditKey(it.id, it.name)) })
     }
     entry<TypeEditKey> { route ->
-        val vm = pageViewModel { TypeEditViewModel(route.id, route.name, graph.commands, createSavedStateHandle()) }
-        TypeEditScreen(vm, back)
+        val vm = pageViewModel { TypeEditViewModel(route.id, route.name, graph.commands, createSavedStateHandle(),
+            graph.instruments.observeInstruments().map { rows -> rows.count { it.typeId == route.id } }) }
+        TypeEditScreen(vm, back, onTypeToolbar)
     }
     entry<TradeDetailKey> { route ->
         val vm = pageViewModel { TradeDetailViewModel(route.account_id, route.trade_id, graph.investments) }

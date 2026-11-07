@@ -1288,6 +1288,42 @@ class UiFlowTest {
         assertTrue(shown("甲股票")&&shown("乙股票")&&shown("丙债券"))
     }
 
+    @Test fun deleting_an_asset_class_moves_its_instruments_to_uncategorized() {
+        runBlocking {
+            val funds=createType("合成基金")
+            createType("合成空类型")
+            createInvestment(account_id,"合成待移基金","SYNMV",funds,"CNY",R.parse_e8("1"),R.parse_e8("10"),R.parse_e8("10"))
+        }
+        wait_text("合成账户 A")
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("总投资市值")
+        rule.onNodeWithContentDescription("所有投资品").performClick()
+        wait_text("合成待移基金")
+        rule.onNodeWithContentDescription("资产类型管理").performClick()
+        click_list("合成基金 · 编辑")
+        wait_text("合成基金")
+        rule.onNodeWithTag("type-delete-open").assertIsEnabled().performClick()
+        wait_text("删除「合成基金」后，它下面的 1 个标的将移到「未分类」。")
+        window_shot("type-delete-confirm")
+        rule.onNodeWithTag("type-delete-confirm").performClick()
+        wait_text("未分类 · 默认")
+        rule.onNodeWithText("合成基金 · 编辑").assertDoesNotExist()
+        // An empty class just asks.
+        click_list("合成空类型 · 编辑")
+        rule.onNodeWithTag("type-delete-open").performClick()
+        wait_text("确定删除「合成空类型」吗？它下面没有标的。")
+        rule.onNodeWithTag("type-delete-confirm").performClick()
+        wait_text("未分类 · 默认")
+        rule.onNodeWithText("合成空类型 · 编辑").assertDoesNotExist()
+        // The default class offers no deleting at all.
+        rule.onNodeWithTag("type-default").assertIsNotEnabled()
+        rule.onNodeWithContentDescription("返回").performClick()
+        wait_text("合成待移基金")
+        rule.onNode(hasText("未分类") and hasAnyAncestor(hasTestTag("instrument-type-filter"))).assert(hasText("1"))
+        rule.onNodeWithText("SYNMV · CNY · 未分类", substring = true).assertExists()
+        runBlocking { assertEquals(listOf(true), graph.investments.observe_types().first().map { it.isDefault }) }
+    }
+
     @Test fun library_adds_instruments_into_the_default_class_without_creating_one_first() {
         runBlocking { graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),
             listOf(FxRate(Currency.of("USD"),Currency.of("CNY"),java.math.BigDecimal("7"))))) }

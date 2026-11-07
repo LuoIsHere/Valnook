@@ -36,7 +36,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         val after = when (command) {
             is UpdateInstrumentPrices -> priceBatchJson(command)
             is SaveAccount -> accountAggregateJson(result.id)
-            is DeleteBalanceAccount, is DeleteAccount -> null
+            is DeleteBalanceAccount, is DeleteAccount, is DeleteAssetType -> null
             is AccountGroupCommand -> groupLayoutJson()
             else -> rowJson(tableForResult(result.kind), result.id)
         }
@@ -126,6 +126,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
 
     private fun targetFor(command: FinancialCommand): Pair<String, Long>? = when (command) {
         is SaveAssetType -> command.typeId?.let { "asset_types" to it }
+        is DeleteAssetType -> "asset_types" to command.typeId
         is SaveAccount -> command.accountId?.let { "savings_accounts" to it }
         is DeleteBalanceAccount -> "cash_accounts" to command.balanceAccountId
         is DeleteAccount -> null
@@ -161,7 +162,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is SaveAssetType -> if (command.typeId == null) "CREATE" else "UPDATE"
         is SaveAccountGroup -> if (command.groupId == null) "CREATE" else "UPDATE"
         is SaveAccount -> if (command.accountId == null) "CREATE" else "UPDATE"
-        is DeleteBalanceAccount, is DeleteAccount, is DeleteAccountGroup -> "DELETE"
+        is DeleteBalanceAccount, is DeleteAccount, is DeleteAccountGroup, is DeleteAssetType -> "DELETE"
         is SaveInstrument -> if (command.instrumentId == null) "CREATE" else "UPDATE"
         is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade -> "CREATE"
         is DeleteInvestmentTrade -> "DELETE"
@@ -197,6 +198,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             }
             is EditInstrumentPrice -> accountsForPrice(result.id).forEach(accounts::add)
             is SaveAssetType -> accountsForType(result.id).forEach(accounts::add)
+            is DeleteAssetType -> Unit
             is CreateInvestmentPosition -> accounts.add(command.accountId)
             is RecordInvestmentTrade -> accountForTrade(result.id)?.let(accounts::add)
             is EditInvestmentTrade -> accountForTrade(command.trade_id)?.let(accounts::add)

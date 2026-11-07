@@ -87,3 +87,5 @@ data class CreateInvestmentPosition(override val operation_id: String, val accou
     val instrumentId: Long) : FinancialCommand
 
 data class SaveAssetType(override val operation_id: String, val typeId: Long?, val name: String) : FinancialCommand
+/** Moves the class's instruments to the default class, then removes it; the default class itself stays. */
+data class DeleteAssetType(override val operation_id: String, val typeId: Long) : FinancialCommand

@@ -82,6 +82,13 @@
     </plurals>
     <string name="instrument_type_default">未分类</string>
     <string name="instrument_type_default_label">%1$s · 默认</string>
+    <string name="instrument_type_delete">删除资产类型</string>
+    <string name="instrument_type_delete_confirm">删除</string>
+    <string name="instrument_delete_cancel">取消</string>
+    <string name="instrument_type_delete_empty">确定删除「%1$s」吗？它下面没有标的。</string>
+    <plurals name="instrument_type_delete_message">
+        <item quantity="other">删除「%1$s」后，它下面的 %2$d 个标的将移到「未分类」。</item>
+    </plurals>
     <string name="instrument_type_no_match">该资产类型下暂无标的</string>
     <string name="investment_cost_includes_fees">成本含手续费</string>
     <string name="investment_trade_history">交易历史</string>

@@ -8,6 +8,7 @@ internal object CommandFingerprint {
     fun fingerprint(command: FinancialCommand): Pair<String,String> {
         val fields: List<Any?> = when(command) {
             is SaveAssetType -> listOf("TYPE_SAVE", command.typeId, command.name.trim())
+            is DeleteAssetType -> listOf("TYPE_DELETE", command.typeId)
             is SaveAccount -> listOf("ACCOUNT_SAVE", command.accountId, command.expectedRevision,
                 command.name.trim(), command.note) + command.cashChanges.sortedWith(compareBy({ it.cashAccountId ?: Long.MAX_VALUE }, { it.name }))
                     .flatMap { listOf(it.cashAccountId, it.name.trim(), it.note, Currency.of(it.currencyCode).code,

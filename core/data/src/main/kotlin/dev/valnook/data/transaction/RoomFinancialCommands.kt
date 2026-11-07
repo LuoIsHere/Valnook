@@ -53,6 +53,11 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             dao.insert_operation(OperationEntity(command.operation_id, kind, digest, null, null, now))
             val result = when (command) {
                 is SaveAssetType -> OperationResult("ASSET_TYPE", types.save(command.typeId, command.name, now))
+                is DeleteAssetType -> {
+                    // Databases created without the opening callback still need somewhere to move instruments to.
+                    dev.valnook.data.database.ensureDefaultAssetType(db.openHelper.writableDatabase, now)
+                    OperationResult("ASSET_TYPE", types.delete(command.typeId, now))
+                }
                 is SaveAccount -> accounts.save(command, now)
                 is DeleteBalanceAccount -> deletion.deleteCash(command, now)
                 is DeleteAccount -> deletion.deleteAccount(command)
@@ -86,7 +91,8 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             is UpdateInstrumentPrices -> if (command.changes.any {
                 db.instruments().instrument(it.instrumentId)?.current_price_e5 != it.priceE5
             }) day(now) else null
-            is SaveAssetType, is CreateInvestmentPosition, is AccountGroupCommand -> null
+            // A class only groups what is shown now; no history depends on it.
+            is SaveAssetType, is DeleteAssetType, is CreateInvestmentPosition, is AccountGroupCommand -> null
             is SaveInstrument -> {
                 val old = command.instrumentId?.let { db.instruments().instrument(it) }
                 if (old == null || old.current_price_e5 != command.currentPriceE5 ||
