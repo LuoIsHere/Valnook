@@ -11,6 +11,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.command.SubmissionPhase
@@ -135,29 +139,55 @@ import java.time.*
         if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result))
     }
 }
-/** What the title bar needs to offer deleting the class being edited. */
-data class TypeEditToolbarState(val enabled: Boolean, val delete: () -> Unit)
+/** What the title bar needs: saving the class, and deleting it once it exists. */
+data class TypeEditToolbarState(val busy: Boolean, val canSave: Boolean, val save: () -> Unit,
+    val canDelete: Boolean, val delete: (() -> Unit)?)
 
+/** Deleting an existing class, then saving, as the account editor's title bar has them. */
 @Composable fun TypeEditActions(state: TypeEditToolbarState?) {
     if (state == null) return
-    DeleteIconButton(stringResource(R.string.instrument_type_delete), state.delete, Modifier.testTag("type-delete-open"),
-        enabled = state.enabled)
+    state.delete?.let { delete ->
+        DeleteIconButton(stringResource(R.string.instrument_type_delete), delete, Modifier.testTag("type-delete-open"),
+            enabled = state.canDelete)
+    }
+    val saveLabel = stringResource(dev.valnook.core.designsystem.R.string.save)
+    IconButton({ state.save() }, enabled = state.canSave,
+        modifier = Modifier.testTag("type-edit-save").semantics { contentDescription = saveLabel }) {
+        if (state.busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+        else FaIcon(FaIcons.check, modifier = Modifier.size(22.dp))
+    }
 }
 
+@Composable fun typeEditTitle(typeId: Long?): String =
+    stringResource(if (typeId == null) R.string.instrument_type_new_title else R.string.instrument_type_edit_title)
+
+/** The class's name in a grouped card, with how many instruments it holds under it; saving is in the title bar. */
 @Composable fun TypeEditScreen(vm: TypeEditViewModel, onBack: () -> Unit, onToolbar: (TypeEditToolbarState?) -> Unit = {}) {
     val name by vm.name.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     val deletion by vm.deletion.collectAsStateWithLifecycle()
     val count by vm.instrumentCount.collectAsStateWithLifecycle()
     var confirming by rememberSaveable { mutableStateOf(false) }
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
     LaunchedEffect(submission.phase, deletion.phase) { if (vm.consumeSuccess()) onBack() }
     val idle = submission.phase != SubmissionPhase.WORKING && deletion.phase != SubmissionPhase.WORKING &&
         submission.phase != SubmissionPhase.SUCCEEDED && deletion.phase != SubmissionPhase.SUCCEEDED
+    // Read here, during composition, so typing a name recomposes this scope and the title bar follows.
+    val canSave = idle && name.isNotBlank()
     DisposableEffect(onToolbar) { onDispose { onToolbar(null) } }
-    SideEffect { onToolbar(if (vm.canDelete) TypeEditToolbarState(idle) { confirming = true } else null) }
-    FormLayout(stringResource(R.string.instrument_type_title), submission.phase == SubmissionPhase.WORKING,
-        idle, vm::submit) {
-        Field(stringResource(R.string.instrument_name), name, vm::updateName, enabled = submission.editable && idle)
+    SideEffect { onToolbar(TypeEditToolbarState(submission.phase == SubmissionPhase.WORKING, canSave,
+        { focus.clearFocus(); keyboard?.hide(); vm.submit() }, idle,
+        if (vm.canDelete) ({ focus.clearFocus(); keyboard?.hide(); confirming = true }) else null)) }
+    FormLayout(typeEditTitle(vm.typeId), submission.phase == SubmissionPhase.WORKING, idle, vm::submit, showSaveButton = false) {
+        FormSection(null) {
+            FormTextRow(stringResource(R.string.instrument_name), name, vm::updateName, enabled = submission.editable && idle,
+                placeholder = stringResource(R.string.instrument_type_name_hint))
+        }
+        if (vm.canDelete) Text(if (count == 0) stringResource(R.string.instrument_type_count_empty)
+            else pluralStringResource(R.plurals.instrument_type_count, count, count),
+            Modifier.padding(start = 4.dp).testTag("type-edit-count"), style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         ErrorMessage(submission.error?.name)
         ErrorMessage(deletion.error?.name)
     }

@@ -7,7 +7,7 @@ import java.util.UUID
 import kotlinx.coroutines.flow.*
 
 /** [instrumentCount]: how many instruments the class holds, said before deleting it. */
-class TypeEditViewModel(private val typeId: Long?, initialName: String, commands: FinancialCommands,
+class TypeEditViewModel(val typeId: Long?, initialName: String, commands: FinancialCommands,
     private val saved: SavedStateHandle, instrumentCount: Flow<Int> = flowOf(0)) : ViewModel() {
     private val operationId = saved.get<String>("operationId") ?: UUID.randomUUID().toString().also { saved["operationId"] = it }
     val name = saved.getStateFlow("name", initialName)

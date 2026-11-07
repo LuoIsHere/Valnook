@@ -65,7 +65,6 @@
     <string name="instrument_currency_locked_error">The currency is permanently fixed after a position or trade is saved.</string>
     <string name="instrument_symbol_locked_error">The symbol was fixed by the first trade and cannot be changed.</string>
     <string name="instrument_price_confirmation_error">After changing currency, check the current price and confirm its meaning.</string>
-    <string name="instrument_type_title">Asset class</string>
     <string name="instrument_library_failed">Could not load the instrument library. Go back and try again.</string>
     <string name="instrument_library_loading">Loading instrument library</string>
     <string name="instrument_add">Add instrument</string>
@@ -100,6 +99,14 @@
     <string name="instrument_delete_code">Confirmation code: %1$s</string>
     <string name="instrument_delete_code_input">Enter the code</string>
     <string name="instrument_delete_refresh">Try again</string>
+    <string name="instrument_type_new_title">New asset class</string>
+    <string name="instrument_type_edit_title">Edit asset class</string>
+    <string name="instrument_type_name_hint">Stocks, bonds, funds…</string>
+    <string name="instrument_type_count_empty">No instruments are in this class.</string>
+    <plurals name="instrument_type_count">
+        <item quantity="one">%1$d instrument is in this class.</item>
+        <item quantity="other">%1$d instruments are in this class.</item>
+    </plurals>
     <string name="instrument_type_no_match">No instruments of this asset class</string>
     <string name="investment_cost_includes_fees">Cost includes fees</string>
     <string name="investment_trade_history">Trade history</string>

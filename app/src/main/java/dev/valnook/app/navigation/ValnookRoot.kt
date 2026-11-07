@@ -333,6 +333,7 @@ private fun SessionRoot(
         is AccountEditKey -> stringResource(R.string.title_edit_account)
         AccountGroupsKey -> stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
         is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
+        is TypeEditKey -> dev.valnook.feature.investments.typeEditTitle(current.id)
         is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
         is InstrumentKey -> selectedInstrument?.name.orEmpty()
         is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
