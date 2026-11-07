@@ -37,6 +37,9 @@
     <string name="cash_section_savings">Savings accounts</string>
     <string name="cash_section_info">Account info</string>
     <string name="cash_note_label">Note</string>
+    <string name="cash_statement_day_label">Statement date</string>
+    <string name="cash_statement_day_value">Day %1$d of each month</string>
+    <string name="cash_limit_source_label">Limit source</string>
     <string name="cash_limit_used">Used</string>
     <string name="cash_limit_available">Available</string>
     <string name="cash_limit_total">Total limit</string>

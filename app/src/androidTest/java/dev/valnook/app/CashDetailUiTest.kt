@@ -62,15 +62,22 @@ class CashDetailUiTest {
     @Before fun prepare() { hilt.inject(); rule.waitForIdle() }
     @After fun close() { rule.runOnUiThread { store.clear() } }
 
-    private fun show(credit: Boolean, dark: Boolean = false, fontScale: Float = 1f) {
-        val change = if (credit) CashBalanceChange("CNY", -775_449, null, name = "Visa card", type = BalanceAccountType.CREDIT,
-            credit = CreditAccountInput(5_000_000, 7, CreditDueRule.AfterStatementDays(20), null))
-            else CashBalanceChange("CNY", 22_558_498, null, name = "Everyday savings")
-        val parent = runBlocking { graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null,
-            "Example bank", "", listOf(change))).id }
-        val cash = runBlocking { graph.cash.observe_cash(parent).first().single() }
+    private val card = CreditAccountInput(5_000_000, 7, CreditDueRule.AfterStatementDays(20), null)
+    private fun creditChange(limit: Long? = 5_000_000) = CashBalanceChange("CNY", -775_449, null, name = "Visa card",
+        type = BalanceAccountType.CREDIT, credit = card.copy(creditLimitMinor = limit))
+    private fun savingsChange(note: String = "") = CashBalanceChange("CNY", 22_558_498, null, name = "Everyday savings", note = note)
+    private fun create(change: CashBalanceChange) = runBlocking { graph.commands.execute(SaveAccount(UUID.randomUUID().toString(),
+        null, null, "Example bank", "", listOf(change))).id }
+
+    private fun show(credit: Boolean, dark: Boolean = false, fontScale: Float = 1f) =
+        show(create(if (credit) creditChange() else savingsChange()), dark = dark, fontScale = fontScale)
+
+    /** Shows [cashName] (or the only sub-account) of [parent]. */
+    private fun show(parent: Long, cashName: String? = null, dark: Boolean = false, fontScale: Float = 1f) {
+        val cash = runBlocking { graph.cash.observe_cash(parent).first().let { rows ->
+            if (cashName == null) rows.single() else rows.single { it.name == cashName } } }
         rule.runOnUiThread {
-            val vm = CashViewModel(parent, graph.cash, graph.cashPages, SavedStateHandle(), clock = clock)
+            val vm = CashViewModel(parent, graph.cash, graph.cashPages, SavedStateHandle(), graph.overview, clock)
             store.put("cash", vm)
             rule.activity.setContent {
                 val config = Configuration(LocalConfiguration.current).apply { setLocales(LocaleList(Locale.SIMPLIFIED_CHINESE)) }
@@ -153,6 +160,51 @@ class CashDetailUiTest {
         rule.waitForIdle()
         label().assertTextEquals("当前余额")
         save("savings-light")
+    }
+
+    @Test fun credit_cards_show_the_limit_and_statement_date_once() {
+        show(credit = true)
+        rule.onNodeWithTag("cash-limit-card").assertExists()
+        listOf("7 754.49", "42 245.51", "50 000.00").forEach {
+            rule.onNode(hasText(it) and hasAnyAncestor(hasTestTag("cash-limit-card"))).assertExists()
+        }
+        rule.onNodeWithTag("cash-info-statement").assertTextContains("每月 7 日", substring = true)
+        rule.onAllNodesWithTag("cash-info-source").assertCountEquals(0)
+        rule.onAllNodesWithTag("cash-info-note").assertCountEquals(0)
+        rule.onAllNodesWithTag("cash-over-limit").assertCountEquals(0)
+        // The header says it; the cards no longer repeat the debt or the bill.
+        rule.onAllNodes(hasText("欠款", substring = true)).assertCountEquals(1)
+        // Every statement or due reminder ends in 天 (days / today); only the header's tag says one.
+        rule.onAllNodes(hasText("天", substring = true)).assertCountEquals(1)
+        rule.onAllNodes(hasText("账单日：", substring = true)).assertCountEquals(0)
+    }
+
+    @Test fun a_shared_card_names_its_limit_source_and_says_when_over_the_limit() {
+        val parent = create(creditChange(limit = 500_000))
+        val root = runBlocking { graph.cash.observe_cash(parent).first().single() }
+        val account = runBlocking { graph.overview.snapshot().accounts.single { it.id == parent } }
+        runBlocking { graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), parent, account.revision, account.name, "",
+            listOf(CashBalanceChange("CNY", root.balance_minor, root.revision, root.id, root.name, type = BalanceAccountType.CREDIT,
+                credit = card.copy(creditLimitMinor = 500_000)),
+                CashBalanceChange("CNY", -10_000, null, name = "Family card", type = BalanceAccountType.CREDIT,
+                credit = card.copy(creditLimitMinor = null, limitSourceAccountId = root.id))))) }
+        show(parent, "Family card")
+        rule.onNodeWithTag("cash-info-source").assertTextContains("Visa card", substring = true)
+        rule.onNodeWithTag("cash-over-limit").assertExists()
+        save("credit-shared-over-limit")
+    }
+
+    @Test fun savings_shows_only_its_note_and_nothing_without_one() {
+        show(create(savingsChange(note = "Daily spending")))
+        rule.onAllNodesWithTag("cash-limit-card").assertCountEquals(0)
+        rule.onNodeWithTag("cash-info-note").assertTextContains("Daily spending", substring = true)
+        rule.onAllNodesWithTag("cash-info-statement").assertCountEquals(0)
+    }
+
+    @Test fun savings_without_a_note_has_no_cards() {
+        show(credit = false)
+        rule.onAllNodesWithTag("cash-limit-card").assertCountEquals(0)
+        rule.onAllNodesWithTag("cash-info-card").assertCountEquals(0)
     }
 
     @Test fun dark_and_large_font_shots() {

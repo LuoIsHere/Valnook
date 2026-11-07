@@ -37,6 +37,9 @@
     <string name="cash_section_savings">储蓄账户</string>
     <string name="cash_section_info">账户信息</string>
     <string name="cash_note_label">备注</string>
+    <string name="cash_statement_day_label">账单日</string>
+    <string name="cash_statement_day_value">每月 %1$d 日</string>
+    <string name="cash_limit_source_label">额度来源</string>
     <string name="cash_limit_used">已用</string>
     <string name="cash_limit_available">可用</string>
     <string name="cash_limit_total">总额度</string>

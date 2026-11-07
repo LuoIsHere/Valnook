@@ -96,14 +96,7 @@ import java.time.*
         CashDetailHeader(collapse,balance,trends[cashAccountId].orEmpty(),on_form,onTitleReserve)
         LazyColumn(Modifier.fillMaxWidth().weight(1f).background(background).testTag("cash-detail-list"),state=listState,
             contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
-            if(balance.type==BalanceAccountType.CREDIT || balance.note.isNotBlank()) item{
-                GlassCard(Modifier.padding(bottom=Space.md)) {
-                CashBalanceSummary(balance,on_edit=null,allAccounts=ledger.allAccounts,
-                    showBalance=false,showTitle=false,
-                    creditSourceLabels=ledger.creditSourceLabels,
-                    modifier=Modifier.fillMaxWidth().padding(16.dp))
-                }
-            }
+            item(key="info") { CashDetailInfo(balance,ledger.allAccounts,ledger.creditSourceLabels,Modifier.padding(bottom=Space.md)) }
             item{Text(stringResource(R.string.cash_changes),Modifier.padding(top=Space.md,bottom=Space.sm),style=MaterialTheme.typography.titleLarge)}
             item { MonthPager(ledger.month, vm::selectMonth) }
             if(entries.isEmpty())item{EmptyState(stringResource(R.string.empty_cash_changes))}

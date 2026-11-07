@@ -154,8 +154,8 @@ internal const val BILL_ATTENTION_DAYS = 3L
     }
 }
 
-@Composable private fun LimitValue(label: String, value: String, modifier: Modifier = Modifier) {
-    val style = MaterialTheme.typography.bodySmall
+@Composable internal fun LimitValue(label: String, value: String, modifier: Modifier = Modifier,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodySmall) {
     Column(modifier) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
         Text(value, style = style.copy(fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum"), maxLines = 1,
