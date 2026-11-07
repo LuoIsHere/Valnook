@@ -26,8 +26,8 @@ import java.time.LocalDate
 
 /**
  * The wallet card's sub-account, laid out like the sub-account page: the account it belongs to with the edit button,
- * the name with a credit account's state and next bill, the balance beside its sparkline, then the limit and details
- * cards that page shows.
+ * the name with a credit account's state and next bill, the balance beside its sparkline and the note in plain text under
+ * it, then the limit and details cards that page shows.
  */
 @Composable fun CashWalletSummary(account: CashAccount, parentName: String, trend: List<CashTrendPoint>,
     onEdit: () -> Unit, allAccounts: List<CashAccount>, creditSourceLabels: Map<Long, String>,
@@ -69,7 +69,9 @@ import java.time.LocalDate
                 color = if (!credit && account.balance_minor < 0) colors.error else colors.onSurface)
             CashTrendChart(trend, account, Modifier.width(72.dp), compact = true)
         }
-        CashDetailInfo(account, allAccounts, creditSourceLabels, Modifier.padding(top = 16.dp))
+        if (account.note.isNotBlank()) Text(account.note, Modifier.padding(top = 4.dp).testTag("wallet-cash-note"),
+            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        CashDetailInfo(account, allAccounts, creditSourceLabels, Modifier.padding(top = 16.dp), showNote = false)
     }
 }
 

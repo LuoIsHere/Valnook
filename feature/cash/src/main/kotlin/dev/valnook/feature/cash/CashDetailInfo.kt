@@ -23,9 +23,10 @@ import dev.valnook.domain.money.DecimalRules
 /**
  * What the sub-account page shows between its header and the balance changes: a credit account's limit, then one card
  * of named lines (statement date, limit source, note). Lines without content are left out, and so is a card left empty.
+ * Without [showNote] the note is left to the caller, as the wallet card shows it under the balance.
  */
 @Composable internal fun CashDetailInfo(account: CashAccount, allAccounts: List<CashAccount>,
-    creditSourceLabels: Map<Long, String>, modifier: Modifier = Modifier) {
+    creditSourceLabels: Map<Long, String>, modifier: Modifier = Modifier, showNote: Boolean = true) {
     val profile = account.creditProfile.takeIf { account.type == BalanceAccountType.CREDIT }
     val lines = buildList {
         if (profile != null) {
@@ -36,7 +37,7 @@ import dev.valnook.domain.money.DecimalRules
                     creditSourceLabels[sourceId] ?: allAccounts.firstOrNull { it.id == sourceId }?.name ?: "#$sourceId"))
             }
         }
-        if (account.note.isNotBlank()) add(InfoLine("note", stringResource(R.string.cash_note_label), account.note))
+        if (showNote && account.note.isNotBlank()) add(InfoLine("note", stringResource(R.string.cash_note_label), account.note))
     }
     if (profile == null && lines.isEmpty()) return
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {

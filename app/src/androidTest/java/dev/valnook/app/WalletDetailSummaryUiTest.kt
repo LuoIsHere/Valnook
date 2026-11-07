@@ -101,9 +101,34 @@ class WalletDetailSummaryUiTest {
         val spark = bounds("cash-sparkline-${cash.id}")
         assertTrue("The sparkline is right of the balance", spark.left >= balance.right - 1)
         assertTrue("…on its line", spark.top < balance.bottom && spark.bottom > balance.top)
-        rule.onNodeWithTag("cash-info-note", useUnmergedTree = true).assertExists()
+        // The note is plain text under the balance; with nothing else to say there is no details card.
+        val note = bounds("wallet-cash-note")
+        assertTrue("The note sits under the balance", note.top >= balance.bottom - 1 && note.left <= balance.left + 1)
+        rule.onNodeWithText("Salary card").assertExists()
+        rule.onNodeWithTag("cash-info-card").assertDoesNotExist()
         rule.onNodeWithTag("cash-limit-card").assertDoesNotExist()
         rule.onNodeWithTag("cash-billing-tag", useUnmergedTree = true).assertDoesNotExist()
+        save("savings-light")
+
+        edit.performClick()
+        assertEquals(listOf(cash.account_id to cash.id), edits)
+    }
+
+    @Test fun credit_shows_its_state_bill_limit_and_details_cards() {
+        val cash = create(CashBalanceChange("CNY", -775_449, null, name = "Visa card", type = BalanceAccountType.CREDIT,
+            credit = CreditAccountInput(5_000_000, 7, CreditDueRule.AfterStatementDays(20), null), note = "Travel only"))
+        show(cash.id, dark = true)
+        rule.onNodeWithText(string(CashR.string.cash_amount_owed), useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("cash-billing-tag", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("cash-limit-card").assertExists()
+        rule.onNodeWithTag("cash-info-statement", useUnmergedTree = true).assertExists()
+        // The old lines of small text are gone: the statement day reads only in the details card.
+        rule.onAllNodesWithText(string(CashR.string.cash_statement_day, 7), useUnmergedTree = true).assertCountEquals(0)
+        assertTrue(bounds("cash-limit-card").top > bounds("wallet-cash-note").bottom)
+        assertTrue(bounds("wallet-cash-note").top >= bounds("wallet-cash-balance").bottom - 1)
+        // The note is said once, under the balance, not again in the details card.
+        rule.onNodeWithTag("cash-info-note", useUnmergedTree = true).assertDoesNotExist()
+        rule.onAllNodesWithText("Travel only").assertCountEquals(1)
 
         // The details card is a little deeper than the panel around it.
         val image = rule.onRoot().captureToImage().asAndroidBitmap()
@@ -113,23 +138,6 @@ class WalletDetailSummaryUiTest {
         assertTrue("Card ${Integer.toHexString(inside)} is deeper than panel ${Integer.toHexString(around)}",
             luminance(inside) < luminance(around) - 3)
         image.recycle()
-        save("savings-light")
-
-        edit.performClick()
-        assertEquals(listOf(cash.account_id to cash.id), edits)
-    }
-
-    @Test fun credit_shows_its_state_bill_limit_and_details_cards() {
-        val cash = create(CashBalanceChange("CNY", -775_449, null, name = "Visa card", type = BalanceAccountType.CREDIT,
-            credit = CreditAccountInput(5_000_000, 7, CreditDueRule.AfterStatementDays(20), null)))
-        show(cash.id, dark = true)
-        rule.onNodeWithText(string(CashR.string.cash_amount_owed), useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("cash-billing-tag", useUnmergedTree = true).assertExists()
-        rule.onNodeWithTag("cash-limit-card").assertExists()
-        rule.onNodeWithTag("cash-info-statement", useUnmergedTree = true).assertExists()
-        // The old lines of small text are gone: the statement day reads only in the details card.
-        rule.onAllNodesWithText(string(CashR.string.cash_statement_day, 7), useUnmergedTree = true).assertCountEquals(0)
-        assertTrue(bounds("cash-limit-card").top > bounds("wallet-cash-balance").bottom)
         save("credit-dark")
     }
 
