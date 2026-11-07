@@ -21,6 +21,13 @@ class RoomInvestments(private val db: ValnookDatabase) : InvestmentRepository {
     override fun observe_profit(id: Long) = observe_investment(id).map { it?.let(InvestmentProfitCalculator::fromReadModel) }
     override fun observe_types() = db.instruments().types().map { rows -> rows.map { AssetType(it.id, it.name) } }
     override fun observe_trade_revision(investment_id: Long) = db.positions().trade_revision(investment_id)
+    override fun observeInstrumentTradeRevision(instrumentId: Long) = db.positions().instrumentTradeRevision(instrumentId)
+    override suspend fun instrumentTradePage(instrumentId: Long, cursor: TradeCursor?, limit: Int): List<Trade> {
+        val size = limit.coerceIn(1, 100)
+        val rows = if (cursor == null) db.trades().firstInstrumentTrades(instrumentId, size) else
+            db.trades().nextInstrumentTrades(instrumentId, cursor.occurred_at_ms, cursor.id, size)
+        return rows.map { it.toModel() }
+    }
     override suspend fun trade_page(investment_id: Long, cursor: TradeCursor?, limit: Int): List<Trade> {
         val size = limit.coerceIn(1, 100)
         val rows = if (cursor == null) db.trades().first_trades(investment_id, size) else
@@ -32,4 +39,6 @@ class RoomInvestments(private val db: ValnookDatabase) : InvestmentRepository {
 class RoomInstruments(private val db: ValnookDatabase) : InstrumentRepository {
     override fun observeInstruments() = db.instruments().instruments().map { rows -> rows.map { it.toModel() } }
     override fun observeInstrument(id: Long) = db.instruments().observeInstrument(id).map { it?.toModel() }
+    override fun observePriceHistory(instrumentId: Long, limit: Int) = db.statistics().recentPrices(instrumentId, limit)
+        .map { rows -> rows.map { InstrumentPricePoint(it.effective_at_ms, it.price_e5) } }
 }

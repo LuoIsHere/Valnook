@@ -17,6 +17,13 @@ interface TradeDao {
     suspend fun first_trades(investment_id: Long, limit: Int): List<TradeEntity>
     @Query("SELECT * FROM investment_trades WHERE investment_id=:investment_id AND is_deleted=0 AND (occurred_at_ms < :time OR (occurred_at_ms = :time AND id < :id)) ORDER BY occurred_at_ms DESC,id DESC LIMIT :limit")
     suspend fun next_trades(investment_id: Long, time: Long, id: Long, limit: Int): List<TradeEntity>
+    @Query("""SELECT * FROM investment_trades WHERE is_deleted=0 AND investment_id IN
+        (SELECT id FROM investments WHERE instrument_id=:instrumentId) ORDER BY occurred_at_ms DESC,id DESC LIMIT :limit""")
+    suspend fun firstInstrumentTrades(instrumentId: Long, limit: Int): List<TradeEntity>
+    @Query("""SELECT * FROM investment_trades WHERE is_deleted=0 AND investment_id IN
+        (SELECT id FROM investments WHERE instrument_id=:instrumentId)
+        AND (occurred_at_ms < :time OR (occurred_at_ms = :time AND id < :id)) ORDER BY occurred_at_ms DESC,id DESC LIMIT :limit""")
+    suspend fun nextInstrumentTrades(instrumentId: Long, time: Long, id: Long, limit: Int): List<TradeEntity>
     @Insert suspend fun insert_trade(value: TradeEntity): Long
     @Query("SELECT * FROM investment_trades WHERE id=:id")
     suspend fun trade(id: Long): TradeEntity?

@@ -102,6 +102,8 @@ data class Investment(val id: Long, val account_id: Long, val type_id: Long, val
     val algorithmVersion: Int = dev.valnook.domain.calculation.InvestmentProfitCalculator.ALGORITHM_VERSION,
     val isClosed: Boolean = false)
 enum class Direction { BUY, SELL }
+/** One recorded price of an instrument, as the price trend draws it. */
+data class InstrumentPricePoint(val atMs: Long, val priceE5: Long)
 data class Trade(val id: Long, val investment_id: Long, val direction: Direction,
     val quantity_e8: Long, val execution_price_e8: Long, val amount_minor: Long,
     val currency: Currency, val cash_linked: Boolean, val occurred_at_ms: Long, val revision: Long = 1,

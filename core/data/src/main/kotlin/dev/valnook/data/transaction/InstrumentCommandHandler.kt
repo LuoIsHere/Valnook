@@ -62,6 +62,12 @@ internal class InstrumentCommandHandler(private val db: ValnookDatabase, private
                 // Reuse price-history and revision rules without accepting metadata from the client.
                 save(SaveInstrument(command.operation_id, old.id, old.revision, old.name, old.symbol,
                     old.asset_type_id, old.currency_code, change.priceE5), now)
+            } else if (command.recordUnchanged) {
+                // Saved by hand at the same price: it is still today's price, so date it and record it.
+                if (db.instruments().updateCurrentPriceFromHistory(old.id, old.current_price_e5, now, now) != 1)
+                    throw DomainException(ErrorCode.STALE_RECORD)
+                db.statistics().insertPrice(InstrumentPriceEntity(instrument_id = old.id, price_e5 = old.current_price_e5,
+                    currency_code = old.currency_code, effective_at_ms = now, created_at_ms = now))
             }
         }
         return OperationResult("INSTRUMENT_PRICES", 0)

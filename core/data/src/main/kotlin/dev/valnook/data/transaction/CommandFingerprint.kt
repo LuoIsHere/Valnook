@@ -33,7 +33,9 @@ internal object CommandFingerprint {
                 command.name.trim(), command.symbol.trim(), command.typeId, Currency.of(command.currencyCode).code,
                 command.currentPriceE5, command.currencyPriceConfirmed)
             is UpdateInstrumentPrices -> listOf("INSTRUMENT_PRICES_UPDATE") + command.changes
-                .sortedBy { it.instrumentId }.flatMap { listOf(it.instrumentId, it.expectedRevision, it.priceE5) }
+                .sortedBy { it.instrumentId }.flatMap { listOf(it.instrumentId, it.expectedRevision, it.priceE5) } +
+                // Only when set, so a request recorded before the flag existed keeps its fingerprint.
+                (if (command.recordUnchanged) listOf("RECORD_UNCHANGED") else emptyList())
             is EditInstrumentPrice -> listOf("INSTRUMENT_PRICE_EDIT", command.priceRecordId,
                 command.expectedRevision, command.priceE5, command.effectiveAtMs)
             is CreateInvestmentPosition -> listOf("POSITION_CREATE", command.accountId, command.instrumentId)

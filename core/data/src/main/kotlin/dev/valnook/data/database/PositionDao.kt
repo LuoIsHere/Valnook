@@ -33,4 +33,7 @@ interface PositionDao {
         valid: Boolean, algorithm: Int, now: Long): Int
     @Query("SELECT revision FROM investments WHERE id=:investment_id")
     fun trade_revision(investment_id: Long): Flow<Long>
+    /** Every position of the instrument with its revision, so any change to one of them changes the text. */
+    @Query("SELECT COALESCE(GROUP_CONCAT(id||':'||revision),'') FROM (SELECT id,revision FROM investments WHERE instrument_id=:instrumentId ORDER BY id)")
+    fun instrumentTradeRevision(instrumentId: Long): Flow<String>
 }

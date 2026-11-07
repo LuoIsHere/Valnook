@@ -31,6 +31,10 @@ interface StatisticsRepository {
 interface InstrumentRepository {
     fun observeInstruments(): Flow<List<Instrument>>
     fun observeInstrument(id: Long): Flow<Instrument?>
+    /** The latest [limit] recorded prices, newest first; older ones stay stored for the statistics. */
+    fun observePriceHistory(instrumentId: Long, limit: Int = PRICE_TREND_POINTS): Flow<List<InstrumentPricePoint>> =
+        kotlinx.coroutines.flow.flowOf(emptyList())
+    companion object { const val PRICE_TREND_POINTS = 30 }
 }
 
 interface DataMaintenance {
@@ -72,8 +76,12 @@ data class EditInstrumentPrice(override val operation_id: String, val priceRecor
     val expectedRevision: Long, val priceE5: Long, val effectiveAtMs: Long) : FinancialCommand
 
 data class InstrumentPriceChange(val instrumentId: Long, val expectedRevision: Long, val priceE5: Long)
+/**
+ * [recordUnchanged]: a price saved by hand counts as an update even when it is the same, so it is dated now and
+ * recorded. The web batch leaves it off and skips the prices it did not change.
+ */
 data class UpdateInstrumentPrices(override val operation_id: String,
-    val changes: List<InstrumentPriceChange>) : FinancialCommand
+    val changes: List<InstrumentPriceChange>, val recordUnchanged: Boolean = false) : FinancialCommand
 
 data class CreateInvestmentPosition(override val operation_id: String, val accountId: Long,
     val instrumentId: Long) : FinancialCommand
