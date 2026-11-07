@@ -112,4 +112,6 @@
     <string name="instrument_price_trend">Price trend</string>
     <string name="instrument_holding_cost">%1$s units · cost %2$s</string>
     <string name="instrument_price_last">Last updated %1$s · %2$s</string>
+    <string name="investment_holding_detail">%1$s units · price %2$s · cost %3$s</string>
+    <string name="investment_realized_label">Realized</string>
 </resources>

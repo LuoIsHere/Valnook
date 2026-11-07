@@ -40,12 +40,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private fun signed(value: BigDecimal?, currency: Currency, withCode: Boolean = false): String = value?.let {
+internal fun signed(value: BigDecimal?, currency: Currency, withCode: Boolean = false): String = value?.let {
     (if (displayedSign(it, currency.fraction_digits) > 0) "+" else "") +
         DecimalRules.format_display(it, currency.fraction_digits) + (if (withCode) " " + currency.code else "")
 } ?: "—"
 
-private fun averageText(value: BigDecimal?): String =
+internal fun averageText(value: BigDecimal?): String =
     value?.setScale(5, RoundingMode.HALF_UP)?.stripTrailingZeros()?.toPlainString() ?: "—"
 
 private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).atZone(ZoneId.systemDefault()).toLocalDate()

@@ -53,14 +53,9 @@ import kotlinx.coroutines.delay
     LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(6.dp)) {
         if(month!=null)item(key="month"){MonthPager(month,onMonth)}
         if(!closed)item(key="header") {
-            Row(Modifier.fillMaxWidth().testTag("deposit-header"),verticalAlignment=Alignment.CenterVertically) {
-                Text(stringResource(DepositsR.string.deposit_section_current),Modifier.weight(1f).padding(start=4.dp).semantics{heading()},
-                    style=MaterialTheme.typography.bodySmall,color=muted)
-                if(on_archive!=null)TextButton(on_archive,Modifier.testTag("deposit-settled-open")) {
-                    Text(stringResource(R.string.settled_deposits),style=MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.width(4.dp));RowChevron()
-                }
-            }
+            SectionHeader(stringResource(DepositsR.string.deposit_section_current),
+                on_archive?.let{stringResource(R.string.settled_deposits)},{on_archive?.invoke()},
+                Modifier.testTag("deposit-header"),Modifier.testTag("deposit-settled-open"))
         }
         if(closed&&rows.isEmpty())item(key="empty"){EmptyState(stringResource(R.string.empty_settled_deposits))}
         if(!closed||rows.isNotEmpty())item(key="card") {

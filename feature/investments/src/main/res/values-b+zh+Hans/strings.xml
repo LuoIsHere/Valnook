@@ -112,4 +112,6 @@
     <string name="instrument_price_trend">价格走势</string>
     <string name="instrument_holding_cost">%1$s 份 · 成本 %2$s</string>
     <string name="instrument_price_last">上次更新 %1$s · %2$s</string>
+    <string name="investment_holding_detail">%1$s 份 · 现价 %2$s · 成本 %3$s</string>
+    <string name="investment_realized_label">已实现盈亏</string>
 </resources>
