@@ -109,7 +109,7 @@ fun SettingsHome(
     }
     AppearanceSettingsDialog(vm, language = true, visible = appearancePicker == "language", onClose = { appearancePicker = null })
     AppearanceSettingsDialog(vm, language = false, visible = appearancePicker == "colors", onClose = { appearancePicker = null })
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = pageContentPadding(),
+    LazyColumn(Modifier.fillMaxSize().testTag("settings-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         item {
             GlassCard {
@@ -206,6 +206,8 @@ fun SettingsHome(
                 verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text(stringResource(R.string.settings_footer_copyright), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_footer_license), Modifier.testTag("settings-footer-license"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_footer_version, versionName), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_footer_internal, internalBuildId), style = MaterialTheme.typography.bodySmall,

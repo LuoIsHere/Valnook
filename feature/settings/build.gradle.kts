@@ -10,6 +10,24 @@ android {
     buildFeatures { compose = true }
 }
 
+/** Copies the repository's LICENSE into raw resources at build time, so the app shows the one file the repository keeps. */
+abstract class LicenseResources : DefaultTask() {
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val license: RegularFileProperty
+    @get:OutputDirectory abstract val output: DirectoryProperty
+    @TaskAction fun copy() {
+        val raw = output.get().dir("raw").asFile
+        raw.deleteRecursively()
+        raw.mkdirs()
+        license.get().asFile.copyTo(raw.resolve("license.txt"))
+    }
+}
+val licenseResources = tasks.register<LicenseResources>("licenseResources") {
+    license.set(rootProject.layout.projectDirectory.file("LICENSE"))
+}
+androidComponents {
+    onVariants { variant -> variant.sources.res?.addGeneratedSourceDirectory(licenseResources, LicenseResources::output) }
+}
+
 dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:designsystem"))

@@ -16,6 +16,7 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data object SettingsKey : NavKey
 @Serializable data object AboutKey : NavKey
 @Serializable data object PrivacyPolicyKey : NavKey
+@Serializable data object LicenseKey : NavKey
 @Serializable data object NavigationSettingsKey : NavKey
 @Serializable data object HiddenAccountsKey : NavKey
 @Serializable data object HiddenInvestmentsKey : NavKey

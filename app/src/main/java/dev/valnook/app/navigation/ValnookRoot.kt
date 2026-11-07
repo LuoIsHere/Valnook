@@ -319,6 +319,7 @@ private fun SessionRoot(
         SettingsKey -> stringResource(R.string.nav_settings)
         AboutKey -> stringResource(dev.valnook.feature.settings.R.string.settings_about)
         PrivacyPolicyKey -> stringResource(dev.valnook.feature.settings.R.string.settings_privacy_policy)
+        LicenseKey -> stringResource(dev.valnook.feature.settings.R.string.settings_license)
         HiddenAccountsKey -> stringResource(R.string.nav_accounts)
         HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
         HiddenStatisticsKey -> stringResource(R.string.nav_statistics)
@@ -644,8 +645,10 @@ private fun SessionRoot(
                                 }, walletOverview.cache, updateWalletFacesToolbar)
                             }
                             entry<AboutKey> {
-                                dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME) { open(PrivacyPolicyKey) }
+                                dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME, { open(PrivacyPolicyKey) },
+                                    { open(LicenseKey) })
                             }
+                            entry<LicenseKey> { dev.valnook.feature.settings.LicenseScreen() }
                             entry<PrivacyPolicyKey> {
                                 dev.valnook.feature.settings.PrivacyPolicyScreen()
                             }

@@ -24,7 +24,7 @@ import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.pageContentPadding
 
 @Composable
-fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit) {
+fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () -> Unit = {}) {
     val uriHandler = LocalUriHandler.current
     val repositoryUrl = stringResource(R.string.settings_repository_url)
     LazyColumn(Modifier.fillMaxSize().testTag("about-page"), contentPadding = pageContentPadding(),
@@ -36,6 +36,8 @@ fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_footer_copyright),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_footer_license), Modifier.testTag("about-license-name"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         item {
@@ -43,6 +45,9 @@ fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit) {
                 SettingEntry(stringResource(R.string.settings_privacy_policy),
                     stringResource(R.string.settings_privacy_policy_summary), onPrivacyPolicy,
                     Modifier.testTag("about-privacy-policy"))
+                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                SettingEntry(stringResource(R.string.settings_license), stringResource(R.string.settings_footer_license),
+                    onLicense, Modifier.testTag("about-license"))
                 HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
                 SettingEntry(stringResource(R.string.settings_repository), repositoryUrl,
                     { uriHandler.openUri(repositoryUrl) }, Modifier.testTag("about-repository"),
