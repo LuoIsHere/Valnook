@@ -18,4 +18,21 @@
     <string name="deposit_settlement_cash_account">结算现金账户</string>
     <string name="deposit_link_hint">仅勾选的现金联动会改变本账户对应币种余额</string>
     <string name="deposit_cash_change">本次该账户现金变化 %1$s</string>
+    <string name="deposit_section_current">当前存单</string>
+    <string name="deposit_term_title">%1$s定期</string>
+    <plurals name="deposit_term_months"><item quantity="other">%d 个月</item></plurals>
+    <plurals name="deposit_term_years"><item quantity="other">%d 年</item></plurals>
+    <plurals name="deposit_term_days"><item quantity="other">%d 天</item></plurals>
+    <string name="deposit_rate_label">年利率</string>
+    <string name="deposit_rate_value">年利率 %1$s%%</string>
+    <plurals name="deposit_days_left"><item quantity="other">还剩 %d 天</item></plurals>
+    <plurals name="deposit_starts_in"><item quantity="other">%d 天后开始</item></plurals>
+    <plurals name="deposit_matured_days"><item quantity="other">已到期 %d 天</item></plurals>
+    <string name="deposit_matures_today">今天到期</string>
+    <string name="deposit_settled_on">%1$s 结算</string>
+    <string name="deposit_term_section">存期</string>
+    <string name="deposit_cash_section">现金联动</string>
+    <string name="deposit_summary_interest">预计利息</string>
+    <string name="deposit_summary_total">到期本息</string>
+    <string name="deposit_info_section">存单信息</string>
 </resources>

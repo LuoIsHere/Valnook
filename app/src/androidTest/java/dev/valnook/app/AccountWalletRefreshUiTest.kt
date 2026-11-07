@@ -107,16 +107,23 @@ class AccountWalletRefreshUiTest {
         capture("closed-positions-dark")
         rule.onNodeWithText("This account closed").performClick();assertEquals(1L,opened)
     }
-    @Test fun deposit_actions_share_top_row_and_large_text_cash_remains_readable() {
+    @Test fun deposit_actions_sit_in_the_header_and_the_card_and_large_text_cash_remains_readable() {
         val open=label(dev.valnook.core.designsystem.R.string.open_deposit)
         val settled=label(dev.valnook.core.designsystem.R.string.settled_deposits)
+        var opened=0;var archived=0
         rule.runOnUiThread {rule.activity.setContent {ValnookTheme {Surface(Modifier.safeDrawingPadding()) {
-            dev.valnook.feature.deposits.DepositsContent(emptyList(),0,{},{},on_archive={})
+            dev.valnook.feature.deposits.DepositsContent(emptyList(),0,{opened++},{},on_archive={archived++})
         }}}}
         rule.onAllNodesWithText(open).assertCountEquals(1)
-        val left=rule.onNodeWithText(open).fetchSemanticsNode().boundsInRoot
-        val right=rule.onNodeWithText(settled).fetchSemanticsNode().boundsInRoot
-        assertEquals(left.center.y,right.center.y,4f);capture("deposit-actions")
+        // The settled list is beside the section's name; opening one is the card's last row, under it.
+        val header=rule.onNodeWithTag("deposit-header").fetchSemanticsNode().boundsInRoot
+        val archive=rule.onNodeWithTag("deposit-settled-open").fetchSemanticsNode().boundsInRoot
+        val add=rule.onNodeWithTag("deposit-open").fetchSemanticsNode().boundsInRoot
+        assertEquals(header.right,archive.right,4f)
+        assertTrue(add.top>=header.bottom)
+        rule.onNodeWithTag("deposit-card").assert(hasAnyDescendant(hasTestTag("deposit-open")))
+        rule.onNodeWithText(settled).performClick();rule.onNodeWithTag("deposit-open").performClick()
+        assertEquals(1,archived);assertEquals(1,opened);capture("deposit-actions")
         rule.runOnUiThread{rule.activity.setContent {ValnookTheme(dark_theme=true) {
             val density=LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density,1.5f)){Surface(Modifier.safeDrawingPadding()) {

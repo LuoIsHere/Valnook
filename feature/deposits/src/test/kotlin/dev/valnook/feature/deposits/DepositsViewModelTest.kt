@@ -71,6 +71,30 @@ class DepositsViewModelTest {
         runCurrent()
         assertFalse(request!!.cash_linked)
     }
+    @Test fun quick_terms_set_the_end_and_follow_a_moved_start() = runTest(dispatcher) {
+        val commands = object : FinancialCommands { override suspend fun execute(command: FinancialCommand) =
+            OperationResult("TERM_DEPOSIT", 1) }
+        val vm = DepositFormViewModel(1, DepositFormMode.CREATE, null, repo, cash, commands, clock, SavedStateHandle())
+        runCurrent()
+        vm.update { it.copy(principalInput = "4000", rateInput = "2.6") }
+        vm.applyTerm(6)
+        assertEquals(LocalDate.parse("2027-03-30"), vm.state.value.endDate)
+        // A quick term keeps its length when the start moves.
+        vm.changeStart(LocalDate.parse("2026-10-31"))
+        assertEquals(LocalDate.parse("2027-04-30"), vm.state.value.endDate)
+        val summary = vm.summary()
+        assertEquals(181L, summary.days)
+        assertEquals(5157L, summary.interestMinor)
+        assertEquals(405157L, summary.totalMinor)
+        // An end chosen by hand stays where it is.
+        vm.changeEnd(LocalDate.parse("2027-01-15"))
+        vm.changeStart(LocalDate.parse("2026-11-01"))
+        assertEquals(LocalDate.parse("2027-01-15"), vm.state.value.endDate)
+        assertNull(wholeMonths(vm.state.value.startDate, vm.state.value.endDate))
+        // An input still being typed leaves only the days.
+        vm.update { it.copy(rateInput = "abc") }
+        assertEquals(DepositFormSummary(75, null, null), vm.summary())
+    }
     @Test fun midnight_refresh_does_not_issue_financial_command() = runTest(dispatcher) {
         var instant = Instant.parse("2026-09-30T23:59:59Z")
         val clock = object : Clock() {

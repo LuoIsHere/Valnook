@@ -205,12 +205,14 @@ import java.util.Locale
         }
     }
 }
-@Composable fun DateField(label:String,value:String,on_change:(String)->Unit,enabled:Boolean=true) {
+/** [field] replaces the outlined look, as [CurrencyChoice]'s does; it is handed what opens the picker. */
+@Composable fun DateField(label:String,value:String,on_change:(String)->Unit,enabled:Boolean=true,
+    field:(@Composable (onOpen:()->Unit)->Unit)?=null) {
     var open by rememberSaveable {mutableStateOf(false)}
     val context=LocalContext.current
     val confirm=stringResource(R.string.confirm)
     val cancel=stringResource(R.string.cancel)
-    SelectorField(label,value,{open=true},enabled)
+    if(field!=null) field { if(enabled) open=true } else SelectorField(label,value,{open=true},enabled)
     if(open) DisposableEffect(context,confirm,cancel) {
         val date=runCatching{LocalDate.parse(value)}.getOrElse{LocalDate.now()}
         val dialog=NativeDatePickerDialog(context,{_,year,month,day->

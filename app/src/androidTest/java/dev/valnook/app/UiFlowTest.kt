@@ -107,6 +107,11 @@ class UiFlowTest {
         finish_input()
         rule.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
     }
+    /** The deposit form saves from the toolbar. */
+    private fun save_deposit(){
+        finish_input()
+        rule.onNodeWithTag("deposit-form-save").assertIsEnabled().performClick()
+    }
     private fun finish_input(){
         val focused=rule.onAllNodes(androidx.compose.ui.test.isFocused() and hasSetTextAction())
         if(focused.fetchSemanticsNodes().isNotEmpty())focused[0].performImeAction()
@@ -247,12 +252,12 @@ class UiFlowTest {
         click_record("deposit-record-1");wait_text("存单详情");shot("deposit-record-detail")
         click_list("修改存单记录")
         rule.onNodeWithText("年利率（%）").performTextReplacement("6")
-        save();wait_text("存单详情");wait_text("147.95 CNY")
+        save_deposit();wait_text("存单详情");wait_text("147.95 CNY")
         rule.activityRule.scenario.recreate();wait_text("存单详情");wait_text("147.95 CNY")
         click_list("结束存单")
         rule.onNode(isToggleable()).assertIsOff().performClick().assertIsOn()
         shot("deposit-link-confirmation")
-        save();wait_text("存单详情");wait_text("已结束")
+        save_deposit();wait_text("存单详情");wait_text("已结束")
         rule.onNodeWithText("结束存单").assertDoesNotExist()
         rule.onNodeWithContentDescription("返回").performClick();wait_text("已结算")
         rule.onNodeWithText("已结束").assertDoesNotExist()
@@ -263,7 +268,7 @@ class UiFlowTest {
         click_record("deposit-record-1");wait_text("存单详情")
         click_list("修改存单记录")
         rule.onNodeWithText("本金").performTextReplacement("20000")
-        save();wait_text("存单详情");wait_text("20 000.00 CNY");wait_text("295.89 CNY")
+        save_deposit();wait_text("存单详情");wait_text("20 000.00 CNY");wait_text("295.89 CNY")
         window_shot("settled-deposit-detail-window","修改存单记录")
         runBlocking{assertEquals(2029589,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)}
         rule.onNodeWithContentDescription("返回").performClick();wait_text("已结算")
@@ -274,7 +279,7 @@ class UiFlowTest {
         click_list("存单回款");wait_text("流水详情")
         wait_text("修改来源存单记录");click_list("修改来源存单记录")
         rule.onNodeWithText("本金").performTextReplacement("30000")
-        save();wait_text("+30 443.84 CNY");shot("deposit-source-corrected")
+        save_deposit();wait_text("+30 443.84 CNY");shot("deposit-source-corrected")
         rule.onNodeWithText("流水详情").assertExists()
         rule.onNodeWithContentDescription("返回").performClick();wait_text("余额变化")
         rule.onNodeWithText("+30 443.84 CNY").assertExists()
@@ -282,6 +287,39 @@ class UiFlowTest {
             assertEquals(3044384,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)
             assertEquals("CLOSED",db.ledger().deposit(1)!!.status)
             assertEquals(3044384L,db.ledger().source_entry("TERM_CLOSE",1)!!.delta_minor)
+        }
+    }
+    @Test fun opening_a_deposit_takes_a_quick_term_and_its_principal_from_cash() {
+        runBlocking{graph.commands.execute(SetCashBalance(UUID.randomUUID().toString(),account_id,
+            "CNY",1000000,null,name="开户现金"))}
+        wait_text("合成账户 A");rule.onNodeWithTag("account-total-$account_id").performClick()
+        rule.onNodeWithTag("account-section-DEPOSITS").performClick()
+        rule.waitUntil(5000){rule.onAllNodesWithTag("deposit-open").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithText("尚未开立存单。").assertExists();shot("deposit-tab-empty")
+        rule.onNodeWithTag("deposit-open").performScrollTo().performClick()
+        rule.waitUntil(5000){rule.onAllNodesWithTag("deposit-form-summary").fetchSemanticsNodes().isNotEmpty()}
+        // The form's name is in the bar, and the bar saves.
+        rule.onNodeWithTag("root-toolbar").assert(hasAnyDescendant(hasText("开立存单")))
+        rule.onNodeWithText("本金").performTextReplacement("4000")
+        rule.onNodeWithText("年利率（%）").performTextReplacement("2.6")
+        val start=LocalDate.now(graph.clock);val end=start.plusMonths(6)
+        rule.onNodeWithTag("deposit-term-6").performClick().assertIsSelected()
+        rule.onNodeWithContentDescription("到期日期: $end").assertExists()
+        val interest=R.interest(400000,R.parse_e8("2.6"),start.toEpochDay(),end.toEpochDay())
+        val days=java.time.temporal.ChronoUnit.DAYS.between(start,end)
+        val summary=rule.onNodeWithTag("deposit-form-summary")
+        summary.assert(hasAnyDescendant(hasText("$days 天")))
+        summary.assert(hasAnyDescendant(hasText("+"+R.format_display(interest,2))))
+        summary.assert(hasAnyDescendant(hasText(R.format_display(400000+interest,2)+" CNY")))
+        rule.onNodeWithText("开立扣款联动现金").performScrollTo().performClick()
+        rule.onNodeWithTag("deposit-cash-change").assertTextContains("-4000.00 CNY",substring=true)
+        shot("deposit-open-form")
+        save_deposit()
+        rule.waitUntil(10000){rule.onAllNodesWithTag("deposit-form-summary").fetchSemanticsNodes().isEmpty()}
+        wait_text("6 个月定期");rule.onNodeWithText("尚未开立存单。").assertDoesNotExist();shot("deposit-opened")
+        runBlocking{
+            assertEquals(600000L,db.ledger().cash_one(account_id,"CNY")!!.balance_minor)
+            assertEquals(end.toEpochDay(),db.ledger().deposit(1)!!.end_epoch_day)
         }
     }
     @Test fun investment_trade_price_and_history_are_independent() {

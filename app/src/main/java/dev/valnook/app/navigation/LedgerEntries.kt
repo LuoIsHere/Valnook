@@ -10,7 +10,7 @@ import dev.valnook.feature.investments.TradeFormMode
 
 internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (NavKey) -> Unit,
     back: () -> Unit, accountName: (Long) -> String, onBalanceToolbar:(CashBalanceToolbarState?)->Unit,
-    onTitleReserve: (NavKey, Int) -> Unit) {
+    onTitleReserve: (NavKey, Int) -> Unit, onDepositToolbar: (DepositToolbarState?) -> Unit) {
     entry<CashKey> { route ->
         val vm = pageViewModel { CashViewModel(route.accountId, graph.cash, graph.cashPages,
             createSavedStateHandle(), graph.overview, graph.clock) }
@@ -53,6 +53,6 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
     entry<DepositFormKey> { route ->
         val vm = pageViewModel { DepositFormViewModel(route.accountId, route.mode, route.id, graph.deposits,
             graph.cash, graph.commands, graph.clock, createSavedStateHandle()) }
-        DepositForm(vm, back)
+        DepositForm(vm, back, onDepositToolbar)
     }
 }

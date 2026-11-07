@@ -16,6 +16,7 @@ data class DepositFormUiState(val currency: Currency, val principalInput: String
     val closeCashLinked: Boolean?, val revision: Long?, val cashAccountId: Long? = null,
     val closeCashAccountId: Long? = null, val loaded: Boolean = false, val failed: Boolean = false,
     val originalCashContributionMinor: Long = 0)
+data class DepositFormSummary(val days: Long?, val interestMinor: Long?, val totalMinor: Long?)
 class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMode, private val depositId: Long?,
     repository: DepositRepository, cashRepository: CashRepository, commands: FinancialCommands, private val clock: Clock,
     private val saved: SavedStateHandle) : ViewModel() {
@@ -84,6 +85,23 @@ class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMod
             closeCashAccountId = if (!linked) null else current.closeCashAccountId ?: candidates.singleOrNull()?.id)
     }
     fun selectCloseCashAccount(id: Long) = update { it.copy(closeCashLinked = true, closeCashAccountId = id) }
+    /** A quick term: the deposit ends that many months after it starts. */
+    fun applyTerm(months: Int) = update { it.copy(endDate = it.startDate.plusMonths(months.toLong())) }
+    /** A quick term chosen before keeps its length when the start moves; other end dates stay where they are. */
+    fun changeStart(date: LocalDate) = update { current ->
+        val term = wholeMonths(current.startDate, current.endDate)?.takeIf { it in TERM_MONTHS }
+        current.copy(startDate = date, endDate = term?.let { date.plusMonths(it.toLong()) } ?: current.endDate)
+    }
+    fun changeEnd(date: LocalDate) = update { it.copy(endDate = date) }
+    /** The term in days, its interest and what it pays at maturity; each is null while its inputs are not valid. */
+    fun summary(): DepositFormSummary {
+        val input = state.value
+        val days = runCatching { R.days(input.startDate.toEpochDay(), input.endDate.toEpochDay()) }.getOrNull()
+        val principal = runCatching { R.parse_minor(input.principalInput, input.currency, true) }.getOrNull()
+        val interest = runCatching { R.interest(requireNotNull(principal), R.parse_e8(input.rateInput),
+            input.startDate.toEpochDay(), input.endDate.toEpochDay()) }.getOrNull()
+        return DepositFormSummary(days, interest, interest?.let { runCatching { R.add(principal!!, it) }.getOrNull() })
+    }
     fun preview(): String? = runCatching {
         val input = state.value
         R.format_units(R.interest(R.parse_minor(input.principalInput, input.currency, true), R.parse_e8(input.rateInput),

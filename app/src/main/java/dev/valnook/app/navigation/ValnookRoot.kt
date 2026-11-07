@@ -338,6 +338,9 @@ private fun SessionRoot(
         is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
         is CashKey -> selectedCash?.name.orEmpty()
         is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
+        is DepositFormKey -> dev.valnook.feature.deposits.depositFormTitle(current.mode)
+        is DepositDetailKey -> stringResource(dev.valnook.core.designsystem.R.string.deposit_detail_title)
+        is SettledDepositsKey -> stringResource(dev.valnook.core.designsystem.R.string.settled_deposits)
         else -> "Valnook"
     }
     val offset = with(LocalDensity.current) { 16.dp.roundToPx() }
@@ -387,6 +390,8 @@ private fun SessionRoot(
     val subaccountSortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_children)
     var balanceToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.cash.CashBalanceToolbarState?>(null) }
     val updateBalanceToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.cash.CashBalanceToolbarState? -> balanceToolbar=value } }
+    var depositToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.deposits.DepositToolbarState?>(null) }
+    val updateDepositToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.deposits.DepositToolbarState? -> depositToolbar=value } }
     var accountEditSave by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountEditToolbarState?>(null) }
     val updateEditSave = remember(graph.sessionId) { { value: dev.valnook.feature.accounts.AccountEditToolbarState? -> accountEditSave = value } }
     var editSortAction by remember(graph.sessionId) { mutableStateOf<(() -> Unit)?>(null) }
@@ -497,6 +502,7 @@ private fun SessionRoot(
                     is InstrumentKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
                         { open(InstrumentEditKey(current.id)) })
                     is CashBalanceEditKey -> dev.valnook.feature.cash.CashBalanceSaveAction(balanceToolbar)
+                    is DepositFormKey -> dev.valnook.feature.deposits.DepositSaveAction(depositToolbar)
                     is CashKey -> dev.valnook.designsystem.DeleteIconButton(
                         stringResource(dev.valnook.feature.accounts.R.string.account_delete_title),
                         { deleteTarget = current.accountId to current.cashAccountId }, Modifier.testTag("cash-delete-open"))
@@ -539,7 +545,7 @@ private fun SessionRoot(
                                 deleteTarget = parent to cash
                             }
                             investmentEntries(graph, open, back, accountName, updateTitleReserve)
-                            ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve)
+                            ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve, updateDepositToolbar)
                             entry<WalletKey> {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
                                     graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate,graph.cash) }, updateWalletToolbar,
