@@ -45,6 +45,11 @@ private val HEADER_SIDE = 16.dp
 private val COLLAPSED_FONT = 15.sp
 private val BALANCE_FONT = 30.sp
 private val CHART_HEIGHT = 120.dp
+/**
+ * Share of the collapse in which the details above the balance fade out before the balance starts to move. The balance
+ * rises through where they were, so moving any earlier would draw it over text still showing.
+ */
+private const val DETAILS_FADE = .2f
 
 /**
  * One progress value for a balance header: 0 is fully open, 1 is collapsed. Finger movement collapses the header
@@ -58,6 +63,10 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
     val progress: Float get() = saved.floatValue
     /** The eased value for what moves on its own: the balance and the opening details. */
     val eased: Float get() = progress.let { it * it * (3f - 2f * it) }
+    /** How far the balance has travelled into the title bar, eased: it starts once the details have faded. */
+    val travel: Float get() = ((progress - DETAILS_FADE) / (1f - DETAILS_FADE)).coerceIn(0f, 1f).let { it * it * (3f - 2f * it) }
+    /** The details above the balance: fully shown when open, gone by the time the balance starts to move. */
+    val detailsAlpha: Float get() = (1f - progress / DETAILS_FADE).coerceIn(0f, 1f)
     private var settling: Job? = null
 
     /** Returns how much of the finger movement it used. A negative [deltaY] moves up and collapses. */
@@ -117,7 +126,8 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
  * A balance with its trend. Collapsing takes the layout height away without clipping or resizing anything: the
  * balance moves into the title bar, ending [collapsedEndInset] from the end so the bar's buttons stay clear, and the
  * chart keeps its size (resizing would rebuild and squash its path) while the opaque content below slides over it.
- * [top] and [trailing] fade early, the chart a little later. [onTitleReserve] tells the bar how much room to leave.
+ * [top] and [trailing] fade first and are gone before the balance moves, so the balance never crosses them; the chart
+ * fades a little later. [onTitleReserve] tells the bar how much room to leave.
  */
 @Composable fun CollapsingBalanceHeader(collapse: HeaderCollapse, balance: String, balanceColor: Color,
     onTitleReserve: (Int) -> Unit, modifier: Modifier = Modifier, balanceModifier: Modifier = Modifier,
@@ -139,7 +149,7 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
     }
     // The title makes room for the balance as it arrives.
     val reserve by remember { derivedStateOf {
-        ((textSize.width * compactScale() + with(density) { 8.dp.toPx() }) * collapse.eased).roundToInt()
+        ((textSize.width * compactScale() + with(density) { 8.dp.toPx() }) * collapse.travel).roundToInt()
     } }
     val reserveCallback by rememberUpdatedState(onTitleReserve)
     LaunchedEffect(Unit) { snapshotFlow { reserve }.collect { reserveCallback(it) } }
@@ -151,7 +161,7 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
         }
         .onSizeChanged { collapse.rangePx = it.height.toFloat(); headerWidth = it.width }
         .padding(horizontal = HEADER_SIDE)) {
-        val fading = Modifier.graphicsLayer { alpha = (1f - collapse.eased * 2.2f).coerceAtLeast(0f) }
+        val fading = Modifier.graphicsLayer { alpha = collapse.detailsAlpha }
         Spacer(Modifier.height(4.dp))
         top(fading)
         Row(Modifier.fillMaxWidth().onPlaced { rowTop = it.positionInParent().y },
@@ -160,7 +170,7 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
                 .onPlaced { textTop = it.positionInParent().y }
                 .onSizeChanged { textSize = it }
                 .graphicsLayer {
-                    val eased = collapse.eased
+                    val eased = collapse.travel
                     val compact = compactScale()
                     val scale = 1f + (compact - 1f) * eased
                     scaleX = scale
