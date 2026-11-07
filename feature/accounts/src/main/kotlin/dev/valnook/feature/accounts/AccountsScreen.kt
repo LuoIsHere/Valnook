@@ -226,11 +226,12 @@ import java.time.LocalDate
 @Composable private fun amountColor(total: ConvertedTotal) =
     if (total.amount.signum() < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurface
 
+/** Centred in its 48dp like the deposit and investment rows below, so the list keeps one rhythm. */
 @Composable private fun BalanceAccountNativeRow(account: CashAccount, allAccounts: List<CashAccount>, tag: String,
     onClick: () -> Unit) {
     Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
         .testTag(tag).clickable(role = Role.Button, onClick = onClick).padding(vertical = Space.sm),
-        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

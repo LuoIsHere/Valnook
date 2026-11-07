@@ -131,6 +131,23 @@ class AccountBehaviorUiTest {
             image("v0012-credit-"+if(dark) "dark" else "light")
         }
     }
+    @Test fun subaccounts_and_the_deposit_and_investment_entries_keep_one_rhythm() {
+        val cny=Currency.of("CNY")
+        val snapshot=AssetSnapshot(listOf(SavingsAccount(1,"Bank","")),
+            listOf(CashAccount(1,cny,10000,1,id=1,name="Saving A"),CashAccount(1,cny,20000,1,id=2,name="Saving B")),
+            emptyList(),emptyList(),emptyList(),AppSettings(baseCurrency=cny))
+        scene { ValnookTheme(dark_theme=true) { AccountsContent(AssetValuation.calculate(snapshot),{},snapshot) } }
+        rule.onNodeWithText("Bank").performClick()
+        rule.mainClock.advanceTimeBy(500);rule.waitForIdle()
+        val labels=listOf("Saving A","Saving B",
+            rule.activity.getString(dev.valnook.feature.accounts.R.string.accounts_deposit_count,0),
+            rule.activity.getString(dev.valnook.feature.accounts.R.string.accounts_investment_count,0))
+        val centres=labels.map { rule.onNodeWithText(it,useUnmergedTree=true).fetchSemanticsNode().boundsInRoot.center.y }
+        val steps=centres.zipWithNext { a,b -> b-a }
+        image("accounts-row-rhythm")
+        // Each row is a 48dp target; a sub-account is no further from the entries below it than from its neighbour.
+        steps.forEach { assertEquals("Row steps $steps",steps.first(),it,1.5f) }
+    }
     @Test fun hidden_subaccounts_do_not_hide_detail_data_or_change_total() {
         val cny=Currency.of("CNY")
         val snapshot=AssetSnapshot(listOf(SavingsAccount(1,"Bank","",showDepositSummary=false,showInvestmentSummary=false)),
