@@ -145,6 +145,25 @@ class CloudBackupCoordinatorTest {
         assertEquals(0, drive.uploadCalls)
     }
 
+    @Test fun au2_due_cycle_that_cannot_get_access_waits_and_says_why() = runBlocking {
+        connect()
+        coordinator.setAutomatic(true)
+        val scheduled = scheduler.latest!!
+        // The token refresh fails on a network blip after the schedule was set.
+        val offline = CloudBackupCoordinator(context, database,
+            RoomPortabilityEngine(context, database, Clock.fixed(Instant.parse("2026-10-03T06:00:00Z"), ZoneOffset.UTC),
+                AppBuildInfo("valnook", "0.0.5", 5, "20261003.4", "20261003.4", 10)),
+            CloudAccessProvider { CloudAccessResult.Unavailable }, drive, scheduler, networkClock, network)
+
+        val shouldRetry = offline.executeScheduled(scheduled.cycleId, scheduled.data, scheduled.connection, scheduled.schedule)
+
+        assertTrue(shouldRetry)
+        val state = offline.observeState().first()
+        assertEquals(BackupAttemptState.WAITING_NETWORK, state.attemptState)
+        assertEquals(CloudBackupError.AUTH_FAILED, state.latestError)
+        assertEquals(0, drive.uploadCalls)
+    }
+
     @Test fun au2_edit_after_scheduling_still_backs_up_when_due() = runBlocking {
         connect()
         coordinator.setAutomatic(true)

@@ -151,8 +151,21 @@ class CloudBackupCoordinator internal constructor(
         val before = store.state()
         if (before.provider != drive.provider.name || before.connection_generation != connectionGeneration ||
             before.schedule_generation != scheduleGeneration) return false
-        executeCycle(cycleId, automatic = true,
-            expected = Generation(connectionGeneration, scheduleGeneration))
+        try {
+            executeCycle(cycleId, automatic = true,
+                expected = Generation(connectionGeneration, scheduleGeneration))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            // Only steps before the upload get here (the cycle settles upload errors itself): refreshing access, the
+            // network time or reconciling an earlier upload failed. The cycle is kept and tried again, with the reason.
+            val kind = when (error) {
+                is CloudBackupException -> error.error
+                is DriveRequestException -> mapDrive(error, CloudBackupError.NO_NETWORK).error
+                else -> CloudBackupError.NO_NETWORK
+            }
+            markWaiting(BackupAttemptState.WAITING_NETWORK, kind)
+        }
         val state = store.state()
         return state.automatic_enabled && state.scheduled_cycle_id == cycleId &&
             state.connection_generation == connectionGeneration &&

@@ -49,12 +49,19 @@ class CloudBackupWorker(context: Context, parameters: WorkerParameters) : Corout
     override suspend fun doWork(): Result {
         val owner = applicationContext as? CloudBackupWorkerOwner ?: return Result.failure()
         val cycle = inputData.getString(WorkManagerBackupScheduler.KEY_CYCLE) ?: return Result.failure()
-        val waiting = owner.cloudBackupCoordinator.executeScheduled(
-            cycle,
-            inputData.getLong(WorkManagerBackupScheduler.KEY_DATA_GENERATION, -1),
-            inputData.getLong(WorkManagerBackupScheduler.KEY_CONNECTION_GENERATION, -1),
-            inputData.getLong(WorkManagerBackupScheduler.KEY_SCHEDULE_GENERATION, -1)
-        )
+        val waiting = try {
+            owner.cloudBackupCoordinator.executeScheduled(
+                cycle,
+                inputData.getLong(WorkManagerBackupScheduler.KEY_DATA_GENERATION, -1),
+                inputData.getLong(WorkManagerBackupScheduler.KEY_CONNECTION_GENERATION, -1),
+                inputData.getLong(WorkManagerBackupScheduler.KEY_SCHEDULE_GENERATION, -1)
+            )
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Anything left (the database, for one): try the cycle again later rather than stop for good.
+            true
+        }
         // Waiting happens before any upload side effect. A failed upload returns success so this cycle is never retried.
         return if (waiting) Result.retry() else Result.success()
     }
