@@ -74,7 +74,7 @@ data class DepositToolbarState(val busy: Boolean, val enabled: Boolean, val labe
                     val currencyLabel = stringResource(CoreR.string.currency)
                     val currencyEditable = editable && vm.mode == DepositFormMode.CREATE
                     SideBySide(stacked, 2f, {
-                        CurrencyChoice(state.currency.code, { value -> vm.update { it.copy(currency = Currency.of(value)) } },
+                        CurrencyChoice(state.currency.code, { value -> vm.changeCurrency(Currency.of(value)) },
                             currencyEditable, Currency.options(interfaceLanguage())) { open ->
                             FilledChoiceField(currencyLabel, state.currency.code, open, enabled = currencyEditable)
                         }

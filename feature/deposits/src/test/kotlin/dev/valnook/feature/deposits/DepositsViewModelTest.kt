@@ -34,6 +34,23 @@ class DepositsViewModelTest {
     }
     @Before fun prepare() { Dispatchers.setMain(dispatcher) }
     @After fun close() { Dispatchers.resetMain() }
+    @Test fun changing_the_currency_drops_a_cash_account_of_the_old_one() = runTest(dispatcher) {
+        val commands = object : FinancialCommands { override suspend fun execute(command: FinancialCommand) = OperationResult("TERM", 1) }
+        val vm = DepositFormViewModel(1, DepositFormMode.CREATE, null, repo, cash, commands, clock, SavedStateHandle())
+        val listening = backgroundScope.launch { vm.cashAccounts.collect {} }
+        runCurrent()
+        vm.setOpenCashLinked(true)
+        assertEquals(51L, vm.state.value.cashAccountId)
+        // No USD cash here: the CNY account is not kept for a USD deposit.
+        vm.changeCurrency(Currency.of("USD"))
+        assertEquals(Currency.of("USD"), vm.state.value.currency)
+        assertTrue(vm.state.value.cashLinked)
+        assertNull(vm.state.value.cashAccountId)
+        // Back to CNY, its only account is chosen again.
+        vm.changeCurrency(Currency.of("CNY"))
+        assertEquals(51L, vm.state.value.cashAccountId)
+        listening.cancel()
+    }
     @Test fun source_edit_preserves_both_link_choices_and_restored_draft() = runTest(dispatcher) {
         val requests = mutableListOf<FinancialCommand>()
         val commands = object : FinancialCommands { override suspend fun execute(command: FinancialCommand): OperationResult {
@@ -86,6 +103,13 @@ class DepositsViewModelTest {
         assertEquals(181L, summary.days)
         assertEquals(5157L, summary.interestMinor)
         assertEquals(405157L, summary.totalMinor)
+        // From a month's end it is still a six-month term, and it keeps following the start.
+        assertEquals(6, wholeMonths(vm.state.value.startDate, vm.state.value.endDate))
+        assertEquals(12, wholeMonths(LocalDate.parse("2026-08-31"), LocalDate.parse("2027-08-31")))
+        assertEquals(3, wholeMonths(LocalDate.parse("2026-11-30"), LocalDate.parse("2027-02-28")))
+        vm.changeStart(LocalDate.parse("2026-11-30"))
+        assertEquals(LocalDate.parse("2027-05-30"), vm.state.value.endDate)
+        vm.changeStart(LocalDate.parse("2026-10-31"))
         // An end chosen by hand stays where it is.
         vm.changeEnd(LocalDate.parse("2027-01-15"))
         vm.changeStart(LocalDate.parse("2026-11-01"))

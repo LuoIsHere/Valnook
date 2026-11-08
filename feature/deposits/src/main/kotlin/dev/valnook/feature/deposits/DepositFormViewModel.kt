@@ -79,6 +79,13 @@ class DepositFormViewModel(private val accountId: Long, val mode: DepositFormMod
             cashAccountId = if (!linked) null else current.cashAccountId ?: candidates.singleOrNull()?.id)
     }
     fun selectOpenCashAccount(id: Long) = update { it.copy(cashLinked = true, cashAccountId = id) }
+    /** A cash account chosen for the old currency no longer fits; the only one in the new currency is chosen instead. */
+    fun changeCurrency(currency: Currency) = update { current ->
+        val candidates = cashAccounts.value.filter { it.currency == currency }
+        current.copy(currency = currency,
+            cashAccountId = if (current.cashLinked) candidates.singleOrNull()?.id else null,
+            closeCashAccountId = if (current.closeCashLinked == true) candidates.singleOrNull()?.id else null)
+    }
     fun setCloseCashLinked(linked: Boolean) = update { current ->
         val candidates = cashAccounts.value.filter { it.currency == current.currency }
         current.copy(closeCashLinked = linked,

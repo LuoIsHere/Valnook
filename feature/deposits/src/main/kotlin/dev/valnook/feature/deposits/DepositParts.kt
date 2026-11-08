@@ -35,8 +35,9 @@ internal val TERM_MONTHS = listOf(3, 6, 12, 24, 36)
 
 /** Whole months from [start] to [end], or null when the end is not a whole number of months away. */
 internal fun wholeMonths(start: LocalDate, end: LocalDate): Int? {
+    // From a month's end the count falls one short: 31 October + 6 months is 30 April, five months by the calendar.
     val months = ChronoUnit.MONTHS.between(start, end)
-    return months.takeIf { it > 0 && start.plusMonths(it) == end }?.toInt()
+    return listOf(months, months + 1).firstOrNull { it > 0 && start.plusMonths(it) == end }?.toInt()
 }
 
 /** "3 个月", "1 年" or "92 天": whole years or months when the dates allow, days otherwise. */
