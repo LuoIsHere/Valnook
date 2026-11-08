@@ -102,6 +102,33 @@ interface StatisticsDao {
     @Query("SELECT * FROM investment_trades WHERE is_deleted=0 ORDER BY investment_id,occurred_at_ms,id")
     suspend fun trades(): List<TradeEntity>
 
+    // One account's trend reads only what it needs: its cash, entries and deposits, and every account's positions,
+    // trades and prices of the instruments it holds, as any account's trade prices them.
+    @Query("SELECT * FROM cash_accounts WHERE savings_account_id=:accountId ORDER BY id")
+    suspend fun currentCashOf(accountId: Long): List<CashEntity>
+
+    @Query("""SELECT e.* FROM cash_entries e JOIN cash_accounts c ON c.id=e.cash_account_id
+        WHERE c.savings_account_id=:accountId AND e.is_deleted=0 ORDER BY e.occurred_at_ms,e.id""")
+    suspend fun cashEntriesOf(accountId: Long): List<CashEntryEntity>
+
+    @Query("SELECT * FROM term_deposits WHERE savings_account_id=:accountId ORDER BY start_epoch_day,id")
+    suspend fun depositsOf(accountId: Long): List<DepositEntity>
+
+    @Query("""SELECT p.id,p.savings_account_id,p.instrument_id,s.currency_code FROM investments p
+        JOIN instruments s ON s.id=p.instrument_id
+        WHERE p.instrument_id IN (SELECT instrument_id FROM investments WHERE savings_account_id=:accountId) ORDER BY p.id""")
+    suspend fun positionsOfInstrumentsHeldBy(accountId: Long): List<StatisticsPositionRow>
+
+    @Query("""SELECT t.* FROM investment_trades t JOIN investments p ON p.id=t.investment_id WHERE t.is_deleted=0
+        AND p.instrument_id IN (SELECT instrument_id FROM investments WHERE savings_account_id=:accountId)
+        ORDER BY t.investment_id,t.occurred_at_ms,t.id""")
+    suspend fun tradesOfInstrumentsHeldBy(accountId: Long): List<TradeEntity>
+
+    @Query("""SELECT * FROM instrument_price_history WHERE is_deleted=0
+        AND instrument_id IN (SELECT instrument_id FROM investments WHERE savings_account_id=:accountId)
+        ORDER BY instrument_id,effective_at_ms,id""")
+    suspend fun pricesOfInstrumentsHeldBy(accountId: Long): List<InstrumentPriceEntity>
+
     @Query("SELECT * FROM app_settings WHERE id=1")
     suspend fun settings(): SettingsEntity?
 

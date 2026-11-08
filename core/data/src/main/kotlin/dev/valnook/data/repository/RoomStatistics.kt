@@ -63,23 +63,22 @@ class RoomStatistics(
         }
     }
 
-    // Computed on each read: the daily cache holds whole-book values only, and one account's days are few and cheap.
-    // 每次现算：每日缓存只存全部账户的值，单个账户的天数少、计算量小。
+    // Computed on each read from this account's own rows: the daily cache holds whole-book values only. It touches no
+    // cache, so it does not wait for the whole-book replay lock either.
+    // 每次只用该账户自己的数据现算：每日缓存只存全部账户的值。它不读写缓存，所以也不占用全局回放锁。
     override suspend fun loadAccountTrend(accountId: Long): List<StatisticsPoint> = withContext(Dispatchers.IO) {
-        replayMutex.withLock {
-            val today = LocalDate.now(clock)
-            val dates = generateSequence(today.minusMonths(3)) { it.plusDays(1) }.takeWhile { it <= today }.toList()
-            val header = readHeader()
-            val baselineDate = instantDate(header.state.baseline_at_ms)
-            val history = dates.filter { it >= baselineDate && it != today }
-            val computed = if (history.isEmpty()) emptyMap() else compute(readSource(header, history), history, accountId)
-            val live = if (today >= baselineDate) mapOf(today to readCurrentAccount(header, accountId)) else emptyMap()
-            val values = computed.mapValues { (_, value) -> value.point(StatisticsMetric.TOTAL_ASSETS) } + live
-            dates.map { date ->
-                if (date < baselineDate) StatisticsPoint(date, BigDecimal.ZERO, reliable = false)
-                else StatisticsPoint(date, values[date]?.value, reliable = values[date]?.value != null,
-                    complete = values[date]?.complete ?: true)
-            }
+        val today = LocalDate.now(clock)
+        val dates = generateSequence(today.minusMonths(3)) { it.plusDays(1) }.takeWhile { it <= today }.toList()
+        val header = readHeader()
+        val baselineDate = instantDate(header.state.baseline_at_ms)
+        val history = dates.filter { it >= baselineDate && it != today }
+        val computed = if (history.isEmpty()) emptyMap() else compute(readSource(header, history, accountId), history, accountId)
+        val live = if (today >= baselineDate) mapOf(today to readCurrentAccount(header, accountId)) else emptyMap()
+        val values = computed.mapValues { (_, value) -> value.point(StatisticsMetric.TOTAL_ASSETS) } + live
+        dates.map { date ->
+            if (date < baselineDate) StatisticsPoint(date, BigDecimal.ZERO, reliable = false)
+            else StatisticsPoint(date, values[date]?.value, reliable = values[date]?.value != null,
+                complete = values[date]?.complete ?: true)
         }
     }
 
@@ -162,11 +161,12 @@ class RoomStatistics(
             dev.valnook.domain.fx.FxRateResolver(settings, db.fxContext(settings.baseCurrency?.code)))
     }
 
-    private suspend fun readSource(header: Header, dates: List<LocalDate>): Source = db.withTransaction {
+    /** The whole book, or with [accountId] what that account's values need (see [compute]). */
+    private suspend fun readSource(header: Header, dates: List<LocalDate>, accountId: Long? = null): Source = db.withTransaction {
         val dao = db.statistics()
-        val cash = dao.currentCash()
-        val deposits = dao.deposits()
-        val positions = dao.positions()
+        val cash = if (accountId == null) dao.currentCash() else dao.currentCashOf(accountId)
+        val deposits = if (accountId == null) dao.deposits() else dao.depositsOf(accountId)
+        val positions = if (accountId == null) dao.positions() else dao.positionsOfInstrumentsHeldBy(accountId)
         // One read of the requested days' stored rates for the currencies this source holds, inverted once per row.
         val base = header.settings.baseCurrency?.code
         val quotes = (cash.map { it.currency_code } + deposits.map { it.currency_code } + positions.map { it.currency_code })
@@ -176,8 +176,11 @@ class RoomStatistics(
             .groupBy { it.quote_currency }.mapValues { (_, rows) -> rows.associate { row ->
                 row.local_day to BigDecimal.ONE.divide(BigDecimal(row.rate), java.math.MathContext.DECIMAL128)
             } }
-        Source(header.state, cash, dao.creditProfiles(), dao.cashEntries(), deposits, positions,
-            dao.trades(), dao.prices(), header.settings, header.rates, daily)
+        Source(header.state, cash, dao.creditProfiles(),
+            if (accountId == null) dao.cashEntries() else dao.cashEntriesOf(accountId), deposits, positions,
+            if (accountId == null) dao.trades() else dao.tradesOfInstrumentsHeldBy(accountId),
+            if (accountId == null) dao.prices() else dao.pricesOfInstrumentsHeldBy(accountId),
+            header.settings, header.rates, daily)
     }
 
     private suspend fun cacheFor(metric: StatisticsMetric, dates: List<LocalDate>, revision: Long,
@@ -211,9 +214,27 @@ class RoomStatistics(
         val cashAccounts = source.cash.filter { accountId == null || it.savings_account_id == accountId }
         val heldDeposits = source.deposits.filter { accountId == null || it.savings_account_id == accountId }
         val heldPositions = source.positions.filter { accountId == null || it.savings_account_id == accountId }
-        val entriesByCash = source.entries.groupBy { it.cash_account_id }
-        val tradesByPosition = source.trades.groupBy { it.investment_id }
+        // Each day only looks up how much moved after it and how much was held by then, rather than going through
+        // every entry and trade again: sums over time, worked out once.
+        val entriesByCash = source.entries.groupBy { it.cash_account_id }.mapValues { (_, entries) ->
+            entries.sortedBy { it.occurred_at_ms }.let { sorted ->
+                Timeline(sorted.map { it.occurred_at_ms }, sorted.map { it.delta_minor })
+            }
+        }
+        val tradesByPosition = source.trades.groupBy { it.investment_id }.mapValues { (_, trades) ->
+            trades.sortedBy { it.occurred_at_ms }.let { sorted ->
+                Timeline(sorted.map { it.occurred_at_ms }, sorted.map { trade ->
+                    // Dividends move no units.
+                    when (trade.direction) {
+                        Direction.BUY.name -> trade.quantity_e8
+                        Direction.SELL.name -> -trade.quantity_e8
+                        else -> 0L
+                    }
+                })
+            }
+        }
         val observationsByInstrument = priceObservations(source)
+        val creditIds = source.creditProfiles.asSequence().map { it.account_id }.toHashSet()
         return dates.distinct().associateWith { date ->
             val cutoff = cutoff(date)
             val day = date.toEpochDay()
@@ -223,11 +244,9 @@ class RoomStatistics(
             var cashComplete = true
             var otherComplete = true
             var investmentComplete = true
-            val creditIds = source.creditProfiles.asSequence().map { it.account_id }.toHashSet()
             var availableCash = BigDecimal.ZERO
             val balanceAccounts = cashAccounts.fold(BigDecimal.ZERO) { total, account ->
-                val after = entriesByCash[account.id].orEmpty().asSequence()
-                    .filter { it.occurred_at_ms > cutoff }.sumOf { it.delta_minor }
+                val after = entriesByCash[account.id]?.after(cutoff) ?: 0L
                 val minor = account.balance_minor - after
                 val available = account.id !in creditIds && account.include_in_available_cash
                 val rate = rate(account.currency_code)
@@ -250,15 +269,7 @@ class RoomStatistics(
             var investment = BigDecimal.ZERO
             var investmentKnown = true
             heldPositions.forEach { position ->
-                var quantity = 0L
-                tradesByPosition[position.id].orEmpty().forEach { trade ->
-                    // Dividends move no units.
-                    if (trade.occurred_at_ms <= cutoff) quantity += when (trade.direction) {
-                        Direction.BUY.name -> trade.quantity_e8
-                        Direction.SELL.name -> -trade.quantity_e8
-                        else -> 0L
-                    }
-                }
+                val quantity = tradesByPosition[position.id]?.upTo(cutoff) ?: 0L
                 if (quantity > 0) {
                     val price = priceAt(observationsByInstrument[position.instrument_id].orEmpty(), cutoff)
                     if (price == null) investmentKnown = false else {
@@ -367,6 +378,30 @@ class RoomStatistics(
 
     private data class Header(val state: StatisticsStateEntity, val settings: AppSettings,
         val rates: dev.valnook.domain.fx.FxRateResolver)
+
+    /**
+     * Amounts at moments, in time order: [upTo] adds those at or before a moment, [after] those later; each is a binary
+     * search over sums made once.
+     */
+    private class Timeline(times: List<Long>, amounts: List<Long>) {
+        private val times = times.toLongArray()
+        /** At index i, the sum of the first i amounts. */
+        private val prefix = LongArray(amounts.size + 1).also { sums ->
+            amounts.forEachIndexed { index, amount -> sums[index + 1] = sums[index] + amount }
+        }
+        /** How many moments are at or before [cutoff]. */
+        private fun count(cutoff: Long): Int {
+            var low = 0
+            var high = times.size
+            while (low < high) {
+                val middle = (low + high) ushr 1
+                if (times[middle] <= cutoff) low = middle + 1 else high = middle
+            }
+            return low
+        }
+        fun upTo(cutoff: Long): Long = prefix[count(cutoff)]
+        fun after(cutoff: Long): Long = prefix[times.size] - prefix[count(cutoff)]
+    }
 
     private data class PriceObservation(val instrumentId: Long, val atMs: Long, val price: BigDecimal, val manual: Boolean,
         val day: LocalDate)
