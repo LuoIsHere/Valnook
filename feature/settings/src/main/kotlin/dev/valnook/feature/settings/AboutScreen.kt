@@ -24,7 +24,8 @@ import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.pageContentPadding
 
 @Composable
-fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () -> Unit = {}, internalBuildId: String = "") {
+fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () -> Unit = {}, internalBuildId: String = "",
+    onThirdParty: () -> Unit = {}) {
     val uriHandler = LocalUriHandler.current
     val repositoryUrl = stringResource(R.string.settings_repository_url)
     LazyColumn(Modifier.fillMaxSize().testTag("about-page"), contentPadding = pageContentPadding(),
@@ -51,6 +52,10 @@ fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () 
                 HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
                 SettingEntry(stringResource(R.string.settings_license), stringResource(R.string.settings_footer_license),
                     onLicense, Modifier.testTag("about-license"))
+                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                SettingEntry(stringResource(R.string.settings_third_party),
+                    stringResource(R.string.settings_third_party_summary), onThirdParty,
+                    Modifier.testTag("about-third-party"))
                 HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
                 SettingEntry(stringResource(R.string.settings_repository), repositoryUrl,
                     // A device without a browser cannot open it; nothing happens rather than a crash.

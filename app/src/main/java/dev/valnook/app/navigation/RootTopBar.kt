@@ -30,6 +30,7 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     AboutKey -> stringResource(dev.valnook.feature.settings.R.string.settings_about)
     PrivacyPolicyKey -> stringResource(dev.valnook.feature.settings.R.string.settings_privacy_policy)
     LicenseKey -> stringResource(dev.valnook.feature.settings.R.string.settings_license)
+    ThirdPartyKey -> stringResource(dev.valnook.feature.settings.R.string.settings_third_party)
     NavigationSettingsKey -> stringResource(R.string.title_navigation_settings)
     FxSettingsKey -> stringResource(R.string.title_exchange_rates)
     LanguageSettingsKey -> stringResource(R.string.title_language)

@@ -510,9 +510,10 @@ private fun SessionRoot(
                             }
                             entry<AboutKey> {
                                 dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME, { open(PrivacyPolicyKey) },
-                                    { open(LicenseKey) }, BuildConfig.INTERNAL_BUILD_ID)
+                                    { open(LicenseKey) }, BuildConfig.INTERNAL_BUILD_ID, { open(ThirdPartyKey) })
                             }
                             entry<LicenseKey> { dev.valnook.feature.settings.LicenseScreen() }
+                            entry<ThirdPartyKey> { dev.valnook.feature.settings.ThirdPartyNoticesScreen() }
                             entry<PrivacyPolicyKey> {
                                 dev.valnook.feature.settings.PrivacyPolicyScreen()
                             }

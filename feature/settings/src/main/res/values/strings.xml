@@ -82,7 +82,7 @@
     <string name="settings_footer_license" translatable="false">MIT License</string>
     <string name="settings_license" translatable="false">License</string>
     <string name="settings_about">About Valnook</string>
-    <string name="settings_about_summary">App information, privacy policy and license</string>
+    <string name="settings_about_summary">App information, privacy policy, license and third-party notices</string>
     <string name="settings_privacy_policy">Privacy policy</string>
     <string name="settings_privacy_policy_summary">Read the privacy policy and disclaimer offline</string>
     <string name="settings_repository">GitHub repository</string>
@@ -133,4 +133,6 @@
     <string name="settings_navigation_full">The bar shows up to %1$d pages. Hide one to add another.</string>
     <string name="settings_fx_summary">Base currency %1$s · %2$s</string>
     <string name="settings_fx_summary_unset">No base currency · %1$s</string>
+    <string name="settings_third_party">Third-party notices</string>
+    <string name="settings_third_party_summary">Open-source libraries, icons and trademarks</string>
 </resources>

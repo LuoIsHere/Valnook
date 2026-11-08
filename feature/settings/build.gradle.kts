@@ -10,19 +10,25 @@ android {
     buildFeatures { compose = true }
 }
 
-/** Copies the repository's LICENSE into raw resources at build time, so the app shows the one file the repository keeps. */
+/**
+ * Copies the repository's LICENSE and THIRD_PARTY_NOTICES into raw resources at build time, so the app shows the
+ * same files the repository keeps.
+ */
 abstract class LicenseResources : DefaultTask() {
     @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val license: RegularFileProperty
+    @get:InputFile @get:PathSensitive(PathSensitivity.NONE) abstract val notices: RegularFileProperty
     @get:OutputDirectory abstract val output: DirectoryProperty
     @TaskAction fun copy() {
         val raw = output.get().dir("raw").asFile
         raw.deleteRecursively()
         raw.mkdirs()
         license.get().asFile.copyTo(raw.resolve("license.txt"))
+        notices.get().asFile.copyTo(raw.resolve("third_party_notices.txt"))
     }
 }
 val licenseResources = tasks.register<LicenseResources>("licenseResources") {
     license.set(rootProject.layout.projectDirectory.file("LICENSE"))
+    notices.set(rootProject.layout.projectDirectory.file("THIRD_PARTY_NOTICES"))
 }
 androidComponents {
     onVariants { variant -> variant.sources.res?.addGeneratedSourceDirectory(licenseResources, LicenseResources::output) }

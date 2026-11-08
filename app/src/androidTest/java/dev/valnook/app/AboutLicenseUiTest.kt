@@ -32,6 +32,28 @@ class AboutLicenseUiTest {
         bitmap.recycle()
     }
 
+    @Test fun about_opens_the_third_party_notices_from_top_to_bottom() {
+        rule.runOnUiThread { rule.activity.setContent { ValnookRoot(rule.activity.sessions, rule.activity.webAdmin) } }
+        rule.waitUntil(15_000) { rule.onAllNodesWithTag("nav-settings").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("nav-settings").performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("settings-list").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("settings-list").performScrollToNode(hasTestTag("settings-about"))
+        rule.onNodeWithTag("settings-about").performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("about-page").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("about-page").performScrollToNode(hasTestTag("about-third-party"))
+        rule.onNodeWithTag("about-third-party").assertHasClickAction().performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("third-party-page").fetchSemanticsNodes().isNotEmpty() }
+        // The file as the repository keeps it: its title first, then the icon attribution.
+        rule.onNodeWithText("THIRD-PARTY NOTICES").assertIsDisplayed()
+        rule.onNodeWithTag("third-party-page").performScrollToNode(hasText("Font Awesome Free 7.3.1", substring = true))
+        rule.onNodeWithText("CC BY 4.0", substring = true).assertExists()
+        save("third-party-top")
+        // The Apache License closes the file.
+        rule.onNodeWithTag("third-party-page").performScrollToNode(hasText("END OF TERMS AND CONDITIONS"))
+        rule.onNodeWithText("END OF TERMS AND CONDITIONS").assertIsDisplayed()
+        save("third-party-end")
+    }
+
     @Test fun settings_and_about_name_the_license_and_open_its_full_text() {
         rule.runOnUiThread { rule.activity.setContent { ValnookRoot(rule.activity.sessions, rule.activity.webAdmin) } }
         rule.waitUntil(15_000) { rule.onAllNodesWithTag("nav-settings").fetchSemanticsNodes().isNotEmpty() }
