@@ -125,7 +125,7 @@ internal class SpreadsheetWriter(
             sheet.row(text(label(english, "用途", "Purpose")), text(label(english,
                 "仅供分析，不能导入 Valnook", "For analysis only. Cannot be restored into Valnook.")))
             sheet.row(text(label(english, "数据类型", "Data type")), text(if (demo)
-                label(english, "合成演示数据", "Synthetic demo data") else label(english, "真实模式快照", "Real-mode snapshot")))
+                label(english, "演示数据", "Demo data") else label(english, "真实模式快照", "Real-mode snapshot")))
             sheet.row(text(label(english, "导出时间（UTC）", "Export time (UTC)")), text(BackupSnapshotWriter.formatUtc(createdAt)))
             sheet.row(text(label(english, "时间来源", "Time source")), text("DEVICE_CLOCK"))
             sheet.row(text(label(english, "应用版本", "App version")), text(buildInfo.appVersion))
@@ -150,14 +150,14 @@ internal class SpreadsheetWriter(
             }
             sheet.blank()
             sheet.row(section(label(english, "当前汇总（主币种）", "Current totals (base currency)")))
-            sheet.row(header(label(english, "类别", "Category")), header(label(english, "金额", "Amount")), header(label(english, "币种", "Currency")))
+            sheet.row(header(label(english, "项目", "Item")), header(label(english, "金额", "Amount")), header(label(english, "币种", "Currency")))
             sheet.row(text(label(english, "可用现金", "Available cash")), decimal(valuation.availableCash.amount), text(base))
             sheet.row(text(label(english, "信用账户余额", "Credit account balance")), decimal(valuation.creditBalance.amount), text(base))
-            sheet.row(text(label(english, "未结束存单本金", "Open deposit principal")), decimal(valuation.depositValue.amount), text(base))
+            sheet.row(text(label(english, "未结算存单本金", "Unsettled deposit principal")), decimal(valuation.depositValue.amount), text(base))
             sheet.row(text(label(english, "当前投资市值", "Current investment value")), decimal(valuation.investmentValue.amount), text(base))
             sheet.row(text(label(english, "净资产", "Net assets")), decimal(valuation.total.amount), text(base))
             sheet.row(text(label(english, "主账户数", "Account count")), number(snapshot.accounts.size.toString()))
-            sheet.row(text(label(english, "子账户数", "Balance account count")), number(snapshot.cash.size.toString()))
+            sheet.row(text(label(english, "子账户数", "Subaccount count")), number(snapshot.cash.size.toString()))
             sheet.row(text(label(english, "储蓄账户数", "Savings account count")),
                 number(snapshot.cash.count { it.type == BalanceAccountType.SAVINGS }.toString()))
             sheet.row(text(label(english, "信用账户数", "Credit account count")),
@@ -225,12 +225,12 @@ internal class SpreadsheetWriter(
                     text(sourceLabel), cash.creditProfile?.let { number(it.statementDay.toString()) } ?: text(""), text(dueRule))
             }
             sheet.blank()
-            sheet.row(section(label(english, "定期存单", "Term deposits")))
+            sheet.row(section(label(english, "定期", "Deposits")))
             sheet.row(header("ID"), header(label(english, "币种", "Currency")), header(label(english, "本金", "Principal")),
-                header(label(english, "开始日期", "Start date")), header(label(english, "结束日期", "End date")),
+                header(label(english, "开始日期", "Start date")), header(label(english, "到期日期", "Maturity date")),
                 header(label(english, "年利率 (%)", "Annual rate (%)")), header(label(english, "预计利息", "Expected interest")),
-                header(label(english, "状态", "Status")), header(label(english, "开立现金账户", "Opening cash account")),
-                header(label(english, "结束现金账户", "Closing cash account")))
+                header(label(english, "状态", "Status")), header(label(english, "开立子账户", "Opening subaccount")),
+                header(label(english, "结算子账户", "Settlement subaccount")))
             val cashNames = snapshot.cash.associate { it.id to it.name }
             query("""SELECT id,currency_code,principal_minor,start_epoch_day,end_epoch_day,
                 annual_rate_percent_e8,expected_interest_minor,status,open_cash_account_id,close_cash_account_id
@@ -247,7 +247,7 @@ internal class SpreadsheetWriter(
             sheet.blank()
             sheet.row(section(label(english, "持仓与历史", "Holdings and history")))
             sheet.row(header(label(english, "状态", "State")), header(label(english, "名称", "Name")), header(label(english, "代码", "Symbol")),
-                header(label(english, "类别", "Class")), header(label(english, "币种", "Currency")), header(label(english, "数量", "Quantity")),
+                header(label(english, "资产类型", "Asset class")), header(label(english, "币种", "Currency")), header(label(english, "数量", "Quantity")),
                 header(label(english, "当前价", "Current price")), header(label(english, "持仓均价", "Average cost")),
                 header(label(english, "持仓成本", "Remaining cost")), header(label(english, "市值", "Market value")),
                 header(label(english, "未实现盈亏", "Unrealized P/L")), header(label(english, "已实现盈亏", "Realized P/L")))

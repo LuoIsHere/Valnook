@@ -23,13 +23,13 @@
     <string name="manual_balance_change">Manual balance adjustment</string>
     <string name="source_trade">Investment trade</string>
     <string name="source_deposit_open">Deposit opened</string>
-    <string name="source_deposit_close">Deposit returned</string>
+    <string name="source_deposit_close">Deposit settled</string>
     <string name="view_source_trade">Edit source trade</string>
     <string name="source_deposit_hint">This entry came from a linked deposit. View its source in Deposits.</string>
     <string name="cash_edit_hint">Changing the original amount updates the current balance by the difference.</string>
     <string name="edit_trade">Edit trade</string>
     <string name="delete_trade">Delete trade</string>
-    <string name="trade_direction">Record type</string>
+    <string name="trade_direction">Trade direction</string>
     <string name="delete_trade_title">Delete this record?</string>
     <string name="delete_trade_hint">Holdings and linked cash update together. The original operation receipt is retained.</string>
     <string name="trade_edit_hint">Holdings and linked cash update by the difference. The current price stays unchanged.</string>
@@ -93,7 +93,7 @@
     <string name="sell">Sell</string>
     <string name="history">Trade history</string>
     <string name="trade_date">Trade date</string>
-    <string name="trade_time">Trade time (HH:mm)</string>
+    <string name="trade_time">Trade time</string>
     <string name="trade_value">%1$s · %2$s units × %3$s\n%4$s %5$s · %6$s</string>
     <string name="linked">Cash linked</string>
     <string name="unlinked">Cash not linked</string>
@@ -102,11 +102,11 @@
     <string name="opening_hint">Enter an existing position without creating a purchase or changing cash. Currency is fixed after creation.</string>
     <string name="form_hint">Input is kept after errors. Cash linking starts off; review before saving.</string>
     <string name="amount_preview">Amount: %1$s %2$s</string>
-    <string name="error_cash">The selected cash account has insufficient funds. Nothing was saved.</string>
+    <string name="error_cash">The selected subaccount has insufficient funds. Nothing was saved.</string>
     <string name="error_holding">The sale exceeds the current holding. Nothing was saved.</string>
     <string name="error_stale">The balance changed elsewhere. Go back, reopen the form, and review it.</string>
     <string name="error_conflict">The operation ID conflicts with another request. Go back and review records.</string>
-    <string name="error_closed">The deposit is already settled and cannot return funds again.</string>
+    <string name="error_closed">This deposit is already settled.</string>
     <string name="error_maturity">The deposit has not matured and cannot be settled yet.</string>
     <string name="error_precision">Too many decimal places. Amounts follow currency precision; current prices allow up to 5, and trade prices, quantities, and rates up to 8.</string>
     <string name="error_overflow">The value is too large to save. Use a smaller value.</string>
@@ -146,7 +146,7 @@
     <string name="credit_owed">Amount owed</string>
     <string name="credit_overpaid">Credit balance</string>
     <string name="credit_no_debt">No amount owed</string>
-    <string name="credit_statement_today">Statement date today</string>
+    <string name="credit_statement_today">Statement day today</string>
     <string name="credit_due_today">Payment due today</string>
     <plurals name="credit_statement_in">
         <item quantity="one">Statement date in %1$d day</item>
@@ -156,4 +156,5 @@
         <item quantity="one">Payment due in %1$d day</item>
         <item quantity="other">Payment due in %1$d days</item>
     </plurals>
+    <string name="record_type">Type</string>
 </resources>

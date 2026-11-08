@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="wallet_back_wallet">Back to wallet</string>
-    <string name="wallet_linked_account_was_deleted">The linked account was deleted.</string>
-    <string name="wallet_no_linked_account">No linked account</string>
-    <string name="wallet_keep_card_as_collection_link">Keep this card as a collection, or link an account to see its balance and activity.</string>
-    <string name="wallet_link_account">Link account</string>
+    <string name="wallet_linked_account_was_deleted">The linked subaccount was deleted.</string>
+    <string name="wallet_no_linked_account">No linked subaccount</string>
+    <string name="wallet_keep_card_as_collection_link">Keep this card as a collection, or link a subaccount to see its balance and activity.</string>
+    <string name="wallet_link_account">Link subaccount</string>
     <string name="wallet_funds_activity">Funds activity</string>
     <string name="wallet_previous_month">Previous month</string>
     <string name="wallet_next_month">Next month</string>
@@ -27,7 +27,7 @@
     <string name="wallet_saving">Saving…</string>
     <string name="wallet_save">Save</string>
     <string name="wallet_link_subaccount">Link a subaccount</string>
-    <string name="wallet_no_linked_account_2">No linked account</string>
+    <string name="wallet_no_linked_account_2">Don\'t link</string>
     <string name="wallet_credit">Credit</string>
     <string name="wallet_savings">Savings</string>
     <string name="wallet_adjust_card_face">Adjust card face</string>
@@ -85,7 +85,7 @@
     <string name="wallet_copy_expiry_date">Copy expiry date</string>
     <string name="wallet_copy_cardholder_name">Copy cardholder name</string>
     <string name="wallet_copy">"Copy %1$s"</string>
-    <string name="wallet_private_card_details">Private card details</string>
+    <string name="wallet_private_card_details">About private card details</string>
     <string name="wallet_card_numbers_cardholder_names_expiry">Card numbers, cardholder names, expiry dates, CVV1 and CVV2 are sensitive. Disclosure may cause financial loss.</string>
     <string name="wallet_details_entered_here_are_encrypted">Details entered here are encrypted on this device only, with keys managed by Android Keystore and content encrypted with AES-GCM. They are never uploaded, never included in local or OneDrive backups or file exports, and cannot be accessed from Web administration.</string>
     <string name="wallet_uninstalling_clearing_app_data_successfully">Uninstalling, clearing app data or successfully replacing data from a backup makes these details unrecoverable. Enable your device\'s app lock for Valnook where available.</string>
@@ -100,7 +100,7 @@
     <string name="wallet_could_not_securely_read_save">Could not securely read or save these details. Retry after closing the editor. If the local key or encrypted file is lost, backups cannot recover it.</string>
     <string name="wallet_ok_2">OK</string>
     <string name="wallet_card_back_colors">Card back colors</string>
-    <string name="wallet_private_card_details_2">Private card details</string>
+    <string name="wallet_private_card_details_2">Edit card back</string>
     <string name="wallet_card_number">Card number</string>
     <string name="wallet_up_38_characters">Up to 38 characters</string>
     <string name="wallet_up_38_characters_symbols_allowed">Up to 38 characters · symbols allowed</string>
@@ -120,9 +120,9 @@
     <string name="wallet_copied">Copied</string>
     <string name="wallet_copy_failed_try_again">Copy failed. Try again.</string>
     <string name="wallet_delete_card_prompt">Delete this card?</string>
-    <string name="wallet_card_any_private_back_details">The card and any private back details are deleted. Its face stays in Settings › Card faces, and the linked account and its records are kept.</string>
+    <string name="wallet_card_any_private_back_details">The card and any private back details are deleted. Its face stays in Settings › Card faces, and the linked subaccount and its records are kept.</string>
     <string name="wallet_place_your_cards">A place for your cards</string>
-    <string name="wallet_collect_card_face_link_existing">Collect a card face, or link an existing account.</string>
+    <string name="wallet_collect_card_face_link_existing">Collect a card face, or link an existing subaccount.</string>
     <string name="wallet_move_up">Move up</string>
     <string name="wallet_move_down">Move down</string>
 </resources>

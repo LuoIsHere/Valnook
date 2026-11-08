@@ -19,8 +19,8 @@
     <string name="accounts_missing_current_cost">当前成本待补全</string>
     <string name="accounts_missing_historical_cost">历史成本待补全</string>
     <string name="accounts_invalid_history">历史记录异常</string>
-    <string name="accounts_empty">点击右上角＋新增账户</string>
-    <string name="account_edit_load_failed">读取失败，重试</string>
+    <string name="accounts_empty">点按右上角＋新增账户</string>
+    <string name="account_edit_load_failed">加载失败，重试</string>
     <string name="account_edit_title">编辑账户</string>
     <string name="account_name">名称</string>
     <string name="account_note">备注</string>
@@ -86,7 +86,7 @@
     <string name="account_show_investments">显示投资汇总</string>
     <string name="account_show_cash">在账户页显示</string>
     <string name="account_include_available">计入可用现金</string>
-    <string name="account_delete_parent_scope">删除此主账户及其全部子账户、现金流水、存单、持仓和交易记录。保留全局投资标的及其他账户。历史统计会重新计算，此操作无法撤销。</string>
+    <string name="account_delete_parent_scope">删除此主账户及其全部子账户、现金流水、存单、持仓和交易记录。保留全局标的及其他账户。历史统计会重新计算，此操作无法撤销。</string>
     <string name="account_delete_child_scope">删除此子账户及其现金流水。存单与投资交易保留，并解除与此子账户的现金关联。余额不会转移，其他子账户余额不变。历史统计会重新计算，此操作无法撤销。</string>
     <string name="account_delete_counts">子账户 %1$d 个 · 现金流水 %2$d 条\n涉及存单 %3$d 张 · 投资交易 %4$d 条</string>
     <string name="account_delete_transfer">%1$s → 独立额度 %2$s %3$s</string>

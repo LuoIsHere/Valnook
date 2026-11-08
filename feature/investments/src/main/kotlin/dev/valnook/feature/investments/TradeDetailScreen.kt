@@ -38,9 +38,9 @@ import java.time.ZoneId
         val dividendRows=listOf(
             stringResource(R.string.entry_account) to account_name,
             stringResource(R.string.record_investment) to listOf(asset.name,asset.symbol).filter{it.isNotBlank()}.joinToString(" · "),
-            stringResource(R.string.trade_direction) to stringResource(R.string.source_dividend),
+            stringResource(R.string.record_type) to stringResource(R.string.source_dividend),
             stringResource(R.string.dividend_received) to ("+"+Decimal.format_display(settledAmount,trade.currency.fraction_digits)+" "+trade.currency.code),
-            stringResource(R.string.trade_date) to time.toLocalDate().toString(),
+            stringResource(R.string.record_date) to time.toLocalDate().toString(),
             stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
         RecordDetailLayout(stringResource(R.string.dividend_detail_title),dividendRows) {
             ActionButton(onClick=on_edit,modifier=Modifier.fillMaxWidth().testTag("dividend-edit")){Text(stringResource(R.string.edit_dividend))}
@@ -58,7 +58,7 @@ import java.time.ZoneId
         stringResource(R.string.trade_fee) to (Decimal.format_display(trade.fee_minor,trade.currency.fraction_digits)+" "+trade.currency.code),
         stringResource(R.string.currency) to trade.currency.code,
         stringResource(R.string.trade_date) to time.toLocalDate().toString(),
-        stringResource(R.string.record_time) to time.format(rememberClockFormatter()),
+        stringResource(R.string.trade_time) to time.format(rememberClockFormatter()),
         stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
     RecordDetailLayout(stringResource(R.string.trade_detail_title),rows) {
         ActionButton(onClick=on_edit,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.edit_trade))}

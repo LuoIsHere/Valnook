@@ -1,7 +1,7 @@
 <resources>
     <string name="cash_balance_load_failed">Could not load balances. Go back and try again.</string>
     <string name="cash_history_load_failed">Could not load cash history. Go back and try again.</string>
-    <string name="cash_account_load_failed">Could not load this cash account</string>
+    <string name="cash_account_load_failed">Could not load this subaccount</string>
     <string name="cash_edit_balance">Edit balance</string>
     <string name="cash_current_balance">Current balance</string>
     <string name="cash_review_retry">Review and retry</string>
@@ -23,13 +23,13 @@
     <string name="cash_credit_account">Credit account</string>
     <string name="cash_over_limit">Over limit %1$s %2$s</string>
     <string name="cash_limit_source">Limit source: %1$s</string>
-    <string name="cash_statement_day">Statement date: day %1$d</string>
+    <string name="cash_statement_day">Statement day: %1$d</string>
     <string name="cash_previous_balance">Previous balance %1$s</string>
     <string name="cash_section_credit">Credit cards</string>
     <string name="cash_section_savings">Savings accounts</string>
     <string name="cash_section_info">Account info</string>
     <string name="cash_note_label">Note</string>
-    <string name="cash_statement_day_label">Statement date</string>
+    <string name="cash_statement_day_label">Statement day</string>
     <string name="cash_statement_day_value">Day %1$d of each month</string>
     <string name="cash_limit_source_label">Limit source</string>
     <string name="cash_balance_after">Balance after %1$s</string>

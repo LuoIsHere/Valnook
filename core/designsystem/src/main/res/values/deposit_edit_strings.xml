@@ -1,6 +1,6 @@
 <resources>
-    <string name="edit_deposit">Edit deposit record</string>
-    <string name="view_source_deposit">Edit source deposit record</string>
+    <string name="edit_deposit">Edit deposit</string>
+    <string name="view_source_deposit">Edit source deposit</string>
     <string name="deposit_open_link">Cash link on opening</string>
     <string name="deposit_close_link">Cash link on settlement</string>
     <string name="deposit_edit_hint">Changing the principal, rate, or term updates interest and linked cash by the difference. A settled deposit stays settled, and its maturity date must be today or earlier.</string>

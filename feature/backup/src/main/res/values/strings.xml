@@ -1,7 +1,7 @@
 <resources>
     <string name="backup_title">Backup &amp; export</string>
     <string name="backup_description">Create an offline portable backup, replace current data from a validated backup, or export an analysis workbook.</string>
-    <string name="backup_demo_description">Demo mode can export only the current synthetic data workbook.</string>
+    <string name="backup_demo_description">Demo mode can export only the demo data workbook.</string>
     <string name="backup_create_local">Create local backup</string>
     <string name="backup_restore">Restore from backup</string>
     <string name="backup_export_excel">Export Excel</string>
@@ -12,12 +12,12 @@
     <string name="backup_source">Source file</string>
     <string name="backup_created">Backup time</string>
     <string name="backup_versions">Source versions</string>
-    <string name="backup_counts">Accounts / cash accounts / trades / audit events</string>
+    <string name="backup_counts">Accounts / subaccounts / trades / audit events</string>
     <string name="backup_overwrite_warning">This replaces all current records, Wallet cards and images, and financial and display preferences. It does not merge. Older backups restore an empty Wallet. Private card back details and colors are never backed up; a successful restore permanently clears them. The backup is not encrypted.</string>
     <string name="backup_audit_incomplete">Older activity predates audit tracking. Existing facts are preserved without fabricated before/after history.</string>
     <string name="backup_continue">Continue</string>
     <string name="backup_cancel">Cancel</string>
-    <string name="backup_confirmation_code">Enter this one-time code: %1$s</string>
+    <string name="backup_confirmation_code">Enter confirmation code: %1$s</string>
     <string name="backup_confirmation_input">Confirmation code</string>
     <string name="backup_confirm_restore">Replace and restore</string>
     <string name="backup_restored">Restore committed at %1$s</string>
@@ -32,7 +32,7 @@
     <string name="backup_error_version">This backup requires a newer or incompatible Valnook version.</string>
     <string name="backup_error_corrupt">The file failed its integrity or summary checks. Current data was not changed.</string>
     <string name="backup_error_stale">Current records changed after preview. Review the file and request a new confirmation code.</string>
-    <string name="backup_error_confirmation">The one-time confirmation code is invalid.</string>
+    <string name="backup_error_confirmation">The confirmation code is incorrect.</string>
     <string name="backup_error_limit">The file exceeds a supported safety or spreadsheet limit.</string>
     <string name="backup_error_space">There is not enough private storage to validate this file safely.</string>
     <string name="backup_error_generic">The file operation could not be completed. Current records were not changed.</string>
@@ -89,7 +89,7 @@
     <string name="cloud_error_interval">Enter a whole number from 1 to 720 hours.</string>
     <string name="cloud_error_generic">The OneDrive operation could not be completed.</string>
     <string name="cloud_microsoft_attribution">Microsoft and OneDrive are trademarks of Microsoft Corporation.</string>
-    <string name="cloud_error_config">Microsoft sign-in is not configured for this build.</string>
+    <string name="cloud_error_config">Microsoft sign-in is not configured for this build. Contact the developer.</string>
     <string name="cloud_error_quota">OneDrive storage is full. Free some space and try again.</string>
     <string name="cloud_error_rate">OneDrive is busy. Try again later.</string>
     <string name="cloud_reason_upload">The upload stopped after it started.</string>

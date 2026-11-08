@@ -42,14 +42,14 @@
     <string name="investment_quantity">Quantity</string>
     <string name="investment_execution_price">Execution price</string>
     <string name="investment_trade_fee">Transaction fee</string>
-    <string name="investment_record_date">Record date</string>
-    <string name="investment_record_time">Record time</string>
+    <string name="investment_record_date">Trade date</string>
+    <string name="investment_record_time">Trade time</string>
     <string name="investment_trade_amount">Trade amount %1$s</string>
     <string name="investment_link_cash">Link %1$s cash in this account</string>
     <string name="investment_set_current_price">Set the trade price as the current price</string>
-    <string name="investment_set_current_price_older">The trade is older than the current price, updated %1$s.</string>
-    <string name="investment_cash_missing">Create a cash account in the same currency first</string>
-    <string name="investment_cash_account">Cash account</string>
+    <string name="investment_set_current_price_older">The trade is older than the current price, updated %1$s, so it can\'t be set as the current price.</string>
+    <string name="investment_cash_missing">Create a subaccount in the same currency first</string>
+    <string name="investment_cash_account">Subaccount</string>
     <string name="investment_cash_change">Cash change for this account %1$s</string>
     <string name="investment_history_conflict">This change would make the historical holding negative. Check the date and quantity.</string>
     <string name="investment_unknown_result">Save result not yet confirmed. Retry safely without creating a duplicate.</string>
@@ -96,8 +96,8 @@
     <string name="instrument_delete_value">Its current value of %1$s will be removed from your net assets.</string>
     <string name="instrument_delete_cash">Its %1$d cash entries stay and balances do not change; past statistics are recalculated.</string>
     <string name="instrument_delete_code">Confirmation code: %1$s</string>
-    <string name="instrument_delete_code_input">Enter the code</string>
-    <string name="instrument_delete_refresh">Try again</string>
+    <string name="instrument_delete_code_input">Confirmation code</string>
+    <string name="instrument_delete_refresh">Refresh preview and code</string>
     <string name="instrument_type_new_title">New asset class</string>
     <string name="instrument_type_edit_title">Edit asset class</string>
     <string name="instrument_type_name_hint">Stocks, bonds, funds…</string>
@@ -123,7 +123,7 @@
     <string name="dividend_amount">Amount received after tax (%1$s)</string>
     <string name="dividend_date">Dividend date</string>
     <string name="dividend_link_cash">Also add to cash</string>
-    <string name="dividend_hint">A dividend adds to realized profit; it changes neither units nor cost.</string>
+    <string name="dividend_hint">A dividend adds to realized P/L; it changes neither units nor cost.</string>
     <string name="dividend_history_conflict">This account bought nothing before this date.</string>
     <string name="instrument_dividends_part">Dividends %1$s</string>
     <string name="dividend_row_detail">Dividend received</string>
@@ -161,8 +161,8 @@
     <string name="instrument_price_last">Last updated %1$s · %2$s</string>
     <string name="investment_holding_detail">%1$s units · price %2$s · cost %3$s</string>
     <string name="investment_realized_label">Realized</string>
-    <string name="realized_title">Realized profit</string>
-    <string name="realized_open">Open realized profit by instrument</string>
+    <string name="realized_title">Realized P/L</string>
+    <string name="realized_open">Open realized P/L by instrument</string>
     <plurals name="realized_count">
         <item quantity="one">At today\'s rates · %1$d instrument</item>
         <item quantity="other">At today\'s rates · %1$d instruments</item>
@@ -171,6 +171,6 @@
     <string name="realized_sold_out">Sold out</string>
     <string name="realized_unknown">Can\'t be worked out</string>
     <string name="realized_in_base">≈ %1$s</string>
-    <string name="realized_empty">No realized profit yet</string>
+    <string name="realized_empty">No realized P/L yet</string>
     <string name="realized_footer">Largest first · tap one for its details</string>
 </resources>

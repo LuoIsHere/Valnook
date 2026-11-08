@@ -8,8 +8,8 @@
     <string name="wallet_funds_activity">资金变动</string>
     <string name="wallet_previous_month">上个月</string>
     <string name="wallet_next_month">下个月</string>
-    <string name="wallet_could_not_load_month_retry">本月记录加载失败，点击重试</string>
-    <string name="wallet_retry_loading_more">继续加载失败，点击重试</string>
+    <string name="wallet_could_not_load_month_retry">本月记录加载失败，点按重试</string>
+    <string name="wallet_retry_loading_more">继续加载失败，点按重试</string>
     <string name="wallet_choose_month">选择月份</string>
     <string name="wallet_year">年份</string>
     <string name="wallet_cancel">取消</string>
@@ -20,11 +20,11 @@
     <string name="wallet_choose_image">选择图片</string>
     <string name="wallet_from_card_faces">从卡面库选择</string>
     <string name="wallet_remove_image">移除图片</string>
-    <string name="wallet_use_blank_redacted_card_face">建议使用空白或已遮挡敏感信息的卡面。图片在本机处理，并随完整备份保存；应用过的图片会保留在“设置 › 卡面库”。</string>
+    <string name="wallet_use_blank_redacted_card_face">建议使用空白或已遮挡敏感信息的卡面。图片仅保存在本机，并会包含在备份中；应用过的图片会保留在“设置 › 卡面库”。</string>
     <string name="wallet_link_subaccount_optional">绑定子账户（可选）</string>
     <string name="wallet_these_cards_show_all_records">这些卡片将展示同一子账户的全部记录。</string>
     <string name="wallet_could_not_save_your_draft">保存失败，已保留填写内容。请重试；若卡片已被其他操作修改，请重新编辑。</string>
-    <string name="wallet_saving">保存中…</string>
+    <string name="wallet_saving">正在保存…</string>
     <string name="wallet_save">保存</string>
     <string name="wallet_link_subaccount">绑定子账户</string>
     <string name="wallet_no_linked_account_2">不绑定</string>
@@ -91,7 +91,7 @@
     <string name="wallet_uninstalling_clearing_app_data_successfully">卸载应用、清除应用数据或成功覆盖恢复备份后，这部分内容将无法恢复。建议在设备支持时，为 Valnook 启用系统应用锁。</string>
     <string name="wallet_copying_field_places_system_clipboard">主动复制会将对应内容写入系统剪贴板，不受本地加密存储保护，请谨慎使用。</string>
     <string name="wallet_fullest_extent_permitted_by_applicable">在适用法律允许的最大范围内，开发者不对卡片信息泄露造成的财产损失承担责任。</string>
-    <string name="wallet_don_t_show_again">不再显示</string>
+    <string name="wallet_don_t_show_again">不再提示</string>
     <string name="wallet_ok">确定</string>
     <string name="wallet_discard_unsaved_changes">放弃未保存的修改？</string>
     <string name="wallet_keep_editing">继续编辑</string>
@@ -120,9 +120,9 @@
     <string name="wallet_copied">复制成功</string>
     <string name="wallet_copy_failed_try_again">复制失败，请重试</string>
     <string name="wallet_delete_card_prompt">删除这张卡片？</string>
-    <string name="wallet_card_any_private_back_details">只删除卡片及其本机私密背面内容；卡面保留在“设置 › 卡面库”，不删除绑定账户及其记录。</string>
+    <string name="wallet_card_any_private_back_details">只删除卡片及其本机私密背面内容；卡面保留在“设置 › 卡面库”，不删除绑定子账户及其记录。</string>
     <string name="wallet_place_your_cards">为喜欢的卡片留个位置</string>
-    <string name="wallet_collect_card_face_link_existing">收藏卡面，或关联已有子账户。</string>
+    <string name="wallet_collect_card_face_link_existing">收藏卡面，或绑定已有子账户。</string>
     <string name="wallet_move_up">上移</string>
     <string name="wallet_move_down">下移</string>
 </resources>

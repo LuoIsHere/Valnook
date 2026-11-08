@@ -5,10 +5,10 @@
     <string name="accounts_cash">Available cash</string>
     <string name="accounts_accounts">Accounts</string>
     <string name="accounts_credit_balance">Credit account balance</string>
-    <string name="accounts_deposits">Term deposits</string>
+    <string name="accounts_deposits">Deposits</string>
     <string name="accounts_investments">Investments</string>
-    <string name="accounts_no_cash">No balance accounts</string>
-    <string name="accounts_deposit_count">Term deposits · %1$d</string>
+    <string name="accounts_no_cash">No subaccounts</string>
+    <string name="accounts_deposit_count">Deposits · %1$d</string>
     <string name="accounts_investment_count">Investments · %1$d</string>
     <string name="account_detail_missing">This account is no longer available.</string>
     <string name="accounts_set_base_currency">Set a base currency</string>

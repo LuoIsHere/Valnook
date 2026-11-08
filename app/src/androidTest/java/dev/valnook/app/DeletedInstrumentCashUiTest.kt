@@ -34,12 +34,12 @@ class DeletedInstrumentCashUiTest {
     @Test fun a_deleted_instruments_cash_names_its_side_and_offers_nothing_to_open() {
         show(entry(-2000, CashSource.TRADE_REMOVED))
         rule.onNodeWithText("已删除标的的买入").assertExists()
-        rule.onNodeWithText("修改来源买卖记录").assertDoesNotExist()
-        rule.onNodeWithText("修改余额变化").assertDoesNotExist()
+        rule.onNodeWithText("编辑来源交易").assertDoesNotExist()
+        rule.onNodeWithText("编辑余额变化").assertDoesNotExist()
         show(entry(1200, CashSource.TRADE_REMOVED))
         rule.onNodeWithText("已删除标的的卖出").assertExists()
         // A live trade still opens its record.
         show(entry(-2000, CashSource.TRADE))
-        rule.onNodeWithText("修改来源买卖记录").assertExists()
+        rule.onNodeWithText("编辑来源交易").assertExists()
     }
 }

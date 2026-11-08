@@ -15,29 +15,29 @@ const state = {
 };
 const copy = {
   "zh-CN": {
-    deletionCode: "确认码", deleteParentScope: "删除此主账户及全部子账户、现金流水、存单、持仓和交易。保留全局投资标的及其他账户。历史统计会重算，无法撤销。",
+    deletionCode: "确认码", deleteParentScope: "删除此主账户及全部子账户、现金流水、存单、持仓和交易。保留全局标的及其他账户。历史统计会重算，无法撤销。",
     deleteChildScope: "删除此子账户及现金流水。保留存单与投资交易，解除其现金关联；不转移余额，其他账户余额不变。历史统计会重算，无法撤销。",
     deleteLimitNotice: "关联账户分别继承总额度，汇总额度可能增加；各自欠款不变。",
     accounts: "账户", records: "记录", investments: "投资", statistics: "统计", connected: "已连接", demoMode: "演示模式",
     sessionEnded: "会话已结束", sessionLost: "连接已失效，请回到手机重新配对。", TIMEOUT: "手机长时间没有响应，请检查手机网络后重试。", reconnecting: "连接暂时中断，正在恢复…", loading: "正在加载…",
-    empty: "暂无数据", save: "保存", cancel: "取消", saved: "✓ 已保存", showDeposits: "显示定期汇总", showInvestments: "显示投资汇总", showOnAccounts: "在账户页显示", includeAvailable: "计入可用现金", searchInstrument: "搜索投资品",
+    empty: "暂无数据", save: "保存", cancel: "取消", saved: "✓ 已保存", showDeposits: "显示定期汇总", showInvestments: "显示投资汇总", showOnAccounts: "在账户页显示", includeAvailable: "计入可用现金", searchInstrument: "搜索标的",
     newAccount: "新增账户",
-    newInstrument: "新增投资标的", instruments: "投资标的", positions: "持仓", refresh: "刷新",
+    newInstrument: "新增标的", instruments: "标的", positions: "持仓", refresh: "刷新",
     details: "详情", edit: "编辑", trade: "交易", end: "结束会话", loadMore: "加载更多",
     pairTitle: "连接到手机", pairCopy: "请在手机上打开网页端管理，并输入手机显示的 6 位配对码。", pairCode: "配对码", connect: "连接",
     trustedLan: "仅用于可信局域网。此版本使用 HTTP/WS，不提供传输加密。", mainNav: "主导航", theme: "切换主题", close: "关闭",
     pairWrong: "配对码不正确，手机上已生成新码。", pairInvalid: "配对码不正确，请核对手机上显示的 6 位数字。", pairFailed: "连接失败", wsFailed: "WebSocket 连接未建立。请检查浏览器代理、VPN 或安全软件，然后在手机上重新开启网页端管理。", qrConnecting: "正在使用二维码凭据连接…", loadFailed: "加载失败",
     account: "账户", cash: "可用现金", creditBalance: "信用账户余额", balanceAccounts: "账户", deposits: "定期", investmentValue: "投资市值", totalAssets: "净资产", complete: "完整",
     settled: "已结算", depositActive: "存续中", name: "名称", note: "备注", currency: "币种", balance: "余额", principal: "本金",
-    start: "开始", endDate: "结束", annualRate: "年利率", status: "状态", quantity: "数量", currentPrice: "现价", marketValue: "市值", pnl: "盈亏",
+    start: "开始", endDate: "到期日期", annualRate: "年利率", status: "状态", quantity: "数量", currentPrice: "现价", marketValue: "市值", pnl: "盈亏",
     accountDetails: "账户详情", openDeposit: "开立存单", editAccount: "编辑账户",
  fromDate: "开始日期", toDate: "结束日期", all: "全部",
     type: "类型", deposit: "存单", search: "搜索", filter: "筛选", time: "时间", subaccount: "子账户", object: "对象",
     amountQuantity: "金额 / 数量", updated: "更新", amount: "金额", editCashRecord: "编辑现金记录", assetTypes: "资产类型",
-    nameCode: "名称 / 代码", assetType: "资产类型", priceUpdated: "价格更新", newPosition: "新增持仓", instrument: "投资标的",
-    averageCost: "持仓均价", holdingCost: "持仓成本", realized: "已实现", unrealized: "浮动盈亏", assetTypeName: "资产类型名称",
-    newAssetType: "新增资产类型", symbol: "代码", price: "当前价格", editInstrument: "编辑投资标的", direction: "方向",
-    buy: "买入", sell: "卖出", executionPrice: "成交单价", fee: "手续费", cashLink: "现金联动", cashAccount: "现金账户",
+    nameCode: "名称 / 代码", assetType: "资产类型", priceUpdated: "价格更新", newPosition: "新增持仓", instrument: "标的",
+    averageCost: "持仓均价", holdingCost: "持仓成本", realized: "已实现盈亏", unrealized: "浮动盈亏", assetTypeName: "资产类型名称",
+    newAssetType: "新增资产类型", symbol: "代码", price: "当前价格", editInstrument: "编辑标的", direction: "交易方向",
+    buy: "买入", sell: "卖出", executionPrice: "成交单价", fee: "手续费", cashLink: "现金联动", cashAccount: "子账户",
     setCurrentPrice: "把成交价设为现价", setCurrentPriceOlder: "交易时间早于现价的更新时间（{time}），不能设为现价。",
     none: "不选择", newTrade: "新增交易", delete: "删除", confirmDelete: "确定删除这条交易？", editTrade: "编辑交易",
     rate: "年利率 (%)", startDate: "开始日期", settle: "结算", editDeposit: "编辑存单", availableCash: "可用现金",
@@ -65,19 +65,19 @@ const copy = {
     pairWrong: "The pairing code was incorrect. A new code is now shown on the phone.", pairInvalid: "The pairing code was incorrect. Check the six digits on the phone.", pairFailed: "Connection failed", wsFailed: "The WebSocket connection could not be established. Check the browser proxy, VPN, or security software, then restart Web administration on the phone.", qrConnecting: "Connecting with QR credentials…", loadFailed: "Load failed",
     account: "Account", cash: "Available cash", creditBalance: "Credit account balance", balanceAccounts: "Accounts", deposits: "Deposits", investmentValue: "Investment value", totalAssets: "Net assets", complete: "Complete",
     settled: "Settled", depositActive: "Active", name: "Name", note: "Note", currency: "Currency", balance: "Balance", principal: "Principal",
-    start: "Start", endDate: "End", annualRate: "Annual rate", status: "Status", quantity: "Quantity", currentPrice: "Current price", marketValue: "Market value", pnl: "P/L",
+    start: "Start", endDate: "Maturity date", annualRate: "Annual rate", status: "Status", quantity: "Quantity", currentPrice: "Current price", marketValue: "Market value", pnl: "P/L",
     accountDetails: "Account details", openDeposit: "Open deposit", editAccount: "Edit account",
  fromDate: "From", toDate: "To", all: "All",
     type: "Type", deposit: "Deposit", search: "Search", filter: "Filter", time: "Time", subaccount: "Subaccount", object: "Object",
-    amountQuantity: "Amount / quantity", updated: "Updated", amount: "Amount", editCashRecord: "Edit cash record", assetTypes: "Asset types",
-    nameCode: "Name / symbol", assetType: "Asset type", priceUpdated: "Price updated", newPosition: "New position", instrument: "Instrument",
-    averageCost: "Average cost", holdingCost: "Holding cost", realized: "Realized", unrealized: "Unrealized", assetTypeName: "Asset type name",
-    newAssetType: "New asset type", symbol: "Symbol", price: "Current price", editInstrument: "Edit instrument", direction: "Direction",
-    buy: "Buy", sell: "Sell", executionPrice: "Execution price", fee: "Fee", cashLink: "Link cash", cashAccount: "Cash account",
-    setCurrentPrice: "Set the trade price as the current price", setCurrentPriceOlder: "The trade is older than the current price, updated {time}.",
+    amountQuantity: "Amount / quantity", updated: "Updated", amount: "Amount", editCashRecord: "Edit cash record", assetTypes: "Asset classes",
+    nameCode: "Name / symbol", assetType: "Asset class", priceUpdated: "Price updated", newPosition: "New position", instrument: "Instrument",
+    averageCost: "Average cost", holdingCost: "Holding cost", realized: "Realized P/L", unrealized: "Unrealized P/L", assetTypeName: "Asset class name",
+    newAssetType: "New asset class", symbol: "Symbol", price: "Current price", editInstrument: "Edit instrument", direction: "Trade direction",
+    buy: "Buy", sell: "Sell", executionPrice: "Execution price", fee: "Fee", cashLink: "Link cash", cashAccount: "Subaccount",
+    setCurrentPrice: "Set the trade price as the current price", setCurrentPriceOlder: "The trade is older than the current price, updated {time}, so it can't be set as the current price.",
     none: "None", newTrade: "New trade", delete: "Delete", confirmDelete: "Delete this trade?", editTrade: "Edit trade",
     rate: "Annual rate (%)", startDate: "Start date", settle: "Settle", editDeposit: "Edit deposit", availableCash: "Available cash",
-    monthlyChange: "Change this month", accountDistribution: "Account distribution", assetTypeDistribution: "Asset type distribution", currencyDistribution: "Currency distribution",
+    monthlyChange: "Change this month", accountDistribution: "Account distribution", assetTypeDistribution: "Asset class distribution", currencyDistribution: "Currency distribution",
     history: "Asset history", staleRecord: "This record changed. Refresh and try again.", staleBalance: "This balance changed. Refresh and try again.",
     currencyLocked: "The currency is locked after use in a trade.", symbolLocked: "The symbol is locked after use in a trade.",
     insufficientHolding: "Insufficient holding quantity.", invalidFormat: "Check the input format.", saveFailed: "Save failed: {reason}", saveFailedCode: "Save failed (error code {code})",
@@ -191,9 +191,9 @@ Object.assign(copy["zh-CN"], {
   phoneEnded: "手机已结束管理会话。", phoneBackground: "手机已进入后台或锁屏，管理会话已结束。", sessionHint: "手机保持亮屏 · 5 分钟无操作后断开",
   discard: "放弃尚未保存的修改？", unknownResult: "正在确认保存结果，请勿重复新建。点击保存可继续确认。", saving: "正在保存…",
   changed: "数据已更新。当前编辑内容已保留；关闭后刷新。", refreshFailed: "已保存，但页面刷新失败。请点击刷新。",
-  system: "跟随系统", light: "浅色", dark: "深色", icon: "账户图标", upload: "上传图片", imageHint: "图片将居中裁切为圆形头像，拖动预览调整位置。",
+  system: "跟随系统", light: "浅色", dark: "深色", icon: "账户图标", upload: "上传图片", imageHint: "图片将居中裁切为圆形图标，拖动预览调整位置。",
   imageError: "请选择不超过 32 MB 的有效图片。", incomplete: "部分币种缺少汇率，汇总可能不完整", connectionRequired: "连接恢复后才能保存。",
-  STALE_GENERATION: "账本已变化。请关闭编辑并刷新，核对数据后重新保存。", preview: "头像预览", zoom: "缩放", updateAvailable: "数据已更新", confirmResult: "确认保存结果"
+  STALE_GENERATION: "账本已变化。请关闭编辑并刷新，核对数据后重新保存。", preview: "图标预览", zoom: "缩放", updateAvailable: "数据已更新", confirmResult: "确认保存结果"
 });
 Object.assign(copy.en, {
   idleWarning: "Disconnecting due to inactivity", continueSession: "Continue", idleEnded: "Session ended after five minutes without activity. Start again on your phone.",
@@ -202,7 +202,7 @@ Object.assign(copy.en, {
   changed: "Data updated. Your draft is preserved; close it to refresh.", refreshFailed: "Saved, but refresh failed. Choose Refresh.",
   system: "System", light: "Light", dark: "Dark", icon: "Account icon", upload: "Upload image", imageHint: "Drag the preview to adjust the circular crop.",
   imageError: "Choose a valid image up to 32 MB.", incomplete: "Some exchange rates are missing; totals may be incomplete", connectionRequired: "Wait for the connection to recover before saving.",
-  STALE_GENERATION: "The ledger changed. Close the editor and refresh, then review before saving.", preview: "Avatar preview", zoom: "Zoom", updateAvailable: "Data updated", confirmResult: "Check save result"
+  STALE_GENERATION: "The ledger changed. Close the editor and refresh, then review before saving.", preview: "Icon preview", zoom: "Zoom", updateAvailable: "Data updated", confirmResult: "Check save result"
 });
 
 const domainMessages = {
@@ -211,13 +211,13 @@ const domainMessages = {
   OVERFLOW: ["数值超出支持范围。", "This value exceeds the supported range."],
   POSITIVE: ["请输入大于零的数值。", "Enter a value greater than zero."],
   DATE: ["请检查日期和时间范围。", "Check the date and time range."],
-  INSUFFICIENT_CASH: ["所选现金账户余额不足。", "The selected cash account has insufficient funds."],
+  INSUFFICIENT_CASH: ["所选子账户余额不足。", "The selected subaccount has insufficient funds."],
   NOT_MATURED: ["存单尚未到期，暂时不能结算。", "This deposit has not matured yet."],
   ALREADY_CLOSED: ["该存单已结算，请刷新查看。", "This deposit is already settled. Refresh to view it."],
   NAME: ["请填写有效名称。", "Enter a valid name."],
   AMOUNT_TOO_SMALL: ["金额低于该币种的最小单位。", "The amount is below the currency's smallest unit."],
-  DUPLICATE_TYPE: ["该资产类型已存在。", "This asset type already exists."],
-  DEFAULT_TYPE: ["「未分类」是默认类型，不能改名或删除。", "Uncategorized is the default type and cannot be renamed or deleted."],
+  DUPLICATE_TYPE: ["该资产类型已存在。", "This asset class already exists."],
+  DEFAULT_TYPE: ["「未分类」是默认资产类型，不能改名或删除。", "Uncategorized is the default class and cannot be renamed or deleted."],
   DUPLICATE_CURRENCY: ["该币种账户已存在。", "An account for this currency already exists."],
   WRONG_CASH_ACCOUNT: ["请选择所属主账户下币种一致的储蓄账户。", "Choose a savings account with the same parent and currency."],
   INVALID_CREDIT_LIMIT: ["请输入有效的信用额度。", "Enter a valid credit limit."],
@@ -361,12 +361,12 @@ Object.assign(copy["zh-CN"], { updating: "正在更新…" });
 Object.assign(copy.en, { updating: "Updating…" });
 Object.assign(copy["zh-CN"], { resizePanel: "调整侧栏宽度", resizePanelHint: "拖动调整宽度；双击恢复默认。也可使用左右键调整，Enter 恢复默认。" });
 Object.assign(copy.en, { resizePanel: "Resize panel", resizePanelHint: "Drag to resize; double-click to reset. Use arrow keys to resize or Enter to reset." });
-Object.assign(copy["zh-CN"], { editAssetType: "编辑资产类型", instrumentCount: "投资标的数", createTypeFirst: "请先创建资产类型，再新增投资标的。" });
-Object.assign(copy.en, { editAssetType: "Edit asset type", instrumentCount: "Instruments", createTypeFirst: "Create an asset type before adding an instrument." });
+Object.assign(copy["zh-CN"], { editAssetType: "编辑资产类型", instrumentCount: "标的数", createTypeFirst: "请先创建资产类型，再新增标的。" });
+Object.assign(copy.en, { editAssetType: "Edit asset class", instrumentCount: "Instruments", createTypeFirst: "Create an asset class before adding an instrument." });
 Object.assign(copy["zh-CN"], { uncategorized: "未分类", defaultType: "默认", deletedInstrumentTrade: "已删除标的的交易" });
 Object.assign(copy.en, { uncategorized: "Uncategorized", defaultType: "Default", deletedInstrumentTrade: "Deleted instrument's trade" });
 Object.assign(copy["zh-CN"], { dividend: "派息", deletedInstrumentDividend: "已删除标的的派息", dividendOnPhone: "派息只能在手机上记录和修改。" });
-Object.assign(copy.en, { dividend: "Dividend", deletedInstrumentDividend: "Deleted instrument's dividend", dividendOnPhone: "Dividends are recorded and edited on the phone." });
+Object.assign(copy.en, { dividend: "Dividend", deletedInstrumentDividend: "Deleted instrument's dividend", dividendOnPhone: "Dividends can only be recorded and edited on the phone." });
 // The built-in class is stored under its Chinese name; other classes read as the user named them.
 const DEFAULT_TYPE_NAME = "未分类";
 function typeLabel(name, isDefault = false) { return isDefault || name === DEFAULT_TYPE_NAME ? t("uncategorized") : name; }
