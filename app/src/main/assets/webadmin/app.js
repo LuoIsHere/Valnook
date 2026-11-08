@@ -1,5 +1,5 @@
-import { el, clear, fmt, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t } from "./core.js";
-import { closeDrawer, notify, refreshCurrent } from "./pages.js";
+import { restoreSessionCredentials, api, $, state, t } from "./core.js";
+import { closeDrawer, refreshCurrent } from "./pages.js";
 import { symbol } from "./icons.js";
 import { pair, reconnect, resumeExistingSession, applyPairingCopy, expireSession, installActivityTracking } from "./session.js";
 $("#pair-form").addEventListener("submit", event => { event.preventDefault(); const code = $("#pair-code").value.trim(); if (/^[0-9]{6}$/.test(code)) pair("code", code); });

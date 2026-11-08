@@ -1,4 +1,4 @@
-import { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion, typeLabel } from "./core.js";
+import { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, api, $, state, hooks, t, motion, typeLabel } from "./core.js";
 import { symbol, avatar, iconPicker } from "./icons.js";
 import { openPriceEditor } from "./price-editor.js";
 import { investmentGroups } from "./investment-groups.js";
@@ -75,7 +75,7 @@ function replacePage(content, refresh = false) {
   }
   if (focusedId) document.getElementById(focusedId)?.focus({ preventScroll: true });
 }
-async function navigate(page, { refresh = false } = {}) {
+async function navigate(page, { refresh = false, preloaded = false } = {}) {
   if (!closeDrawer(false, true)) return;
   state.viewEpoch++; state.page = page; renderNav();
   const epoch = state.viewEpoch; state.pageLoading = true;
@@ -84,7 +84,7 @@ async function navigate(page, { refresh = false } = {}) {
   try {
     if (page === "accounts") await renderAccounts(refresh);
     else if (page === "records") await renderRecords(true);
-    else if (page === "investments") await renderInvestments(refresh);
+    else if (page === "investments") await renderInvestments(refresh, preloaded);
     else await renderStatistics(refresh);
     if (epoch === state.viewEpoch) $("#page-title").textContent = t(page);
   } catch (error) {
@@ -112,7 +112,8 @@ function refreshCurrent() {
       await preload();
       if (epoch !== state.viewEpoch) return;
       if (state.saving || !$("#drawer").hidden) { state.pendingRefresh = true; return; }
-      await navigate(state.page, { refresh: true });
+      // Shared lists were just loaded: the page need not load them again.
+      await navigate(state.page, { refresh: true, preloaded: true });
       if (state.viewEpoch === epoch + 1) window.scrollTo(0, scroll);
     } catch (error) { if (error.name !== "AbortError") notify(t("loadFailed")); }
   })().finally(() => {
@@ -571,9 +572,9 @@ function cashRecordForm(record) {
   })); openDrawer(t("editCashRecord"), "RECORD", form);
 }
 
-async function renderInvestments(refresh = false) {
+async function renderInvestments(refresh = false, preloaded = false) {
   const requestId = state.investmentRequest = (state.investmentRequest || 0) + 1;
-  const [, summary] = await Promise.all([preload(), api("/api/v1/statistics/summary")]);
+  const [, summary] = await Promise.all([preloaded ? null : preload(), api("/api/v1/statistics/summary")]);
   if (requestId !== state.investmentRequest) return;
   const root = el("div");
   root.append(hero(summary, "investmentValue"));

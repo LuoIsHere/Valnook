@@ -8,17 +8,29 @@ export function symbol(key) {
     data.paths.map(d => el("path", { d, fill: "currentColor" })));
 }
 
+// Photos are named by their content, so one downloaded stays right for the session. Kept in memory only: the server
+// forbids the browser's disk cache for personal data, and the session's end empties this too.
+const photos = new Map();
+export function clearAvatarCache() { photos.clear(); }
+
 export function avatar(icon) {
   const result = el("span", { class: "avatar", "aria-hidden": "true" }, symbol(icon?.value));
   if (icon?.type === "IMAGE" && /^[a-f0-9]{64}$/.test(icon.value)) {
-    fetch(`/api/v1/account-icons/${icon.value}`, { headers: state.sessionToken ? { Authorization: `Bearer ${state.sessionToken}` } : {} })
-      .then(response => { if (!response.ok) throw new Error(); return response.blob(); })
-      .then(blob => {
-        // Shown wherever the row is now; one left behind by a page change is simply dropped with it.
-        const url = URL.createObjectURL(blob), image = el("img", { alt: "", src: url });
-        image.onload = image.onerror = () => URL.revokeObjectURL(url);
-        result.replaceChildren(image);
-      }).catch(() => {});
+    const show = blob => {
+      const url = URL.createObjectURL(blob), image = el("img", { alt: "", src: url });
+      image.onload = image.onerror = () => URL.revokeObjectURL(url);
+      result.replaceChildren(image);
+    };
+    // The download itself is shared, so rows showing the same photo ask for it once.
+    let photo = photos.get(icon.value);
+    if (!photo) {
+      photo = fetch(`/api/v1/account-icons/${icon.value}`, { headers: state.sessionToken ? { Authorization: `Bearer ${state.sessionToken}` } : {} })
+        .then(response => { if (!response.ok) throw new Error(); return response.blob(); });
+      photos.set(icon.value, photo);
+      photo.catch(() => photos.delete(icon.value));
+    }
+    // Shown wherever the row is now; one left behind by a page change is simply dropped with it.
+    photo.then(show).catch(() => {});
   }
   return result;
 }

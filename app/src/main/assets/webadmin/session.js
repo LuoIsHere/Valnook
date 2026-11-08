@@ -1,5 +1,6 @@
-import { el, clear, fmt, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t } from "./core.js";
-import { preload, navigate, renderNav, scheduleRefresh, closeDrawer, notify } from "./pages.js";
+import { clear, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t } from "./core.js";
+import { preload, navigate, renderNav, scheduleRefresh, closeDrawer } from "./pages.js";
+import { clearAvatarCache } from "./icons.js";
 async function pair(kind, value) {
   const status = $("#pair-status");
   const button = $("#pair-submit");
@@ -177,7 +178,7 @@ function expireSession(reason) {
   if (state.heartbeat) clearInterval(state.heartbeat);
   state.viewEpoch++; closeDrawer(true);
   state.socket?.close(); state.session = null; state.accounts = []; state.instruments = []; state.positions = []; state.recordFilters = {}; state.recordsApplied = null; state.recordsCursor = null;
-  state.expandedInvestmentAccounts.clear();
+  state.expandedInvestmentAccounts.clear(); clearAvatarCache();
   clear($("#content")); $("#idle-warning").hidden = true;
   $("#toast").hidden = true; $("#connection-banner").hidden = true;
   $("#workspace").hidden = true; $("#pairing").hidden = false;
