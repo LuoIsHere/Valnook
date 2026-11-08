@@ -10,7 +10,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
@@ -43,9 +42,8 @@ class StatisticsViewModel(
     private var refreshJob: Job? = null
 
     init {
-        viewModelScope.launch {
-            repository.observeRevision().distinctUntilChanged().collect { refresh() }
-        }
+        // Switching tabs keeps this page in the back stack: it follows the data only while shown.
+        viewModelScope.launch { dev.valnook.designsystem.followWhileShown(mutable, repository.observeRevision(), ::refresh) }
     }
 
     fun refresh() {

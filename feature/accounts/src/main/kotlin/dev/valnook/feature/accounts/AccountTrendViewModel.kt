@@ -8,7 +8,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /** The account's net assets by day. A failed read keeps the last line: the balance above it comes from elsewhere. */
@@ -18,7 +17,8 @@ class AccountTrendViewModel(private val accountId: Long, private val repository:
     private var job: Job? = null
 
     init {
-        viewModelScope.launch { repository.observeRevision().distinctUntilChanged().collect { refresh() } }
+        // Pages opened over the account keep it in the back stack: it follows the data only while shown.
+        viewModelScope.launch { dev.valnook.designsystem.followWhileShown(mutable, repository.observeRevision(), ::refresh) }
     }
 
     fun refresh() {

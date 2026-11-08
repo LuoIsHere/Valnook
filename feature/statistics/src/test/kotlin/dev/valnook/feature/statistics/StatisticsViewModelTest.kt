@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.test.*
 import org.junit.After
@@ -85,14 +86,47 @@ class StatisticsViewModelTest {
         assertEquals(listOf("1","4","7","10","12"), sparseXAxisIndexes(monthly).map { monthly.points[it].date.monthValue.toString() })
     }
 
+    @Test fun a_page_left_in_the_back_stack_does_not_reload_on_every_change() = runTest(dispatcher) {
+        val repository = FakeRepository()
+        val vm = StatisticsViewModel(repository, clock, SavedStateHandle())
+        repository.revision.value = 2
+        advanceUntilIdle()
+        assertEquals("Not shown yet: nothing loads", 0, repository.loads)
+
+        var shown = launch { vm.state.collect {} }
+        advanceUntilIdle()
+        // The current values and one series per metric.
+        assertEquals(4, repository.loads)
+        repository.revision.value = 3
+        advanceUntilIdle()
+        assertEquals(8, repository.loads)
+
+        shown.cancel()
+        advanceUntilIdle()
+        repeat(3) { repository.revision.value += 1; advanceUntilIdle() }
+        assertEquals("Hidden: changes load nothing", 8, repository.loads)
+
+        shown = launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertEquals("Back after changes: one load", 12, repository.loads)
+        shown.cancel()
+        advanceUntilIdle()
+        shown = launch { vm.state.collect {} }
+        advanceUntilIdle()
+        assertEquals("Back without changes: no load", 12, repository.loads)
+        assertFalse(vm.state.value.loading)
+        shown.cancel()
+    }
+
     private class FakeRepository : StatisticsRepository {
-        private val revision = MutableStateFlow(1L)
+        val revision = MutableStateFlow(1L)
+        var loads = 0
         override fun observeRevision(): Flow<Long> = revision
         override suspend fun loadSeries(request: StatisticsRequest): StatisticsSeries = StatisticsSeries(
-            request.metric, request.period, Currency.of("CNY"),
+            request.metric.also { loads++ }, request.period, Currency.of("CNY"),
             listOf(StatisticsPoint(LocalDate.of(request.period.year, request.period.month ?: 1, 1),
                 BigDecimal.ONE, true)))
-        override suspend fun loadCurrent(): CurrentStatistics = CurrentStatistics(BigDecimal.ONE,
+        override suspend fun loadCurrent(): CurrentStatistics = CurrentStatistics(BigDecimal.ONE.also { loads++ },
             BigDecimal.ONE, BigDecimal.ONE, Currency.of("CNY"), MonthlyAssetChange(BigDecimal.ZERO,
                 Currency.of("CNY"), LocalDate.of(2026, 9, 30)))
     }

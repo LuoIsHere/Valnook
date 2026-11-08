@@ -23,7 +23,8 @@ class CurrentMonthTrendViewModelTest {
         override fun withZone(zone: ZoneId): Clock = Clock.fixed(now, zone)
     }
     @Before fun setup() { Dispatchers.setMain(dispatcher) }
-    @After fun cleanup() { store.clear(); Dispatchers.resetMain() }
+    private val shown = mutableListOf<Job>()
+    @After fun cleanup() { shown.forEach { it.cancel() }; store.clear(); Dispatchers.resetMain() }
     private inner class Repository : StatisticsRepository {
         val revision = MutableStateFlow(1L)
         val requests = mutableListOf<StatisticsRequest>()
@@ -42,8 +43,20 @@ class CurrentMonthTrendViewModelTest {
                 })
         }
     }
-    private fun vm(repository: Repository) = CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, repository, clock)
-        .also { store.put("trend", it) }
+    /** Shown, as the home page collects it while on screen, unless [shown] is false. */
+    private fun vm(repository: Repository, shown: Boolean = true) =
+        CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, repository, clock).also { vm ->
+            store.put("trend", vm)
+            if (shown) this.shown += CoroutineScope(dispatcher).launch { vm.state.collect {} }
+        }
+
+    @Test fun hidden_under_another_tab_it_loads_nothing() = runTest(dispatcher) {
+        val repo = Repository(); val vm = vm(repo, shown = false); advanceUntilIdle()
+        repo.revision.value++; advanceUntilIdle()
+        assertEquals(0, repo.requests.size)
+        shown += CoroutineScope(dispatcher).launch { vm.state.collect {} }; advanceUntilIdle()
+        assertEquals(1, repo.requests.size)
+    }
 
     @Test fun loads_only_one_metric_and_refreshes_on_revision() = runTest(dispatcher) {
         val repo = Repository(); val vm = vm(repo); advanceUntilIdle()

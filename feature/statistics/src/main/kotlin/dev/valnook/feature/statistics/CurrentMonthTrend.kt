@@ -39,7 +39,8 @@ class CurrentMonthTrendViewModel(
     private var lastDate = LocalDate.now(clock)
 
     init {
-        viewModelScope.launch { repository.observeRevision().distinctUntilChanged().collect { refresh() } }
+        // The home page stays in the back stack under other tabs: it follows the data only while shown.
+        viewModelScope.launch { dev.valnook.designsystem.followWhileShown(mutable, repository.observeRevision(), ::refresh) }
     }
 
     fun refresh() {
