@@ -109,6 +109,36 @@ class BackupViewModelTest {
         assertNull(restoredState.stage)
     }
 
+    @Test fun a_job_stays_busy_while_reading_the_file_back_and_cancel_does_nothing_meanwhile() = runTest(dispatcher) {
+        val bytes = "portable-output".toByteArray()
+        val reading = java.util.concurrent.CountDownLatch(1)
+        val portability = object : DataPortability by UnavailableDataPortability {
+            override val backupAndRestoreAllowed = true
+            override suspend fun createBackup(backupId: String, output: java.io.OutputStream,
+                progress: (PortabilityProgress) -> Unit): PortableFileResult {
+                output.write(bytes)
+                progress(PortabilityProgress(PortabilityStage.COMPLETE))
+                return PortableFileResult("backup.val_backup", bytes.size.toLong(), sha256(bytes), 1, "now", false)
+            }
+        }
+        val vm = BackupViewModel(portability, settings, demo = false)
+        vm.createBackup(vm.backupRequest(), { java.io.ByteArrayOutputStream() }) {
+            reading.await(); ByteArrayInputStream(bytes)
+        }
+        val verifying = withTimeout(5_000) { vm.state.first { it.stage == PortabilityStage.COMPLETE } }
+        // The engine is done, but the copy is still being read back: nothing else may start.
+        assertTrue(verifying.busy)
+        vm.cancelRestore()
+        assertEquals(verifying, vm.state.value)
+        reading.countDown()
+        // Read back on a real thread, so waited for in real time.
+        val done = kotlinx.coroutines.withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(5_000) { vm.state.first { it.completedFile != null } }
+        }
+        assertFalse(done.busy)
+        assertTrue(done.completedFile!!.outputVerified)
+    }
+
     @Test fun cloud_backup_selection_toggles_and_is_cleared_when_the_file_disappears() = runTest(dispatcher) {
         val first = CloudBackupDescriptor("first", "first.val_backup", "created-1", "drive-1", 1,
             "app", "build", 10, 1, 1, "verified", true)

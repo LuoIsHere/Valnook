@@ -136,7 +136,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (state.challenge == null) item(key = "feedback-preview-actions") { Row(Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                TextButton(vm::cancelRestore) { Text(stringResource(R.string.backup_cancel)) }
+                TextButton(vm::cancelRestore, enabled = !state.busy, modifier = Modifier.testTag("backup-cancel-restore")) {
+                    Text(stringResource(R.string.backup_cancel)) }
                 Button(vm::requestChallenge, enabled = !state.busy, modifier = Modifier.testTag("backup-continue")) {
                     Text(stringResource(R.string.backup_continue))
                 }
@@ -149,7 +150,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                 stringResource(R.string.backup_confirmation_input), Modifier.fillMaxWidth(),
                 enabled = !state.busy, keyboardType = KeyboardType.Number) }
             item(key = "feedback-challenge-actions") { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                TextButton(vm::cancelRestore) { Text(stringResource(R.string.backup_cancel)) }
+                TextButton(vm::cancelRestore, enabled = !state.busy, modifier = Modifier.testTag("backup-cancel-restore")) {
+                    Text(stringResource(R.string.backup_cancel)) }
                 Button(vm::commitRestore, enabled = !state.busy && state.confirmation.length == 6,
                     modifier = Modifier.testTag("backup-confirm-restore")) {
                     Text(stringResource(R.string.backup_confirm_restore))

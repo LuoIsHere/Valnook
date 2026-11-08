@@ -121,6 +121,10 @@ class BackupViewModel(
                     selectedCloudBackupId = null, error = null)
             } catch (error: PortabilityException) {
                 mutable.value = state.value.copy(busy = false, stage = null, error = error.errorCode)
+            } catch (other: Exception) {
+                // Progress made the screen busy; anything else still ends it.
+                mutable.value = state.value.copy(busy = false, stage = null)
+                throw other
             }
         } finally {
             cloudBackup.releaseStagedRestore(download.localId)
@@ -204,7 +208,9 @@ class BackupViewModel(
         }
     }
 
+    /** Not while a job runs: a restore already confirmed carries on, so saying cancelled would be untrue. */
     fun cancelRestore() {
+        if (state.value.busy) return
         val candidateId = state.value.preview?.candidateId
         mutable.value = state.value.copy(busy = false, stage = null, completedFile = null,
             preview = null, challenge = null, confirmation = "", restoreResult = null, error = null)
@@ -244,9 +250,10 @@ class BackupViewModel(
         }
     }
 
+    /** Stage and count only: a job ends busy itself, as reading the file back can take seconds after COMPLETE. */
     private fun progress(value: PortabilityProgress) {
-        mutable.value = state.value.copy(busy = value.stage != PortabilityStage.COMPLETE,
-            stage = value.stage, processedRecords = value.processedRecords, error = null)
+        mutable.value = state.value.copy(busy = true, stage = value.stage, processedRecords = value.processedRecords,
+            error = null)
     }
 
     private fun request(prefix: String, extension: String): OutputRequest {
