@@ -12,12 +12,15 @@ import androidx.work.WorkerParameters
 import dev.valnook.data.cloud.CloudBackupCoordinator
 import dev.valnook.domain.cloud.BackupScheduler
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.flow.first
 
 class WorkManagerBackupScheduler(context: Context) : BackupScheduler {
     private val work = WorkManager.getInstance(context.applicationContext)
     init { work.cancelUniqueWork("valnook-cloud-backup") }
     override suspend fun replace(nextDueAtUtcMs: Long, referenceUtcMs: Long, cycleId: String, dataGeneration: Long,
         connectionGeneration: Long, scheduleGeneration: Long) {
+        // What the run depends on; the data generation is passed along but not checked by the run.
+        val identity = "$CYCLE_TAG$cycleId:$connectionGeneration:$scheduleGeneration:$nextDueAtUtcMs"
         val input = Data.Builder()
             .putString(KEY_CYCLE, cycleId)
             .putLong(KEY_DATA_GENERATION, dataGeneration)
@@ -29,13 +32,18 @@ class WorkManagerBackupScheduler(context: Context) : BackupScheduler {
             .setInitialDelay((nextDueAtUtcMs - referenceUtcMs).coerceAtLeast(0), TimeUnit.MILLISECONDS)
             .setInputData(input)
             .addTag(WORK_NAME)
+            .addTag(identity)
             .build()
-        work.enqueueUniqueWork(WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+        // Each start of the app asks for the same cycle again. Replacing it would cancel a run WorkManager has just
+        // started for it (and reset its retries), so the same cycle, still waiting or running, is kept as it is.
+        val same = work.getWorkInfosForUniqueWorkFlow(WORK_NAME).first().any { !it.state.isFinished && identity in it.tags }
+        work.enqueueUniqueWork(WORK_NAME, if (same) ExistingWorkPolicy.KEEP else ExistingWorkPolicy.REPLACE, request)
     }
     override suspend fun cancel() { work.cancelUniqueWork(WORK_NAME) }
 
     companion object {
         const val WORK_NAME = "valnook-onedrive-backup"
+        const val CYCLE_TAG = "valnook-backup-cycle:"
         const val KEY_CYCLE = "cycle_id"
         const val KEY_DATA_GENERATION = "data_generation"
         const val KEY_CONNECTION_GENERATION = "connection_generation"
