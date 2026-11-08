@@ -167,7 +167,7 @@ import java.util.Locale
                 Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.cardInset),
                     verticalArrangement=Arrangement.spacedBy(Space.md)) {
                     Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
-                    Text(pickerRates.baseCode?.let { stringResource(R.string.currency_rate_to, it) }
+                    if(pickerRates.shown) Text(pickerRates.baseCode?.let { stringResource(R.string.currency_rate_to, it) }
                         ?: stringResource(R.string.currency_rate_no_base),
                         style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     GlassTextField(query,{query=it},stringResource(R.string.search_currency),Modifier.fillMaxWidth())
@@ -189,7 +189,7 @@ import java.util.Locale
                                 Text(name,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
                                 val configured=if(code==pickerRates.baseCode) "1" else pickerRates.rates[code]
                                 // Without a base there is nothing to convert into; a currency without a rate shows none.
-                                if(pickerRates.baseCode!=null) Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
+                                if(pickerRates.shown&&pickerRates.baseCode!=null) Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
                                     Text(configured?.let(::pickerRateText) ?: "—",Modifier.testTag("currency-rate-$code"),
                                         style=MaterialTheme.typography.bodyMedium,textAlign=androidx.compose.ui.text.style.TextAlign.End,
                                         maxLines=1,softWrap=false)

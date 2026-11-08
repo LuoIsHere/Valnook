@@ -173,9 +173,8 @@ private fun WelcomeScreen(state: OnboardingState, vm: OnboardingViewModel, onPri
 private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
     var pendingBase by rememberSaveable { mutableStateOf<String?>(null) }
     val focus = LocalFocusManager.current
-    val rates = CurrencyPickerRates(state.draft.base?.code,
-        state.draft.rates.associate { it.sourceCurrency.code to it.rateInput })
-    CompositionLocalProvider(LocalCurrencyPickerRates provides rates) {
+    // Nothing is fetched before setup finishes, so the pickers here leave rates out; they show them once in use.
+    CompositionLocalProvider(LocalCurrencyPickerRates provides CurrencyPickerRates(shown = false)) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
             Row(Modifier.fillMaxWidth().padding(end = Space.xl), verticalAlignment = Alignment.CenterVertically) {
                 BackButton(stringResource(R.string.onboarding_back)) { if (!state.busy) vm.back() }

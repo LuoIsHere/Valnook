@@ -85,6 +85,13 @@ class OnboardingFxTest {
         assertTrue(store.read().autoFx)
         rule.onAllNodesWithTag("fx-add").assertCountEquals(0)
         hint.assertTextEquals(context.getString(dev.valnook.app.R.string.onboarding_fx_auto_hint))
+        // Nothing is fetched before setup finishes, so the base picker leaves rates out.
+        rule.onNodeWithTag("fx-base").performTouchInput { click(center) }
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("currency-list").fetchSemanticsNodes().isNotEmpty() }
+        rule.onAllNodesWithTag("currency-rate-CNY", useUnmergedTree = true).assertCountEquals(0)
+        rule.onAllNodesWithTag("currency-rate-USD", useUnmergedTree = true).assertCountEquals(0)
+        rule.onNode(hasText("CNY") and hasClickAction() and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("currency-list").fetchSemanticsNodes().isEmpty() }
 
         rule.onNodeWithTag("onboarding-finish").performClick()
         rule.waitUntil(5_000) { vm.state.value.draft.step == OnboardingStep.READY }

@@ -34,4 +34,19 @@ class CurrencyPickerRateUiTest {
         val usd = rule.onNodeWithTag("currency-rate-USD", useUnmergedTree = true).assertTextEquals("6.66")
         assertEquals(usd.fetchSemanticsNode().size.height, gbp.fetchSemanticsNode().size.height)
     }
+
+    @Test fun rates_left_out_show_neither_the_heading_nor_the_column() {
+        val rates = CurrencyPickerRates("CNY", mapOf("USD" to "6.66"), shown = false)
+        rule.setContent {
+            ValnookTheme {
+                CompositionLocalProvider(LocalCurrencyPickerRates provides rates) {
+                    Box(Modifier.width(360.dp)) { CurrencyChoice("USD", {}, options = Currency.options("zh")) }
+                }
+            }
+        }
+        rule.onNodeWithContentDescription("币种: USD").performClick()
+        rule.onNodeWithText("美元").assertExists()
+        rule.onAllNodesWithTag("currency-rate-USD", useUnmergedTree = true).assertCountEquals(0)
+        rule.onAllNodesWithText("汇率", substring = true, useUnmergedTree = true).assertCountEquals(0)
+    }
 }
