@@ -151,7 +151,7 @@ class AccountWalletRefreshUiTest {
         rule.onNodeWithContentDescription(label(dev.valnook.app.R.string.nav_back)).performClick()
         rule.onNodeWithText(credit.name).performScrollTo().performClick();rule.waitForIdle()
         rule.waitUntil(15000){rule.onAllNodes(hasContentDescription(points.getValue(credit.id).first().date.toString(),substring=true)).fetchSemanticsNodes().isNotEmpty()}
-        rule.onNodeWithText(label(dev.valnook.feature.cash.R.string.cash_amount_owed)).assertExists()
+        rule.onNodeWithText(label(dev.valnook.core.designsystem.R.string.credit_owed)).assertExists()
         capture("demo-debt-trend")
         rule.onNodeWithText("近6个月").assertDoesNotExist()
         rule.onNodeWithText("余额趋势").assertDoesNotExist()

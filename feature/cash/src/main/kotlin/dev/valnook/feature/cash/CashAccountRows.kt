@@ -1,5 +1,6 @@
 package dev.valnook.feature.cash
 
+import dev.valnook.designsystem.CreditBalanceTag
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.TextAutoSize
@@ -102,11 +103,7 @@ internal const val BILL_ATTENTION_DAYS = 3L
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             AccountName(account)
-            when {
-                account.balance_minor < 0 -> StatusTag(stringResource(R.string.cash_amount_owed), TagTone.NEGATIVE)
-                account.balance_minor > 0 -> StatusTag(stringResource(R.string.cash_credit_balance), TagTone.POSITIVE)
-                else -> StatusTag(stringResource(R.string.cash_no_debt), TagTone.NEUTRAL)
-            }
+            CreditBalanceTag(account.balance_minor)
             Spacer(Modifier.weight(1f))
             StatusTag(creditBillingText(billing),
                 if (billing.daysRemaining <= BILL_ATTENTION_DAYS) TagTone.ATTENTION else TagTone.NEUTRAL)

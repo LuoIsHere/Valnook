@@ -40,10 +40,6 @@
     <string name="account_due_day">每月还款日</string>
     <string name="account_credit_usage">已用 %1$s / %2$s %3$s</string>
     <string name="account_credit_over_limit">已超出信用额度 %1$s %2$s</string>
-    <string name="account_statement_today">今天是账单日</string>
-    <string name="account_due_today">今天是还款日</string>
-    <string name="account_statement_in_days">账单日还有 %1$d 天</string>
-    <string name="account_due_in_days">还款日还有 %1$d 天</string>
     <string name="account_balance">余额</string>
     <string name="account_cancel_balance_account">取消此账户</string>
     <string name="account_delete_balance_account">删除账户</string>
@@ -105,9 +101,6 @@
     <string name="account_new_subaccount">新子账户</string>
     <string name="account_sheet_done">完成</string>
     <string name="account_hidden">已隐藏</string>
-    <string name="account_credit_owed">欠款</string>
-    <string name="account_credit_balance">溢缴款</string>
-    <string name="account_credit_clear">无欠款</string>
     <plurals name="account_issue_count">
         <item quantity="other">%1$d 项需修改</item>
     </plurals>

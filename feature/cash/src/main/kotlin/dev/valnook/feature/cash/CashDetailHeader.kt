@@ -1,5 +1,6 @@
 package dev.valnook.feature.cash
 
+import dev.valnook.designsystem.creditBalanceText
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -48,9 +49,7 @@ private val COLLAPSED_END_INSET = 60.dp
     val label = when {
         selected != null -> selected.date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).withLocale(locale))
         !credit -> stringResource(R.string.cash_current_balance)
-        account.balance_minor < 0 -> stringResource(R.string.cash_amount_owed)
-        account.balance_minor > 0 -> stringResource(R.string.cash_credit_balance)
-        else -> stringResource(R.string.cash_no_debt)
+        else -> creditBalanceText(account.balance_minor)
     }
     CollapsingBalanceHeader(collapse, amount(shown), color, onTitleReserve,
         Modifier.testTag("cash-detail-header"), Modifier.testTag("cash-trend-value"), COLLAPSED_END_INSET,

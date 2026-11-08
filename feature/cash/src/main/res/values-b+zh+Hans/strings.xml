@@ -21,16 +21,9 @@
     <string name="cash_correction_preview">本次余额修正 %1$s</string>
     <string name="cash_savings_account">储蓄账户</string>
     <string name="cash_credit_account">信用账户</string>
-    <string name="cash_amount_owed">欠款</string>
-    <string name="cash_credit_balance">溢缴款</string>
-    <string name="cash_no_debt">无欠款</string>
     <string name="cash_over_limit">已超出信用额度 %1$s %2$s</string>
     <string name="cash_limit_source">额度来源：%1$s</string>
     <string name="cash_statement_day">账单日：每月 %1$d 日</string>
-    <string name="cash_statement_today">今天是账单日</string>
-    <string name="cash_due_today">今天是还款日</string>
-    <string name="cash_due_in">还款日还有 %1$d 天</string>
-    <string name="cash_statement_in">账单日还有 %1$d 天</string>
     <string name="cash_previous_balance">调整前余额 %1$s</string>
     <string name="cash_section_credit">信用卡</string>
     <string name="cash_section_savings">储蓄账户</string>

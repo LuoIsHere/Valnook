@@ -103,7 +103,7 @@ class AccountEditSheetUiTest {
         val account = runBlocking { graph.overview.snapshot().accounts.single { it.name == "Bank" } }
         val vm = draft(account.id)
         edit(vm)
-        rule.onNodeWithText(string(AccountsR.string.account_credit_owed)).assertExists()
+        rule.onNodeWithText(string(dev.valnook.core.designsystem.R.string.credit_owed)).assertExists()
         rule.onNodeWithText("Card").performClick()
         rule.waitUntil(5_000) { sheetOpen() }
         rule.onNode(hasText(string(AccountsR.string.account_type_savings)) and isSelectable()).assertIsNotEnabled()

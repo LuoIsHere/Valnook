@@ -40,10 +40,6 @@
     <string name="account_due_day">Payment due day</string>
     <string name="account_credit_usage">Used %1$s / %2$s %3$s</string>
     <string name="account_credit_over_limit">Over limit %1$s %2$s</string>
-    <string name="account_statement_today">Statement date today</string>
-    <string name="account_due_today">Payment due today</string>
-    <string name="account_statement_in_days">Statement date in %1$d days</string>
-    <string name="account_due_in_days">Payment due in %1$d days</string>
     <string name="account_balance">Balance</string>
     <string name="account_cancel_balance_account">Cancel this account</string>
     <string name="account_delete_balance_account">Delete account</string>
@@ -106,9 +102,6 @@
     <string name="account_new_subaccount">New subaccount</string>
     <string name="account_sheet_done">Done</string>
     <string name="account_hidden">Hidden</string>
-    <string name="account_credit_owed">Amount owed</string>
-    <string name="account_credit_balance">Credit balance</string>
-    <string name="account_credit_clear">No amount owed</string>
     <plurals name="account_issue_count">
         <item quantity="one">%1$d field to fix</item>
         <item quantity="other">%1$d fields to fix</item>

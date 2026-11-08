@@ -120,11 +120,7 @@ private fun SubaccountSummaryRow(row: CashAccountRowDraft, issues: Int, onOpen: 
                 itemVerticalAlignment = Alignment.CenterVertically) {
                 Text(row.nameInput.ifBlank { stringResource(R.string.account_new_subaccount) },
                     style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (row.type == BalanceAccountType.CREDIT && minor != null) when {
-                    minor < 0 -> StatusTag(stringResource(R.string.account_credit_owed), TagTone.NEGATIVE)
-                    minor > 0 -> StatusTag(stringResource(R.string.account_credit_balance), TagTone.POSITIVE)
-                    else -> StatusTag(stringResource(R.string.account_credit_clear), TagTone.NEUTRAL)
-                }
+                if (row.type == BalanceAccountType.CREDIT && minor != null) CreditBalanceTag(minor)
                 if (!row.showOnAccountsPage) StatusTag(stringResource(R.string.account_hidden), TagTone.NEUTRAL)
                 if (issues > 0) StatusTag(pluralStringResource(R.plurals.account_issue_count, issues, issues), TagTone.NEGATIVE)
             }

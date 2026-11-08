@@ -1,5 +1,6 @@
 package dev.valnook.feature.cash
 
+import dev.valnook.designsystem.CreditBalanceTag
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.MaterialTheme
@@ -48,11 +49,7 @@ import java.time.LocalDate
                 style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant.copy(alpha = .75f))
             val profile = account.creditProfile
             if (credit && profile != null) {
-                when {
-                    account.balance_minor < 0 -> StatusTag(stringResource(R.string.cash_amount_owed), TagTone.NEGATIVE)
-                    account.balance_minor > 0 -> StatusTag(stringResource(R.string.cash_credit_balance), TagTone.POSITIVE)
-                    else -> StatusTag(stringResource(R.string.cash_no_debt), TagTone.NEUTRAL)
-                }
+                CreditBalanceTag(account.balance_minor)
                 val billing = CreditBillingCalendar.calculate(LocalDate.now(), profile.statementDay, profile.dueRule)
                 StatusTag(creditBillingText(billing),
                     if (billing.daysRemaining <= BILL_ATTENTION_DAYS) TagTone.ATTENTION else TagTone.NEUTRAL,
@@ -75,9 +72,5 @@ import java.time.LocalDate
     }
 }
 
-@Composable internal fun creditBillingText(billing:CreditBillingStatus):String = when {
-    billing.daysRemaining==0L && billing.focus==CreditBillingFocus.STATEMENT -> stringResource(R.string.cash_statement_today)
-    billing.daysRemaining==0L -> stringResource(R.string.cash_due_today)
-    billing.focus==CreditBillingFocus.DUE -> stringResource(R.string.cash_due_in,billing.daysRemaining)
-    else -> stringResource(R.string.cash_statement_in,billing.daysRemaining)
-}
+@Composable internal fun creditBillingText(billing:CreditBillingStatus):String =
+    dev.valnook.designsystem.creditBillingText(billing.daysRemaining, billing.focus==CreditBillingFocus.DUE)

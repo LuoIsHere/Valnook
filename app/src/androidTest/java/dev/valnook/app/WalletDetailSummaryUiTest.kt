@@ -118,7 +118,7 @@ class WalletDetailSummaryUiTest {
         val cash = create(CashBalanceChange("CNY", -775_449, null, name = "Visa card", type = BalanceAccountType.CREDIT,
             credit = CreditAccountInput(5_000_000, 7, CreditDueRule.AfterStatementDays(20), null), note = "Travel only"))
         show(cash.id, dark = true)
-        rule.onNodeWithText(string(CashR.string.cash_amount_owed), useUnmergedTree = true).assertExists()
+        rule.onNodeWithText(string(dev.valnook.core.designsystem.R.string.credit_owed), useUnmergedTree = true).assertExists()
         rule.onNodeWithTag("cash-billing-tag", useUnmergedTree = true).assertExists()
         rule.onNodeWithTag("cash-limit-card").assertExists()
         rule.onNodeWithTag("cash-info-statement", useUnmergedTree = true).assertExists()

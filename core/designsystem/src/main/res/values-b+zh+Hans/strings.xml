@@ -144,4 +144,15 @@
     <string name="ledger_previous_month">上个月</string>
     <string name="ledger_next_month">下个月</string>
     <string name="icon_selected">已选择</string>
+    <string name="credit_owed">欠款</string>
+    <string name="credit_overpaid">溢缴款</string>
+    <string name="credit_no_debt">无欠款</string>
+    <string name="credit_statement_today">今天是账单日</string>
+    <string name="credit_due_today">今天是还款日</string>
+    <plurals name="credit_statement_in">
+        <item quantity="other">账单日还有 %1$d 天</item>
+    </plurals>
+    <plurals name="credit_due_in">
+        <item quantity="other">还款日还有 %1$d 天</item>
+    </plurals>
 </resources>

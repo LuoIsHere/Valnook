@@ -270,12 +270,7 @@ import java.time.LocalDate
                     DecimalRules.format_display(summary.overLimitMinor.longValueExact(), scale), account.currency.code),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-            if (billing != null) Text(when {
-                billing.daysRemaining == 0L && billing.focus == CreditBillingFocus.STATEMENT -> stringResource(R.string.account_statement_today)
-                billing.daysRemaining == 0L -> stringResource(R.string.account_due_today)
-                billing.focus == CreditBillingFocus.DUE -> stringResource(R.string.account_due_in_days, billing.daysRemaining)
-                else -> stringResource(R.string.account_statement_in_days, billing.daysRemaining)
-            }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (billing != null) Text(creditBillingText(billing.daysRemaining, billing.focus == CreditBillingFocus.DUE), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

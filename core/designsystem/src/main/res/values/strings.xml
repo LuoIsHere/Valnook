@@ -144,4 +144,17 @@
     <string name="ledger_previous_month">Previous month</string>
     <string name="ledger_next_month">Next month</string>
     <string name="icon_selected">Selected</string>
+    <string name="credit_owed">Amount owed</string>
+    <string name="credit_overpaid">Credit balance</string>
+    <string name="credit_no_debt">No amount owed</string>
+    <string name="credit_statement_today">Statement date today</string>
+    <string name="credit_due_today">Payment due today</string>
+    <plurals name="credit_statement_in">
+        <item quantity="one">Statement date in %1$d day</item>
+        <item quantity="other">Statement date in %1$d days</item>
+    </plurals>
+    <plurals name="credit_due_in">
+        <item quantity="one">Payment due in %1$d day</item>
+        <item quantity="other">Payment due in %1$d days</item>
+    </plurals>
 </resources>
