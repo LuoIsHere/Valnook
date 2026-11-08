@@ -74,7 +74,7 @@ internal class InstrumentDeletionHandler(private val db: ValnookDatabase, privat
             OR (entity_kind='INSTRUMENT_PRICE' AND entity_id IN (SELECT CAST(id AS TEXT) FROM instrument_price_history WHERE instrument_id=?))"""
         exec("DELETE FROM audit_event_accounts WHERE event_id IN (SELECT event_id FROM audit_events WHERE $events)", id, id, id, id)
         exec("DELETE FROM audit_events WHERE $events", id, id, id, id)
-        exec("DELETE FROM statistics_baseline_items WHERE instrument_id=? OR (item_kind='INVESTMENT' AND reference_id IN ($positions))", id, id)
+        exec("DELETE FROM statistics_baseline_items WHERE instrument_id=? OR (item_kind='POSITION' AND reference_id IN ($positions))", id, id)
         exec("DELETE FROM demo_labels WHERE entity_kind='INSTRUMENT' AND entity_id=?", id)
         exec("DELETE FROM instrument_price_history WHERE instrument_id=?", id)
         exec("DELETE FROM investment_trades WHERE investment_id IN ($positions)", id)

@@ -603,16 +603,18 @@ internal class ArchiveReader(
             while (true) {
                 val read = input.read(buffer)
                 if (read < 0) break
+                // Whole runs between line breaks are copied at once rather than byte by byte.
+                var start = 0
                 for (index in 0 until read) {
-                    val byte = buffer[index]
-                    if (byte == '\n'.code.toByte()) {
-                        if (line.size() > 0) action(decodeUtf8(line.toByteArray()).removeSuffix("\r"))
-                        line.reset()
-                    } else {
-                        line.write(byte.toInt())
-                        if (line.size() > limits.maxJsonLineBytes) limit()
-                    }
+                    if (buffer[index] != '\n'.code.toByte()) continue
+                    line.write(buffer, start, index - start)
+                    if (line.size() > limits.maxJsonLineBytes) limit()
+                    if (line.size() > 0) action(decodeUtf8(line.toByteArray()).removeSuffix("\r"))
+                    line.reset()
+                    start = index + 1
                 }
+                line.write(buffer, start, read - start)
+                if (line.size() > limits.maxJsonLineBytes) limit()
             }
             if (line.size() > 0) action(decodeUtf8(line.toByteArray()).removeSuffix("\r"))
         }

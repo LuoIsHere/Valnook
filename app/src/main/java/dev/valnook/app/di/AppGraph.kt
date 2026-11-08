@@ -92,7 +92,7 @@ internal fun createDatabaseGraph(
         instruments = RoomInstruments(database),
         cashPages = cash,
         depositPages = deposits,
-        maintenance = RoomDataMaintenance(database),
+        maintenance = RoomDataMaintenance(database, clock),
         portability = RoomPortabilityEngine(context, database, clock, buildInfo),
         webAdminReads = dev.valnook.data.webadmin.RoomWebAdminReadRepository(
             database, RoomOverview(database), RoomStatistics(database, clock),
@@ -124,7 +124,18 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun clock(): Clock = Clock.systemDefaultZone()
+    fun clock(): Clock = DeviceClock
+
+    /**
+     * The system clock in the device's current time zone, read on each use: after travelling, months and days follow
+     * the new zone without restarting, as the dates shown with [java.time.ZoneId.systemDefault] already do.
+     */
+    private object DeviceClock : Clock() {
+        override fun getZone(): java.time.ZoneId = java.time.ZoneId.systemDefault()
+        override fun withZone(zone: java.time.ZoneId): Clock = system(zone)
+        override fun instant(): java.time.Instant = java.time.Instant.now()
+        override fun millis(): Long = System.currentTimeMillis()
+    }
 
     @Provides
     @Singleton

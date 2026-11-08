@@ -6,11 +6,12 @@ import dev.valnook.data.database.AuditEventEntity
 import dev.valnook.domain.repository.DataMaintenance
 import java.util.UUID
 
-class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
+/** [clock] dates the clearing like any other write, so tests and the audit trail agree on its day. */
+class RoomDataMaintenance(private val db: ValnookDatabase, private val clock: java.time.Clock = java.time.Clock.systemDefaultZone()) : DataMaintenance {
     override suspend fun clearBusinessData() {
         db.withTransaction {
             val maintenance = db.maintenance()
-            val now = System.currentTimeMillis()
+            val now = clock.millis()
             maintenance.clearWalletCards()
             maintenance.clearWalletImages()
             maintenance.clearAuditAccounts()
@@ -52,7 +53,7 @@ class RoomDataMaintenance(private val db: ValnookDatabase) : DataMaintenance {
                 entity_kind = "DATASET",
                 entity_id = null,
                 business_at_ms = now,
-                business_local_date = java.time.Instant.ofEpochMilli(now).atZone(java.time.ZoneId.systemDefault())
+                business_local_date = java.time.Instant.ofEpochMilli(now).atZone(clock.zone)
                     .toLocalDate().toString(),
                 recorded_at_ms = now,
                 before_json = null,
