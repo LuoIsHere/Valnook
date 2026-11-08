@@ -15,7 +15,11 @@ import dev.valnook.domain.model.CashSource
 import dev.valnook.domain.model.Currency
 import dev.valnook.feature.cash.CashDayGroup
 import dev.valnook.feature.cash.CashEntryDetailContent
-import dev.valnook.feature.cash.cashClockFormatter
+import dev.valnook.feature.investments.TradeDetailContent
+import dev.valnook.domain.model.Direction
+import dev.valnook.domain.model.Investment
+import dev.valnook.domain.model.Trade
+import dev.valnook.designsystem.clockFormatter
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -26,7 +30,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 
-/** Sub-account ledger times follow the system's 12- or 24-hour setting. Run once under each setting to see both. */
+/** Sub-account ledger and trade times follow the system's 12- or 24-hour setting. Run once under each setting to see both. */
 @HiltAndroidTest
 class CashClockUiTest {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
@@ -36,11 +40,11 @@ class CashClockUiTest {
 
     @Test fun the_clock_reads_as_twelve_or_twenty_four_hours_in_either_language() {
         val afternoon = LocalTime.of(15, 5)
-        assertEquals("15:05", afternoon.format(cashClockFormatter(Locale.SIMPLIFIED_CHINESE, true)))
-        assertEquals("15:05", afternoon.format(cashClockFormatter(Locale.US, true)))
-        val chinese = afternoon.format(cashClockFormatter(Locale.SIMPLIFIED_CHINESE, false))
+        assertEquals("15:05", afternoon.format(clockFormatter(Locale.SIMPLIFIED_CHINESE, true)))
+        assertEquals("15:05", afternoon.format(clockFormatter(Locale.US, true)))
+        val chinese = afternoon.format(clockFormatter(Locale.SIMPLIFIED_CHINESE, false))
         assertTrue(chinese, "下午" in chinese && "3:05" in chinese && "15" !in chinese)
-        val english = afternoon.format(cashClockFormatter(Locale.US, false))
+        val english = afternoon.format(clockFormatter(Locale.US, false))
         assertTrue(english, "3:05" in english && "PM" in english && "15" !in english)
     }
 
@@ -51,7 +55,7 @@ class CashClockUiTest {
         val day = LocalDate.of(2026, 3, 9)
         val at = day.atTime(15, 5).atZone(ZoneId.systemDefault())
         val entry = CashEntry(1, 1, Currency.of("CNY"), 1200, at.toInstant().toEpochMilli(), CashSource.CASH_SET, null, null, "合成备注", 1)
-        val expected = at.format(cashClockFormatter(activity.resources.configuration.locales[0], is24Hour))
+        val expected = at.format(clockFormatter(activity.resources.configuration.locales[0], is24Hour))
         assertEquals(is24Hour, expected == "15:05")
 
         rule.runOnUiThread { activity.setContent { ValnookTheme { Surface { CashDayGroup(day, listOf(entry)) {} } } } }
@@ -59,6 +63,19 @@ class CashClockUiTest {
         rule.onNodeWithText(expected).assertExists()
 
         rule.runOnUiThread { activity.setContent { ValnookTheme { Surface { CashEntryDetailContent(entry, "合成账户") {} } } } }
+        rule.waitForIdle()
+        rule.onNodeWithText(expected).assertExists()
+    }
+
+    @Test fun a_trades_detail_uses_the_devices_setting() {
+        val activity = rule.activity
+        val is24Hour = DateFormat.is24HourFormat(activity)
+        val at = LocalDate.of(2026, 3, 9).atTime(15, 5).atZone(ZoneId.systemDefault())
+        val usd = Currency.of("USD")
+        val asset = Investment(1, 1, 1, "合成类型", "合成基金", "SYN", usd, 100_000_000, 12_000_000_000, at.toInstant().toEpochMilli())
+        val trade = Trade(1, 1, Direction.BUY, 100_000_000, 12_000_000_000, 12_000, usd, false, at.toInstant().toEpochMilli())
+        val expected = at.format(clockFormatter(activity.resources.configuration.locales[0], is24Hour))
+        rule.runOnUiThread { activity.setContent { ValnookTheme { Surface { TradeDetailContent(asset, trade, "合成账户", {}, {}) } } } }
         rule.waitForIdle()
         rule.onNodeWithText(expected).assertExists()
     }

@@ -35,7 +35,7 @@ import java.time.ZoneId
         stringResource(R.string.entry_account) to account_name,
         stringResource(R.string.currency) to entry.currency.code,
         stringResource(R.string.record_date) to time.toLocalDate().toString(),
-        stringResource(R.string.record_time) to time.format(rememberCashClock()),
+        stringResource(R.string.record_time) to time.format(rememberClockFormatter()),
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
         // A deleted instrument's trade has nothing left to open.

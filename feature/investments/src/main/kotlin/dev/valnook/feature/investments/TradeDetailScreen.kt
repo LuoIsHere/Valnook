@@ -14,7 +14,6 @@ import dev.valnook.domain.model.*
 import dev.valnook.domain.money.DecimalRules as Decimal
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @Composable fun TradeDetailScreen(vm:TradeDetailViewModel,account_name:String,
     on_edit:(Investment,Trade)->Unit,on_delete:(Investment,Trade)->Unit) {
@@ -59,7 +58,7 @@ import java.time.format.DateTimeFormatter
         stringResource(R.string.trade_fee) to (Decimal.format_display(trade.fee_minor,trade.currency.fraction_digits)+" "+trade.currency.code),
         stringResource(R.string.currency) to trade.currency.code,
         stringResource(R.string.trade_date) to time.toLocalDate().toString(),
-        stringResource(R.string.record_time) to time.format(DateTimeFormatter.ofPattern("HH:mm")),
+        stringResource(R.string.record_time) to time.format(rememberClockFormatter()),
         stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
     RecordDetailLayout(stringResource(R.string.trade_detail_title),rows) {
         ActionButton(onClick=on_edit,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.edit_trade))}

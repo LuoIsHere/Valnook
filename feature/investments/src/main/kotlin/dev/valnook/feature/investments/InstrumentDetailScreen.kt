@@ -346,7 +346,7 @@ private fun dayLabel(date: LocalDate, locale: java.util.Locale): String =
     val small = MaterialTheme.typography.bodySmall
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val large = MaterialTheme.typography.bodyLarge
-    val time = Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val time = Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault()).format(rememberClockFormatter())
     val buy = trade.direction == Direction.BUY
     val dividend = trade.direction == Direction.DIVIDEND
     val settled = tradeAmountWithFee(trade.direction, trade.amount_minor, trade.fee_minor)
