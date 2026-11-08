@@ -8,6 +8,8 @@ import java.util.UUID
 const val WAITING_IDLE_TIMEOUT_MS = 5 * 60 * 1_000L
 const val ACTIVE_IDLE_TIMEOUT_MS = 5 * 60 * 1_000L
 const val PENDING_SOCKET_TIMEOUT_MS = 15_000L
+/** Each guess is still one in a million, and at most five a minute from one address. */
+const val WRONG_CODES_BEFORE_ROTATION = 3
 const val WEB_SESSION_COOKIE = "valnook_web_session"
 
 data class PairingPublicState(
@@ -42,6 +44,8 @@ class PairingCoordinator(
 ) {
     private var qrToken: String? = null
     private var pairingCode: String? = null
+    /** Wrong codes since the current one was shown; it changes only after a few, so one stray guess does not void it. */
+    private var wrongCodes = 0
     private var waitingExpiresAtMs: Long? = null
     private var pending: Session? = null
     private var active: Session? = null
@@ -53,6 +57,7 @@ class PairingCoordinator(
         clearSecrets()
         qrToken = randomToken(32)
         pairingCode = random.nextInt(1_000_000).toString().padStart(6, '0')
+        wrongCodes = 0
         waitingExpiresAtMs = nowMs + WAITING_IDLE_TIMEOUT_MS
         return state()
     }
@@ -68,8 +73,10 @@ class PairingCoordinator(
         expire(nowMs)
         if (active != null || pending != null) return PairingResult.Rejected(PairingFailure.BUSY)
         val current = qrToken ?: return PairingResult.Rejected(PairingFailure.CLOSED)
-        if (!constantEquals(current, token)) return PairingResult.Rejected(PairingFailure.INVALID)
-        if (!allowAttempt(source, nowMs)) return PairingResult.Rejected(PairingFailure.RATE_LIMITED)
+        // The QR token cannot be guessed: only wrong ones count, so others using up the limit never block a scan.
+        if (!constantEquals(current, token)) {
+            return PairingResult.Rejected(if (allowAttempt(source, nowMs)) PairingFailure.INVALID else PairingFailure.RATE_LIMITED)
+        }
         touch(nowMs)
         return grant(nowMs)
     }
@@ -81,7 +88,10 @@ class PairingCoordinator(
         val current = pairingCode ?: return PairingResult.Rejected(PairingFailure.CLOSED)
         if (!allowAttempt(source, nowMs)) return PairingResult.Rejected(PairingFailure.RATE_LIMITED)
         if (!constantEquals(current, code)) {
+            wrongCodes++
+            if (wrongCodes < WRONG_CODES_BEFORE_ROTATION) return PairingResult.Rejected(PairingFailure.INVALID)
             pairingCode = random.nextInt(1_000_000).toString().padStart(6, '0')
+            wrongCodes = 0
             return PairingResult.Rejected(PairingFailure.INVALID, codeRotated = true)
         }
         touch(nowMs)

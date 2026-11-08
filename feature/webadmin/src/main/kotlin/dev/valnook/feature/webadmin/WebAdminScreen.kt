@@ -57,11 +57,14 @@ fun WebAdminScreen(vm: WebAdminViewModel, demoMode: Boolean = false) {
                 SelectionContainer { Text(state.url.orEmpty(), style = MaterialTheme.typography.bodyLarge,
                     modifier = Modifier.testTag("webadmin-url")) }
                 state.qrContent?.let { value ->
-                    val image = remember(value) { qr(value, 640) }
+                    // Drawn pixel by pixel, so off the main thread; the white square holds its place meanwhile.
+                    val image by androidx.compose.runtime.produceState<android.graphics.Bitmap?>(null, value) {
+                        this.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { qr(value, 640) }
+                    }
                     Surface(color = androidx.compose.ui.graphics.Color.White, shape = MaterialTheme.shapes.small) {
-                        Image(image.asImageBitmap(), stringResource(R.string.webadmin_qr_description),
-                            Modifier.sizeIn(maxWidth = 280.dp, maxHeight = 280.dp).aspectRatio(1f)
-                                .padding(12.dp).testTag("webadmin-qr"))
+                        val square = Modifier.sizeIn(maxWidth = 280.dp, maxHeight = 280.dp).aspectRatio(1f).padding(12.dp)
+                        image?.let { Image(it.asImageBitmap(), stringResource(R.string.webadmin_qr_description),
+                            square.testTag("webadmin-qr")) } ?: androidx.compose.foundation.layout.Box(square.fillMaxSize())
                     }
                 }
                 Text(stringResource(R.string.webadmin_pairing_code), style = MaterialTheme.typography.labelLarge)

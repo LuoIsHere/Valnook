@@ -214,7 +214,9 @@ class LocalWebServer {
         query = request.queryString(),
         headers = request.headers.entries().associate { it.key.lowercase() to it.value.joinToString(",") },
         body = body,
-        remoteAddress = request.origin.remoteHost
+        // The address as connected: remoteHost may look its name up for every request, and a name is a poor
+        // rate-limit key.
+        remoteAddress = request.origin.remoteAddress
     )
 
     private suspend fun ApplicationCall.send(response: WebHttpResponse) {

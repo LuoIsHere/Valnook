@@ -7,15 +7,6 @@ import android.net.NetworkCapabilities
 import android.net.NetworkRequest
 import java.net.Inet4Address
 
-/** Platform boundary for targetSdk-specific LAN access policy. v0.0.6 targets API 36. */
-interface LocalNetworkAccessPolicy {
-    fun allowedWithoutRuntimePermission(): Boolean
-}
-
-class Target36LocalNetworkAccessPolicy : LocalNetworkAccessPolicy {
-    override fun allowedWithoutRuntimePermission(): Boolean = true
-}
-
 class LanAddressResolver(context: Context) {
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
 

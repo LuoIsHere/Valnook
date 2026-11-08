@@ -554,6 +554,13 @@ class WebAdminEndToEndTest {
         step("pairing")
         val firstCode = requireNotNull(web.state.value.pairingCode)
         val wrongCode = if (firstCode == "000000") "000001" else "000000"
+        // A stray wrong code leaves the code on the phone valid; a few in a row change it.
+        repeat(dev.valnook.data.webadmin.WRONG_CODES_BEFORE_ROTATION - 1) {
+            val miss = http(endpoint, "POST", "/api/v1/pair/code", origin = origin, body = "{\"code\":\"$wrongCode\"}")
+            assertEquals(401, miss.status)
+            assertTrue(miss.body, miss.body.contains("PAIR_INVALID"))
+            assertEquals(firstCode, web.state.value.pairingCode)
+        }
         val wrong = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
             body = "{\"code\":\"$wrongCode\"}")
         assertEquals(401, wrong.status)

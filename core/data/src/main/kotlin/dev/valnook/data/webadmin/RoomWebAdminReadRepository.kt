@@ -42,10 +42,10 @@ class RoomWebAdminReadRepository(
 
     override suspend fun assetTypes() = investments.observe_types().first()
 
-    override suspend fun deposits() = overview.snapshot().accounts.flatMap { account ->
-        deposits.observe_deposits(account.id, 10_000, closed = false).first() +
-            deposits.observe_deposits(account.id, 10_000, closed = true).first()
-    }
+    // Only the account asked for: no snapshot of the whole book and no query per account.
+    override suspend fun deposits(accountId: Long) =
+        deposits.observe_deposits(accountId, 10_000, closed = false).first() +
+            deposits.observe_deposits(accountId, 10_000, closed = true).first()
 
     override suspend fun currentStatistics(): CurrentStatistics = statistics.loadCurrent()
 

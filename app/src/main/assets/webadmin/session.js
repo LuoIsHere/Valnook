@@ -19,7 +19,8 @@ async function pair(kind, value) {
       // The QR token did not work: the code on the phone still can.
       $("#pair-form").hidden = false; $("#pair-copy").textContent = t("pairCopy");
     }
-    status.textContent = error.code === "PAIR_CODE_ROTATED" ? t("pairWrong") : `${t("pairFailed")}: ${error.code || error.message || "UNKNOWN"}`;
+    status.textContent = error.code === "PAIR_CODE_ROTATED" ? t("pairWrong") : error.code === "PAIR_INVALID" ? t("pairInvalid")
+      : `${t("pairFailed")}: ${error.code || error.message || "UNKNOWN"}`;
   } finally { button.disabled = false; }
 }
 

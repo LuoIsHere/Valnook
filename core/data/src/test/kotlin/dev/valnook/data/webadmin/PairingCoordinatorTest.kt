@@ -8,11 +8,17 @@ import java.net.InetAddress
 class PairingCoordinatorTest {
     private fun coordinator() = PairingCoordinator(SecureRandom.getInstance("SHA1PRNG").apply { setSeed(7L) })
 
-    @Test fun wrong_code_rotates_and_old_code_cannot_pair() {
+    @Test fun wrong_codes_rotate_after_a_few_and_old_code_cannot_pair() {
         val value = coordinator()
         val started = value.begin(1_000)
         val first = requireNotNull(started.pairingCode)
-        val wrong = value.pairCode(if (first == "000000") "000001" else "000000", "10.0.0.2", 2_000)
+        val guess = if (first == "000000") "000001" else "000000"
+        // One or two stray guesses leave the code on the phone valid.
+        repeat(WRONG_CODES_BEFORE_ROTATION - 1) {
+            assertEquals(false, (value.pairCode(guess, "192.0.2.2", 2_000) as PairingResult.Rejected).codeRotated)
+            assertEquals(first, value.state().pairingCode)
+        }
+        val wrong = value.pairCode(guess, "192.0.2.2", 2_000)
         assertEquals(true, (wrong as PairingResult.Rejected).codeRotated)
         val second = requireNotNull(value.state().pairingCode)
         assertNotEquals(first, second)
@@ -59,6 +65,16 @@ class PairingCoordinatorTest {
         val limited = value.pairCode("yyyyyy", "10.0.0.2", 10)
         assertEquals(PairingFailure.RATE_LIMITED, (limited as PairingResult.Rejected).reason)
         assertEquals(code, value.state().pairingCode)
+    }
+
+    @Test fun a_valid_qr_scan_pairs_even_after_others_used_up_the_limit() {
+        val value = coordinator()
+        val token = requireNotNull(value.begin(0).qrToken)
+        // Twenty wrong tries from four addresses fill the shared minute.
+        repeat(20) { value.pairQr("not-the-token", "192.0.2.${it % 4 + 2}", it.toLong()) }
+        assertEquals(PairingFailure.RATE_LIMITED,
+            (value.pairQr("still-wrong", "192.0.2.9", 30) as PairingResult.Rejected).reason)
+        assertTrue(value.pairQr(token, "192.0.2.20", 40) is PairingResult.Granted)
     }
 
     @Test fun csrf_is_required_for_mutations_but_not_reads() {

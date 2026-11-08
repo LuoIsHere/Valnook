@@ -105,7 +105,8 @@ interface WebAdminReadRepository {
     suspend fun generation(): Long
     suspend fun snapshot(): AssetSnapshot
     suspend fun assetTypes(): List<AssetType>
-    suspend fun deposits(): List<TermDeposit>
+    /** One account's deposits, open and closed. */
+    suspend fun deposits(accountId: Long): List<TermDeposit>
     suspend fun records(filter: WebRecordFilter): WebRecordPage
     suspend fun currentStatistics(): CurrentStatistics
     suspend fun statisticsSeries(request: StatisticsRequest): StatisticsSeries

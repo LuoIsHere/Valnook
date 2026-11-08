@@ -200,7 +200,7 @@ internal class WebAdminApiRouter(
     private suspend fun account(id: Long): WebHttpResponse {
         val snapshot = reads.snapshot()
         val account = snapshot.accounts.firstOrNull { it.id == id } ?: return failure(404, "NOT_FOUND")
-        val deposits = reads.deposits().filter { it.account_id == id }
+        val deposits = reads.deposits(id)
         return success(buildJsonObject {
             put("dataGeneration", reads.generation())
             put("account", buildJsonObject {
