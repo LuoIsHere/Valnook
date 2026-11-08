@@ -6,47 +6,68 @@
 - Developer: luoishere
 - Contact: [xlll1314@outlook.com](mailto:xlll1314@outlook.com)
 - Effective date: October 7, 2026
-- Last updated: October 23, 2026
+- Last updated: November 8, 2026
 - Distribution: [Official GitHub repository](https://github.com/LuoIsHere/Valnook)
 
 ## 1. Scope
 
-Valnook is a free, open-source tool for personal financial records and asset management, provided under the [MIT License](../LICENSE) and currently distributed only through the GitHub repository above. This policy applies to the Valnook application released by the developer and its local network web management feature. Providers of modified or redistributed versions are responsible for their versions' data practices.
+Valnook is a free, open-source tool for personal financial records and asset management, provided under the [MIT License](../LICENSE) and currently distributed only through the GitHub repository above. This policy applies to the Valnook application released by the developer and its local network Web administration feature. Providers of modified or redistributed versions are responsible for their versions' data practices.
 
-Valnook primarily stores data locally. The developer does not operate a server to receive or store application user data, and the application does not upload your financial records, images, or backups to a developer-owned server. When you use cloud backup, file export, or web management, relevant data is transferred to your authorized service, chosen destination, or paired browser according to your actions or settings.
+Valnook primarily stores data locally. The developer does not operate a server to receive or store application user data, and the application does not upload your financial records, images, or backups to a developer-owned server. When you use cloud backup, file export, or Web administration, relevant data is transferred to your authorized service, chosen destination, or paired browser according to your actions or settings. When automatic exchange rates are on, the application sends only currency codes and dates to the rate service, never financial records; see Section 4.
 
 ## 2. Information Processed and Its Purposes
 
 | Category | Content and purpose |
 | --- | --- |
-| Financial records | Account names, account groups, notes, balances, currencies, credit limits and billing rules, deposits, investment instruments, holdings, transactions, prices, and exchange rates that you enter or import, used for recording, calculations, statistics, and display. |
+| Financial records | Account names, account groups, notes, balances, currencies, credit limits and billing rules, deposits, instruments, holdings, trades, dividends, prices, exchange rates, and exchange rate history that you enter or import, used for recording, calculations, statistics, and display. |
 | Account images | Images you select through the system photo picker and crop for account icons, also included in full backups. |
-| Preferences | Language, theme, gain and loss colors, navigation bar, ordering, and other display settings used to retain your preferences. The theme is kept on this device only; the other settings are included in full backups. |
+| Preferences | Language, theme, gain/loss colors, navigation bar, ordering, and other display settings used to retain your preferences. The theme is kept on this device only; the other settings are included in full backups. |
+| Automatic rate status | Whether automatic exchange rates are on, the times of the last success and the last attempt, the reason for a failure, and whether the network notice is hidden, used to decide when to connect and to show the update status. Kept on this device only; not saved in or restored from full backups. |
 | Operation history | Contents before and after changes, operation times, and related information used for record consistency, historical review, and backup restoration. Some deleted records may remain in this history. |
-| Cloud connection information | Microsoft account identifiers, display names, email addresses or account display information, authorization credentials, and backup status processed when connecting OneDrive, used for authentication and backup management. |
+| Cloud connection information | Microsoft account identifiers, display names, email addresses or account display information, authorization credentials, backup status, and the list of cloud backups processed when connecting OneDrive, used for authentication and backup management. |
 | Web session information | Local network connection addresses, browser identification, pairing and session credentials, and connection and activity times, used for authentication, session management, and access limits. |
+
+In this policy, a "full backup" is a backup file made by Valnook from which data can be restored, whether saved locally or to OneDrive, as distinct from an Excel workbook made for analysis.
 
 Core financial management does not require registering a Valnook account or connecting a cloud service. The application does not use financial records for advertising, marketing profiles, or sale.
 
-Wallet card fronts can use built-in patterns and colors or images selected by you through the system photo picker. Static JPEG, PNG and WebP images are cropped, rotated, compressed and color-sampled on the device and saved as new WebP images, so location and other metadata from the original are not kept. Valnook does not perform OCR or automatically collect card numbers, expiry dates or CVV. We recommend using a blank card face or one with sensitive details covered. Cards may link to an existing subaccount without creating a new account or duplicating financial records. Images applied to a card and images you upload and name in Settings > Card faces are kept in the on-device card face library (up to 50). A face remains after a card changes face or is deleted, until you delete it from the library; a face in use cannot be deleted. Card-front images, card face library images and their names, built-in patterns and colors, links and order are included in full backups, both local and OneDrive. You can save a library image to a location you choose; Valnook does not manage saved files, and deleting the face or clearing data does not delete them. Wallet images are not exposed through web management. Deleting a card does not delete its linked account or its face; clearing all data also removes Wallet data and the card face library.
+Wallet card fronts can use built-in patterns and colors or images selected by you through the system photo picker. Static JPEG, PNG and WebP images are cropped, rotated, compressed and color-sampled on the device and saved as new WebP images, so location and other metadata from the original are not kept. Valnook does not perform OCR or automatically collect card numbers, expiry dates or CVV. We recommend using a blank card face or one with sensitive details covered. Cards may link to an existing subaccount without creating a new account or duplicating financial records. Images applied to a card and images you upload and name in Settings › Card faces are kept in the on-device card face library (up to 50). A face remains after a card changes face or is deleted, until you delete it from the library; a face in use cannot be deleted. Card-front images, card face library images and their names, built-in patterns and colors, links and order are included in full backups, both local and OneDrive. You can save a library image to a location you choose; Valnook does not manage saved files, and deleting the face or clearing data does not delete them. Wallet images are not exposed through Web administration. Deleting a card does not delete its linked subaccount or its face; clearing all data also removes Wallet data and the card face library.
 
-Card backs are available only with your real data, not in demo mode. You may voluntarily enter a card number, cardholder name, expiry date, CVV1 and CVV2 and choose back and edge colors. These values use Android Keystore for key management and AES-GCM encryption and are stored separately in this device's private no-backup directory. They are never uploaded or included in local or OneDrive backups, never exported to Excel or other formats, and cannot be accessed through web management. They are excluded from financial audit history, logs and saved page state. The choice to stop showing the risk notice also remains on this device only. Only when you explicitly tap a copy icon is the corresponding number, cardholder name, expiry or CVV placed on the system clipboard and marked sensitive to limit system previews. The clipboard is outside this app's encrypted storage; the paste destination and software with appropriate access may receive it. Copy with care. The app never copies automatically, logs copied values or includes them in backups or file exports.
+Card backs are available only with your real data, not in demo mode. You may voluntarily enter a card number, cardholder name, expiry date, CVV1 and CVV2 and choose back and edge colors. These values use Android Keystore for key management and AES-GCM encryption and are stored separately in this device's private no-backup directory. They are never uploaded or included in local or OneDrive backups, never exported to Excel or other formats, and cannot be accessed through Web administration. They are excluded from financial audit history, logs and saved page state. The "Don't show again" choice in the risk notice also remains on this device only, and the notice shows again after all data is cleared. Only when you explicitly tap a copy icon is the corresponding number, cardholder name, expiry or CVV placed on the system clipboard and marked sensitive to limit system previews. The clipboard is outside this app's encrypted storage; the paste destination and software with appropriate access may receive it. Copy with care. The app never copies automatically, logs copied values or includes them in backups or file exports.
 
-Normal restarts, app upgrades, renaming cards, changing front images, and changing or removing linked accounts preserve private back details. Deleting a card, clearing all data or successfully replacing data from a backup invalidates the local private association and removes its content. Failed backup validation or a rolled-back restore preserves the original details. After uninstalling, clearing the app's storage, or moving to another device, these details cannot be recovered, because backups never contain them. Front images remain included in full backups, including any text embedded in those images; the app does not automatically recognize or redact that text.
+Normal restarts, app upgrades, renaming cards, changing front images, and changing or removing linked subaccounts preserve private back details. Deleting a card, clearing all data or successfully replacing data from a backup invalidates the local private association and removes its content. Failed backup validation or a rolled-back restore preserves the original details. After uninstalling, clearing the app's storage, or moving to another device, these details cannot be recovered, because backups never contain them. Front images remain included in full backups, including any text embedded in those images; the app does not automatically recognize or redact that text.
 
 Disclosure of card numbers, cardholder names, expiry dates, CVV1 or CVV2 may cause financial loss. Enable your device's app lock for Valnook where available. System screenshots and display on non-secure screens are restricted while private back details or their editor are visible, and details are concealed when the app enters the background. Local encryption and window protection cannot guarantee absolute security on a compromised device.
 
-**To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.** See Section 10.
+**To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.** See Section 11.
 
 ## 3. Local Storage and Permissions
 
 Financial records, account images, operation history, and relevant settings are primarily stored in the application's private storage on your device. The application is configured to disable Android automatic backup and exclude relevant application data from system cloud backup and device transfer.
 
-The application uses network access and network status permissions for cloud backup and local network web management. Android WorkManager, which runs scheduled backups, also declares wake-lock, run-at-startup, and foreground-service permissions. Microsoft's sign-in library declares NFC and USB access for hardware security keys, used only if you sign in with one, and may check whether Microsoft Authenticator or Company Portal is installed. Image selection and file import and export use system pickers. The application reads or writes the content you select without requiring access to your entire photo library or all stored files.
+The application uses network access and network status permissions for cloud backup, automatic exchange rates, and local network Web administration. Android WorkManager, which runs scheduled backups, also declares wake-lock, run-at-startup, and foreground-service permissions. Microsoft's sign-in library declares NFC and USB access for hardware security keys, used only if you sign in with one, and may check whether Microsoft Authenticator or Company Portal is installed. Image selection and file import and export use system pickers. The application reads or writes the content you select without requiring access to your entire photo library or all stored files.
 
 Local data protection relies on operating system application isolation and device security. Keep your device and unlock credentials secure.
 
-## 4. OneDrive Cloud Backup
+## 4. Automatic Exchange Rates
+
+Automatic exchange rates are optional, off by default, and run only with your real data; demo mode never goes online. Before the feature is turned on, the application shows the network notice below; you can tick "Don't show again", and that choice is kept on this device only.
+
+Source: rates come from the public Frankfurter exchange rate service (api.frankfurter.dev), which compiles data from central banks and other public sources.
+
+When the app connects: it sends a request on the first launch each day, when the base currency changes, when this feature is turned on, and when you update manually. After a failed request it tries again when you open or return to the app, at least 30 minutes after the last attempt.
+
+What is sent: the base currency code, a fixed list of currencies and the requested dates. The service provider and network intermediaries such as Cloudflare can see your IP address and the time of the request. Requests also carry a header identifying them as Valnook, with no device or account identifier.
+
+What is not sent: balances, accounts, transactions or any other financial records.
+
+Storage: retrieved rates are stored in the database on this device and included in backups. The automatic exchange rate switch and the automatic rate status described in Section 2 are not restored from backups; this device keeps its current settings.
+
+When automatic exchange rates are turned on, the current rates are replaced with the retrieved values. If you turn the feature off, the most recently retrieved rates are kept; rates you entered manually cannot be restored.
+
+Exchange rate data is provided by a third party for reference only. It may differ from the rates actually offered by banks or other institutions and may be delayed or inaccurate. Valnook does not guarantee the accuracy, completeness or timeliness of this data, and neither the data nor any results calculated from it constitute investment, wealth-management or other financial advice.
+
+## 5. OneDrive Cloud Backup
 
 OneDrive is optional. When connecting, you sign in through Microsoft's authorization flow and grant access to basic account information and the application's dedicated OneDrive folder. Microsoft's sign-in library (MSAL) handles sign-in and keeps the access credentials; Valnook never sees your Microsoft password.
 
@@ -56,11 +77,13 @@ Full backups include financial records, account groups, account images, the Wall
 
 **Backup files themselves are not encrypted.** OneDrive transfers use HTTPS, which does not mean that the backup files are end-to-end encrypted.
 
-After a successful backup, the application attempts to retain the five most recent verified backups it manages and remove older corresponding backups. More content may remain if cleanup fails or other files exist; empty folders and backups that were never verified are also left in place. Microsoft's recycle bin and other retention mechanisms are managed by Microsoft.
+The application keeps the list of cloud backups (file names and identifiers, creation times, and similar details) on this device to show backups and rotate them. The list is cleared when you disconnect or change the OneDrive connection.
+
+After a successful backup, the application attempts to retain the five most recent verified backups it manages and remove older corresponding backups. A copy that could not be verified after upload is kept for three days and then removed at the next backup rotation. More content may remain if cleanup fails or other files exist, and empty folders are left in place. Whether removed files go to a recycle bin, and for how long they are kept there, is managed by Microsoft.
 
 Microsoft processes information needed to provide its cloud services under its terms and [Privacy Statement](https://privacy.microsoft.com/privacystatement). Storage and processing locations depend on Microsoft services and your account settings and may be outside your region. You can manage or revoke authorization through your Microsoft account, which the backup screen links to, and manage existing backups in OneDrive.
 
-## 5. Local Backup, Import, and Export
+## 6. Local Backup, Import, and Export
 
 You can save full backups, Excel workbooks, or a copy of a OneDrive backup to a destination selected through the system file picker, or select a backup to restore. Destinations may be provided by device storage or third-party document or cloud storage services. If you select a third-party service, that service handles the file under its own rules.
 
@@ -68,41 +91,42 @@ Full backup and Excel export files do not provide file encryption. Full backups 
 
 Restoring a backup overwrites the corresponding existing data. Clearing the app's storage or uninstalling does not also delete separately saved backups, exports, or copies of those files.
 
-## 6. Local Network Web Management
+## 7. Local Network Web Administration
 
-After you enable web management and connect using a QR code or pairing code, the paired browser can view and edit the financial data available through this feature on the same local network. Data passes between your phone and browser without being relayed through a developer-owned server.
+After you enable Web administration and connect using a QR code or pairing code, the paired browser can view and edit the financial data available through this feature on the same local network. Data passes between your phone and browser without being relayed through a developer-owned server.
 
-**Web management uses HTTP and WebSocket without transport encryption.** Pairing authentication is not encryption. Use this feature only on trusted local networks and devices, and protect your pairing information.
+**Web administration uses HTTP and WebSocket without transport encryption.** Pairing authentication is not encryption. Use this feature only on trusted local networks and devices, and protect your pairing information.
 
-The web interface uses session cookies and browser session storage for authentication, and local storage for theme preferences. These mechanisms support functionality and are not used for advertising tracking. You can remove related site data through your browser.
+The web interface uses session cookies and browser session storage for authentication, and local storage for theme preferences. The live connection is opened with a one-time ticket valid for 30 seconds, so session credentials never appear in web addresses. These mechanisms support functionality and are not used for advertising tracking. You can remove related site data through your browser.
 
-The connection ends after five minutes of inactivity in the web interface, when the phone application goes into the background or the phone is locked, or when you end the session. Ending a session does not retract data already copied, captured in screenshots, or otherwise saved from the browser.
+The connection ends after 5 minutes of inactivity in the web interface, when the phone application goes into the background or the phone is locked, or when you end the session. Ending a session does not retract data already copied, captured in screenshots, or otherwise saved from the browser.
 
-## 7. Retention, Deletion, and Your Choices
+## 8. Retention, Deletion, and Your Choices
 
 Local business records are generally retained until you delete records, clear data, or clear application storage. Operation history may be retained longer than the corresponding visible records.
 
 | Action | Effect and limits |
 | --- | --- |
 | View, edit, or delete records | You can manage records within the application. Deleting an individual record does not guarantee removal of related contents from operation history. |
-| In-app Clear data | Removes financial records, account groups, account images, Wallet cards, the card face library, private card-back details, price history, existing operation history, and financial settings (base currency and exchange rates). Display preferences and the OneDrive connection remain, and the clearing event is recorded. It does not disconnect OneDrive: if automatic backup is on, later backups contain the cleared data, and once five of them exist, older backups are removed under the rotation rules. |
+| In-app Clear data | Removes all accounts and subaccounts, deposits, instruments, holdings, trades and dividends, price history, asset classes (reset to Uncategorized), account groups (reset to the default group), account images, Wallet cards, the card face library, private card-back details, existing operation history, and the base currency, exchange rates, and exchange rate history. It also turns off automatic exchange rates, shows the network notice again, and clears the first-run setup draft. Language, theme, gain/loss colors, navigation bar settings, and the OneDrive connection remain, and the clearing event is recorded. It does not disconnect OneDrive: if automatic backup is on, later backups contain the cleared data, and once five of them exist, older backups are removed under the rotation rules. |
 | Disable automatic backup or disconnect OneDrive | Stops subsequent automatic backups or disconnects this device's cloud connection. It does not delete uploaded files or revoke authorization in your Microsoft account. |
 | Revoke Microsoft authorization | Revokes subsequent cloud access. Existing backups must still be managed in OneDrive. |
+| Turn off automatic exchange rates | Stops further rate requests. Rates and rate history already retrieved remain on this device. |
 | Clear the app's storage or uninstall | Removes the corresponding application data on the device. External files, cloud backups, and other copies are not deleted along with it. |
 
 Exported files remain until you or the storage service delete them. Cloud backups are also subject to the rotation rules and cloud service retention mechanisms described above. The developer does not hold your local financial database or cloud backups and cannot access, restore, or delete them on your behalf. Privacy questions can be sent to the contact email in this policy.
 
-## 8. Third-Party Platforms and Voluntary Contact
+## 9. Third-Party Platforms and Voluntary Contact
 
-When you visit or download content from GitHub, GitHub processes website access, account, and related information under its [Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). When you use Microsoft sign-in, OneDrive, or third-party services available through system pickers, those providers process authentication, network connection, service operation, and submitted information under their own rules.
+When you visit or download content from GitHub, GitHub processes website access, account, and related information under its [Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). When you use Microsoft sign-in, OneDrive, or third-party services available through system pickers, those providers process authentication, network connection, service operation, and submitted information under their own rules. When automatic exchange rates are on, the Frankfurter rate service and its network providers such as Cloudflare process the IP address, request time, and the request contents described in Section 4 under their own rules.
 
 If you voluntarily contact the developer by email or GitHub, the developer receives the contact details, message, and attachments you submit and uses and retains them only to handle your request and necessary follow-up communication. You may contact the developer to request deletion of related correspondence, except where retention is required by applicable law. Public GitHub issues and comments can be viewed by others. Do not submit financial backups, passwords, authorization credentials, or other sensitive content.
 
-## 9. Minors
+## 10. Minors
 
 Minors should use the software and third-party services under a guardian's guidance and in accordance with applicable local law. Do not submit unnecessary personal information about minors through public feedback or email.
 
-## 10. Open-Source License and Disclaimer
+## 11. Open-Source License and Disclaimer
 
 Valnook is provided free of charge as open-source software under the MIT License. The software is provided "as is." To the fullest extent permitted by applicable law, the authors and copyright holders make no express or implied warranties, including merchantability, fitness for a particular purpose, non-infringement, or the accuracy, completeness, availability, or security of data or calculation results.
 
@@ -112,7 +136,7 @@ You are responsible for safeguarding your device, account credentials, backups, 
 
 This policy does not exclude or limit liability that cannot be excluded or limited under applicable law, or remove any rights you cannot legally waive. The MIT License in the repository governs the software's licensing terms.
 
-## 11. Policy Version and Contact
+## 12. Policy Version and Contact
 
 The update date at the beginning of this document identifies this policy's version. Its public text is available in the documentation directory of the official GitHub repository. The Chinese and English versions are intended to convey the same content.
 
