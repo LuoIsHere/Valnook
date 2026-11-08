@@ -108,7 +108,16 @@ class BackupViewModel(
                 ?: throw CloudBackupException(CloudBackupError.DOWNLOAD_FAILED)
         }
     }
-    fun prepareCloudRestore(value: CloudBackupDescriptor) = runCloudJob {
+    /** Set while a cloud restore downloads and reads its archive, which a local job must not overlap. */
+    @Volatile private var cloudRestoring = false
+
+    fun prepareCloudRestore(value: CloudBackupDescriptor) {
+        if (state.value.busy) return
+        // Set inside the job: a cloud job already running refuses this one, which must then not block local work.
+        runCloudJob { cloudRestoring = true; try { stageCloudRestore(value) } finally { cloudRestoring = false } }
+    }
+
+    private suspend fun stageCloudRestore(value: CloudBackupDescriptor) {
         val download = cloudBackup.stageForRestore(value.fileId)
         try {
             try {
@@ -218,7 +227,7 @@ class BackupViewModel(
     }
 
     private fun runJob(block: suspend () -> Unit) {
-        if (state.value.busy) return
+        if (state.value.busy || cloudRestoring) return
         viewModelScope.launch {
             mutable.value = state.value.copy(busy = true, error = null, completedFile = null, restoreResult = null)
             try {

@@ -14,6 +14,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.*
@@ -312,6 +313,19 @@ class CloudBackupCoordinatorTest {
         assertEquals(BackupAttemptState.SUCCEEDED.name, database.cloudBackup().latestAttempt()!!.state)
         assertEquals(1, drive.uploadCalls)
         assertEquals("verified", drive.files.single().properties["verificationState"])
+    }
+
+    @Test fun au2_a_manual_backup_cancelled_mid_upload_does_not_stay_in_progress() = runBlocking {
+        connect()
+        val uploading = kotlinx.coroutines.CompletableDeferred<Unit>()
+        drive.afterFirstUploadGate = { uploading.complete(Unit); kotlinx.coroutines.awaitCancellation() }
+        // Leaving the backup page cancels the job that started it.
+        val job = launch(kotlinx.coroutines.Dispatchers.IO) { coordinator.manualBackup() }
+        uploading.await()
+        job.cancel(); job.join()
+        assertEquals(BackupAttemptState.CANCELLED, coordinator.observeState().first().attemptState)
+        // The attempt is left for the next cycle to reconcile.
+        assertEquals(BackupAttemptState.UPLOADING.name, database.cloudBackup().latestAttempt()!!.state)
     }
 
     @Test fun gd2_disconnect_during_upload_prevents_old_cycle_from_overwriting_disconnected_state() = runBlocking {

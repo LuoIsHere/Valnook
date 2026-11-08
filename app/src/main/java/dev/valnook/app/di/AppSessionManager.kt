@@ -66,6 +66,12 @@ class AppSessionManager @Inject internal constructor(
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
             // Reconcile unreferenced ciphertext after interrupted deletion/restore; no values are decoded.
             runCatching { writeMutex.withLock { realDatabaseGraph.walletPrivate.cleanup() } }
+            // Staging left by a process that died during a restore or an export: plain copies of the data, never
+            // used again. Not while a preview waits for confirmation or a file job runs.
+            runCatching { writeMutex.withLock {
+                if (pendingRestore == null && activeFileJob == null)
+                    java.io.File(context.cacheDir, "valnook-portability").listFiles()?.forEach { it.deleteRecursively() }
+            } }
         }
     }
     fun observeCloudState() = cloudCoordinator.observeState()

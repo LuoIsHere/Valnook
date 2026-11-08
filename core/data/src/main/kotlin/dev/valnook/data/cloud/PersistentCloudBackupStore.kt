@@ -54,7 +54,5 @@ internal class PersistentCloudBackupStore(private val database: ValnookDatabase)
     suspend fun saveAttempt(value: CloudBackupAttemptEntity) = mutex.withLock {
         database.cloudBackup().saveAttempt(value)
     }
-    suspend fun attempt(id: String) = database.cloudBackup().attempt(id)
-    suspend fun attemptForCycle(cycleId: String) = database.cloudBackup().attemptForCycle(cycleId)
     suspend fun latestAttempt() = database.cloudBackup().latestAttempt()
 }

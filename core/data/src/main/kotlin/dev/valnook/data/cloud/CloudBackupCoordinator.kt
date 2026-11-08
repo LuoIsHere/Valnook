@@ -20,6 +20,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
@@ -38,7 +39,10 @@ class CloudBackupCoordinator internal constructor(
     private val store = PersistentCloudBackupStore(database)
     private val running = AtomicBoolean(false)
     private val cloudRoot = File(appContext.cacheDir, "valnook-cloud").also(::secureDirectory)
+    // One coordinator per process, made before anything runs: a download staged for a restore by a process that
+    // died is never released, so it goes now.
     private val restoreRoot = File(cloudRoot, "restore").also(::secureDirectory)
+        .also { root -> root.listFiles()?.forEach { it.deleteRecursively() } }
     override val cloudAllowed: Boolean = true
 
     override fun observeState(): Flow<CloudBackupRuntimeState> =
@@ -388,7 +392,7 @@ class CloudBackupCoordinator internal constructor(
             attempt = attempt.copy(drive_file_id = uploaded.id, state = BackupAttemptState.VERIFYING.name)
             store.saveAttempt(attempt)
             store.update { it.copy(attempt_state = BackupAttemptState.VERIFYING.name, updated_at_ms = now) }
-            val verified = try {
+            try {
                 assertRemote(uploaded, attempt)
                 // The only byte check of this upload. The marker is bound to the checked version, and the state
                 // returned after marking shows whether that still holds.
@@ -409,7 +413,11 @@ class CloudBackupCoordinator internal constructor(
             attempt = finishVerifiedAttempt(attempt, token, state.folder_id!!, actual, cycleId, automatic)
             archive.parentFile?.deleteRecursively()
             archive = null
-            @Suppress("UNUSED_VARIABLE") val keepReference = verified
+        } catch (cancelled: CancellationException) {
+            // Leaving the backup page cancels a manual backup: the screen must not stay "in progress". The attempt
+            // keeps its state, so the next cycle reconciles an upload that may have finished.
+            withContext(NonCancellable) { releaseProgress() }
+            throw cancelled
         } catch (error: CloudBackupException) {
             if (error.error != CloudBackupError.SESSION_EXPIRED) throw error
             attempt?.let {

@@ -150,6 +150,33 @@ class BackupViewModelTest {
         assertTrue(done.completedFile!!.outputVerified)
     }
 
+    @Test fun a_cloud_restore_does_not_start_while_a_local_job_runs() = runTest(dispatcher) {
+        val bytes = "portable-output".toByteArray()
+        val reading = java.util.concurrent.CountDownLatch(1)
+        var staged = 0
+        val descriptor = CloudBackupDescriptor("file", "backup.val_backup", "created", "drive", 1,
+            "app", "build", 10, 1, 1, "verified", true)
+        val cloud = object : CloudBackupService by UnavailableCloudBackupService {
+            override val cloudAllowed = true
+            override fun observeState() = MutableStateFlow(CloudBackupRuntimeState(connected = true, backups = listOf(descriptor)))
+            override suspend fun stageForRestore(fileId: String): CloudRestoreDownload { staged++; return CloudRestoreDownload("local", descriptor.fileName) }
+        }
+        val portability = object : DataPortability by UnavailableDataPortability {
+            override val backupAndRestoreAllowed = true
+            override suspend fun createBackup(backupId: String, output: java.io.OutputStream,
+                progress: (PortabilityProgress) -> Unit): PortableFileResult {
+                output.write(bytes)
+                return PortableFileResult("backup.val_backup", bytes.size.toLong(), sha256(bytes), 1, "now", false)
+            }
+        }
+        val vm = BackupViewModel(portability, settings, demo = false, cloudBackup = cloud)
+        vm.createBackup(vm.backupRequest(), { java.io.ByteArrayOutputStream() }) { reading.await(); ByteArrayInputStream(bytes) }
+        withTimeout(5_000) { vm.state.first { it.busy } }
+        vm.prepareCloudRestore(descriptor)
+        assertEquals(0, staged)
+        reading.countDown()
+    }
+
     @Test fun cloud_backup_selection_toggles_and_is_cleared_when_the_file_disappears() = runTest(dispatcher) {
         val first = CloudBackupDescriptor("first", "first.val_backup", "created-1", "drive-1", 1,
             "app", "build", 10, 1, 1, "verified", true)

@@ -262,7 +262,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                     CloudBackupItem(
                         value = value,
                         expanded = state.selectedCloudBackupId == value.fileId,
-                        busy = state.cloudBusy,
+                        // A cloud restore fills the same preview as a local one: not while a local job runs.
+                        busy = state.cloudBusy || state.busy,
                         onToggle = { vm.toggleCloudBackup(value.fileId) },
                         onDownload = {
                             vm.cloudDownloadRequest(value).also {

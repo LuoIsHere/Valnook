@@ -21,12 +21,6 @@ interface CloudBackupDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun claimAttempt(value: CloudBackupAttemptEntity): Long
 
-    @Query("SELECT * FROM cloud_backup_attempts WHERE attempt_id=:attemptId")
-    suspend fun attempt(attemptId: String): CloudBackupAttemptEntity?
-
-    @Query("SELECT * FROM cloud_backup_attempts WHERE cycle_id=:cycleId LIMIT 1")
-    suspend fun attemptForCycle(cycleId: String): CloudBackupAttemptEntity?
-
     @Query("SELECT * FROM cloud_backup_attempts ORDER BY started_at_utc_ms DESC, attempt_id DESC LIMIT 1")
     suspend fun latestAttempt(): CloudBackupAttemptEntity?
 
