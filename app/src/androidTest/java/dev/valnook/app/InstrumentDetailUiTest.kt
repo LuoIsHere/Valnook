@@ -192,34 +192,39 @@ class InstrumentDetailUiTest {
             graph.commands.execute(UpdateInstrumentPrices(id(), listOf(InstrumentPriceChange(instrument, revision, price)), true))
         }
         show()
+        // Created and updated three times on one day: the trend keeps only that day's last price.
+        assertEquals(listOf(11_800_000L), prices().map { it.priceE5 })
         val line = rule.onNodeWithTag("instrument-header-line")
         line.assertTextContains("浮动盈亏", substring = true)
         val chart = rule.onNodeWithTag("instrument-price-trend")
         assertTrue(chart.fetchSemanticsNode().boundsInRoot.width > 200f)
         chart.performTouchInput { down(centerLeft + androidx.compose.ui.geometry.Offset(4f, 0f)) }
         rule.waitForIdle()
-        // The oldest of the recent prices is the one the instrument was created with.
-        line.assertTextContains("120 CNY", substring = true)
+        // Even at the left edge, the one point is that day's last update, not the price it was created with.
+        line.assertTextContains("118 CNY", substring = true)
         save("trend-touched")
         chart.performTouchInput { up() }
         rule.waitForIdle()
         line.assertTextContains("浮动盈亏", substring = true)
     }
 
+    private fun revision() = runBlocking { graph.instruments.observeInstrument(instrument).first()!!.revision }
     private fun prices() = (vm.state.value as dev.valnook.feature.investments.InstrumentDetailState.Ready).prices
     private fun dialogGone() = rule.waitUntil(5_000) { rule.onAllNodesWithTag("instrument-price-dialog").fetchSemanticsNodes().isEmpty() }
 
     @Test fun the_price_dialog_records_a_save_even_at_the_same_price() {
         seed(); show()
         val before = prices().size
+        val beforeRevision = revision()
         rule.onNodeWithTag("instrument-price-update").performClick()
         rule.onNodeWithTag("instrument-price-dialog").assertExists()
         rule.onNodeWithText("上次更新", substring = true).assertExists()
         save("price-dialog")
-        // Saved unchanged: still a new point on the trend.
+        // Saved unchanged: still recorded, but on the day already drawn, so the trend keeps one point.
         rule.onNodeWithTag("instrument-price-save").performClick()
         dialogGone()
-        rule.waitUntil(5_000) { prices().size == before + 1 }
+        rule.waitUntil(5_000) { revision() > beforeRevision }
+        assertEquals(before, prices().size)
         assertEquals(12_000_000L, prices().first().priceE5)
 
         // A wrong price says so and keeps the dialog; cancelling changes nothing.
@@ -230,7 +235,7 @@ class InstrumentDetailUiTest {
         rule.onNodeWithTag("instrument-price-dialog").assertExists()
         rule.onNodeWithTag("instrument-price-cancel").performClick()
         dialogGone()
-        assertEquals(before + 1, prices().size)
+        assertEquals(before, prices().size)
 
         rule.onNodeWithTag("instrument-price-update").performClick()
         rule.onNode(hasSetTextAction()).performTextReplacement("130")

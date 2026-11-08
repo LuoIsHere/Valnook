@@ -43,7 +43,7 @@ class InstrumentAggregateDataTest {
             .addCallback(ValnookDatabase.seed).build()
         commands = RoomFinancialCommands(db, clock)
         investments = RoomInvestments(db)
-        instruments = RoomInstruments(db)
+        instruments = RoomInstruments(db) { hongKong }
         type = commands.testType()
     }
 
@@ -137,6 +137,37 @@ class InstrumentAggregateDataTest {
         savePrice(fund, 100_034L, recordUnchanged = false)
         assertEquals(dated, instruments.observePriceHistory(fund).first().first().atMs)
         assertEquals(dated, db.instruments().instrument(fund)!!.price_updated_at_ms)
+    }
+
+    @Test fun the_trend_keeps_only_the_last_update_of_each_day() = runBlocking {
+        // Created at 12:00 on 1 November in Hong Kong.
+        val fund = commands.testInstrument("Fund", "F1", type, "CNY", 100_000_000)
+        val created = now.toEpochMilli()
+        // Forty updates on 2 November, the last at 23:59; more updates than the trend has days.
+        now = LocalDateTime.parse("2026-11-02T08:00").atZone(hongKong).toInstant()
+        repeat(39) { step ->
+            savePrice(fund, 100_100L + step, recordUnchanged = true)
+            now = now.plus(Duration.ofMinutes(10))
+        }
+        now = LocalDateTime.parse("2026-11-02T23:59").atZone(hongKong).toInstant()
+        savePrice(fund, 100_200L, recordUnchanged = true)
+        val lastOnTheSecond = now.toEpochMilli()
+        // Just past midnight is the next day.
+        now = LocalDateTime.parse("2026-11-03T00:01").atZone(hongKong).toInstant()
+        savePrice(fund, 100_300L, recordUnchanged = true)
+
+        val trend = instruments.observePriceHistory(fund).first()
+        assertEquals(listOf(100_300L, 100_200L, 100_000L), trend.map { it.priceE5 })
+        assertEquals(listOf(now.toEpochMilli(), lastOnTheSecond, created), trend.map { it.atMs })
+        // Every update stays stored for the statistics.
+        assertEquals(42, db.statistics().prices().count { it.instrument_id == fund })
+
+        // A later update the same day replaces that day's point.
+        now = now.plus(Duration.ofHours(9))
+        savePrice(fund, 100_400L, recordUnchanged = true)
+        val again = instruments.observePriceHistory(fund).first()
+        assertEquals(listOf(100_400L, 100_200L, 100_000L), again.map { it.priceE5 })
+        assertEquals(now.toEpochMilli(), again.first().atMs)
     }
 
     @Test fun the_flag_is_part_of_the_request() = runBlocking {

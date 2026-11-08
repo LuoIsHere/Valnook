@@ -31,7 +31,10 @@ interface StatisticsRepository {
 interface InstrumentRepository {
     fun observeInstruments(): Flow<List<Instrument>>
     fun observeInstrument(id: Long): Flow<Instrument?>
-    /** The latest [limit] recorded prices, newest first; older ones stay stored for the statistics. */
+    /**
+     * The last recorded price of each of the latest [limit] days that have one, newest first; every update stays
+     * stored for the statistics.
+     */
     fun observePriceHistory(instrumentId: Long, limit: Int = PRICE_TREND_POINTS): Flow<List<InstrumentPricePoint>> =
         kotlinx.coroutines.flow.flowOf(emptyList())
     companion object { const val PRICE_TREND_POINTS = 30 }

@@ -66,9 +66,10 @@ interface StatisticsDao {
 
     @Query("SELECT * FROM instrument_price_history WHERE is_deleted=0 ORDER BY instrument_id,effective_at_ms,id")
     suspend fun prices(): List<InstrumentPriceEntity>
+    /** Every price of one instrument, newest first; the trend keeps one a day, so no row count can stand for its days. */
     @Query("""SELECT * FROM instrument_price_history WHERE instrument_id=:instrumentId AND is_deleted=0
-        ORDER BY effective_at_ms DESC,id DESC LIMIT :limit""")
-    fun recentPrices(instrumentId: Long, limit: Int): Flow<List<InstrumentPriceEntity>>
+        ORDER BY effective_at_ms DESC,id DESC""")
+    fun pricesNewestFirst(instrumentId: Long): Flow<List<InstrumentPriceEntity>>
 
     @Query("SELECT * FROM instrument_price_history WHERE id=:id")
     suspend fun price(id: Long): InstrumentPriceEntity?

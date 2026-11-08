@@ -2,8 +2,10 @@ package dev.valnook.data.repository
 
 import dev.valnook.data.database.*
 import dev.valnook.domain.calculation.InvestmentProfitCalculator
+import dev.valnook.domain.calculation.PriceTrend
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
+import java.time.ZoneId
 import kotlinx.coroutines.flow.map
 
 class RoomInvestments(private val db: ValnookDatabase) : InvestmentRepository {
@@ -37,9 +39,10 @@ class RoomInvestments(private val db: ValnookDatabase) : InvestmentRepository {
     }
 }
 
-class RoomInstruments(private val db: ValnookDatabase) : InstrumentRepository {
+/** [zone] decides which day a price belongs to; read on every change, so it follows the device like the trend's dates. */
+class RoomInstruments(private val db: ValnookDatabase, private val zone: () -> ZoneId = { ZoneId.systemDefault() }) : InstrumentRepository {
     override fun observeInstruments() = db.instruments().instruments().map { rows -> rows.map { it.toModel() } }
     override fun observeInstrument(id: Long) = db.instruments().observeInstrument(id).map { it?.toModel() }
-    override fun observePriceHistory(instrumentId: Long, limit: Int) = db.statistics().recentPrices(instrumentId, limit)
-        .map { rows -> rows.map { InstrumentPricePoint(it.effective_at_ms, it.price_e5) } }
+    override fun observePriceHistory(instrumentId: Long, limit: Int) = db.statistics().pricesNewestFirst(instrumentId)
+        .map { rows -> PriceTrend.lastOfEachDay(rows.map { InstrumentPricePoint(it.effective_at_ms, it.price_e5) }, zone(), limit) }
 }
