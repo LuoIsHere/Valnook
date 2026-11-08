@@ -79,30 +79,29 @@ fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long)
             (it.instrument.name.contains(needle, true) || it.instrument.symbol.contains(needle, true))
     }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    LazyColumn(Modifier.fillMaxSize().imePadding().testTag("instrument-library"), contentPadding = pageContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    // Each row is an item of its own, so only the rows on screen are composed; items space themselves (see glassCardItems).
+    val gap = 10.dp
+    LazyColumn(Modifier.fillMaxSize().imePadding().testTag("instrument-library"), contentPadding = pageContentPadding()) {
         item(key = "search") { SearchBox(stringResource(R.string.instrument_search), query) { query = it } }
         if (shownTypes.isNotEmpty()) item(key = "types") {
-            TypeCapsules(listOf(null to (stringResource(R.string.instrument_filter_all) to state.instruments.size)) +
-                shownTypes.map { it.id to (typeLabel(it.name) to (counts[it.id] ?: 0)) }, selectedType) { typeFilter = it }
+            Box(Modifier.padding(top = gap)) {
+                TypeCapsules(listOf(null to (stringResource(R.string.instrument_filter_all) to state.instruments.size)) +
+                    shownTypes.map { it.id to (typeLabel(it.name) to (counts[it.id] ?: 0)) }, selectedType) { typeFilter = it }
+            }
         }
-        if (matches.isEmpty()) item(key = "empty") { EmptyState(stringResource(when {
+        if (matches.isEmpty()) item(key = "empty") { Box(Modifier.padding(top = gap)) { EmptyState(stringResource(when {
             query.isNotBlank() -> R.string.instrument_no_match
             selectedType != null -> R.string.instrument_type_no_match
             else -> R.string.instrument_empty
-        })) }
+        })) } }
         else {
-            item(key = "card") {
-                GlassCard(Modifier.testTag("instrument-library-card")) {
-                    matches.forEachIndexed { index, summary ->
-                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer)
-                        LibraryRow(summary, summary.instrument.id in state.soldOut) { onOpen(summary.instrument.id) }
-                    }
-                }
+            glassCardItems(matches, { it.instrument.id }, "instrument", gap, Modifier.testTag("instrument-library-card"),
+                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer) }) { summary ->
+                LibraryRow(summary, summary.instrument.id in state.soldOut) { onOpen(summary.instrument.id) }
             }
             item(key = "count") {
                 Text(pluralStringResource(R.plurals.instrument_count, matches.size, matches.size),
-                    Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall, color = muted)
+                    Modifier.padding(start = 4.dp, top = gap), style = MaterialTheme.typography.bodySmall, color = muted)
             }
         }
     }

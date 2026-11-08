@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -50,39 +51,39 @@ import kotlinx.coroutines.delay
         if (displayedMonth != month?.toString()) { listState.scrollToItem(0); displayedMonth = month?.toString() }
     }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-        if(month!=null)item(key="month"){MonthPager(month,onMonth)}
-        if(!closed)item(key="header") {
+    // Each deposit is an item of its own, so only the rows on screen are composed. The pieces of the card must meet, so
+    // items space themselves: every item after the first has the gap above it (see glassCardItems).
+    LazyColumn(Modifier.fillMaxSize(),state=listState,contentPadding=pageContentPadding()) {
+        var placed=false
+        fun gap():Dp=(if(placed)6.dp else 0.dp).also{placed=true}
+        if(month!=null){val top=gap();item(key="month"){Box(Modifier.padding(top=top)){MonthPager(month,onMonth)}}}
+        if(!closed){val top=gap();item(key="header") {
             SectionHeader(stringResource(DepositsR.string.deposit_section_current),
                 on_archive?.let{stringResource(R.string.settled_deposits)},{on_archive?.invoke()},
-                Modifier.testTag("deposit-header"),Modifier.testTag("deposit-settled-open"))
-        }
-        if(closed&&rows.isEmpty())item(key="empty"){EmptyState(stringResource(R.string.empty_settled_deposits))}
-        if(!closed||rows.isNotEmpty())item(key="card") {
-            GlassCard(Modifier.testTag("deposit-card")) {
-                rows.forEachIndexed { index,deposit ->
-                    if(index>0)DepositDivider()
-                    DepositRow(deposit,today){on_open(deposit.id)}
+                Modifier.padding(top=top).testTag("deposit-header"),Modifier.testTag("deposit-settled-open"))
+        }}
+        if(closed&&rows.isEmpty()){val top=gap();item(key="empty"){Box(Modifier.padding(top=top)){EmptyState(stringResource(R.string.empty_settled_deposits))}}}
+        if(!closed||rows.isNotEmpty())glassCardItems(rows,{it.id},"deposit",gap(),Modifier.testTag("deposit-card"),
+            divider={DepositDivider()},
+            footer=if(closed)null else ({
+                if(rows.isEmpty())Text(stringResource(R.string.empty_deposits),Modifier.fillMaxWidth().padding(12.dp),
+                    style=MaterialTheme.typography.bodyMedium,color=muted)
+                // The last piece: after the deposits, a divider and then the row to open another.
+                DepositDivider()
+                Row(Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("deposit-open").clickable(role=Role.Button,onClick=on_form)
+                    .padding(horizontal=12.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Text(stringResource(R.string.open_deposit),style=MaterialTheme.typography.bodyLarge,color=muted)
                 }
-                if(!closed) {
-                    if(rows.isEmpty())Text(stringResource(R.string.empty_deposits),Modifier.fillMaxWidth().padding(12.dp),
-                        style=MaterialTheme.typography.bodyMedium,color=muted)
-                    DepositDivider()
-                    Row(Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("deposit-open").clickable(role=Role.Button,onClick=on_form)
-                        .padding(horizontal=12.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically) {
-                        Text(stringResource(R.string.open_deposit),style=MaterialTheme.typography.bodyLarge,color=muted)
-                    }
-                }
-            }
-        }
-        item(key="formula"){Text(stringResource(R.string.term_formula),Modifier.padding(start=4.dp,top=2.dp),
+            })) { deposit -> DepositRow(deposit,today){on_open(deposit.id)} }
+        val formulaTop=gap()
+        item(key="formula"){Text(stringResource(R.string.term_formula),Modifier.padding(start=4.dp,top=2.dp+formulaTop),
             style=MaterialTheme.typography.bodySmall,color=muted)}
-        if(hasMore)item(key="more"){
-            Box(Modifier.fillMaxWidth(),contentAlignment=Alignment.Center) {
+        if(hasMore){val top=gap();item(key="more"){
+            Box(Modifier.fillMaxWidth().padding(top=top),contentAlignment=Alignment.Center) {
                 if(month!=null){LaunchedEffect(rows.size,month){on_more()};CircularProgressIndicator()}
                 else TextButton(onClick=on_more){Text(stringResource(R.string.load_more))}
             }
-        }
+        }}
     }
 }
 

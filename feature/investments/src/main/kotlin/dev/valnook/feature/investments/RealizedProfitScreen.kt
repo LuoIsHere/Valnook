@@ -62,8 +62,9 @@ internal fun realizedRows(snapshot: AssetSnapshot, summaries: List<InstrumentAss
 @Composable fun RealizedProfitContent(total: ConvertedTotal, base: Currency?, rows: List<RealizedRow>,
     onInstrument: (Long) -> Unit) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    LazyColumn(Modifier.fillMaxSize().testTag("realized-page"), contentPadding = pageContentPadding(),
-        verticalArrangement = Arrangement.spacedBy(Space.md)) {
+    // Each row is an item of its own, so only the rows on screen are composed; items space themselves (see glassCardItems).
+    val gap = Space.md
+    LazyColumn(Modifier.fillMaxSize().testTag("realized-page"), contentPadding = pageContentPadding()) {
         item(key = "total") {
             Column(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -79,18 +80,14 @@ internal fun realizedRows(snapshot: AssetSnapshot, summaries: List<InstrumentAss
                 IncompleteReason(total)
             }
         }
-        if (rows.isEmpty()) item(key = "empty") { EmptyState(stringResource(R.string.realized_empty)) }
+        if (rows.isEmpty()) item(key = "empty") { Box(Modifier.padding(top = gap)) { EmptyState(stringResource(R.string.realized_empty)) } }
         else {
-            item(key = "card") {
-                GlassCard(Modifier.testTag("realized-card")) {
-                    rows.forEachIndexed { index, row ->
-                        if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer)
-                        RealizedRowView(row, base) { onInstrument(row.summary.instrument.id) }
-                    }
-                }
+            glassCardItems(rows, { it.summary.instrument.id }, "realized", gap, Modifier.testTag("realized-card"),
+                divider = { HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer) }) { row ->
+                RealizedRowView(row, base) { onInstrument(row.summary.instrument.id) }
             }
             item(key = "footer") {
-                Text(stringResource(R.string.realized_footer), Modifier.padding(start = 4.dp),
+                Text(stringResource(R.string.realized_footer), Modifier.padding(start = 4.dp, top = gap),
                     style = MaterialTheme.typography.bodySmall, color = muted)
             }
         }

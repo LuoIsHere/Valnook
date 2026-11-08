@@ -140,30 +140,29 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
             if(failed) HintMessage(wording("Unable to load card faces. Reopen this page to retry.","卡面加载失败，请重新打开此页面重试。"),isError=true)
             else CircularProgressIndicator(Modifier.align(Alignment.Center))
         }
-    } else LazyColumn(Modifier.fillMaxSize().testTag("wallet-face-library"),contentPadding=pageContentPadding(),
-        verticalArrangement=Arrangement.spacedBy(Space.sm)) {
+    } else LazyColumn(Modifier.fillMaxSize().testTag("wallet-face-library"),contentPadding=pageContentPadding()) {
+        // Each face is an item of its own, so only the faces on screen are composed and decoded; the pieces of a card
+        // must meet, so items space themselves (see glassCardItems).
+        val gap=Space.sm
         item("hint") {
             Text(wording("Card faces stay here after a card changes face or is deleted, until you delete them. A face in use cannot be deleted.",
                 "卡片换掉卡面或被删除后，卡面仍保留在这里，直到你删除它。正在使用的卡面不能删除。")+" ${list.size} / ${WalletRules.MAX_FACES}",
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        notice?.let { item("notice") { FaceNotice(it) } }
-        if(full) item("full") { HintMessage(faceErrorText(ErrorCode.WALLET_FACE_LIBRARY_FULL)) }
-        if(list.isEmpty()) item("empty") {
+        notice?.let { item("notice") { Box(Modifier.padding(top=gap)) { FaceNotice(it) } } }
+        if(full) item("full") { Box(Modifier.padding(top=gap)) { HintMessage(faceErrorText(ErrorCode.WALLET_FACE_LIBRARY_FULL)) } }
+        if(list.isEmpty()) item("empty") { Box(Modifier.padding(top=gap)) {
             EmptyState(wording("No card faces yet. Tap ＋ to upload one, or choose an image when editing a card.","还没有卡面。点按 ＋ 上传，或在编辑卡片时选择图片。"))
-        }
+        } }
         sectionTitles.forEach { (used,title)->
             val section=list.filter { it.inUse==used }
             if(section.isNotEmpty()) {
                 item("title-$used") {
-                    Text(title,Modifier.padding(start=Space.xs,top=Space.md),style=MaterialTheme.typography.titleSmall,
+                    Text(title,Modifier.padding(start=Space.xs,top=Space.md+gap),style=MaterialTheme.typography.titleSmall,
                         color=MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                item("section-$used") {
-                    GlassCard { section.forEachIndexed { index,face->
-                        if(index>0)HorizontalDivider(Modifier.padding(horizontal=Space.cardInset))
-                        FaceRow(face,cache,!busy,{exporting=face.key;saver.launch(faceFileName(face))},{deleting=face.key})
-                    } }
+                glassCardItems(section,{it.key},"face-$used",gap,divider={HorizontalDivider(Modifier.padding(horizontal=Space.cardInset))}) { face->
+                    FaceRow(face,cache,!busy,{exporting=face.key;saver.launch(faceFileName(face))},{deleting=face.key})
                 }
             }
         }
