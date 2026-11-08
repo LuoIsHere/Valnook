@@ -33,5 +33,6 @@ $("#refresh-page").addEventListener("click", () => refreshCurrent());
 const fragment = new URLSearchParams(location.hash.slice(1)); const qr = fragment.get("pair");
 restoreSessionCredentials();
 applyPairingCopy();
-if (qr) { $("#pair-form").hidden = true; $("#pair-copy").textContent = t("qrConnecting"); pair("qr", qr); }
+// The one-time token leaves the address bar at once, so a reload never retries a spent one.
+if (qr) { history.replaceState(null, "", location.pathname); $("#pair-form").hidden = true; $("#pair-copy").textContent = t("qrConnecting"); pair("qr", qr); }
 else { resumeExistingSession(); }

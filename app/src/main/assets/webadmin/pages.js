@@ -122,7 +122,7 @@ function refreshCurrent() {
   });
   return refreshTask;
 }
-function showError(error) { if (error.name === "AbortError") return; const root = $("#content"); clear(root); root.append(el("div", { class: "empty", text: `${t("loadFailed")}: ${error.code || error.message}` })); }
+function showError(error) { if (error.name === "AbortError") return; const root = $("#content"); clear(root); root.append(el("div", { class: "empty", text: `${t("loadFailed")}: ${error.code && t(error.code) !== error.code ? t(error.code) : error.code || error.message}` })); }
 function emptyRow(cols) { return el("tr", {}, el("td", { colspan: cols, class: "empty", text: t("empty") })); }
 function bindRow(row) {
   if (row.dataset.clickable) { row.tabIndex = 0; row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); row.click(); } }); }
@@ -488,11 +488,21 @@ async function renderRecords(reset) {
     Object.entries(state.recordFilters).forEach(([name, value]) => { if (controls.elements[name]) controls.elements[name].value = value; });
     controls.addEventListener("submit", event => { event.preventDefault(); renderRecords(true).catch(showError); });
     root.append(controls, el("div", { id: "records-table" }));
-  const fd = new FormData(controls); const params = new URLSearchParams({ pageSize: "50" });
-  if (fd.get("from")) params.set("from", String(new Date(`${fd.get("from")}T00:00:00`).getTime()));
-  if (fd.get("to")) params.set("to", String(new Date(`${fd.get("to")}T23:59:59.999`).getTime()));
-  ["accountId", "type", "query"].forEach(k => { if (fd.get(k)) params.set(k, fd.get(k)); });
-  if (!reset && state.recordsCursor) params.set("cursor", state.recordsCursor);
+  // More rows come with the filters the list was loaded with, never with edits not yet applied.
+  const paging = !reset && state.recordsCursor && state.recordsApplied;
+  let params;
+  if (paging) {
+    params = new URLSearchParams(state.recordsApplied.params);
+    Object.entries(state.recordsApplied.filters).forEach(([name, value]) => { if (controls.elements[name]) controls.elements[name].value = value; });
+    state.recordFilters = { ...state.recordsApplied.filters };
+    params.set("cursor", state.recordsCursor);
+  } else {
+    const fd = new FormData(controls); params = new URLSearchParams({ pageSize: "50" });
+    if (fd.get("from")) params.set("from", String(new Date(`${fd.get("from")}T00:00:00`).getTime()));
+    if (fd.get("to")) params.set("to", String(new Date(`${fd.get("to")}T23:59:59.999`).getTime()));
+    ["accountId", "type", "query"].forEach(k => { if (fd.get(k)) params.set(k, fd.get(k)); });
+    state.recordsApplied = { params: params.toString(), filters: Object.fromEntries(fd) };
+  }
   const data = await api(`/api/v1/records?${params}`); if (requestId !== state.recordsRequest) return;
   state.recordsHistory = reset ? data.items : [...state.recordsHistory, ...data.items]; state.recordsCursor = data.nextCursor;
   const rows = state.recordsHistory.map(v => el("tr", { "data-clickable": "true", onclick: () => openRecord(v) },

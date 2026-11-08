@@ -14,6 +14,9 @@ async function pair(kind, value) {
   } catch (error) {
     if (String(error.message).startsWith("WS_")) {
       $("#pair-form").hidden = true; $("#pair-copy").textContent = t("wsFailed");
+    } else if (kind === "qr") {
+      // The QR token did not work: the code on the phone still can.
+      $("#pair-form").hidden = false; $("#pair-copy").textContent = t("pairCopy");
     }
     status.textContent = error.code === "PAIR_CODE_ROTATED" ? t("pairWrong") : `${t("pairFailed")}: ${error.code || error.message || "UNKNOWN"}`;
   } finally { button.disabled = false; }
@@ -173,12 +176,14 @@ function expireSession(reason) {
   clearSessionCredentials();
   if (state.heartbeat) clearInterval(state.heartbeat);
   state.viewEpoch++; closeDrawer(true);
-  state.socket?.close(); state.session = null; state.accounts = []; state.instruments = []; state.positions = []; state.recordFilters = {};
+  state.socket?.close(); state.session = null; state.accounts = []; state.instruments = []; state.positions = []; state.recordFilters = {}; state.recordsApplied = null; state.recordsCursor = null;
   state.expandedInvestmentAccounts.clear();
   clear($("#content")); $("#idle-warning").hidden = true;
   $("#toast").hidden = true; $("#connection-banner").hidden = true;
   $("#workspace").hidden = true; $("#pairing").hidden = false;
-  $("#pair-form").hidden = true; $("#pair-copy").textContent = t(({ IDLE_TIMEOUT: "idleEnded", PHONE_BACKGROUND: "phoneBackground", PHONE_ENDED: "phoneEnded" })[reason] || "sessionLost");
+  // When the phone ended the session its server stops too; otherwise the code on the phone can pair again.
+  const phoneEnded = ({ IDLE_TIMEOUT: "idleEnded", PHONE_BACKGROUND: "phoneBackground", PHONE_ENDED: "phoneEnded" })[reason];
+  $("#pair-form").hidden = !!phoneEnded; $("#pair-copy").textContent = t(phoneEnded || "sessionLost");
   $("#pair-status").textContent = "";
 }
 

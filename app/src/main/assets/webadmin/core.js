@@ -19,7 +19,7 @@ const copy = {
     deleteChildScope: "删除此子账户及现金流水。保留存单与投资交易，解除其现金关联；不转移余额，其他账户余额不变。历史统计会重算，无法撤销。",
     deleteLimitNotice: "关联账户分别继承总额度，汇总额度可能增加；各自欠款不变。",
     accounts: "账户", records: "记录", investments: "投资", statistics: "统计", connected: "已连接", demoMode: "演示模式",
-    sessionEnded: "会话已结束", sessionLost: "连接已失效，请回到手机重新配对。", reconnecting: "连接暂时中断，正在恢复…", loading: "正在加载…",
+    sessionEnded: "会话已结束", sessionLost: "连接已失效，请回到手机重新配对。", TIMEOUT: "手机长时间没有响应，请检查手机网络后重试。", reconnecting: "连接暂时中断，正在恢复…", loading: "正在加载…",
     empty: "暂无数据", save: "保存", cancel: "取消", saved: "✓ 已保存", showDeposits: "显示定期汇总", showInvestments: "显示投资汇总", showOnAccounts: "在账户页显示", includeAvailable: "计入可用现金", searchInstrument: "搜索投资品",
     newAccount: "新增账户",
     newInstrument: "新增投资标的", instruments: "投资标的", positions: "持仓", refresh: "刷新",
@@ -55,7 +55,7 @@ const copy = {
     deleteChildScope: "Delete this subaccount and cash entries. Keep deposits and trades without their cash links. No balance is transferred; other balances stay unchanged. Historical totals are recalculated. This cannot be undone.",
     deleteLimitNotice: "Each linked account inherits the full limit, which may increase the combined limit. Their debts stay unchanged.",
     accounts: "Accounts", records: "Records", investments: "Investments", statistics: "Statistics", demoMode: "Demo mode",
-    connected: "Connected", sessionEnded: "Session ended", sessionLost: "Session expired. Pair again from your phone.", reconnecting: "Connection interrupted. Reconnecting…",
+    connected: "Connected", sessionEnded: "Session ended", sessionLost: "Session expired. Pair again from your phone.", TIMEOUT: "The phone did not answer in time. Check its connection and try again.", reconnecting: "Connection interrupted. Reconnecting…",
     loading: "Loading…", empty: "No data", save: "Save", cancel: "Cancel", saved: "✓ Saved",
     showDeposits: "Show deposit summary", showInvestments: "Show investment summary", showOnAccounts: "Show on Accounts page", includeAvailable: "Include in available cash", searchInstrument: "Search instruments",
     newAccount: "New account", newInstrument: "New instrument", instruments: "Instruments", positions: "Positions",
@@ -159,11 +159,17 @@ async function api(path, options = {}) {
   if (state.csrf && options.method && options.method !== "GET") headers["X-Valnook-CSRF"] = state.csrf;
   const viewEpoch = state.viewEpoch;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 15000);
+  // A timeout is not a view left behind: it gets its own error, which is shown.
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 15000);
   let response, payload;
   try {
     response = await fetch(path, { credentials: "same-origin", ...options, headers, signal: controller.signal });
     payload = await response.json();
+  } catch (error) {
+    if (!timedOut) throw error;
+    const timeout = new Error("TIMEOUT"); timeout.name = "TimeoutError"; timeout.code = "TIMEOUT";
+    throw timeout;
   } finally { clearTimeout(timer); }
   if ((!options.method || options.method === "GET") && !path.includes("/operations/") && viewEpoch !== state.viewEpoch)
     throw new DOMException("Stale view", "AbortError");
