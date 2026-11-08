@@ -118,10 +118,13 @@ fun ValnookRoot(
     val active by sessions.session.collectAsState()
     val cloudState by sessions.observeCloudState().collectAsStateWithLifecycle(
         dev.valnook.domain.cloud.CloudBackupRuntimeState())
-    val settings by remember(active.id) {
-        active.graph.settings.observeSettings().map<AppSettings, AppSettings?> { it }
+    // Tagged with the session they belong to: after switching, the previous session's settings are kept until the
+    // new ones arrive, and must not build its first frame.
+    val sessionSettings by remember(active.id) {
+        val id = active.id
+        active.graph.settings.observeSettings().map<AppSettings, Pair<String, AppSettings>?> { id to it }
     }.collectAsStateWithLifecycle(null)
-    val loadedSettings = settings ?: return
+    val loadedSettings = sessionSettings?.takeIf { it.first == active.id }?.second ?: return
     val webState by webAdmin.state.collectAsStateWithLifecycle()
     val webScope = rememberCoroutineScope()
     LaunchedEffect(active.id, loadedSettings.language) {
@@ -229,13 +232,15 @@ private fun SessionRoot(
             stack.add(firstRoot)
         }
     }
-    val selectedCash by remember(graph,current) {
-        (current as? CashKey)?.let { graph.cash.observeCashAccount(it.cashAccountId) }
-            ?: kotlinx.coroutines.flow.flowOf(null)
+    // The sub-account and instrument pages deepest in the stack keep their names loaded while a page sits above
+    // them, so coming back shows the title at once rather than after a new query.
+    val cashKey = stack.lastOrNull { it is CashKey } as CashKey?
+    val instrumentKey = stack.lastOrNull { it is InstrumentKey } as InstrumentKey?
+    val selectedCash by remember(graph,cashKey) {
+        cashKey?.let { graph.cash.observeCashAccount(it.cashAccountId) } ?: kotlinx.coroutines.flow.flowOf(null)
     }.collectAsStateWithLifecycle(null)
-    val selectedInstrument by remember(graph,current) {
-        (current as? InstrumentKey)?.let { graph.instruments.observeInstrument(it.id) }
-            ?: kotlinx.coroutines.flow.flowOf(null)
+    val selectedInstrument by remember(graph,instrumentKey) {
+        instrumentKey?.let { graph.instruments.observeInstrument(it.id) } ?: kotlinx.coroutines.flow.flowOf(null)
     }.collectAsStateWithLifecycle(null)
     val accounts by remember(graph) { graph.accounts.observe_accounts() }.collectAsStateWithLifecycle(emptyList())
     val fxContext by remember(graph) { graph.overview.observeFxContext() }
@@ -342,9 +347,9 @@ private fun SessionRoot(
         is InstrumentEditKey -> dev.valnook.feature.investments.instrumentEditTitle(current.id)
         is DividendFormKey -> dev.valnook.feature.investments.dividendFormTitle(current.tradeId == null)
         is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
-        is InstrumentKey -> selectedInstrument?.name.orEmpty()
+        is InstrumentKey -> selectedInstrument?.takeIf { it.id == current.id }?.name.orEmpty()
         is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
-        is CashKey -> selectedCash?.name.orEmpty()
+        is CashKey -> selectedCash?.takeIf { it.id == current.cashAccountId }?.name.orEmpty()
         is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
         is DepositFormKey -> dev.valnook.feature.deposits.depositFormTitle(current.mode)
         is DepositDetailKey -> stringResource(dev.valnook.core.designsystem.R.string.deposit_detail_title)
@@ -480,7 +485,8 @@ private fun SessionRoot(
                             contentAlignment=androidx.compose.ui.Alignment.CenterStart,label="wallet-title") { value ->
                             Text(value,maxLines=2,overflow=androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         } else Text(title, Modifier.weight(1f).padding(end =
-                            with(density) { (titleReserves[current] ?: 0).toDp() }), maxLines = 2)
+                            with(density) { (titleReserves[current] ?: 0).toDp() }), maxLines = 2,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                     }
                     if (active.mode == DataMode.DEMO) Text(
                         stringResource(dev.valnook.feature.settings.R.string.settings_demo_banner),
