@@ -1,6 +1,6 @@
 <resources>
     <string name="deposit_load_failed">存单加载失败</string>
-    <string name="deposits_load_failed">存单加载失败，请返回后重试</string>
+    <string name="deposits_load_failed">存单加载失败，请返回后重试。</string>
     <string name="deposit_loading">正在加载</string>
     <string name="deposit_open">开立存单</string>
     <string name="deposit_edit">编辑存单</string>

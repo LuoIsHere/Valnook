@@ -20,7 +20,7 @@
     <string name="accounts_missing_historical_cost">历史成本待补全</string>
     <string name="accounts_invalid_history">历史记录异常</string>
     <string name="accounts_empty">点按右上角＋新增账户</string>
-    <string name="account_edit_load_failed">加载失败，重试</string>
+    <string name="account_edit_load_failed">加载失败，请重试。</string>
     <string name="account_edit_title">编辑账户</string>
     <string name="account_name">名称</string>
     <string name="account_note">备注</string>

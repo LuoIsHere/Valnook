@@ -13,7 +13,7 @@
     <string name="statistics_previous_year">上一年</string>
     <string name="statistics_next_year">下一年</string>
     <string name="statistics_current">当前</string>
-    <string name="statistics_unknown">缺少可靠的期初基准，暂无法计算</string>
+    <string name="statistics_unknown">历史数据不足，暂无法计算</string>
     <string name="statistics_no_data">该期间暂无可靠数据</string>
     <string name="statistics_load_failed">统计数据加载失败</string>
     <string name="statistics_chart_description">%1$s图表，%2$s</string>

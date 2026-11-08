@@ -61,10 +61,10 @@
     <string name="instrument_symbol">Symbol</string>
     <string name="instrument_asset_class">Asset class</string>
     <string name="instrument_current_price">Current price per unit (up to 5 decimal places)</string>
-    <string name="instrument_confirm_currency_price">I checked the currency meaning of the current price</string>
+    <string name="instrument_confirm_currency_price">The current price is in the new currency</string>
     <string name="instrument_currency_locked_error">The currency is permanently fixed after a position or trade is saved.</string>
     <string name="instrument_symbol_locked_error">The symbol was fixed by the first trade and cannot be changed.</string>
-    <string name="instrument_price_confirmation_error">After changing currency, check the current price and confirm its meaning.</string>
+    <string name="instrument_price_confirmation_error">After changing currency, check the current price and tick the confirmation box.</string>
     <string name="instrument_library_failed">Could not load the instrument library. Go back and try again.</string>
     <string name="instrument_library_loading">Loading instrument library</string>
     <string name="instrument_add">Add instrument</string>
@@ -92,9 +92,9 @@
     <string name="instrument_delete">Delete instrument</string>
     <string name="instrument_delete_confirm">Delete</string>
     <string name="instrument_delete_simple">Delete “%1$s”? It has no trades.</string>
-    <string name="instrument_delete_scope">Removes its positions in %1$d account(s), %2$d trade(s) and %3$d price record(s).</string>
+    <string name="instrument_delete_scope">Removes its positions and history. Accounts: %1$d · Trades: %2$d · Price records: %3$d</string>
     <string name="instrument_delete_value">Its current value of %1$s will be removed from your net assets.</string>
-    <string name="instrument_delete_cash">Its %1$d cash entries stay and balances do not change; past statistics are recalculated.</string>
+    <string name="instrument_delete_cash">Cash entries kept: %1$d. Balances do not change; past statistics are recalculated.</string>
     <string name="instrument_delete_code">Confirmation code: %1$s</string>
     <string name="instrument_delete_code_input">Confirmation code</string>
     <string name="instrument_delete_refresh">Refresh preview and code</string>

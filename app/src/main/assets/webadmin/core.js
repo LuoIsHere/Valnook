@@ -40,7 +40,7 @@ const copy = {
     buy: "买入", sell: "卖出", executionPrice: "成交单价", fee: "手续费", cashLink: "现金联动", cashAccount: "子账户",
     setCurrentPrice: "把成交价设为现价", setCurrentPriceOlder: "交易时间早于现价的更新时间（{time}），不能设为现价。",
     none: "不选择", newTrade: "新增交易", delete: "删除", confirmDelete: "确定删除这条交易？", editTrade: "编辑交易",
-    rate: "年利率 (%)", startDate: "开始日期", settle: "结算", editDeposit: "编辑存单", availableCash: "可用现金",
+    rate: "年利率（%）", startDate: "开始日期", settle: "结算", editDeposit: "编辑存单", availableCash: "可用现金",
     monthlyChange: "本月变化", accountDistribution: "主账户分布", assetTypeDistribution: "资产类型分布", currencyDistribution: "币种分布",
     history: "历史资产变化", staleRecord: "记录已变化，请刷新后重试。", staleBalance: "余额已变化，请刷新后重试。",
     currencyLocked: "该币种已被交易使用，不能修改。", symbolLocked: "代码已被交易使用，不能修改。",
@@ -62,7 +62,7 @@ const copy = {
     refresh: "Refresh", details: "Details", edit: "Edit", trade: "Trade", end: "End session", loadMore: "Load more",
     pairTitle: "Connect to phone", pairCopy: "Open Web administration on your phone and enter its 6-digit pairing code.", pairCode: "Pairing code", connect: "Connect",
     trustedLan: "Use only on a trusted local network. This version uses HTTP/WS without transport encryption.", mainNav: "Main navigation", theme: "Toggle theme", close: "Close",
-    pairWrong: "The pairing code was incorrect. A new code is now shown on the phone.", pairInvalid: "The pairing code was incorrect. Check the six digits on the phone.", pairFailed: "Connection failed", wsFailed: "The WebSocket connection could not be established. Check the browser proxy, VPN, or security software, then restart Web administration on the phone.", qrConnecting: "Connecting with QR credentials…", loadFailed: "Load failed",
+    pairWrong: "The pairing code was incorrect. A new code is now shown on the phone.", pairInvalid: "The pairing code was incorrect. Check the 6 digits on the phone.", pairFailed: "Connection failed", wsFailed: "The WebSocket connection could not be established. Check the browser proxy, VPN, or security software, then restart Web administration on the phone.", qrConnecting: "Connecting with QR credentials…", loadFailed: "Load failed",
     account: "Account", cash: "Available cash", creditBalance: "Credit account balance", balanceAccounts: "Accounts", deposits: "Deposits", investmentValue: "Investment value", totalAssets: "Net assets", complete: "Complete",
     settled: "Settled", depositActive: "Active", name: "Name", note: "Note", currency: "Currency", balance: "Balance", principal: "Principal",
     start: "Start", endDate: "Maturity date", annualRate: "Annual rate", status: "Status", quantity: "Quantity", currentPrice: "Current price", marketValue: "Market value", pnl: "P/L",
@@ -187,7 +187,7 @@ async function api(path, options = {}) {
 
 
 Object.assign(copy["zh-CN"], {
-  idleWarning: "即将因无操作断开", continueSession: "继续管理", idleEnded: "五分钟内无操作，会话已结束。请在手机上重新开启。",
+  idleWarning: "即将因无操作断开", continueSession: "继续管理", idleEnded: "5 分钟内无操作，会话已结束。请在手机上重新开启。",
   phoneEnded: "手机已结束管理会话。", phoneBackground: "手机已进入后台或锁屏，管理会话已结束。", sessionHint: "手机保持亮屏 · 5 分钟无操作后断开",
   discard: "放弃尚未保存的修改？", unknownResult: "正在确认保存结果，请勿重复新建。点击保存可继续确认。", saving: "正在保存…",
   changed: "数据已更新。当前编辑内容已保留；关闭后刷新。", refreshFailed: "已保存，但页面刷新失败。请点击刷新。",
@@ -196,7 +196,7 @@ Object.assign(copy["zh-CN"], {
   STALE_GENERATION: "账本已变化。请关闭编辑并刷新，核对数据后重新保存。", preview: "图标预览", zoom: "缩放", updateAvailable: "数据已更新", confirmResult: "确认保存结果"
 });
 Object.assign(copy.en, {
-  idleWarning: "Disconnecting due to inactivity", continueSession: "Continue", idleEnded: "Session ended after five minutes without activity. Start again on your phone.",
+  idleWarning: "Disconnecting due to inactivity", continueSession: "Continue", idleEnded: "Session ended after 5 minutes without activity. Start again on your phone.",
   phoneEnded: "The phone ended this session.", phoneBackground: "The phone was locked or backgrounded. This session has ended.", sessionHint: "Phone stays awake · Disconnects after 5 minutes of inactivity",
   discard: "Discard unsaved changes?", unknownResult: "Confirming the save result. Do not create another entry. Choose Save to check again.", saving: "Saving…",
   changed: "Data updated. Your draft is preserved; close it to refresh.", refreshFailed: "Saved, but refresh failed. Choose Refresh.",
@@ -232,7 +232,7 @@ const domainMessages = {
   OPERATION_CONFLICT: ["提交内容与原操作不一致，请刷新核对。", "The submission differs from the original operation. Refresh and review."],
   NOT_FOUND: ["该记录已不存在，请刷新页面。", "This record is no longer available. Refresh the page."],
   SOURCE_RECORD: ["请修改来源记录，联动现金会同步更新。", "Edit the source record; linked cash will update with it."],
-  PRICE_CONFIRMATION: ["更换币种后，请核对当前价格并勾选确认。", "After changing currency, check the current price and confirm its meaning."],
+  PRICE_CONFIRMATION: ["更换币种后，请核对当前价格并勾选确认项。", "After changing currency, check the current price and tick the confirmation box."],
   INVALID_ACCOUNT_TYPE: ["账户类型创建后不能直接修改。", "The account type cannot be changed after creation."],
   CREDIT_LIMIT_IN_USE: ["有其他信用账户正在共享该额度，请先解除关联。", "Other credit accounts share this limit. Unlink them first."],
   BALANCE_ACCOUNT_IN_USE: ["该子账户存在余额、历史记录或业务关联，无法删除。", "This subaccount has a balance, history, or business link and cannot be deleted."],
@@ -253,8 +253,8 @@ const iconLabel = key => (iconLabels[state.locale] || iconLabels["zh-CN"])[key] 
 Object.assign(copy["zh-CN"], {
   updatePrices: "更新价格", priceSearch: "搜索名称或代码", priceChanges: "已修改 {n} 项",
   saveAll: "保存全部", priceInvalid: "请输入非负价格，最多 5 位小数，且不超过支持范围。",
-  priceConflict: "此标的已更新或不存在，请刷新后核对价格。", cleared: "未持有／已清仓",
-  nameCode: "名称／代码", marketQuantity: "市值／数量", priceCost: "现价／成本"
+  priceConflict: "此标的已更新或不存在，请刷新后核对价格。", cleared: "未持有 / 已清仓",
+  nameCode: "名称 / 代码", marketQuantity: "市值 / 数量", priceCost: "现价 / 成本"
 });
 Object.assign(copy.en, {
   updatePrices: "Update prices", priceSearch: "Search name or symbol", priceChanges: "{n} changed",
@@ -275,7 +275,7 @@ Object.assign(copy.en, {
   accountGroups: "Account groups", accountGroupsHint: "Every change is saved immediately. Expanding or collapsing a group only applies in this browser.",
   defaultGroup: "Default", newAccountGroup: "New group", renameAccountGroup: "Rename group", deleteAccountGroup: "Delete group",
   groupName: "Group name", groupNameInvalid: "Group names must be 1–20 characters.", rename: "Rename",
-  deleteGroupMessage: "Deleting “{name}” moves its {n} account(s) back to Default.", addAccounts: "Add accounts",
+  deleteGroupMessage: "Deleting “{name}” moves the accounts in it back to Default. Accounts: {n}", addAccounts: "Add accounts",
   addAccountsTo: "Add accounts to “{name}”", addAccountsHint: "Selected accounts move here from their current group.", add: "Add",
   noOtherAccounts: "No accounts in other groups", groupEmpty: "No accounts in this group", accountOrigin: "{name} ({group})",
   moveUp: "Move up", moveDown: "Move down", expand: "Expand", collapse: "Collapse"

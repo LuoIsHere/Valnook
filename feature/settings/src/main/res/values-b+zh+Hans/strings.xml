@@ -18,7 +18,7 @@
     <string name="settings_demo_failed">数据模式切换失败，当前数据未发生变化。</string>
     <string name="settings_danger_zone">危险操作</string>
     <string name="settings_clear_data">清空数据</string>
-    <string name="settings_no_base">未设置主币种，原币功能可正常使用</string>
+    <string name="settings_no_base">未设置主币种：不显示跨币种汇总，其他功能不受影响</string>
     <string name="settings_rate_precision">汇率最多支持 12 位小数。</string>
     <string name="settings_remove_rate">删除 %1$s 汇率</string>
     <string name="settings_add_rate">添加汇率</string>
@@ -50,7 +50,7 @@
     <string name="settings_clear_warning">此操作无法在应用内撤销。</string>
     <string name="settings_clear_scope">将清空全部账户与子账户、存单、标的、持仓与交易、价格历史、资产类型、账户分类与图标、卡包卡片与卡面（含卡片背面私密内容）、主币种、汇率和修改历史，并关闭自动获取汇率。语言、主题、涨跌配色和导航栏设置会保留。</string>
     <string name="settings_clear_input">请准确输入确认码</string>
-    <string name="settings_clear_failed">清空失败，原数据仍保持一致，请重试。</string>
+    <string name="settings_clear_failed">清空失败，请重试。</string>
     <string name="settings_clearing">正在清空</string>
     <string name="settings_confirm_clear">清空上述全部数据</string>
     <string name="settings_demo_banner">演示模式 · 不影响真实数据</string>
@@ -123,7 +123,7 @@
     <string name="settings_navigation_always">始终显示</string>
     <string name="settings_navigation_hide_page">隐藏%1$s</string>
     <string name="settings_navigation_show_page">显示%1$s</string>
-    <string name="settings_navigation_hint">隐藏的页面仍可在「设置 → 隐藏的页面」中打开。</string>
+    <string name="settings_navigation_hint">隐藏的页面仍可在「设置 › 隐藏的页面」中打开。</string>
     <string name="settings_navigation_full">导航栏最多显示 %1$d 个页面，先隐藏一个再添加。</string>
     <string name="settings_fx_summary">主币种 %1$s · %2$s</string>
     <string name="settings_fx_summary_unset">主币种未设置 · %1$s</string>

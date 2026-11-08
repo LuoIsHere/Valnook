@@ -18,7 +18,7 @@
     <string name="settings_demo_failed">Could not switch data mode. Your current data was not changed.</string>
     <string name="settings_danger_zone">Danger zone</string>
     <string name="settings_clear_data">Clear data</string>
-    <string name="settings_no_base">No base currency selected; original-currency features remain available</string>
+    <string name="settings_no_base">No base currency selected: cross-currency totals are hidden; everything else works</string>
     <string name="settings_rate_precision">Rates support up to 12 decimal places.</string>
     <string name="settings_remove_rate">Remove %1$s rate</string>
     <string name="settings_add_rate">Add rate</string>
@@ -50,7 +50,7 @@
     <string name="settings_clear_warning">This action cannot be undone in the app.</string>
     <string name="settings_clear_scope">All accounts and subaccounts, deposits, instruments, holdings and trades, price history, asset classes, account groups and icons, Wallet cards and card faces (including private card backs), base currency, exchange rates, and change history will be cleared, and automatic exchange rates turned off. Language, theme, gain/loss colors, and navigation bar settings are kept.</string>
     <string name="settings_clear_input">Enter the confirmation code exactly</string>
-    <string name="settings_clear_failed">Clear failed. Existing data remains consistent; try again.</string>
+    <string name="settings_clear_failed">Clear failed. Try again.</string>
     <string name="settings_clearing">Clearing</string>
     <string name="settings_confirm_clear">Clear all listed data</string>
     <string name="settings_demo_banner">Demo mode · Your real data is untouched</string>
@@ -129,7 +129,7 @@
     <string name="settings_navigation_always">Always shown</string>
     <string name="settings_navigation_hide_page">Hide %1$s</string>
     <string name="settings_navigation_show_page">Show %1$s</string>
-    <string name="settings_navigation_hint">Hidden pages can still be opened from Settings → Hidden pages.</string>
+    <string name="settings_navigation_hint">Hidden pages can still be opened from Settings › Hidden pages.</string>
     <string name="settings_navigation_full">The bar shows up to %1$d pages. Hide one to add another.</string>
     <string name="settings_fx_summary">Base currency %1$s · %2$s</string>
     <string name="settings_fx_summary_unset">No base currency · %1$s</string>

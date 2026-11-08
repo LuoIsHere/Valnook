@@ -31,7 +31,6 @@
     <string name="delete_trade">删除交易</string>
     <string name="trade_direction">交易方向</string>
     <string name="delete_trade_title">删除这笔记录？</string>
-    <string name="delete_trade_hint">持仓和已联动的现金会同步调整。原始操作凭据保留。</string>
     <string name="trade_edit_hint">修改后持仓与联动现金按差额调整，当前价格不变。</string>
     <string name="error_record_stale">记录已被修改或删除，请返回刷新后再编辑。</string>
     <string name="error_source_record">请修改来源记录，联动现金会同步更新。</string>
@@ -45,7 +44,6 @@
     <string name="back">返回</string>
     <string name="edit">编辑</string>
     <string name="save">保存</string>
-    <string name="retry">重试原请求</string>
     <string name="cancel">取消</string>
     <string name="confirm">确定</string>
     <string name="saved">已保存</string>
@@ -76,7 +74,6 @@
     <string name="deposit_detail">年利率 %1$s%% · %2$s 至 %3$s</string>
     <string name="interest_value">预计利息 %1$s %2$s</string>
     <string name="new_investment">添加标的</string>
-    <string name="edit_investment">编辑投资资料</string>
     <string name="symbol">代码（可空）</string>
     <string name="asset_type">资产类型</string>
     <string name="type_value">类型：%1$s</string>
@@ -98,14 +95,11 @@
     <string name="linked">已联动现金</string>
     <string name="unlinked">未联动现金</string>
     <string name="load_more">加载更多</string>
-    <string name="refresh">刷新首页</string>
-    <string name="opening_hint">录入已有持仓，不生成买入、不影响现金。币种创建后固定。</string>
-    <string name="form_hint">错误时保留输入。现金联动默认关闭，请确认后保存。</string>
     <string name="amount_preview">本次金额：%1$s %2$s</string>
     <string name="error_cash">所选子账户余额不足，整笔操作未保存。</string>
     <string name="error_holding">卖出份额超过当前持仓，整笔操作未保存。</string>
     <string name="error_stale">余额已被其他操作更新。返回并重新打开余额表单后确认。</string>
-    <string name="error_conflict">请求标识冲突，请返回核对记录。</string>
+    <string name="error_conflict">该操作与已保存的操作冲突，请返回核对记录。</string>
     <string name="error_closed">存单已结算，不能再次结算。</string>
     <string name="error_maturity">存单尚未到期，暂不能结算。</string>
     <string name="error_precision">小数位过多：金额按币种精度，现价最多 5 位，成交价、份额与利率最多 8 位。</string>

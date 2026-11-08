@@ -20,7 +20,7 @@
     <string name="wallet_choose_image">选择图片</string>
     <string name="wallet_from_card_faces">从卡面库选择</string>
     <string name="wallet_remove_image">移除图片</string>
-    <string name="wallet_use_blank_redacted_card_face">建议使用空白或已遮挡敏感信息的卡面。图片仅保存在本机，并会包含在备份中；应用过的图片会保留在“设置 › 卡面库”。</string>
+    <string name="wallet_use_blank_redacted_card_face">建议使用空白或已遮挡敏感信息的卡面。图片仅保存在本机，并会包含在备份中；应用过的图片会保留在「设置 › 卡面库」。</string>
     <string name="wallet_link_subaccount_optional">绑定子账户（可选）</string>
     <string name="wallet_these_cards_show_all_records">这些卡片将展示同一子账户的全部记录。</string>
     <string name="wallet_could_not_save_your_draft">保存失败，已保留填写内容。请重试；若卡片已被其他操作修改，请重新编辑。</string>
@@ -53,9 +53,9 @@
     <string name="wallet_card_face_name">卡面名称</string>
     <string name="wallet_1_40_characters_only_shown_2">1–40 个字符，仅在卡面库中显示</string>
     <string name="wallet_card_faces">卡面库</string>
-    <string name="wallet_no_card_faces_yet_faces">还没有卡面。应用过的卡面和在“设置 › 卡面库”上传的卡面会显示在这里。</string>
+    <string name="wallet_no_card_faces_yet_faces">还没有卡面。应用过的卡面和在「设置 › 卡面库」上传的卡面会显示在这里。</string>
     <string name="wallet_card_face_already_library">这张卡面已在卡面库中。</string>
-    <string name="wallet_library_full_faces_delete_faces">卡面库已满（%1$s 张），请先在“设置 › 卡面库”中删除不用的卡面。</string>
+    <string name="wallet_library_full_faces_delete_faces">卡面库已满（%1$s 张），请先在「设置 › 卡面库」中删除不用的卡面。</string>
     <string name="wallet_card_face_use_change_face">这张卡面正在使用，请先为使用它的卡片更换卡面。</string>
     <string name="wallet_unable_process_image_choose_another">无法处理图片，请换一张图片。</string>
     <string name="wallet_changes_could_not_saved_your">保存失败，已有数据未改变，请重试。</string>
@@ -118,9 +118,9 @@
     <string name="wallet_wallet">卡包</string>
     <string name="wallet_unable_load_cards_reopen_wallet">卡片加载失败，请重新打开卡包重试。</string>
     <string name="wallet_copied">复制成功</string>
-    <string name="wallet_copy_failed_try_again">复制失败，请重试</string>
+    <string name="wallet_copy_failed_try_again">复制失败，请重试。</string>
     <string name="wallet_delete_card_prompt">删除这张卡片？</string>
-    <string name="wallet_card_any_private_back_details">只删除卡片及其本机私密背面内容；卡面保留在“设置 › 卡面库”，不删除绑定子账户及其记录。</string>
+    <string name="wallet_card_any_private_back_details">只删除卡片及其本机私密背面内容；卡面保留在「设置 › 卡面库」，不删除绑定子账户及其记录。</string>
     <string name="wallet_place_your_cards">为喜欢的卡片留个位置</string>
     <string name="wallet_collect_card_face_link_existing">收藏卡面，或绑定已有子账户。</string>
     <string name="wallet_move_up">上移</string>

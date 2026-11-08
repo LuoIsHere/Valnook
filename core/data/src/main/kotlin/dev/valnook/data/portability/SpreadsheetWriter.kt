@@ -173,7 +173,7 @@ internal class SpreadsheetWriter(
             sheet.row(section(label(english, "审计覆盖", "Audit coverage")))
             sheet.row(text(label(english, "覆盖起点", "Coverage start")), text(metadata?.first?.let(::instantText) ?: ""))
             sheet.row(text(label(english, "覆盖说明", "Coverage note")), text(if (metadata == null || !metadata.second || metadata.third)
-                label(english, "升级前历史可能没有修改前后值；已有事实不伪造审计。", "Pre-upgrade history may lack before/after values; existing facts are not fabricated as audit.")
+                label(english, "部分较早的操作发生在开始记录修改历史之前，因此没有修改前后的数值。", "Some earlier activity happened before change history was recorded, so it has no before/after values.")
                 else label(english, "从覆盖起点起完整", "Complete since the coverage start")))
             sheet.blank()
             sheet.row(section(label(english, "主账户索引", "Account index")))
