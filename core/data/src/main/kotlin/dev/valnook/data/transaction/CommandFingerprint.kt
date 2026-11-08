@@ -54,7 +54,8 @@ internal object CommandFingerprint {
                 command.close_cash_linked,command.openCashAccountId,command.closeCashAccountId)
             is RecordInvestmentTrade -> listOf(command.direction.name,command.investment_id,command.quantity_e8,
                 command.execution_price_e8,command.occurred_at_ms,command.cash_linked,command.cashAccountId,
-                command.fee_minor) + (if (command.investment_id == 0L) listOf(command.accountId, command.instrumentId) else emptyList())
+                command.fee_minor) + (if (command.investment_id == 0L) listOf(command.accountId, command.instrumentId) else emptyList()) +
+                (if (command.setAsCurrentPrice) listOf("SET_CURRENT_PRICE") else emptyList())
             is RecordDividend -> listOf("DIVIDEND",command.investment_id,command.amount_minor,command.occurred_at_ms,
                 command.cash_linked,command.cashAccountId)
             is EditDividend -> listOf("DIVIDEND_EDIT",command.trade_id,command.expected_revision,command.amount_minor,

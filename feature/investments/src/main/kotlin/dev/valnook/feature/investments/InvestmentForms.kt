@@ -79,6 +79,20 @@ import java.time.*
             } }, submission.editable)
             if (state.mode == TradeFormMode.CREATE || state.mode == TradeFormMode.EDIT) {
                 vm.amountPreview()?.let { Text(stringResource(R.string.investment_trade_amount, it)) }
+                if (state.mode == TradeFormMode.CREATE) {
+                    // Off by default; an older trade cannot set it, and says why.
+                    val allowed = vm.canSetCurrentPrice(state)
+                    FormSwitchRow(stringResource(R.string.investment_set_current_price), state.setAsCurrentPrice && allowed,
+                        { on -> vm.update { it.copy(setAsCurrentPrice = on) } },
+                        Modifier.testTag("trade-set-current-price"), enabled = submission.editable && allowed,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 4.dp))
+                    if (!allowed) vm.priceUpdatedAt()?.let { updated ->
+                        Text(stringResource(R.string.investment_set_current_price_older,
+                            updated.toLocalDate().toString() + " " + updated.toLocalTime().withSecond(0).withNano(0)),
+                            Modifier.testTag("trade-set-current-price-older"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
                 CheckboxRow(stringResource(R.string.investment_link_cash, state.currency?.code.orEmpty()), state.cashLinked,
                     vm::setCashLinked, enabled = submission.editable)
                 if (state.cashLinked) {

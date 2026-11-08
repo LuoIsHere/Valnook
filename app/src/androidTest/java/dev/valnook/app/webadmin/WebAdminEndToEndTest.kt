@@ -333,6 +333,14 @@ class WebAdminEndToEndTest {
                 .put("occurredAtMs",System.currentTimeMillis()).put("cashLinked",false).toString())
             assertEquals(refused.body,400,refused.status)
             assertEquals("FORMAT",JSONObject(refused.body).getJSONObject("error").getString("code"))
+            // A new buy can set its price as the current one, as on the phone.
+            val generationNow=JSONObject(http(endpoint,"GET","/api/v1/asset-types",cookie=cookie).body).getLong("dataGeneration")
+            val priced=http(endpoint,"POST","/api/v1/positions/$position/trades",origin=origin,cookie=cookie,csrf=csrf,body=JSONObject()
+                .put("operationId",id()).put("dataGeneration",generationNow).put("currencyCode","CNY").put("direction","BUY")
+                .put("quantity","1").put("executionPrice","12.5").put("fee","0").put("occurredAtMs",System.currentTimeMillis())
+                .put("cashLinked",false).put("setAsCurrentPrice",true).toString())
+            assertTrue(priced.body,priced.status in 200..299)
+            assertEquals(1_250_000L,database.instruments().instrument(instrument)!!.current_price_e5)
         }
     }
 

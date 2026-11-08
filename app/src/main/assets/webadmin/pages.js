@@ -684,12 +684,30 @@ async function positionDetail(id, returnState = null, parentDrawer = captureDraw
 function tradeForm(position, trade, cashAccounts) {
   const form = el("form", { class: "form-grid" });
   form.parentDrawer = captureDrawerParent();
-  form.append(selectField(t("direction"), "direction", [{ value: "BUY", label: t("buy") }, { value: "SELL", label: t("sell") }], trade?.action), field(t("quantity"), "quantity", trade?.quantity || "", true), field(t("executionPrice"), "executionPrice", trade?.unitPrice || state.instruments.find(v => v.id === position.instrumentId)?.currentPrice || "", true), field(t("fee"), "fee", trade?.fee || "0", true), field(t("time"), "occurred", trade ? toLocalDateTime(trade.businessAtMs) : toLocalDateTime(Date.now()), true, "datetime-local"), checkField(t("cashLink"), "cashLinked", trade?.cashLinked),
+  const instrument = state.instruments.find(v => v.id === position.instrumentId);
+  // A new buy or sell may set its price as the current one, unless it is older than that price; off by default.
+  const priceOption = trade ? [] : [checkField(t("setCurrentPrice"), "setAsCurrentPrice", false), el("p", { class: "full muted form-note", hidden: true })];
+  form.append(selectField(t("direction"), "direction", [{ value: "BUY", label: t("buy") }, { value: "SELL", label: t("sell") }], trade?.action), field(t("quantity"), "quantity", trade?.quantity || "", true), field(t("executionPrice"), "executionPrice", trade?.unitPrice || instrument?.currentPrice || "", true), field(t("fee"), "fee", trade?.fee || "0", true), field(t("time"), "occurred", trade ? toLocalDateTime(trade.businessAtMs) : toLocalDateTime(Date.now()), true, "datetime-local"), ...priceOption, checkField(t("cashLink"), "cashLinked", trade?.cashLinked),
     selectField(t("cashAccount"), "cashAccountId", [{ value: "", label: t("none") }, ...cashAccounts.map(v => ({ value: v.id, label: `${v.name} · ${v.currencyCode}` }))], trade?.linkedCashAccountId));
+  if (priceOption.length) {
+    const [option, note] = priceOption;
+    const box = option.querySelector("input");
+    const sync = () => {
+      const at = new Date(form.elements.occurred.value).getTime();
+      const older = instrument?.priceUpdatedAtMs != null && !(at >= instrument.priceUpdatedAtMs);
+      box.disabled = older;
+      if (older) box.checked = false;
+      note.hidden = !older;
+      note.textContent = older ? t("setCurrentPriceOlder").replace("{time}", when(instrument.priceUpdatedAtMs)) : "";
+    };
+    form.elements.occurred.addEventListener("input", sync);
+    sync();
+  }
   const error = el("p", { class: "drawer-error" });
   const actionBar = actions(async submit => {
     const fd = new FormData(form); await saveForm(submit, error, trade ? `/api/v1/trades/${trade.id}` : position.id ? `/api/v1/positions/${position.id}/trades` : "/api/v1/trades", trade ? "PUT" : "POST", {
-      operationId: uuid(), dataGeneration: state.generation, expectedRevision: trade?.revision ?? null, accountId: position.accountId, instrumentId: position.instrumentId, direction: fd.get("direction"), quantity: fd.get("quantity"), executionPrice: fd.get("executionPrice"), fee: fd.get("fee") || "0", occurredAtMs: new Date(fd.get("occurred")).getTime(), currencyCode: position.currencyCode, cashLinked: fd.get("cashLinked") === "on", cashAccountId: fd.get("cashLinked") === "on" && fd.get("cashAccountId") ? Number(fd.get("cashAccountId")) : null
+      operationId: uuid(), dataGeneration: state.generation, expectedRevision: trade?.revision ?? null, accountId: position.accountId, instrumentId: position.instrumentId, direction: fd.get("direction"), quantity: fd.get("quantity"), executionPrice: fd.get("executionPrice"), fee: fd.get("fee") || "0", occurredAtMs: new Date(fd.get("occurred")).getTime(), currencyCode: position.currencyCode, cashLinked: fd.get("cashLinked") === "on", cashAccountId: fd.get("cashLinked") === "on" && fd.get("cashAccountId") ? Number(fd.get("cashAccountId")) : null,
+      setAsCurrentPrice: !trade && fd.get("setAsCurrentPrice") === "on"
     });
   });
   if (trade) actionBar.prepend(button(t("delete"), async event => {

@@ -76,10 +76,16 @@ data class EditTermDeposit(override val operation_id: String, val deposit_id: Lo
     val principal_minor: Long, val annual_rate_percent_e8: Long, val start_epoch_day: Long,
     val end_epoch_day: Long, val open_cash_linked: Boolean, val close_cash_linked: Boolean?,
     val openCashAccountId: Long? = null, val closeCashAccountId: Long? = null) : FinancialCommand
+/**
+ * With [setAsCurrentPrice] the execution price, at the instrument's five decimals, also becomes its current price,
+ * recorded at the trade's time like a price saved by hand, even when unchanged. Only a trade no older than the
+ * current price may do so. The price record stands on its own: editing or deleting the trade leaves it.
+ */
 data class RecordInvestmentTrade(override val operation_id: String, val investment_id: Long,
     val direction: Direction, val quantity_e8: Long, val execution_price_e8: Long,
     val occurred_at_ms: Long, val cash_linked: Boolean, val cashAccountId: Long? = null,
-    val fee_minor: Long = 0, val accountId: Long? = null, val instrumentId: Long? = null) : FinancialCommand
+    val fee_minor: Long = 0, val accountId: Long? = null, val instrumentId: Long? = null,
+    val setAsCurrentPrice: Boolean = false) : FinancialCommand
 
 data class EditInvestmentTrade(override val operation_id: String, val trade_id: Long,
     val expected_revision: Long, val direction: Direction, val quantity_e8: Long,

@@ -139,6 +139,53 @@ class InstrumentAggregateDataTest {
         assertEquals(dated, db.instruments().instrument(fund)!!.price_updated_at_ms)
     }
 
+    @Test fun a_trade_can_set_its_price_as_the_current_price() = runBlocking {
+        // Created at 12:00 on 1 November in Hong Kong at 1.
+        val fund = commands.testInstrument("Fund", "F1", type, "CNY", 100_000_000)
+        val held = position(commands.testAccount("A"), fund)
+        fun at(time: String) = LocalDateTime.parse("2026-11-02T$time").atZone(hongKong).toInstant().toEpochMilli()
+        suspend fun trade(direction: Direction, priceE8: Long, time: String, set: Boolean) =
+            commands.execute(RecordInvestmentTrade(testOperationId(), held, direction, 100_000_000, priceE8, at(time),
+                false, setAsCurrentPrice = set)).id
+        suspend fun stored() = db.statistics().prices().filter { it.instrument_id == fund }
+        fun tradeCount() = db.openHelper.readableDatabase.query(
+            "SELECT COUNT(*) FROM investment_trades WHERE investment_id=? AND is_deleted=0", arrayOf<Any>(held))
+            .use { it.moveToFirst(); it.getInt(0) }
+
+        // Left off, the current price stays.
+        trade(Direction.BUY, 110_000_000, "09:00", set = false)
+        assertEquals(100_000L, db.instruments().instrument(fund)!!.current_price_e5)
+        assertEquals(1, stored().size)
+
+        // On: the price, at five decimals, is the current one, dated at the trade.
+        val bought = trade(Direction.BUY, 123_456_789, "10:00", set = true)
+        db.instruments().instrument(fund)!!.let {
+            assertEquals(123_457L, it.current_price_e5)
+            assertEquals(at("10:00"), it.price_updated_at_ms)
+        }
+        assertEquals(123_457L, instruments.observePriceHistory(fund).first().first().priceE5)
+        assertEquals(2, stored().size)
+
+        // A sell at the same price still counts as an update.
+        trade(Direction.SELL, 123_457_000, "11:00", set = true)
+        assertEquals(3, stored().size)
+        assertEquals(at("11:00"), db.instruments().instrument(fund)!!.price_updated_at_ms)
+
+        // An older trade would put an old price over a newer one: refused, and nothing is written.
+        val trades = tradeCount()
+        val refused = runCatching { trade(Direction.BUY, 99_000_000, "10:30", set = true) }.exceptionOrNull()
+        assertEquals(ErrorCode.STALE_RECORD, (refused as DomainException).code)
+        assertEquals(trades, tradeCount())
+        assertEquals(123_457L, db.instruments().instrument(fund)!!.current_price_e5)
+        assertEquals(3, stored().size)
+
+        // Deleting the trade leaves the price it recorded.
+        val revision = db.trades().trade(bought)!!.revision
+        commands.execute(DeleteInvestmentTrade(testOperationId(), bought, revision))
+        assertEquals(3, stored().size)
+        assertEquals(123_457L, db.instruments().instrument(fund)!!.current_price_e5)
+    }
+
     @Test fun the_trend_keeps_only_the_last_update_of_each_day() = runBlocking {
         // Created at 12:00 on 1 November in Hong Kong.
         val fund = commands.testInstrument("Fund", "F1", type, "CNY", 100_000_000)

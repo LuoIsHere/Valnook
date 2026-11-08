@@ -47,6 +47,8 @@
     <string name="investment_record_time">记账时间</string>
     <string name="investment_trade_amount">成交金额 %1$s</string>
     <string name="investment_link_cash">联动该账户 %1$s 现金</string>
+    <string name="investment_set_current_price">把成交价设为现价</string>
+    <string name="investment_set_current_price_older">交易时间早于现价的更新时间（%1$s），不能设为现价。</string>
     <string name="investment_cash_missing">请先创建同币种现金账户</string>
     <string name="investment_cash_account">现金账户</string>
     <string name="investment_cash_change">本次该账户现金变化 %1$s</string>

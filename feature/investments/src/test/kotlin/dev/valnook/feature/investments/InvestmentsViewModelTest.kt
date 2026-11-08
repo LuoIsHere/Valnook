@@ -192,6 +192,30 @@ class InvestmentsViewModelTest {
         assertEquals("missing", restored.query.value)
         job.cancel()
     }
+    @Test fun setting_the_price_as_current_is_off_by_default_and_only_for_a_trade_no_older_than_the_price()=runTest(dispatcher) {
+        val requests=mutableListOf<RecordInvestmentTrade>()
+        val commands=object:FinancialCommands { override suspend fun execute(command:FinancialCommand):OperationResult {
+            requests += command as RecordInvestmentTrade
+            return OperationResult("INVESTMENT_TRADE",requests.size.toLong())
+        }}
+        fun form()=TradeFormViewModel(1,TradeFormMode.CREATE,1,1,null,Direction.SELL,repo,instruments,cash,commands,clock,SavedStateHandle())
+            .also { runCurrent(); it.update { s -> s.copy(quantityInput="1",executionPriceInput="90") } }
+        // Off unless turned on; sells offer it as buys do.
+        form().apply { assertTrue(canSetCurrentPrice()); submit(); runCurrent() }
+        assertFalse(requests.last().setAsCurrentPrice)
+        form().apply { update { it.copy(setAsCurrentPrice=true) }; submit(); runCurrent() }
+        assertTrue(requests.last().setAsCurrentPrice)
+        // A trade older than the current price cannot set it, even if it was turned on before the date changed.
+        form().apply {
+            update { it.copy(setAsCurrentPrice=true, priceUpdatedAtMs=clock.millis()+60_000) }
+            assertFalse(canSetCurrentPrice())
+            submit(); runCurrent()
+        }
+        assertFalse(requests.last().setAsCurrentPrice)
+        // Editing a trade never offers it.
+        assertFalse(TradeFormViewModel(1,TradeFormMode.EDIT,1,1,null,Direction.BUY,repo,instruments,cash,commands,clock,SavedStateHandle())
+            .canSetCurrentPrice())
+    }
     @Test fun first_trade_uses_selected_account_and_instrument_without_prior_position()=runTest(dispatcher) {
         val requests=mutableListOf<RecordInvestmentTrade>()
         val commands=object:FinancialCommands { override suspend fun execute(command:FinancialCommand):OperationResult {

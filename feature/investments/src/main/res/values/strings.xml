@@ -47,6 +47,8 @@
     <string name="investment_record_time">Record time</string>
     <string name="investment_trade_amount">Trade amount %1$s</string>
     <string name="investment_link_cash">Link %1$s cash in this account</string>
+    <string name="investment_set_current_price">Set the trade price as the current price</string>
+    <string name="investment_set_current_price_older">The trade is older than the current price, updated %1$s.</string>
     <string name="investment_cash_missing">Create a cash account in the same currency first</string>
     <string name="investment_cash_account">Cash account</string>
     <string name="investment_cash_change">Cash change for this account %1$s</string>

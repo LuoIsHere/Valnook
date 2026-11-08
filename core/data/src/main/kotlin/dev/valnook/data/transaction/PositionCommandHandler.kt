@@ -64,7 +64,23 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
             cash.change(command.operation_id, cashAccountId, delta, command.direction.name, now)
             cash.entry(command.operation_id, cashAccountId, "TRADE", id, delta, command.occurred_at_ms, now)
         }
+        if (command.setAsCurrentPrice) setCurrentPrice(position.instrument_id, command.execution_price_e8, command.occurred_at_ms, now)
         return OperationResult("INVESTMENT_TRADE", id)
+    }
+
+    /**
+     * The trade's price becomes the current one, dated at the trade, as a separate price record. An older trade would
+     * put an old price over a newer update, so it is refused as stale.
+     */
+    private suspend fun setCurrentPrice(instrumentId: Long, executionPriceE8: Long, occurredAtMs: Long, now: Long) {
+        val instrument = db.instruments().instrument(instrumentId) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        if (occurredAtMs < instrument.price_updated_at_ms) throw DomainException(ErrorCode.STALE_RECORD)
+        val priceE5 = java.math.BigDecimal.valueOf(executionPriceE8, 8).setScale(5, java.math.RoundingMode.HALF_UP)
+            .unscaledValue().longValueExact()
+        if (db.instruments().updateCurrentPriceFromHistory(instrumentId, priceE5, occurredAtMs, now) != 1)
+            throw DomainException(ErrorCode.STALE_RECORD)
+        db.statistics().insertPrice(InstrumentPriceEntity(instrument_id = instrumentId, price_e5 = priceE5,
+            currency_code = instrument.currency_code, effective_at_ms = occurredAtMs, created_at_ms = now))
     }
 
     suspend fun edit(command: EditInvestmentTrade, now: Long): OperationResult {

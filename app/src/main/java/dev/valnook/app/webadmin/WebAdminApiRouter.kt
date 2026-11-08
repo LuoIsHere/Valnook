@@ -397,7 +397,8 @@ internal class WebAdminApiRouter(
             DecimalRules.parse_e8(body.text("executionPrice"), true), body.long("occurredAtMs"),
             body.optionalBoolean("cashLinked") ?: false, body.optionalLong("cashAccountId"),
             DecimalRules.parse_minor(body.optionalText("fee") ?: "0", currency),
-            body.optionalLong("accountId"), body.optionalLong("instrumentId")))
+            body.optionalLong("accountId"), body.optionalLong("instrumentId"),
+            setAsCurrentPrice = body.optionalBoolean("setAsCurrentPrice") ?: false))
     }
 
     private suspend fun editTrade(sessionId: String, id: Long, request: WebHttpRequest): WebHttpResponse {
