@@ -53,7 +53,8 @@ fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () 
                     onLicense, Modifier.testTag("about-license"))
                 HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
                 SettingEntry(stringResource(R.string.settings_repository), repositoryUrl,
-                    { uriHandler.openUri(repositoryUrl) }, Modifier.testTag("about-repository"),
+                    // A device without a browser cannot open it; nothing happens rather than a crash.
+                    { runCatching { uriHandler.openUri(repositoryUrl) } }, Modifier.testTag("about-repository"),
                     leadingIcon = {
                         Icon(painterResource(R.drawable.ic_github), contentDescription = null,
                             modifier = Modifier.size(24.dp),

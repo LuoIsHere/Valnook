@@ -65,6 +65,8 @@ fun TrendChart(
     val latestLabel = stringResource(R.string.trend_latest_point)
     val currentOnSelect by rememberUpdatedState(onSelect)
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
+    // One paint for the axis labels, recoloured as they fade rather than made on every frame.
+    val labelPaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
     var visible by remember { mutableStateOf(false) }
     var played by rememberSaveable(animationKey) { mutableStateOf(false) }
     val reveal = remember(animationKey) { Animatable(if (played || compact) 1f else 0f) }
@@ -201,7 +203,7 @@ fun TrendChart(
         }
         if(split!=null && !compact) drawLine(palette.cursor,Offset(split,inset),Offset(split,bottom),1.dp.toPx())
         if(!compact) {
-            val paint=android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            val paint=labelPaint.apply {
                 color=axisColor.copy(alpha=axisColor.alpha*labelAlpha()).toArgb(); textSize=11.sp.toPx()
             }
             var previousRight=Float.NEGATIVE_INFINITY

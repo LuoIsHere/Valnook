@@ -14,8 +14,9 @@ import dev.valnook.core.designsystem.R
 @Composable
 fun FormLayout(title: String, busy: Boolean, enabled: Boolean, onSave: () -> Unit,
     saveLabel: String? = null, showSaveButton: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
+    // The content padding already keeps clear of the navigation bar, and imePadding of the keyboard; padding the
+    // viewport for the bar as well left its height empty below every form.
     Column(Modifier.fillMaxSize().imePadding()
-        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
         .verticalScroll(rememberScrollState()).padding(pageContentPadding()),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         if (title != LocalPageTitle.current) Text(title, style = MaterialTheme.typography.titleLarge)

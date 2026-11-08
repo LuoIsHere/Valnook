@@ -28,6 +28,8 @@ class AccountImageLoader(private val read: suspend (String) -> ByteArray?) {
     private val cache = object : LruCache<String, ImageBitmap>(4 * 1024 * 1024) {
         override fun sizeOf(key: String, value: ImageBitmap) = value.width * value.height * 4
     }
+    /** A photo already decoded, without waiting: shown on the first frame instead of the symbol. */
+    fun peek(id: String): ImageBitmap? = cache.get(id)
     suspend fun load(id: String): ImageBitmap? = withContext(Dispatchers.IO) {
         try {
             cache.get(id) ?: read(id)?.let { bytes ->
@@ -46,7 +48,9 @@ fun AccountAvatar(symbol: String = "account_balance", imageKey: String? = null,
     val loader = LocalAccountImageLoader.current
     // Key the producer's identity too, so a reused row never shows the previous account's bitmap.
     key(loader, imageKey, preview) {
-        val bitmap by produceState<ImageBitmap?>(null) {
+        // Start from the cache, so a row shown again never flashes its symbol first.
+        val bitmap by produceState(if (preview == null) imageKey?.let(loader::peek) else null) {
+            if (value != null) return@produceState
             value = withContext(Dispatchers.IO) {
                 if (preview != null) BitmapFactory.decodeByteArray(preview, 0, preview.size)?.asImageBitmap()
                 else imageKey?.let { loader.load(it) }

@@ -182,8 +182,11 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
                     translationY = (endY - rowTop - textTop) * eased
                 }.then(balanceModifier)) { fontSize = it }
             // Gone with the details once the header is mostly closed; the bar keeps only its own buttons.
-            if (trailing != null) Box(fading.padding(start = 8.dp)
-                .then(if (collapse.progress >= .5f) Modifier.clearAndSetSemantics {} else Modifier)) { trailing() }
+            if (trailing != null) {
+                // Only crossing the half-way point changes this, not every frame of the collapse.
+                val hidden by remember(collapse) { derivedStateOf { collapse.progress >= .5f } }
+                Box(fading.padding(start = 8.dp).then(if (hidden) Modifier.clearAndSetSemantics {} else Modifier)) { trailing() }
+            }
         }
         Spacer(Modifier.height(4.dp))
         chart(Modifier.graphicsLayer {

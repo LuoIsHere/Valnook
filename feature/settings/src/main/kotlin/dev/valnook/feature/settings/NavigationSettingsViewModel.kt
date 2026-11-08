@@ -8,6 +8,7 @@ import dev.valnook.domain.repository.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 data class NavigationSettingsState(
@@ -36,7 +37,8 @@ class NavigationSettingsViewModel(
 
     init {
         viewModelScope.launch {
-            repository.observeSettings().collect { settings ->
+            // A failed read leaves the page as it is rather than ending the app.
+            repository.observeSettings().catch { }.collect { settings ->
                 latestRevision = settings.revision
                 val current = state.value
                 if (!current.loaded) {

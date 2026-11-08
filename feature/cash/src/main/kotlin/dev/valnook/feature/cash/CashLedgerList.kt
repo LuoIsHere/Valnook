@@ -67,9 +67,13 @@ internal fun CashEntry.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at
  * The note (or, without one, where the change came from) over its time; the change over the balance it left, both in
  * the time's small type for the latter. An increase is green like the overpayment tag.
  */
+/** Made once rather than for every row. */
+private val WHITESPACE = Regex("\\s+")
+private val ROW_TIME: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
 @Composable internal fun CashLedgerRow(entry: CashEntry, onOpen: () -> Unit) {
-    val note = entry.note.trim().replace(Regex("\\s+"), " ")
-    val time = Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("HH:mm"))
+    val note = entry.note.trim().replace(WHITESPACE, " ")
+    val time = Instant.ofEpochMilli(entry.occurred_at_ms).atZone(ZoneId.systemDefault()).format(ROW_TIME)
     val small = MaterialTheme.typography.bodySmall
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val large = MaterialTheme.typography.bodyLarge
