@@ -176,9 +176,9 @@ class StatisticsFxRuleTest {
         db.statistics().insertCache(listOf(StatisticsCacheEntity("TOTAL_ASSETS", day(1).toEpochDay(), "1", true,
             state.source_revision, 3, clock.millis())))
         val points = series()
-        assertEquals(4, db.statistics().state()!!.rule_version)
+        assertEquals(STATISTICS_RULE_VERSION, db.statistics().state()!!.rule_version)
         exact(BigDecimal("1000") + BigDecimal("100").multiply(inv("0.14")) + BigDecimal("200").multiply(inv("0.125")), points[0].value)
-        db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM statistics_cache WHERE rule_version<>4").use {
+        db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM statistics_cache WHERE rule_version<>$STATISTICS_RULE_VERSION").use {
             it.moveToFirst(); assertEquals(0, it.getInt(0))
         }
     }

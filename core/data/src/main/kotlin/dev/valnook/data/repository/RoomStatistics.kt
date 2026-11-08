@@ -260,8 +260,7 @@ class RoomStatistics(
                     }
                 }
                 if (quantity > 0) {
-                    val price = observationsByInstrument[position.instrument_id].orEmpty()
-                        .lastOrNull { it.atMs <= cutoff }
+                    val price = priceAt(observationsByInstrument[position.instrument_id].orEmpty(), cutoff)
                     if (price == null) investmentKnown = false else {
                         val original = BigDecimal.valueOf(quantity).movePointLeft(8).multiply(price.price)
                         // Keep source precision through aggregation. Presentation applies currency rounding.
@@ -278,20 +277,51 @@ class RoomStatistics(
         }
     }
 
-    // Manual prices and trade executions are both valuation observations; the latest at the cutoff wins,
-    // so a position is never unpriced once its first trade exists. A manual price wins a timestamp tie.
-    // 手动价格与成交价都是估值观测，取截止时点前最新的一条；持仓一旦有交易就不会缺价。时间相同时以手动价格为准。
+    // Manual prices and buy or sell executions are valuation observations, so a position is never unpriced once
+    // its first trade exists. A dividend has no price and is not one. Ordered by time, a manual price after an
+    // execution at the same moment.
+    // 手动价格与买卖成交价都是估值观测，持仓一旦有交易就不会缺价；派息没有价格，不算观测。按时间排序，同一时刻手动价格在后。
     private fun priceObservations(source: Source): Map<Long, List<PriceObservation>> {
         val instrumentByPosition = source.positions.associate { it.id to it.instrument_id }
         val manual = source.prices.map { PriceObservation(it.instrument_id, it.effective_at_ms,
-            BigDecimal.valueOf(it.price_e5).movePointLeft(5), manual = true) }
-        val executions = source.trades.mapNotNull { trade -> instrumentByPosition[trade.investment_id]?.let { instrument ->
-            PriceObservation(instrument, trade.occurred_at_ms,
-                BigDecimal.valueOf(trade.execution_price_e8).movePointLeft(8), manual = false)
-        } }
+            BigDecimal.valueOf(it.price_e5).movePointLeft(5), manual = true, day = instantDate(it.effective_at_ms)) }
+        val executions = source.trades.mapNotNull { trade ->
+            if (trade.direction != Direction.BUY.name && trade.direction != Direction.SELL.name) return@mapNotNull null
+            instrumentByPosition[trade.investment_id]?.let { instrument ->
+                PriceObservation(instrument, trade.occurred_at_ms,
+                    BigDecimal.valueOf(trade.execution_price_e8).movePointLeft(8), manual = false,
+                    day = instantDate(trade.occurred_at_ms))
+            }
+        }
         return (manual + executions).groupBy { it.instrumentId }.mapValues { (_, values) ->
             values.sortedWith(compareBy<PriceObservation>({ it.atMs }, { it.manual }))
         }
+    }
+
+    /**
+     * The price at [cutoff]: from the latest day with an observation by then, that day's last manual price, else its
+     * last execution. One price a day, as the instrument's trend draws it, and a manual update beats a trade's price.
+     * 截止时点的价格：取截止前最近一个有观测的日子；当天有手动价格就用最后一次手动价格，否则用最后一笔成交价。
+     */
+    private fun priceAt(observations: List<PriceObservation>, cutoff: Long): PriceObservation? {
+        // Sorted by time: the first index past the cutoff.
+        var low = 0
+        var high = observations.size
+        while (low < high) {
+            val middle = (low + high) ushr 1
+            if (observations[middle].atMs <= cutoff) low = middle + 1 else high = middle
+        }
+        val last = low - 1
+        if (last < 0) return null
+        val day = observations[last].day
+        var execution: PriceObservation? = null
+        for (index in last downTo 0) {
+            val observation = observations[index]
+            if (observation.day != day) break
+            if (observation.manual) return observation
+            if (execution == null) execution = observation
+        }
+        return execution
     }
 
     private suspend fun commit(revision: Long, values: Map<LocalDate, Values>) {
@@ -338,7 +368,8 @@ class RoomStatistics(
     private data class Header(val state: StatisticsStateEntity, val settings: AppSettings,
         val rates: dev.valnook.domain.fx.FxRateResolver)
 
-    private data class PriceObservation(val instrumentId: Long, val atMs: Long, val price: BigDecimal, val manual: Boolean)
+    private data class PriceObservation(val instrumentId: Long, val atMs: Long, val price: BigDecimal, val manual: Boolean,
+        val day: LocalDate)
 
     private data class Point(val value: BigDecimal?, val complete: Boolean)
 

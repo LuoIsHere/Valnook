@@ -268,6 +268,36 @@ class StatisticsRepositoryTest {
         decimal("180", requireNotNull(series.points[0].value))
     }
 
+    @Test fun aDividendIsNotAValuationPrice() = runBlocking {
+        // Priced at noon, then a dividend at 23:59 the same day, recorded with no price.
+        // 中午有手动价格，同一天 23:59 记了一笔派息（成交价为 0）。
+        db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
+        insertManualPrice(9_000_000, octoberAt(1, "12:00"))
+        insertTrade("dividend", Direction.DIVIDEND, 0, 0, octoberAt(1, "23:59"))
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val series = RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        decimal("180", requireNotNull(series.points[0].value))
+    }
+
+    @Test fun aDaysManualPriceBeatsItsLaterExecutionsAndADayWithoutOneUsesItsLastExecution() = runBlocking {
+        db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
+        // 1 October: priced by hand at 90, then one more bought at 150 in the evening.
+        // 10 月 1 日：手动价格 90，晚上又按 150 买入 1 份。
+        insertManualPrice(9_000_000, octoberAt(1, "10:00"))
+        insertTrade("evening-buy", Direction.BUY, 100_000_000, 15_000_000_000, octoberAt(1, "20:00"))
+        // 2 October: no manual price, two buys; the later one's price stands for the day.
+        // 10 月 2 日：没有手动价格，两笔买入，以较晚那笔的成交价为准。
+        insertTrade("morning-buy", Direction.BUY, 100_000_000, 13_000_000_000, octoberAt(2, "09:00"))
+        insertTrade("noon-buy", Direction.BUY, 100_000_000, 14_000_000_000, octoberAt(2, "12:00"))
+        db.statistics().invalidate(octoberFirst.toEpochDay())
+        val later = Clock.fixed(Instant.parse("2026-10-03T04:00:00Z"), clock.zone)
+        val series = RoomStatistics(db, later).loadSeries(StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
+            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
+        decimal("270", requireNotNull(series.points[0].value))
+        decimal("700", requireNotNull(series.points[1].value))
+    }
+
     @Test fun olderRuleCacheIsDiscardedAndRecomputedOnce() = runBlocking {
         db.openHelper.writableDatabase.execSQL("DELETE FROM instrument_price_history")
         val revision = db.statistics().state()!!.source_revision
@@ -499,6 +529,20 @@ class StatisticsRepositoryTest {
         decimal("420", requireNotNull(next.points[2].value))
     }
 
+    private fun octoberAt(day: Int, time: String): Long =
+        LocalDateTime.parse("2026-10-%02dT%s".format(day, time)).atZone(clock.zone).toInstant().toEpochMilli()
+    private suspend fun insertManualPrice(priceE5: Long, at: Long) {
+        db.statistics().insertPrice(InstrumentPriceEntity(instrument_id = 1, price_e5 = priceE5,
+            currency_code = "CNY", effective_at_ms = at, created_at_ms = clock.millis()))
+    }
+    private suspend fun insertTrade(operationId: String, direction: Direction, quantityE8: Long, priceE8: Long, at: Long) {
+        db.operations().insert_operation(OperationEntity(operationId, direction.name, "test", null, null, at))
+        val amount = java.math.BigDecimal.valueOf(quantityE8, 8).multiply(java.math.BigDecimal.valueOf(priceE8, 8))
+            .movePointRight(2).toLong().coerceAtLeast(1)
+        db.ledger().insert_trade(TradeEntity(investment_id = 1, operation_id = operationId, direction = direction.name,
+            quantity_e8 = quantityE8, execution_price_e8 = priceE8, amount_minor = amount, currency_code = "CNY",
+            cash_linked = false, occurred_at_ms = at, created_at_ms = at, updated_at_ms = at))
+    }
     private enum class OctoberDay { START, END }
     private fun at(day: OctoberDay): Long = when (day) {
         OctoberDay.START -> octoberFirst.atStartOfDay(clock.zone).toInstant().toEpochMilli()

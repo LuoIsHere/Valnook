@@ -11,7 +11,9 @@ import androidx.room.PrimaryKey
 // 4: each past day uses that day's stored exchange rate, else today's rate; a currency with neither is left out
 //    and the day marked incomplete.
 // 4：过去的每一天用当天记录的汇率，没有记录用今天的汇率；都没有的币种不计入，并把这一天标为不完整。
-const val STATISTICS_RULE_VERSION = 4
+// 5: dividends are not valuation prices; within a day a manual price beats that day's executions.
+// 5：派息不算估值价格；同一天内，手动价格优先于当天的成交价。
+const val STATISTICS_RULE_VERSION = 5
 
 /** Oldest rule whose saved state can be restored; its derived cache is rebuilt on read. */
 const val MIN_RESTORABLE_STATISTICS_RULE_VERSION = 2
