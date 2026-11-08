@@ -1,5 +1,6 @@
 package dev.valnook.app.navigation
 
+import androidx.compose.runtime.Composable
 import androidx.lifecycle.createSavedStateHandle
 import androidx.navigation3.runtime.*
 import dev.valnook.app.di.AppGraph
@@ -13,22 +14,9 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
     accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit,
     onTypeToolbar: (TypeEditToolbarState?) -> Unit = {}, onInstrumentToolbar: (InstrumentEditToolbarState?) -> Unit = {},
     onDividendToolbar: (DividendToolbarState?) -> Unit = {}) {
-    entry<InvestmentsKey> {
-        val vm = pageViewModel { PortfolioViewModel(graph.overview) }
-        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
-            CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, graph.statistics, graph.clock) })
-        }, onRealized = { open(RealizedProfitKey) }) { accountId, instrumentId ->
-            open(InstrumentKey(instrumentId, accountId))
-        }
-    }
-    entry<HiddenInvestmentsKey> {
-        val vm = pageViewModel { PortfolioViewModel(graph.overview) }
-        InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
-            CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, graph.statistics, graph.clock) })
-        }, onRealized = { open(RealizedProfitKey) }) { accountId, instrumentId ->
-            open(InstrumentKey(instrumentId, accountId))
-        }
-    }
+    // A page left off the bar opens from settings as its hidden key: the same page.
+    entry<InvestmentsKey> { InvestmentsPage(graph, open) }
+    entry<HiddenInvestmentsKey> { InvestmentsPage(graph, open) }
     entry<RealizedProfitKey> {
         val vm = pageViewModel { PortfolioViewModel(graph.overview) }
         RealizedProfitScreen(vm) { open(InstrumentKey(it)) }
@@ -84,5 +72,14 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
         val vm = pageViewModel { DividendFormViewModel(route.accountId, route.positionId, route.tradeId, graph.investments,
             graph.instruments, graph.cash, graph.commands, graph.clock, createSavedStateHandle()) }
         DividendForm(vm, accountName(route.accountId), back, onDividendToolbar)
+    }
+}
+
+@Composable private fun InvestmentsPage(graph: AppGraph, open: (NavKey) -> Unit) {
+    val vm = pageViewModel { PortfolioViewModel(graph.overview) }
+    InvestmentHome(vm, { open(AccountInvestmentsKey(it)) }, trend = {
+        CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.INVESTMENT_VALUE, graph.statistics, graph.clock) })
+    }, onRealized = { open(RealizedProfitKey) }) { accountId, instrumentId ->
+        open(InstrumentKey(instrumentId, accountId))
     }
 }

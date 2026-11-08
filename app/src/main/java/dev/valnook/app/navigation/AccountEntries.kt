@@ -1,5 +1,6 @@
 package dev.valnook.app.navigation
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -22,24 +23,9 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
         val vm = pageViewModel { AccountGroupsViewModel(graph.overview, requireNotNull(graph.accountGroupWriter)) }
         AccountGroupsScreen(vm, onGroupsToolbarChanged)
     }
-    entry<AccountsKey> {
-        val vm = pageViewModel { AccountsViewModel(graph.overview, graph.accountGroupWriter) }
-        AccountsScreen(vm, { open(AccountKey(it)) },
-            { accountId, cashId -> open(CashKey(accountId, cashId)) },
-            { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },
-            { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) }, header = {
-                CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.AVAILABLE_CASH, graph.statistics, graph.clock) })
-            })
-    }
-    entry<HiddenAccountsKey> {
-        val vm = pageViewModel { AccountsViewModel(graph.overview, graph.accountGroupWriter) }
-        AccountsScreen(vm, { open(AccountKey(it)) },
-            { accountId, cashId -> open(CashKey(accountId, cashId)) },
-            { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },
-            { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) }, header = {
-                CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.AVAILABLE_CASH, graph.statistics, graph.clock) })
-            })
-    }
+    // A page left off the bar opens from settings as its hidden key: the same page.
+    entry<AccountsKey> { AccountsPage(graph, open) }
+    entry<HiddenAccountsKey> { AccountsPage(graph, open) }
     entry<AccountEditKey> { route ->
         val vm = pageViewModel { AccountEditViewModel(route.id, graph.overview, graph.commands, createSavedStateHandle()) }
         dev.valnook.app.appearance.AccountPhotoPicker(vm::changeImage) { pickImage ->
@@ -75,4 +61,14 @@ internal fun EntryProviderScope<NavKey>.accountEntries(graph: AppGraph, open: (N
         AccountInvestments(vm, route.accountId, route.all, { open(InstrumentKey(it, route.accountId)) },
             { open(PositionCreateKey(route.accountId)) }, { open(route.copy(all = true)) })
     }
+}
+
+@Composable private fun AccountsPage(graph: AppGraph, open: (NavKey) -> Unit) {
+    val vm = pageViewModel { AccountsViewModel(graph.overview, graph.accountGroupWriter) }
+    AccountsScreen(vm, { open(AccountKey(it)) },
+        { accountId, cashId -> open(CashKey(accountId, cashId)) },
+        { open(AccountKey(it, AccountDetailSection.DEPOSITS.name)) },
+        { open(AccountKey(it, AccountDetailSection.INVESTMENTS.name)) }, header = {
+            CurrentMonthTrend(pageViewModel { CurrentMonthTrendViewModel(StatisticsMetric.AVAILABLE_CASH, graph.statistics, graph.clock) })
+        })
 }

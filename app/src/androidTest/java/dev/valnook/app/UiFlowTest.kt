@@ -1513,6 +1513,8 @@ class UiFlowTest {
         rule.onNode(hasText("USD") and hasAnyAncestor(hasTestTag("currency-list"))).performClick()
         rule.onNodeWithContentDescription("币种: USD").assertExists()
         rule.onNodeWithTag("input-每份价格").performScrollTo().performTextInput("10")
+        // Typing leaves the keyboard open: close it as a user would before the shot, as the class editor above does.
+        finish_input()
         window_shot("instrument-edit-new")
         save_instrument()
         wait_text("新建测试标的")

@@ -1,6 +1,5 @@
 package dev.valnook.app.navigation
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.CircularProgressIndicator
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
@@ -30,7 +29,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -59,8 +57,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
@@ -77,8 +73,6 @@ import dev.valnook.designsystem.BackButton
 import dev.valnook.designsystem.CurrencyPickerRates
 import dev.valnook.designsystem.LocalCurrencyPickerRates
 import dev.valnook.designsystem.LocalPageBottomSpace
-import dev.valnook.designsystem.MenuIcon
-import dev.valnook.designsystem.SortIcon
 import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.ValnookTheme
 import dev.valnook.designsystem.GlassSurface
@@ -98,7 +92,6 @@ import dev.valnook.feature.settings.SettingsViewModel
 import dev.valnook.feature.settings.NavigationSettingsScreen
 import dev.valnook.feature.settings.NavigationSettingsViewModel
 import dev.valnook.feature.settings.NavigationToolbarState
-import dev.valnook.feature.settings.NavigationSettingsActions
 import dev.valnook.feature.statistics.StatisticsScreen
 import dev.valnook.feature.statistics.StatisticsViewModel
 import dev.valnook.feature.wallet.*
@@ -317,45 +310,8 @@ private fun SessionRoot(
     val walletCurrent = current == WalletKey || current == HiddenWalletKey
     val walletDetail = walletCurrent && walletToolbar?.detail == true
     val walletNavigationHidden = walletCurrent && walletToolbar?.navigationHidden == true
-    val title = when (current) {
-        WalletKey, HiddenWalletKey -> walletToolbar?.title ?: stringResource(R.string.nav_wallet)
-        AccountsKey -> stringResource(R.string.nav_accounts)
-        InvestmentsKey -> stringResource(R.string.nav_investments)
-        StatisticsKey -> stringResource(R.string.nav_statistics)
-        SettingsKey -> stringResource(R.string.nav_settings)
-        AboutKey -> stringResource(dev.valnook.feature.settings.R.string.settings_about)
-        PrivacyPolicyKey -> stringResource(dev.valnook.feature.settings.R.string.settings_privacy_policy)
-        LicenseKey -> stringResource(dev.valnook.feature.settings.R.string.settings_license)
-        HiddenAccountsKey -> stringResource(R.string.nav_accounts)
-        HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
-        HiddenStatisticsKey -> stringResource(R.string.nav_statistics)
-        NavigationSettingsKey -> stringResource(R.string.title_navigation_settings)
-        FxSettingsKey -> stringResource(R.string.title_exchange_rates)
-        LanguageSettingsKey -> stringResource(R.string.title_language)
-        GainLossColorsKey -> stringResource(R.string.title_gain_loss_colors)
-        ClearDataKey -> stringResource(R.string.title_clear_data)
-        BackupKey -> stringResource(dev.valnook.feature.backup.R.string.backup_title)
-        WebAdminKey -> stringResource(dev.valnook.feature.webadmin.R.string.webadmin_title)
-        WalletFaceLibraryKey -> stringResource(R.string.title_card_faces)
-        is AccountKey -> accountName(current.id)
-        is AccountEditKey -> stringResource(R.string.title_edit_account)
-        AccountGroupsKey -> stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
-        is InstrumentLibraryKey -> stringResource(R.string.title_instrument_library)
-        RealizedProfitKey -> stringResource(dev.valnook.feature.investments.R.string.realized_title)
-        is TypeEditKey -> dev.valnook.feature.investments.typeEditTitle(current.id)
-        TypesKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_manage_types)
-        is InstrumentEditKey -> dev.valnook.feature.investments.instrumentEditTitle(current.id)
-        is DividendFormKey -> dev.valnook.feature.investments.dividendFormTitle(current.tradeId == null)
-        is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
-        is InstrumentKey -> selectedInstrument?.takeIf { it.id == current.id }?.name.orEmpty()
-        is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
-        is CashKey -> selectedCash?.takeIf { it.id == current.cashAccountId }?.name.orEmpty()
-        is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
-        is DepositFormKey -> dev.valnook.feature.deposits.depositFormTitle(current.mode)
-        is DepositDetailKey -> stringResource(dev.valnook.core.designsystem.R.string.deposit_detail_title)
-        is SettledDepositsKey -> stringResource(dev.valnook.core.designsystem.R.string.settled_deposits)
-        else -> "Valnook"
-    }
+    val title = rootTitle(current, walletToolbar?.title, accountName,
+        { id -> selectedInstrument?.takeIf { it.id == id }?.name }, { id -> selectedCash?.takeIf { it.id == id }?.name })
     val offset = with(LocalDensity.current) { 16.dp.roundToPx() }
     val barHeight = (56f + 32f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp
     val backdrop = rememberGlassBackdrop()
@@ -401,32 +357,7 @@ private fun SessionRoot(
         tween(300, easing = FastOutSlowInEasing), label = "navigation-fold")
     var switching by remember { mutableStateOf(false) }
     var switchFailed by remember { mutableStateOf(false) }
-    val addAccountDescription = stringResource(R.string.nav_add_account)
-    val instrumentLibraryDescription = stringResource(R.string.nav_instrument_library)
-    val accountGroupsDescription = stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
-    val subaccountSortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_children)
-    var balanceToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.cash.CashBalanceToolbarState?>(null) }
-    val updateBalanceToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.cash.CashBalanceToolbarState? -> balanceToolbar=value } }
-    var dividendToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.DividendToolbarState?>(null) }
-    val updateDividendToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.investments.DividendToolbarState? -> dividendToolbar=value } }
-    var instrumentToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.InstrumentEditToolbarState?>(null) }
-    val updateInstrumentToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.investments.InstrumentEditToolbarState? -> instrumentToolbar=value } }
-    var typeToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.investments.TypeEditToolbarState?>(null) }
-    val updateTypeToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.investments.TypeEditToolbarState? -> typeToolbar=value } }
-    var depositToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.deposits.DepositToolbarState?>(null) }
-    val updateDepositToolbar=remember(graph.sessionId) { { value:dev.valnook.feature.deposits.DepositToolbarState? -> depositToolbar=value } }
-    var accountEditSave by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountEditToolbarState?>(null) }
-    val updateEditSave = remember(graph.sessionId) { { value: dev.valnook.feature.accounts.AccountEditToolbarState? -> accountEditSave = value } }
-    var editSortAction by remember(graph.sessionId) { mutableStateOf<(() -> Unit)?>(null) }
-    val updateEditSortAction = remember(graph.sessionId) { { action: (() -> Unit)? -> editSortAction = action } }
-    var accountGroupsToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.accounts.AccountGroupsToolbarState?>(null) }
-    val updateAccountGroupsToolbar = remember(graph.sessionId) {
-        { value: dev.valnook.feature.accounts.AccountGroupsToolbarState? -> accountGroupsToolbar = value }
-    }
-    var walletFacesToolbar by remember(graph.sessionId) { mutableStateOf<dev.valnook.feature.wallet.WalletFaceLibraryToolbar?>(null) }
-    val updateWalletFacesToolbar = remember(graph.sessionId) {
-        { value: dev.valnook.feature.wallet.WalletFaceLibraryToolbar? -> walletFacesToolbar = value }
-    }
+    val toolbars = remember(graph.sessionId) { RootToolbars() }
 
     // Per page: while one page leaves and the next arrives, the leaving page's reset must not clear the new one's room.
     val titleReserves = remember(graph.sessionId) { androidx.compose.runtime.mutableStateMapOf<NavKey, Int>() }
@@ -498,77 +429,9 @@ private fun SessionRoot(
                 if (walletDetail) BackButton(stringResource(R.string.nav_back), { walletToolbar?.back?.invoke() })
                 else if (!current.isRoot()) BackButton(stringResource(R.string.nav_back), back)
             }, actions = {
-                when (current) {
-                    WalletKey, HiddenWalletKey -> if (!walletDetail) {
-                        val addCardDescription = dev.valnook.feature.wallet.walletAddLabel()
-                        IconButton({ walletToolbar?.add?.invoke() }, Modifier.testTag("wallet-add").semantics {
-                            contentDescription = addCardDescription
-                        }) { dev.valnook.designsystem.AddIcon() }
-                    } else {
-                        walletToolbar?.flip?.let { flip ->
-                            val description=if(walletToolbar?.flipped==true)
-                                dev.valnook.feature.wallet.walletFlipLabel(false) else dev.valnook.feature.wallet.walletFlipLabel(true)
-                            IconButton(flip,Modifier.testTag("wallet-flip").semantics{contentDescription=description},
-                                enabled=walletToolbar?.enabled==true) {
-                                if(walletToolbar?.flipLoading==true)CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)
-                                else dev.valnook.feature.wallet.WalletFlipIcon()
-                            }
-                        }
-                        val editLabel=stringResource(R.string.nav_edit)
-                        IconButton({walletToolbar?.edit?.invoke()},
-                            Modifier.testTag("wallet-edit").semantics {contentDescription=editLabel},enabled=walletToolbar?.enabled==true) {
-                            dev.valnook.designsystem.EditIcon()
-                        }
-                        dev.valnook.designsystem.DeleteIconButton(stringResource(R.string.wallet_delete_card),
-                            {walletToolbar?.delete?.invoke()},Modifier.testTag("wallet-delete"),enabled=walletToolbar?.enabled==true)
-                    }
-                    NavigationSettingsKey -> NavigationSettingsActions(navigationToolbar)
-                    FxSettingsKey -> dev.valnook.feature.settings.FxSettingsActions(fxToolbar)
-                    AccountGroupsKey -> dev.valnook.feature.accounts.AccountGroupsActions(accountGroupsToolbar)
-                    WalletFaceLibraryKey -> dev.valnook.feature.wallet.WalletFaceLibraryActions(walletFacesToolbar)
-                    AccountsKey, HiddenAccountsKey -> {
-                        IconButton({ open(AccountGroupsKey) }, Modifier.testTag("account-groups-open").semantics {
-                            contentDescription = accountGroupsDescription
-                        }) { dev.valnook.designsystem.GroupsIcon() }
-                        IconButton({ open(AccountEditKey()) }, Modifier.semantics {
-                            contentDescription = addAccountDescription
-                        }) { dev.valnook.designsystem.AddIcon() }
-                    }
-                    InvestmentsKey, HiddenInvestmentsKey -> IconButton({ open(InstrumentLibraryKey) }, Modifier.semantics {
-                        contentDescription = instrumentLibraryDescription
-                    }) { MenuIcon() }
-                    InstrumentLibraryKey -> dev.valnook.feature.investments.InstrumentLibraryActions(
-                        { open(TypesKey) }, { open(InstrumentEditKey()) })
-                    is TypeEditKey -> dev.valnook.feature.investments.TypeEditActions(typeToolbar)
-                    is InstrumentEditKey -> {
-                        current.id?.let { id -> dev.valnook.designsystem.DeleteIconButton(
-                            stringResource(dev.valnook.feature.investments.R.string.instrument_delete),
-                            { instrumentDeleteTarget = id }, Modifier.testTag("instrument-delete-open")) }
-                        dev.valnook.feature.investments.InstrumentEditSaveAction(instrumentToolbar)
-                    }
-                    TypesKey -> dev.valnook.feature.investments.TypesActions { open(TypeEditKey()) }
-                    is DividendFormKey -> dev.valnook.feature.investments.DividendSaveAction(dividendToolbar)
-                    is AccountKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
-                        { open(AccountEditKey(current.id)) })
-                    is InstrumentKey -> dev.valnook.designsystem.CompactEditButton(stringResource(R.string.nav_edit),
-                        { open(InstrumentEditKey(current.id)) })
-                    is CashBalanceEditKey -> dev.valnook.feature.cash.CashBalanceSaveAction(balanceToolbar)
-                    is DepositFormKey -> dev.valnook.feature.deposits.DepositSaveAction(depositToolbar)
-                    is CashKey -> dev.valnook.designsystem.DeleteIconButton(
-                        stringResource(dev.valnook.feature.accounts.R.string.account_delete_title),
-                        { deleteTarget = current.accountId to current.cashAccountId }, Modifier.testTag("cash-delete-open"))
-                    is AccountEditKey -> {
-                        current.id?.let { id -> dev.valnook.designsystem.DeleteIconButton(
-                            stringResource(dev.valnook.feature.accounts.R.string.account_delete_title),
-                            { deleteTarget = id to null }, Modifier.testTag("account-delete-open"),
-                            enabled = accountEditSave?.enabled == true) }
-                        IconButton({ editSortAction?.invoke() },
-                        Modifier.testTag("subaccount-order-open").semantics { contentDescription = subaccountSortDescription },
-                        enabled = editSortAction != null) { SortIcon() }
-                        dev.valnook.feature.accounts.AccountEditSaveAction(accountEditSave)
-                    }
-                    else -> Unit
-                }
+                RootTopBarActions(current, walletDetail, walletToolbar, navigationToolbar, fxToolbar, toolbars, open,
+                    onDeleteAccount = { account, cash -> deleteTarget = account to cash },
+                    onDeleteInstrument = { instrumentDeleteTarget = it })
             }, scrollBehavior = toolbarScrollBehavior)
             }
         }) { padding ->
@@ -591,28 +454,24 @@ private fun SessionRoot(
                         transitionSpec = { NavigationMotion.forward(offset) },
                         popTransitionSpec = { NavigationMotion.back(offset) },
                         predictivePopTransitionSpec = { NavigationMotion.no_preview() }, entryProvider = entryProvider {
-                            accountEntries(graph, open, back, updateEditSortAction, updateEditSave, updateAccountGroupsToolbar,
+                            accountEntries(graph, open, back, toolbars.onEditSort, toolbars.onAccountEdit, toolbars.onAccountGroups,
                                 updateTitleReserve) { parent, cash ->
                                 deleteTarget = parent to cash
                             }
-                            investmentEntries(graph, open, back, accountName, updateTitleReserve, updateTypeToolbar, updateInstrumentToolbar,
-                                updateDividendToolbar)
-                            ledgerEntries(graph, open, back, accountName, updateBalanceToolbar, updateTitleReserve, updateDepositToolbar)
-                            entry<WalletKey> {
+                            investmentEntries(graph, open, back, accountName, updateTitleReserve, toolbars.onType, toolbars.onInstrument,
+                                toolbars.onDividend)
+                            ledgerEntries(graph, open, back, accountName, toolbars.onBalance, updateTitleReserve, toolbars.onDeposit)
+                            // A page left off the bar opens from settings as its hidden key: the same page.
+                            val walletPage = @Composable {
                                 WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
                                     graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate,graph.cash) }, updateWalletToolbar,
                                     { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
                                     { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletCashSlots,walletOverview.scroll,
                                     maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
                             }
-                            entry<HiddenWalletKey> {
-                                WalletScreen(pageViewModel { WalletViewModel(graph.sessionId, requireNotNull(graph.wallet),
-                                    graph.overview, graph.cashPages, graph.clock, createSavedStateHandle(),walletOverview.cards,graph.walletPrivate,graph.cash) }, updateWalletToolbar,
-                                    { parent, cash, id -> open(CashEntryKey(parent,cash,id)) },
-                                    { parent, cash -> open(CashBalanceEditKey(parent,cash)) },walletCashSlots,walletOverview.scroll,
-                                    maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
-                            }
-                            entry<StatisticsKey> {
+                            entry<WalletKey> { walletPage() }
+                            entry<HiddenWalletKey> { walletPage() }
+                            val statisticsPage = @Composable {
                                 StatisticsScreen(pageViewModel {
                                     StatisticsViewModel(graph.statistics, graph.clock, createSavedStateHandle())
                                 }, summary = {
@@ -621,15 +480,8 @@ private fun SessionRoot(
                                     })
                                 })
                             }
-                            entry<HiddenStatisticsKey> {
-                                StatisticsScreen(pageViewModel {
-                                    StatisticsViewModel(graph.statistics, graph.clock, createSavedStateHandle())
-                                }, summary = {
-                                    dev.valnook.feature.accounts.AccountOverviewSummary(pageViewModel {
-                                        dev.valnook.feature.accounts.AccountsViewModel(graph.overview)
-                                    })
-                                })
-                            }
+                            entry<StatisticsKey> { statisticsPage() }
+                            entry<HiddenStatisticsKey> { statisticsPage() }
                             entry<SettingsKey> {
                                 val vm = pageViewModel {
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle(), graph.fxSync)
@@ -654,7 +506,7 @@ private fun SessionRoot(
                             entry<WalletFaceLibraryKey> {
                                 dev.valnook.feature.wallet.WalletFaceLibraryScreen(pageViewModel {
                                     dev.valnook.feature.wallet.WalletFaceLibraryViewModel(requireNotNull(graph.wallet))
-                                }, walletOverview.cache, updateWalletFacesToolbar)
+                                }, walletOverview.cache, toolbars.onWalletFaces)
                             }
                             entry<AboutKey> {
                                 dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME, { open(PrivacyPolicyKey) },
