@@ -24,20 +24,20 @@ interface StatisticsDao {
             ELSE earliest_invalidated_epoch_day END WHERE id=1""")
     suspend fun markInvalid(epochDay: Long): Int
 
-    @Query("""UPDATE statistics_cache SET source_revision=(SELECT source_revision FROM statistics_state WHERE id=1)
-        WHERE epoch_day<(SELECT earliest_invalidated_epoch_day FROM statistics_state WHERE id=1)
-        AND rule_version=(SELECT rule_version FROM statistics_state WHERE id=1)""")
-    suspend fun promoteUnaffectedCache(): Int
 
     @Query("""DELETE FROM statistics_cache
         WHERE epoch_day>=(SELECT earliest_invalidated_epoch_day FROM statistics_state WHERE id=1)""")
     suspend fun deleteInvalidatedCache(): Int
 
+    /**
+     * Days from [epochDay] on are dropped; earlier rows stay valid as they are, without rewriting them on every
+     * command. A value computed before this change cannot be stored after it: [StatisticsCacheEntity] rows are
+     * committed only while the state still has the revision they were computed at.
+     */
     @androidx.room.Transaction
     suspend fun invalidate(epochDay: Long) {
         markInvalid(epochDay)
         deleteInvalidatedCache()
-        promoteUnaffectedCache()
     }
 
     @Query("UPDATE statistics_state SET earliest_invalidated_epoch_day=NULL WHERE id=1 AND source_revision=:revision")
@@ -50,8 +50,9 @@ interface StatisticsDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCache(values: List<StatisticsCacheEntity>)
 
+    // Rows are never newer than the state: any row left after the invalidations is valid at [revision].
     @Query("""SELECT * FROM statistics_cache WHERE metric=:metric AND epoch_day BETWEEN :firstDay AND :lastDay
-        AND source_revision=:revision AND rule_version=:ruleVersion ORDER BY epoch_day""")
+        AND source_revision<=:revision AND rule_version=:ruleVersion ORDER BY epoch_day""")
     suspend fun cached(metric: String, firstDay: Long, lastDay: Long, revision: Long,
         ruleVersion: Int): List<StatisticsCacheEntity>
 
