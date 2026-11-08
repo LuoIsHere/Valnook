@@ -1,6 +1,7 @@
 @file:OptIn(androidx.compose.animation.ExperimentalSharedTransitionApi::class)
 package dev.valnook.feature.wallet
 
+import androidx.compose.ui.res.stringResource
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -77,7 +78,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     var detailGlowFade by remember { mutableFloatStateOf(1f) }
     val overviewScrolled by remember(overviewScroll){derivedStateOf{overviewScroll.firstVisibleItemIndex>0||overviewScroll.firstVisibleItemScrollOffset>0}}
     var collapsedTitle by remember { mutableStateOf<String?>(null) }
-    val title=wording("Wallet","卡包")
+    val title=stringResource(R.string.wallet_wallet)
     val current=cards?.firstOrNull{it.id==selected}
     val toolbarTitle=if(selected!=null) collapsedTitle?:current?.name?:title else title
     val scrolled=if(selected==null||returning)overviewScrolled else detailScrolled
@@ -93,7 +94,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     }
     BackHandler(selected!=null && draft==null&&!privateState.editing){returnToOverview()}
     LaunchedEffect(vm){while(true){vm.refreshTime();delay(30_000)}}
-    if(cards==null) { if(failed) HintMessage(wording("Unable to load cards. Reopen Wallet to retry.","卡片加载失败，请重新打开卡包重试。"),isError=true) else PageLoading();return }
+    if(cards==null) { if(failed) HintMessage(stringResource(R.string.wallet_unable_load_cards_reopen_wallet),isError=true) else PageLoading();return }
     val holder=rememberSaveableStateHolder()
     SharedTransitionLayout(Modifier.testTag("wallet-scene")) {
         val progress={if(returning)closingScene.value else scene.value}
@@ -183,7 +184,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
                 Surface(shape=RoundedCornerShape(24.dp),color=MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha=.96f),
                     contentColor=MaterialTheme.colorScheme.onSurfaceVariant,shadowElevation=2.dp,
                     modifier=Modifier.testTag("wallet-copy-notice").semantics(mergeDescendants=true) { liveRegion=LiveRegionMode.Polite }) {
-                    Text(if(privateState.lastCopySucceeded)wording("Copied","复制成功")else wording("Copy failed. Try again.","复制失败，请重试"),
+                    Text(if(privateState.lastCopySucceeded)stringResource(R.string.wallet_copied)else stringResource(R.string.wallet_copy_failed_try_again),
                         Modifier.padding(horizontal=22.dp,vertical=12.dp),style=MaterialTheme.typography.bodyMedium)
                 }
             }
@@ -191,17 +192,17 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     }
     if(error && draft==null) AnimatedGlassDialog(true,{vm.operationFailed.value=false}) {
         GlassCard { Column(Modifier.padding(24.dp)) {
-            Text(wording("Changes could not be saved. Your data is unchanged; please retry.","保存失败，已有数据未改变，请重试。"))
-            TextButton({vm.operationFailed.value=false}){Text(wording("OK","知道了"))}
+            Text(stringResource(R.string.wallet_changes_could_not_saved_your))
+            TextButton({vm.operationFailed.value=false}){Text(stringResource(R.string.wallet_ok_2))}
         } }
     }
     cards?.firstOrNull{it.id==deleting}?.let { card ->
         AnimatedGlassDialog(true,{if(!busy)deleting=null}) {GlassCard{Column(Modifier.padding(24.dp)){
-            Text(wording("Delete this card?","删除这张卡片？"),style=MaterialTheme.typography.titleLarge)
-            Text(wording("The card and any private back details are deleted. Its face stays in Settings › Card faces, and the linked account and its records are kept.","只删除卡片及其本机私密背面内容；卡面保留在“设置 › 卡面库”，不删除绑定账户及其记录。"),Modifier.padding(vertical=16.dp))
+            Text(stringResource(R.string.wallet_delete_card_prompt),style=MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.wallet_card_any_private_back_details),Modifier.padding(vertical=16.dp))
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({deleting=null},enabled=!busy){Text(wording("Cancel","取消"))}
-                TextButton({deleting=null;vm.delete(card)},enabled=!busy,modifier=Modifier.testTag("wallet-delete-confirm")){Text(wording("Delete","删除"),color=MaterialTheme.colorScheme.error)}
+                TextButton({deleting=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
+                TextButton({deleting=null;vm.delete(card)},enabled=!busy,modifier=Modifier.testTag("wallet-delete-confirm")){Text(stringResource(R.string.wallet_delete),color=MaterialTheme.colorScheme.error)}
             }
         }}}
     }
@@ -214,9 +215,9 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     cardModifier:@Composable (WalletCard)->Modifier,cardGlow:(WalletCard)->(()->Float)?) {
     if(cards.isEmpty()) {
         Column(Modifier.fillMaxSize().padding(pageContentPadding()).padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
-            Text(wording("A place for your cards","为喜欢的卡片留个位置"),style=MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(12.dp));Text(wording("Collect a card face, or link an existing account.","收藏卡面，或关联已有子账户。"),color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp));Button(add,Modifier.testTag("wallet-add-empty")){Text(wording("Add card","添加卡片"))}
+            Text(stringResource(R.string.wallet_place_your_cards),style=MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(12.dp));Text(stringResource(R.string.wallet_collect_card_face_link_existing),color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(24.dp));Button(add,Modifier.testTag("wallet-add-empty")){Text(stringResource(R.string.wallet_add_card))}
         };return
     }
     val haptics=androidx.compose.ui.platform.LocalHapticFeedback.current
@@ -231,7 +232,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     val scope=rememberCoroutineScope()
     LaunchedEffect(original,busy,dragging,settling){if(!busy && dragging==null&&settling==null)order=original.reversed()}
     val lookup=cards.associateBy{it.id}
-    val upLabel=wording("Move up","上移");val downLabel=wording("Move down","下移")
+    val upLabel=stringResource(R.string.wallet_move_up);val downLabel=stringResource(R.string.wallet_move_down)
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val width=(maxWidth-48.dp).coerceAtMost(440.dp)
         val height=width/WalletRules.ASPECT

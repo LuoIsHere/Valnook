@@ -1,5 +1,6 @@
 package dev.valnook.feature.wallet
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -32,9 +33,9 @@ import kotlin.math.sin
 import dev.valnook.designsystem.FaIcon
 import dev.valnook.designsystem.FaIcons
 
-@Composable fun walletAddLabel()=wording("Add card","添加卡片")
+@Composable fun walletAddLabel()=stringResource(R.string.wallet_add_card)
 
-@Composable fun walletFlipLabel(toBack:Boolean)=if(toBack)wording("Show card back","翻到卡片背面")else wording("Show card front","翻到卡片正面")
+@Composable fun walletFlipLabel(toBack:Boolean)=if(toBack)stringResource(R.string.wallet_show_card_back)else stringResource(R.string.wallet_show_card_front)
 
 @Composable fun WalletFlipIcon(modifier: Modifier = Modifier) {
     FaIcon(FaIcons.rotate, null, modifier.size(20.dp))
@@ -103,7 +104,7 @@ import dev.valnook.designsystem.FaIcons
                         }
                     }
                 }
-                if(copy!=null&&value.number.isNotEmpty()) PrivateCopyButton(wording("Copy card number","复制卡号"),"wallet-copy-number",ink,actionsEnabled){copy(value.number)}
+                if(copy!=null&&value.number.isNotEmpty()) PrivateCopyButton(stringResource(R.string.wallet_copy_card_number),"wallet-copy-number",ink,actionsEnabled){copy(value.number)}
             }
         }
         // These labels intentionally stay English on both locales, matching a physical card.
@@ -132,7 +133,7 @@ import dev.valnook.designsystem.FaIcons
                 }
             }
         }
-        val editLabel=wording("Edit private card details","编辑卡片背面")
+        val editLabel=stringResource(R.string.wallet_edit_private_card_details)
         if(edit!=null) IconButton(edit,Modifier.align(Alignment.TopStart).padding(4.dp).testTag("wallet-private-edit")
             .then(Modifier.semantics { contentDescription=editLabel }),enabled=actionsEnabled) {
             CompositionLocalProvider(LocalContentColor provides ink.copy(alpha=.82f)) {
@@ -152,9 +153,9 @@ import dev.valnook.designsystem.FaIcons
             }
         }
         if(copy!=null&&value.isNotEmpty()) PrivateCopyButton(when(tag) {
-            "expiry" -> wording("Copy expiry date","复制有效期")
-            "holder" -> wording("Copy cardholder name","复制持卡人")
-            else -> wording("Copy $label","复制 $label")
+            "expiry" -> stringResource(R.string.wallet_copy_expiry_date)
+            "holder" -> stringResource(R.string.wallet_copy_cardholder_name)
+            else -> stringResource(R.string.wallet_copy, label)
         },"wallet-copy-$tag",ink,enabled){copy(value)}
     }
 }

@@ -1,5 +1,6 @@
 package dev.valnook.feature.wallet
 
+import androidx.compose.ui.res.stringResource
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -58,35 +59,30 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
 
 @Composable internal fun WalletPrivateDialogs(state:WalletPrivateState) {
     val maximumHeight=with(LocalDensity.current){LocalWindowInfo.current.containerSize.height.toDp()}*.8f
-    // wording(en, zh): edit both translations together. Keep the encryption algorithm and exclusions aligned
-    // with docs/PRIVACY_POLICY_{CN,EN}.md and feature/settings/src/main/res/raw*/privacy_policy.txt.
-    // 英文在前、中文在后。风险提示保留 Keystore / AES-GCM，不写“及背面、侧面配色”；
+    // The text is in res/values and res/values-b+zh+Hans (wallet_*): edit both translations together. Keep the encryption
+    // algorithm and exclusions aligned with docs/PRIVACY_POLICY_{CN,EN}.md and feature/settings/src/main/res/raw*/privacy_policy.txt.
+    // 英文在 values、中文在 values-b+zh+Hans。风险提示保留 Keystore / AES-GCM，不写“及背面、侧面配色”；
     // 配色仍不备份。免责声明两种语言都必须加粗，且与 PrivacyPolicyScreen 加粗的句子一致；“不再显示”只影响本机提示。
     if(state.warning) {
         var skip by remember { mutableStateOf(false) }
         AnimatedGlassDialog(true,state::cancelWarning,properties=PrivateDialogProperties) {
             GlassCard { Column(Modifier.heightIn(max=maximumHeight)
                 .verticalScroll(rememberScrollState()).padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-                Text(wording("Private card details","卡片背面隐私提示"),style=MaterialTheme.typography.titleLarge)
-                Text(wording("Card numbers, cardholder names, expiry dates, CVV1 and CVV2 are sensitive. Disclosure may cause financial loss.",
-                    "卡号、持卡人姓名、有效期、CVV1 和 CVV2 属于敏感信息，泄露可能造成财产损失。"))
-                Text(wording("Details entered here are encrypted only on this device, using Android Keystore to manage keys and AES-GCM to encrypt content. They are not uploaded, included in local or OneDrive cloud backups or file exports, or accessible through web management.",
-                    "您填写的背面内容仅加密保存在本设备，使用 Android Keystore 管理密钥，并通过 AES-GCM 加密内容。不会上传至服务器，不会纳入本地备份、OneDrive 等云备份或其他文件导出，网页管理也无法访问。"))
-                Text(wording("Uninstalling, clearing app data or successfully replacing data from a backup makes these details unrecoverable. Enable your device's app lock for Valnook where available.",
-                    "卸载应用、清除应用数据或成功覆盖恢复备份后，这部分内容将无法恢复。建议在设备支持时，为 Valnook 启用系统应用锁。"))
-                Text(wording("Copying a field places it on the system clipboard, outside this app's encrypted storage. Use this action with care.",
-                    "主动复制会将对应内容写入系统剪贴板，不受本地加密存储保护，请谨慎使用。"))
-                Text(wording("To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.",
-                    "在适用法律允许的最大范围内，开发者不对卡片信息泄露造成的财产损失承担责任。"),fontWeight=FontWeight.Bold)
+                Text(stringResource(R.string.wallet_private_card_details),style=MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.wallet_card_numbers_cardholder_names_expiry))
+                Text(stringResource(R.string.wallet_details_entered_here_are_encrypted))
+                Text(stringResource(R.string.wallet_uninstalling_clearing_app_data_successfully))
+                Text(stringResource(R.string.wallet_copying_field_places_system_clipboard))
+                Text(stringResource(R.string.wallet_fullest_extent_permitted_by_applicable),fontWeight=FontWeight.Bold)
                 Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    TextButton(state::cancelWarning){Text(wording("Cancel","取消"))}
+                    TextButton(state::cancelWarning){Text(stringResource(R.string.wallet_cancel))}
                     Spacer(Modifier.weight(1f))
                     Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(skip,onValueChange={skip=it})
                         .testTag("wallet-private-warning-skip"),verticalAlignment=Alignment.CenterVertically) {
                         Checkbox(skip,null)
-                        Text(wording("Don't show again","不再显示"),style=MaterialTheme.typography.labelMedium)
+                        Text(stringResource(R.string.wallet_don_t_show_again),style=MaterialTheme.typography.labelMedium)
                     }
-                    TextButton({state.confirmWarning(skip)},Modifier.testTag("wallet-private-warning-confirm")){Text(wording("OK","确定"))}
+                    TextButton({state.confirmWarning(skip)},Modifier.testTag("wallet-private-warning-confirm")){Text(stringResource(R.string.wallet_ok))}
                 }
             } }
         }
@@ -94,19 +90,18 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     state.draft?.let { value -> PrivateEditor(state,value) }
     if(state.discard) AnimatedGlassDialog(true,{state.discard=false},properties=PrivateDialogProperties) {
         GlassCard { Column(Modifier.padding(22.dp)) {
-            Text(wording("Discard unsaved changes?","放弃未保存的修改？"),style=MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.wallet_discard_unsaved_changes),style=MaterialTheme.typography.titleMedium)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({state.discard=false}){Text(wording("Keep editing","继续编辑"))}
-                TextButton(state::discardEdit,Modifier.testTag("wallet-private-discard")){Text(wording("Discard","放弃"))}
+                TextButton({state.discard=false}){Text(stringResource(R.string.wallet_keep_editing))}
+                TextButton(state::discardEdit,Modifier.testTag("wallet-private-discard")){Text(stringResource(R.string.wallet_discard))}
             }
         } }
     }
     if(state.error) AnimatedGlassDialog(true,{state.error=false},properties=PrivateDialogProperties) {
         GlassCard { Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(wording("Private details unavailable","私密内容暂不可用"),style=MaterialTheme.typography.titleMedium)
-            Text(wording("Could not securely read or save these details. Retry after closing the editor. If the local key or encrypted file is lost, backups cannot recover it.",
-                "无法安全读取或保存这些内容，请关闭编辑后重试。如果本地密钥或加密文件丢失，备份无法恢复这部分内容。"))
-            TextButton({state.error=false},Modifier.align(Alignment.End)){Text(wording("OK","知道了"))}
+            Text(stringResource(R.string.wallet_private_details_unavailable),style=MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.wallet_could_not_securely_read_save))
+            TextButton({state.error=false},Modifier.align(Alignment.End)){Text(stringResource(R.string.wallet_ok_2))}
         } }
     }
 }
@@ -116,7 +111,7 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     // 文案需中英同步；卡号中的符号、前导零和颜色值不能随语言转换。
     var palette by remember { mutableStateOf(false) }
     var tooLong by remember { mutableStateOf(false) }
-    val editLabel=wording("Card back colors","卡片背面配色")
+    val editLabel=stringResource(R.string.wallet_card_back_colors)
     val maximumHeight=with(LocalDensity.current){LocalWindowInfo.current.containerSize.height.toDp()}*.85f
     AnimatedGlassDialog(true,state::cancelEdit,properties=PrivateDialogProperties) {
         // The dialog is its own window: only its focus manager and keyboard controller reach the fields.
@@ -125,7 +120,7 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
         GlassCard { Column(Modifier.heightIn(max=maximumHeight)
             .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                Text(wording("Private card details","编辑卡片背面"),Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.wallet_private_card_details_2),Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                 IconButton({focus.clearFocus();keyboard?.hide();palette=!palette},Modifier.testTag("wallet-private-palette")
                     .semantics{contentDescription=editLabel},enabled=!state.saving){WalletPaletteIcon()}
             }
@@ -135,29 +130,29 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
                 val cleaned=text.filterNot{it.isISOControl()}
                 tooLong=cleaned.codePointCount(0,cleaned.length)>38
                 if(!tooLong)state.updateDraft(value.copy(number=cleaned))
-            },Modifier.fillMaxWidth().testTag("wallet-private-number"),label={Text(wording("Card number","卡号"))},
+            },Modifier.fillMaxWidth().testTag("wallet-private-number"),label={Text(stringResource(R.string.wallet_card_number))},
                 singleLine=true,enabled=!state.saving,isError=tooLong,
-                supportingText={Text(if(tooLong)wording("Up to 38 characters","最多填写 38 个字符")else wording("Up to 38 characters · symbols allowed","最多 38 个字符，可使用 *、- 等符号"))})
+                supportingText={Text(if(tooLong)stringResource(R.string.wallet_up_38_characters)else stringResource(R.string.wallet_up_38_characters_symbols_allowed))})
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                 .toggleable(value.showNumberSpacing,enabled=!state.saving,role=Role.Switch,
                     onValueChange={state.updateDraft(value.copy(showNumberSpacing=it))})
                 .testTag("wallet-private-spacing").padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
-                Text(wording("Show card number spacing","显示卡号间隔"),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.wallet_show_card_number_spacing),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
                 Switch(value.showNumberSpacing,null,enabled=!state.saving)
             }
-            PrivateInput(wording("Expiry · MM/YY","有效期 · MM/YY"),value.expiry,"wallet-private-expiry",!state.saving){state.updateDraft(value.copy(expiry=it))}
+            PrivateInput(stringResource(R.string.wallet_expiry_mm_yy),value.expiry,"wallet-private-expiry",!state.saving){state.updateDraft(value.copy(expiry=it))}
             Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.weight(1f)){PrivateInput("CVV1",value.cvv1,"wallet-private-cvv1",!state.saving,cvv=true){state.updateDraft(value.copy(cvv1=it))}}
                 Box(Modifier.weight(1f)){PrivateInput("CVV2",value.cvv2,"wallet-private-cvv2",!state.saving,cvv=true){state.updateDraft(value.copy(cvv2=it))}}
             }
-            PrivateInput(wording("Cardholder","持卡人"),value.holder,"wallet-private-holder",!state.saving,
+            PrivateInput(stringResource(R.string.wallet_cardholder),value.holder,"wallet-private-holder",!state.saving,
                 maxCodePoints=WALLET_HOLDER_MAX){state.updateDraft(value.copy(holder=it))}
-            Text(wording("Encrypted on this device only · excluded from backups and file exports","仅本机加密保存 · 不纳入备份或文件导出"),
+            Text(stringResource(R.string.wallet_encrypted_device_only_excluded_from),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton(state::cancelEdit,enabled=!state.saving,modifier=Modifier.testTag("wallet-private-cancel")){Text(wording("Cancel","取消"))}
+                TextButton(state::cancelEdit,enabled=!state.saving,modifier=Modifier.testTag("wallet-private-cancel")){Text(stringResource(R.string.wallet_cancel))}
                 TextButton({focus.clearFocus();keyboard?.hide();state.save()},enabled=!state.saving&&!tooLong&&walletCvvValid(value.cvv1)&&walletCvvValid(value.cvv2),
-                    modifier=Modifier.testTag("wallet-private-save")){Text(if(state.saving)wording("Saving…","保存中…")else wording("Save","保存"))}
+                    modifier=Modifier.testTag("wallet-private-save")){Text(if(state.saving)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))}
             }
         } }
     }
@@ -175,8 +170,8 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     },Modifier.fillMaxWidth().testTag(tag),label={Text(label)},singleLine=true,enabled=enabled,
         keyboardOptions=KeyboardOptions(keyboardType=if(cvv)KeyboardType.NumberPassword else KeyboardType.Text),
         isError=invalid,supportingText=when {
-            cvv -> {{Text(wording("Up to 4 digits · optional","最多 4 位数字，可留空"))}}
-            maxCodePoints!=null -> {{Text(wording("Up to $maxCodePoints characters · optional","最多 $maxCodePoints 个字符，可留空"))}}
+            cvv -> {{Text(stringResource(R.string.wallet_up_4_digits_optional))}}
+            maxCodePoints!=null -> {{Text(stringResource(R.string.wallet_up_characters_optional, maxCodePoints))}}
             else -> null
         })
 }
@@ -186,13 +181,13 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     val current=if(edge)value.edgeColor else value.backColor
     var hex by remember(current,edge) { mutableStateOf("%06X".format(current and 0xffffff)) }
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        FilterChip(!edge,{edge=false},label={Text(wording("Back","背面"))})
-        FilterChip(edge,{edge=true},label={Text(wording("Edge","侧面"))})
+        FilterChip(!edge,{edge=false},label={Text(stringResource(R.string.wallet_back))})
+        FilterChip(edge,{edge=true},label={Text(stringResource(R.string.wallet_edge))})
     }
     fun pick(color:Long){change(if(edge)value.copy(edgeColor=color)else value.copy(backColor=color))}
     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
         listOf(0xff41464fL,0xff181b20L,0xff858b94L,0xffd8d6d0L,0xff485b6cL,0xff715b64L).forEach { color ->
-            val description=wording("Select color","选择颜色")+" %06X".format(color and 0xffffff)
+            val description=stringResource(R.string.wallet_select_color)+" %06X".format(color and 0xffffff)
             Box(Modifier.size(40.dp).clip(CircleShape).background(Color(color.toInt()))
                 .then(if(color==current)Modifier.border(2.dp,MaterialTheme.colorScheme.onSurface,CircleShape)else Modifier)
                 .clickable(enabled=enabled){pick(color)}.semantics{contentDescription=description;selected=color==current})
@@ -204,6 +199,6 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
             hex=cleaned
             if(cleaned.length==6)pick(0xff000000L or cleaned.toLong(16))
         }
-    },Modifier.fillMaxWidth().testTag("wallet-private-color"),label={Text(wording("Custom color · HEX","自定义颜色 · HEX"))},prefix={Text("#")},
-        singleLine=true,enabled=enabled,supportingText={Text(wording("Six hexadecimal digits","填写六位十六进制颜色值"))})
+    },Modifier.fillMaxWidth().testTag("wallet-private-color"),label={Text(stringResource(R.string.wallet_custom_color_hex))},prefix={Text("#")},
+        singleLine=true,enabled=enabled,supportingText={Text(stringResource(R.string.wallet_six_hexadecimal_digits))})
 }

@@ -1,5 +1,6 @@
 package dev.valnook.feature.wallet
 
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Matrix
@@ -50,44 +51,44 @@ import kotlinx.coroutines.*
         val focus=androidx.compose.ui.platform.LocalFocusManager.current
         GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)
             .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(if(value.id==null)wording("Add card","添加卡片")else wording("Edit card","编辑卡片"),style=MaterialTheme.typography.titleLarge)
+            Text(if(value.id==null)stringResource(R.string.wallet_add_card)else stringResource(R.string.wallet_edit_card),style=MaterialTheme.typography.titleLarge)
             WalletCardView(WalletCard(value.id?:0,value.name,value.imageKey,value.boundId,0,0,0,0,faceStyle=value.faceStyle),cache,preview=value.image)
-            OutlinedTextField(value.name,{vm.draft.value=value.copy(name=it)},label={Text(wording("Card name","卡片名称"))},
+            OutlinedTextField(value.name,{vm.draft.value=value.copy(name=it)},label={Text(stringResource(R.string.wallet_card_name))},
                 singleLine=true,enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("wallet-name"),
-                supportingText={Text(wording("1–40 characters · only shown outside the card","1–40 个字符，仅在卡面外显示"))})
+                supportingText={Text(stringResource(R.string.wallet_1_40_characters_only_shown))})
             FlowRow {
-                TextButton({focus.clearFocus();keyboard?.hide();picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=!busy,modifier=Modifier.testTag("wallet-photo")){Text(wording("Choose image","选择图片"))}
-                TextButton({focus.clearFocus();keyboard?.hide();pickingFace=true},enabled=!busy,modifier=Modifier.testTag("wallet-face-library-pick")){Text(wording("From card faces","从卡面库选择"))}
-                if(value.imageKey!=null||value.image!=null)TextButton({vm.draft.value=value.copy(imageKey=null,image=null)},enabled=!busy){Text(wording("Remove image","移除图片"))}
+                TextButton({focus.clearFocus();keyboard?.hide();picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=!busy,modifier=Modifier.testTag("wallet-photo")){Text(stringResource(R.string.wallet_choose_image))}
+                TextButton({focus.clearFocus();keyboard?.hide();pickingFace=true},enabled=!busy,modifier=Modifier.testTag("wallet-face-library-pick")){Text(stringResource(R.string.wallet_from_card_faces))}
+                if(value.imageKey!=null||value.image!=null)TextButton({vm.draft.value=value.copy(imageKey=null,image=null)},enabled=!busy){Text(stringResource(R.string.wallet_remove_image))}
             }
             WalletFacePicker(value.faceStyle, !busy, value.imageKey!=null||value.image!=null) { style -> vm.draft.value=value.copy(faceStyle=style,imageKey=null,image=null) }
-            Text(wording("Use a blank or redacted card face. Images stay on this device and are included in your backups. Applied images are kept in Settings › Card faces.","建议使用空白或已遮挡敏感信息的卡面。图片在本机处理，并随完整备份保存；应用过的图片会保留在“设置 › 卡面库”。"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.wallet_use_blank_redacted_card_face),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             val account=snapshot?.cash?.firstOrNull{it.id==value.boundId}
             val parent=snapshot?.accounts?.firstOrNull{it.id==account?.account_id}
             TextButton({choosing=true},enabled=!busy,modifier=Modifier.testTag("wallet-bind")) {
-                Text(if(account==null)wording("Link a subaccount (optional)","绑定子账户（可选）")else "${parent?.name} · ${account.name} · ${account.currency.code}")
+                Text(if(account==null)stringResource(R.string.wallet_link_subaccount_optional)else "${parent?.name} · ${account.name} · ${account.currency.code}")
             }
             if(value.boundId!=null&&cards.orEmpty().any{it.id!=value.id&&it.boundCashAccountId==value.boundId})
-                Text(wording("These cards show all records from the same subaccount.","这些卡片将展示同一子账户的全部记录。"),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.wallet_these_cards_show_all_records),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(error) HintMessage(if(failure==ErrorCode.WALLET_FACE_LIBRARY_FULL)faceErrorText(failure)
-                else wording("Could not save. Your draft is kept; retry or reopen if the card changed elsewhere.","保存失败，已保留填写内容。请重试；若卡片已被其他操作修改，请重新编辑。"),isError=true)
+                else stringResource(R.string.wallet_could_not_save_your_draft),isError=true)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({vm.draft.value=null},enabled=!busy){Text(wording("Cancel","取消"))}
+                TextButton({vm.draft.value=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
                 Button({focus.clearFocus();keyboard?.hide();vm.save()},enabled=!busy&&runCatching{WalletRules.name(value.name)}.isSuccess,modifier=Modifier.testTag("wallet-save")){
-                    Text(if(busy)wording("Saving…","保存中…")else wording("Save","保存"))
+                    Text(if(busy)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))
                 }
             }
         } }
     }
     if(choosing)AnimatedGlassDialog(true,{choosing=false}) {
         GlassCard { Column(Modifier.heightIn(max=480.dp).verticalScroll(rememberScrollState()).padding(20.dp)) {
-            Text(wording("Link a subaccount","绑定子账户"),style=MaterialTheme.typography.titleLarge)
-            TextButton({vm.draft.value=value.copy(boundId=null);choosing=false}){Text(wording("No linked account","不绑定"))}
+            Text(stringResource(R.string.wallet_link_subaccount),style=MaterialTheme.typography.titleLarge)
+            TextButton({vm.draft.value=value.copy(boundId=null);choosing=false}){Text(stringResource(R.string.wallet_no_linked_account_2))}
             snapshot?.accounts?.forEach { parent->
                 val accounts=snapshot?.cash.orEmpty().filter{it.account_id==parent.id}
                 if(accounts.isNotEmpty())Text(parent.name,Modifier.padding(top=12.dp),style=MaterialTheme.typography.titleSmall)
                 accounts.forEach{account->TextButton({vm.draft.value=value.copy(boundId=account.id);choosing=false},Modifier.fillMaxWidth()) {
-                    Text("${account.name} · ${account.currency.code} · "+if(account.creditProfile!=null)wording("Credit","信用")else wording("Savings","储蓄"))
+                    Text("${account.name} · ${account.currency.code} · "+if(account.creditProfile!=null)stringResource(R.string.wallet_credit)else stringResource(R.string.wallet_savings))
                 }}
             }
         } }
@@ -115,22 +116,22 @@ import kotlinx.coroutines.*
         catch(c:CancellationException){throw c}catch(_:Exception){failed=true}}
     AnimatedGlassDialog(true,{if(!busy)onClose()}) {
         GlassCard { Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(wording("Adjust card face","调整卡面"),style=MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.wallet_adjust_card_face),style=MaterialTheme.typography.titleLarge)
             val bitmap=source
             if(bitmap!=null) {
                 Canvas(Modifier.fillMaxWidth().aspectRatio(WalletRules.ASPECT).clip(RoundedCornerShape(18.dp))
                     .testTag("wallet-crop").pointerInput(busy){detectTransformGestures{_,pan,scale,_->if(!busy){
                         zoom=(zoom*scale).coerceIn(1f,5f);x=(x+pan.x/size.width).coerceIn(-3f,3f);y=(y+pan.y/size.height).coerceIn(-3f,3f)
                     }}}) {drawIntoCanvas{it.nativeCanvas.drawBitmap(bitmap,null,WalletImageCodec.cropRect(bitmap.width,bitmap.height,size.width,size.height,zoom,x,y),android.graphics.Paint(3))}}
-                Text(wording("Move and pinch to crop · fixed card proportions","移动、双指缩放裁剪 · 固定卡片比例"),style=MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.wallet_move_pinch_crop_fixed_card),style=MaterialTheme.typography.bodySmall)
                 Slider(zoom,{zoom=it},valueRange=1f..5f,enabled=!busy)
-                TextButton({scope.launch{busy=true;try{source=withContext(Dispatchers.Default){Bitmap.createBitmap(bitmap,0,0,bitmap.width,bitmap.height,Matrix().apply{postRotate(90f)},true)};zoom=1f;x=0f;y=0f}finally{busy=false}}},enabled=!busy,modifier=Modifier.testTag("wallet-rotate")){Text(wording("Rotate 90°","旋转 90°"))}
+                TextButton({scope.launch{busy=true;try{source=withContext(Dispatchers.Default){Bitmap.createBitmap(bitmap,0,0,bitmap.width,bitmap.height,Matrix().apply{postRotate(90f)},true)};zoom=1f;x=0f;y=0f}finally{busy=false}}},enabled=!busy,modifier=Modifier.testTag("wallet-rotate")){Text(stringResource(R.string.wallet_rotate_90))}
             }else if(!failed)CircularProgressIndicator()
-            if(failed)HintMessage(wording("Unable to process image. Use a static JPEG, PNG or WebP under 20 MiB and 40 MP.","无法处理图片，请选择 20 MiB、4000 万像素以内的静态 JPEG、PNG 或 WebP。"),isError=true)
+            if(failed)HintMessage(stringResource(R.string.wallet_unable_process_image_use_static),isError=true)
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){
-                TextButton(onClose,enabled=!busy){Text(wording("Cancel","取消"))}
+                TextButton(onClose,enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
                 Button({scope.launch{busy=true;failed=false;try{val image=withContext(Dispatchers.Default){WalletImageCodec.encode(requireNotNull(bitmap),zoom,x,y)};onImage(image);onClose()}
-                    catch(c:CancellationException){throw c}catch(_:Exception){failed=true}finally{busy=false}}},enabled=bitmap!=null&&!busy,modifier=Modifier.testTag("wallet-crop-confirm")){Text(wording("Use image","使用图片"))}
+                    catch(c:CancellationException){throw c}catch(_:Exception){failed=true}finally{busy=false}}},enabled=bitmap!=null&&!busy,modifier=Modifier.testTag("wallet-crop-confirm")){Text(stringResource(R.string.wallet_use_image))}
             }
         } }
     }

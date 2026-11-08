@@ -1,5 +1,6 @@
 package dev.valnook.feature.wallet
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,12 +65,12 @@ import kotlin.math.floor
 
 @Composable internal fun WalletFacePicker(value:WalletFaceStyle?,enabled:Boolean,hasImage:Boolean=false,onChange:(WalletFaceStyle?)->Unit) {
     val style=value?:WalletFaceStyle()
-    Text(wording("Built-in artwork","内置卡面"),style=MaterialTheme.typography.titleSmall)
-    val backgrounds=listOf(wording("Default","默认"))+WalletFaceBackground.entries.map { background ->
+    Text(stringResource(R.string.wallet_built_artwork),style=MaterialTheme.typography.titleSmall)
+    val backgrounds=listOf(stringResource(R.string.wallet_default))+WalletFaceBackground.entries.map { background ->
         when(background) {
-                WalletFaceBackground.SOLID -> wording("Solid","纯色")
-                WalletFaceBackground.LINEAR -> wording("Gradient","渐变")
-                WalletFaceBackground.RADIAL -> wording("Glow","柔光")
+                WalletFaceBackground.SOLID -> stringResource(R.string.wallet_solid)
+                WalletFaceBackground.LINEAR -> stringResource(R.string.wallet_gradient)
+                WalletFaceBackground.RADIAL -> stringResource(R.string.wallet_glow)
         }
     }
     FaceChipRow(backgrounds,if(value!=null)value.background.ordinal+1 else if(!hasImage)0 else -1,enabled,"wallet-face-background") { index ->
@@ -78,20 +79,20 @@ import kotlin.math.floor
     if(value!=null) {
         val shapes=WalletFaceGeometry.entries.map { shape ->
             when(shape) {
-                    WalletFaceGeometry.NONE -> wording("Plain","无图形")
-                    WalletFaceGeometry.RINGS -> wording("Rings","圆环")
-                    WalletFaceGeometry.ARC -> wording("Arc","圆弧")
-                    WalletFaceGeometry.DIAGONAL -> wording("Stripes","斜纹")
-                    WalletFaceGeometry.CIRCLES -> wording("Circles","圆形")
-                    WalletFaceGeometry.BLOCKS -> wording("Blocks","方块")
+                    WalletFaceGeometry.NONE -> stringResource(R.string.wallet_plain)
+                    WalletFaceGeometry.RINGS -> stringResource(R.string.wallet_rings)
+                    WalletFaceGeometry.ARC -> stringResource(R.string.wallet_arc)
+                    WalletFaceGeometry.DIAGONAL -> stringResource(R.string.wallet_stripes)
+                    WalletFaceGeometry.CIRCLES -> stringResource(R.string.wallet_circles)
+                    WalletFaceGeometry.BLOCKS -> stringResource(R.string.wallet_blocks)
             }
         }
         FaceChipRow(shapes,style.geometry.ordinal,enabled,"wallet-face-geometry") { index ->
             onChange(style.copy(geometry=WalletFaceGeometry.entries[index]))
         }
-        FaceColorRow(wording("Base","底色"),style.base,enabled){onChange(style.copy(base=it))}
-        if(style.background!=WalletFaceBackground.SOLID)FaceColorRow(wording("Gradient end","渐变尾色"),style.secondary,enabled){onChange(style.copy(secondary=it))}
-        if(style.geometry!=WalletFaceGeometry.NONE)FaceColorRow(wording("Pattern","图形颜色"),style.accent,enabled){onChange(style.copy(accent=it))}
+        FaceColorRow(stringResource(R.string.wallet_base),style.base,enabled){onChange(style.copy(base=it))}
+        if(style.background!=WalletFaceBackground.SOLID)FaceColorRow(stringResource(R.string.wallet_gradient_end),style.secondary,enabled){onChange(style.copy(secondary=it))}
+        if(style.geometry!=WalletFaceGeometry.NONE)FaceColorRow(stringResource(R.string.wallet_pattern),style.accent,enabled){onChange(style.copy(accent=it))}
     }
 }
 

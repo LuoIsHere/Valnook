@@ -1,5 +1,6 @@
 package dev.valnook.feature.wallet
 
+import androidx.compose.ui.res.stringResource
 import kotlin.math.roundToInt
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.constrainHeight
@@ -113,7 +114,7 @@ import java.time.*
                         alpha=if(returning)maxOf(visible,(progress()*4).coerceIn(0f,1f))else visible
                     }.semantics{contentDescription=card.name}.clickable(interactionSource=remember{androidx.compose.foundation.interaction.MutableInteractionSource()},
                         indication=null,enabled=returnEnabled&&cardTappable&&privateState.angle.value==0f&&!privateState.desiredBack,
-                        onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled,{glow()*glowFade()},::glowFade)
+                        onClickLabel=stringResource(R.string.wallet_back_wallet),onClick=onReturn),returnEnabled,{glow()*glowFade()},::glowFade)
                 }
                 GlassSurface(Modifier.fillMaxWidth().weight(1f,fill=false).padding(horizontal=16.dp).then(panelMotion),RoundedCornerShape(panelCorner),tintAlpha=1f) {
                     // Cards in the panel take a deeper colour than it, as on the page background.
@@ -122,9 +123,9 @@ import java.time.*
                         contentPadding=PaddingValues(start=18.dp,end=18.dp,top=16.dp,bottom=24.dp)) {
                         if(card.boundCashAccountId==null) {
                             item("unbound") {
-                                Text(if(card.bindingLost)wording("The linked account was deleted.","原绑定子账户已删除。") else wording("No linked account","尚未绑定子账户"),style=MaterialTheme.typography.titleMedium)
-                                Spacer(Modifier.height(8.dp));Text(wording("Keep this card as a collection, or link an account to see its balance and activity.","可以仅收藏卡面，也可以绑定子账户查看余额和资金变动。"),color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                Button(edit,Modifier.padding(top=20.dp)){Text(wording("Link account","绑定子账户"))}
+                                Text(if(card.bindingLost)stringResource(R.string.wallet_linked_account_was_deleted) else stringResource(R.string.wallet_no_linked_account),style=MaterialTheme.typography.titleMedium)
+                                Spacer(Modifier.height(8.dp));Text(stringResource(R.string.wallet_keep_card_as_collection_link),color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                Button(edit,Modifier.padding(top=20.dp)){Text(stringResource(R.string.wallet_link_account))}
                             }
                         } else if(account==null) item { CircularProgressIndicator(Modifier.size(22.dp)) }
                         else {
@@ -140,25 +141,25 @@ import java.time.*
                                 val locale=LocalConfiguration.current.locales[0]
                                 // As on the sub-account page: the title, with the month and its arrows at the end of its line.
                                 Row(Modifier.fillMaxWidth().padding(top=12.dp).testTag("wallet-changes-header"),verticalAlignment=Alignment.CenterVertically) {
-                                    Text(wording("Funds activity","资金变动"),Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleMedium)
+                                    Text(stringResource(R.string.wallet_funds_activity),Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleMedium)
                                     IconButton({vm.month(maxOf(ledger.month.minusMonths(1),minimum))},Modifier.size(36.dp).testTag("wallet-month-previous"),
-                                        enabled=ledger.month>minimum){ChevronIcon(false,wording("Previous month","上个月"))}
+                                        enabled=ledger.month>minimum){ChevronIcon(false,stringResource(R.string.wallet_previous_month))}
                                     TextButton({chooseMonth=true},Modifier.testTag("wallet-month"),contentPadding=PaddingValues(horizontal=8.dp)) {
                                         Text(localMonthLabel(ledger.month,locale),style=MaterialTheme.typography.titleSmall,color=MaterialTheme.colorScheme.onSurface)
                                     }
                                     IconButton({vm.month(minOf(ledger.month.plusMonths(1),maximum))},Modifier.size(36.dp).testTag("wallet-month-next"),
-                                        enabled=ledger.month<maximum){ChevronIcon(true,wording("Next month","下个月"))}
+                                        enabled=ledger.month<maximum){ChevronIcon(true,stringResource(R.string.wallet_next_month))}
                                 }
                             }
                             if(ledger.loading && ledger.rows.isEmpty())item("loading"){Box(Modifier.fillMaxWidth().height(80.dp),contentAlignment=Alignment.Center){CircularProgressIndicator(Modifier.size(22.dp))}}
-                            else if(ledger.failed)item("error"){TextButton(vm::retry){Text(wording("Could not load this month. Retry","本月记录加载失败，点击重试"))}}
+                            else if(ledger.failed)item("error"){TextButton(vm::retry){Text(stringResource(R.string.wallet_could_not_load_month_retry))}}
                             else if(ledger.rows.isEmpty())item("empty"){cashSlots.emptyMonth(Modifier.padding(top=8.dp))}
                             // Newest first, so each day's changes stay together in their order.
                             days.forEach { (date,rows) ->
                                 item("day-$date"){cashSlots.dayGroup(date,rows){id->onEntry(account.account_id,account.id,id)}}
                             }
                             if(ledger.more)item("more") {
-                                if(ledger.appendFailed)TextButton(vm::more){Text(wording("Retry loading more","继续加载失败，点击重试"))}
+                                if(ledger.appendFailed)TextButton(vm::more){Text(stringResource(R.string.wallet_retry_loading_more))}
                                 else {LaunchedEffect(ledger.rows.size,ledger.month){vm.more()};Box(Modifier.fillMaxWidth().height(40.dp),contentAlignment=Alignment.Center){CircularProgressIndicator(Modifier.size(18.dp))}}
                             }
                         }
@@ -180,11 +181,11 @@ import java.time.*
 @Composable private fun WalletMonthPicker(selected:YearMonth,min:YearMonth,max:YearMonth,choose:(YearMonth)->Unit,dismiss:()->Unit) {
     var year by rememberSaveable { mutableStateOf(selected.year.toString()) }
     AnimatedGlassDialog(true,dismiss){GlassCard{Column(Modifier.padding(20.dp)){
-        Text(wording("Choose month","选择月份"),style=MaterialTheme.typography.titleLarge)
-        OutlinedTextField(year,{year=it.filter(Char::isDigit).take(4)},label={Text(wording("Year","年份"))},singleLine=true)
+        Text(stringResource(R.string.wallet_choose_month),style=MaterialTheme.typography.titleLarge)
+        OutlinedTextField(year,{year=it.filter(Char::isDigit).take(4)},label={Text(stringResource(R.string.wallet_year))},singleLine=true)
         for(row in 0..3)Row {for(column in 1..3){val m=row*3+column;val target=year.toIntOrNull()?.takeIf{it in 1..9999}?.let{YearMonth.of(it,m)}
             TextButton({target?.let(choose)},Modifier.weight(1f),enabled=target!=null&&target>=min&&target<=max){Text(m.toString())}
         }}
-        TextButton(dismiss){Text(wording("Cancel","取消"))}
+        TextButton(dismiss){Text(stringResource(R.string.wallet_cancel))}
     }}}
 }

@@ -13,7 +13,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import dev.valnook.domain.model.*
@@ -24,9 +23,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
-@Composable internal fun wording(en:String,zh:String):String =
-    if(LocalConfiguration.current.locales[0].language=="zh")zh else en
 
 data class WalletDecoded(val bitmap:ImageBitmap,val tint:Long)
 

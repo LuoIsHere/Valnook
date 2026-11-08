@@ -1,5 +1,6 @@
 package dev.valnook.feature.wallet
 
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -104,7 +105,7 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
 
 @Composable fun WalletFaceLibraryActions(state: WalletFaceLibraryToolbar?) {
     if(state==null)return
-    val label=wording("Upload card face","上传卡面")
+    val label=stringResource(R.string.wallet_upload_card_face)
     IconButton(state.add,Modifier.testTag("wallet-face-add").semantics { contentDescription=label },enabled=state.enabled) { AddIcon(enabled=state.enabled) }
 }
 
@@ -134,10 +135,10 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
     DisposableEffect(Unit) { onDispose { onToolbarChange(null) } }
 
     val list=faces
-    val sectionTitles=listOf(true to wording("In use","使用中"),false to wording("Not in use","未使用"))
+    val sectionTitles=listOf(true to stringResource(R.string.wallet_use),false to stringResource(R.string.wallet_not_use))
     if(list==null) {
         Box(Modifier.fillMaxSize().padding(pageContentPadding())) {
-            if(failed) HintMessage(wording("Unable to load card faces. Reopen this page to retry.","卡面加载失败，请重新打开此页面重试。"),isError=true)
+            if(failed) HintMessage(stringResource(R.string.wallet_unable_load_card_faces_reopen),isError=true)
             else CircularProgressIndicator(Modifier.align(Alignment.Center))
         }
     } else LazyColumn(Modifier.fillMaxSize().testTag("wallet-face-library"),contentPadding=pageContentPadding()) {
@@ -145,14 +146,13 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
         // must meet, so items space themselves (see glassCardItems).
         val gap=Space.sm
         item("hint") {
-            Text(wording("Card faces stay here after a card changes face or is deleted, until you delete them. A face in use cannot be deleted.",
-                "卡片换掉卡面或被删除后，卡面仍保留在这里，直到你删除它。正在使用的卡面不能删除。")+" ${list.size} / ${WalletRules.MAX_FACES}",
+            Text(stringResource(R.string.wallet_card_faces_stay_here_after)+" ${list.size} / ${WalletRules.MAX_FACES}",
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
         notice?.let { item("notice") { Box(Modifier.padding(top=gap)) { FaceNotice(it) } } }
         if(full) item("full") { Box(Modifier.padding(top=gap)) { HintMessage(faceErrorText(ErrorCode.WALLET_FACE_LIBRARY_FULL)) } }
         if(list.isEmpty()) item("empty") { Box(Modifier.padding(top=gap)) {
-            EmptyState(wording("No card faces yet. Tap ＋ to upload one, or choose an image when editing a card.","还没有卡面。点按 ＋ 上传，或在编辑卡片时选择图片。"))
+            EmptyState(stringResource(R.string.wallet_no_card_faces_yet_tap))
         } }
         sectionTitles.forEach { (used,title)->
             val section=list.filter { it.inUse==used }
@@ -170,13 +170,13 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
 
     list?.firstOrNull { it.key==deleting }?.let { face->
         AnimatedGlassDialog(true,{if(!busy)deleting=null}) { GlassCard { Column(Modifier.padding(24.dp)) {
-            Text(wording("Delete this card face?","删除这张卡面？"),style=MaterialTheme.typography.titleLarge)
-            Text(wording("It is removed from the library and from later backups. Existing backups are unchanged.","卡面将从卡面库删除，之后的备份不再包含它；已有备份不受影响。"),
+            Text(stringResource(R.string.wallet_delete_card_face),style=MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.wallet_removed_from_library_from_later),
                 Modifier.padding(vertical=16.dp))
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({deleting=null},enabled=!busy){Text(wording("Cancel","取消"))}
+                TextButton({deleting=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
                 TextButton({deleting=null;vm.delete(face.key)},enabled=!busy,modifier=Modifier.testTag("wallet-face-delete-confirm")) {
-                    Text(wording("Delete","删除"),color=MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.wallet_delete),color=MaterialTheme.colorScheme.error)
                 }
             }
         } } }
@@ -193,14 +193,14 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
         WalletFaceThumbnail(face.key,cache,Modifier.width(88.dp))
         Column(Modifier.weight(1f).padding(horizontal=Space.md),verticalArrangement=Arrangement.spacedBy(2.dp)) {
             Text(faceLabel(face),style=MaterialTheme.typography.bodyLarge,maxLines=1,overflow=TextOverflow.Ellipsis)
-            Text(if(face.inUse)wording("Used by ","用于：")+face.cardNames.joinToString(wording(", ","、"))
-                else wording("Added ","添加于 ")+faceDate(face.addedAtMs),
+            Text(if(face.inUse)stringResource(R.string.wallet_used_by)+face.cardNames.joinToString(stringResource(R.string.wallet_name_separator))
+                else stringResource(R.string.wallet_added)+faceDate(face.addedAtMs),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines=2,overflow=TextOverflow.Ellipsis)
         }
-        val exportLabel=wording("Save image","保存图片")
+        val exportLabel=stringResource(R.string.wallet_save_image)
         IconButton(onExport,Modifier.testTag("wallet-face-export-${face.key}").semantics { contentDescription=exportLabel },enabled=enabled) { FaIcon(FaIcons.download) }
-        DeleteIconButton(wording("Delete card face","删除卡面"),onDelete,Modifier.testTag("wallet-face-delete-${face.key}"),enabled=enabled&&!face.inUse)
+        DeleteIconButton(stringResource(R.string.wallet_delete_card_face_2),onDelete,Modifier.testTag("wallet-face-delete-${face.key}"),enabled=enabled&&!face.inUse)
     }
 }
 
@@ -215,17 +215,17 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
         val focus=androidx.compose.ui.platform.LocalFocusManager.current
         GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)
             .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(wording("Add to card faces","添加到卡面库"),style=MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.wallet_add_card_faces),style=MaterialTheme.typography.titleLarge)
             WalletCardView(WalletCard(0,name,image.key,null,0,0,0,0),cache,preview=image)
-            OutlinedTextField(name,{name=it},label={Text(wording("Card face name","卡面名称"))},
+            OutlinedTextField(name,{name=it},label={Text(stringResource(R.string.wallet_card_face_name))},
                 singleLine=true,enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("wallet-face-name"),
-                supportingText={Text(wording("1–40 characters · only shown in the library","1–40 个字符，仅在卡面库中显示"))})
+                supportingText={Text(stringResource(R.string.wallet_1_40_characters_only_shown_2))})
             error?.let { HintMessage(faceErrorText(it),isError=true) }
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({vm.cancelAdd()},enabled=!busy){Text(wording("Cancel","取消"))}
+                TextButton({vm.cancelAdd()},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
                 Button({focus.clearFocus();keyboard?.hide();vm.add(name)},enabled=!busy&&runCatching{WalletRules.name(name)}.isSuccess,
                     modifier=Modifier.testTag("wallet-face-save")) {
-                    Text(if(busy)wording("Saving…","保存中…")else wording("Save","保存"))
+                    Text(if(busy)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))
                 }
             }
         } }
@@ -238,10 +238,10 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
     AnimatedGlassDialog(true,onDismiss) {
         GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.8f).dp).padding(20.dp),
             verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(wording("Card faces","卡面库"),style=MaterialTheme.typography.titleLarge)
+            Text(stringResource(R.string.wallet_card_faces),style=MaterialTheme.typography.titleLarge)
             when {
                 faces==null -> CircularProgressIndicator()
-                faces.isEmpty() -> Text(wording("No card faces yet. Faces you apply or upload in Settings › Card faces appear here.","还没有卡面。应用过的卡面和在“设置 › 卡面库”上传的卡面会显示在这里。"),
+                faces.isEmpty() -> Text(stringResource(R.string.wallet_no_card_faces_yet_faces),
                     style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                 else -> Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState())) {
                     faces.forEach { face->
@@ -251,7 +251,7 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
                             WalletFaceThumbnail(face.key,cache,Modifier.width(72.dp))
                             Column(Modifier.weight(1f).padding(horizontal=Space.md)) {
                                 Text(faceLabel(face),style=MaterialTheme.typography.bodyLarge,maxLines=1,overflow=TextOverflow.Ellipsis)
-                                Text(if(face.inUse)wording("Used by ","用于：")+face.cardNames.joinToString(wording(", ","、")) else wording("Not in use","未使用"),
+                                Text(if(face.inUse)stringResource(R.string.wallet_used_by)+face.cardNames.joinToString(stringResource(R.string.wallet_name_separator)) else stringResource(R.string.wallet_not_use),
                                     style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines=1,overflow=TextOverflow.Ellipsis)
                             }
@@ -261,7 +261,7 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
                 }
             }
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton(onDismiss){Text(wording("Cancel","取消"))}
+                TextButton(onDismiss){Text(stringResource(R.string.wallet_cancel))}
             }
         } }
     }
@@ -277,25 +277,24 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
 }
 
 @Composable internal fun faceErrorText(code: ErrorCode?): String=when(code) {
-    ErrorCode.WALLET_FACE_DUPLICATE -> wording("This card face is already in the library.","这张卡面已在卡面库中。")
-    ErrorCode.WALLET_FACE_LIBRARY_FULL -> wording("The library is full (${WalletRules.MAX_FACES} faces). Delete faces you no longer need in Settings › Card faces.",
-        "卡面库已满（${WalletRules.MAX_FACES} 张），请先在“设置 › 卡面库”中删除不用的卡面。")
-    ErrorCode.WALLET_FACE_IN_USE -> wording("This card face is in use. Change the face of the cards using it first.","这张卡面正在使用，请先为使用它的卡片更换卡面。")
-    ErrorCode.FORMAT -> wording("Unable to process image. Choose another image.","无法处理图片，请换一张图片。")
-    else -> wording("Changes could not be saved. Your data is unchanged; please retry.","保存失败，已有数据未改变，请重试。")
+    ErrorCode.WALLET_FACE_DUPLICATE -> stringResource(R.string.wallet_card_face_already_library)
+    ErrorCode.WALLET_FACE_LIBRARY_FULL -> stringResource(R.string.wallet_library_full_faces_delete_faces, WalletRules.MAX_FACES)
+    ErrorCode.WALLET_FACE_IN_USE -> stringResource(R.string.wallet_card_face_use_change_face)
+    ErrorCode.FORMAT -> stringResource(R.string.wallet_unable_process_image_choose_another)
+    else -> stringResource(R.string.wallet_changes_could_not_saved_your)
 }
 
 @Composable private fun FaceNotice(notice: WalletFaceNotice) {
     when(notice) {
-        WalletFaceNotice.Added -> HintMessage(wording("Added to card faces.","已添加到卡面库。"))
-        WalletFaceNotice.Deleted -> HintMessage(wording("Card face deleted.","卡面已删除。"))
-        WalletFaceNotice.Exported -> HintMessage(wording("Image saved.","图片已保存。"))
-        WalletFaceNotice.ExportFailed -> HintMessage(wording("Unable to save the image. Please retry.","图片保存失败，请重试。"),isError=true)
+        WalletFaceNotice.Added -> HintMessage(stringResource(R.string.wallet_added_card_faces))
+        WalletFaceNotice.Deleted -> HintMessage(stringResource(R.string.wallet_card_face_deleted))
+        WalletFaceNotice.Exported -> HintMessage(stringResource(R.string.wallet_image_saved))
+        WalletFaceNotice.ExportFailed -> HintMessage(stringResource(R.string.wallet_unable_save_image_please_retry),isError=true)
         is WalletFaceNotice.Failed -> HintMessage(faceErrorText(notice.code),isError=true)
     }
 }
 
-@Composable private fun faceLabel(face: WalletFace)=face.label.ifEmpty { wording("Untitled card face","未命名卡面") }
+@Composable private fun faceLabel(face: WalletFace)=face.label.ifEmpty { stringResource(R.string.wallet_untitled_card_face) }
 
 private val FACE_DATE=DateTimeFormatter.ofPattern("yyyy-MM-dd")
 private fun faceDate(ms: Long)=FACE_DATE.format(Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()))
