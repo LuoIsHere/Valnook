@@ -77,7 +77,8 @@ internal class AccountCommandHandler(
                 dev.valnook.domain.model.AccountIconType.IMAGE -> {
                     val bytes = change.image ?: db.accounts().iconImage(icon.value)
                         ?: throw DomainException(ErrorCode.FORMAT)
-                    if (!AccountIconImages.valid(icon.value, bytes)) throw DomainException(ErrorCode.FORMAT)
+                    // A new photo was checked before the transaction; one already stored is checked here.
+                    if (change.image == null && !AccountIconImages.valid(icon.value, bytes)) throw DomainException(ErrorCode.FORMAT)
                     db.accounts().insertIconImage(dev.valnook.data.database.AccountIconImageEntity(icon.value, bytes))
                 }
             }
@@ -137,8 +138,12 @@ internal class AccountCommandHandler(
         if (command.entryNote.length > 2000) throw DomainException(ErrorCode.FORMAT)
         cash.requireAccount(command.account_id)
         val code = cash.currency(command.currency_code).code
+        // Without a sub-account named, only the one of that currency may be meant; with several, say so instead of
+        // quietly opening another, as linking cash does.
+        val candidates = if (command.cashAccountId == null) db.cash().cashCandidates(command.account_id, code) else emptyList()
+        if (candidates.size > 1) throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
         val old = command.cashAccountId?.let { cash.requireCashAccount(it, command.account_id, code) }
-            ?: db.cash().cashCandidates(command.account_id, code).singleOrNull()
+            ?: candidates.singleOrNull()
         if (old == null) {
             val created = cash.createAccount(command.operation_id, command.account_id,
                 command.name.ifBlank { code }, command.note, code, command.balance_minor, now)

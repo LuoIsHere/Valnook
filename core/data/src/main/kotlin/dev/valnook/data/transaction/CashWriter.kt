@@ -123,6 +123,24 @@ internal class CashWriter(
         }
     }
 
+    /**
+     * Keeps a trade's or a deposit's own cash entry in step with it: made on its first link, otherwise moved to
+     * [target], given [delta] and the record's time, or kept as removed when [target] is null. The caller has
+     * checked [entry] still matches the record.
+     */
+    suspend fun syncSourceEntry(entry: CashEntryEntity?, operationId: String, kind: String, sourceId: Long,
+        target: Long?, delta: Long, occurred: Long, now: Long) {
+        if (entry == null) {
+            entry(operationId, requireNotNull(target), kind, sourceId, delta, occurred, now)
+            return
+        }
+        val account = dao.cashAccount(target ?: entry.cash_account_id) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
+        if (dao.editEntry(entry.id, entry.revision, account.id, account.savings_account_id, account.currency_code,
+                if (target != null) delta else entry.delta_minor, occurred, entry.note, target == null, now) != 1) {
+            throw DomainException(ErrorCode.STALE_RECORD)
+        }
+    }
+
     suspend fun entry(
         operationId: String,
         cashAccountId: Long,

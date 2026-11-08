@@ -109,20 +109,10 @@ internal class DepositCommandHandler(
     ) {
         val entry = db.cash().source_entry(kind, deposit.id)
         if (oldTarget != null && (entry == null || entry.is_deleted || entry.cash_account_id != oldTarget)) {
-            throw IllegalStateException("Inconsistent deposit cash entry")
+            throw DomainException(ErrorCode.SOURCE_RECORD)
         }
         if (oldTarget == null && newTarget == null) return
-        if (entry == null) {
-            cash.entry(originalOperation, requireNotNull(newTarget), kind, deposit.id, newDelta, occurred, now)
-            return
-        }
-        val targetId = newTarget ?: entry.cash_account_id
-        val target = db.cash().cashAccount(targetId) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
-        if (db.cash().editEntry(entry.id, entry.revision, target.id, target.savings_account_id,
-            target.currency_code, if (newTarget != null) newDelta else entry.delta_minor,
-                occurred, entry.note, newTarget == null, now) != 1) {
-            throw DomainException(ErrorCode.STALE_RECORD)
-        }
+        cash.syncSourceEntry(entry, originalOperation, kind, deposit.id, newTarget, newDelta, occurred, now)
     }
 
     private fun businessTime(epochDay: Long): Long = LocalDate.ofEpochDay(epochDay)

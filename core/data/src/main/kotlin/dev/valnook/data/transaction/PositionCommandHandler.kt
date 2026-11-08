@@ -197,20 +197,12 @@ internal class PositionCommandHandler(private val db: ValnookDatabase, private v
         val newImpact = if (cashAccountId != null) impact(direction, amount, fee) else 0
         val kind = sourceKind(Direction.valueOf(old.direction))
         val entry = db.cash().source_entry(kind, old.id)
-        if (old.cash_account_id != null) check(entry != null && !entry.is_deleted && entry.delta_minor == oldImpact)
+        // A cash entry that no longer matches its trade is a source record problem the screen can name.
+        if (old.cash_account_id != null && (entry == null || entry.is_deleted || entry.delta_minor != oldImpact))
+            throw DomainException(ErrorCode.SOURCE_RECORD)
         if (old.cash_account_id == null && cashAccountId == null) return
         // Only this record's difference affects cash; replay never repeats previous cash effects.
         cash.applyPlan(operationId, old.cash_account_id, oldImpact, cashAccountId, newImpact, reason, now)
-        if (entry == null) cash.entry(old.operation_id, requireNotNull(cashAccountId),
-            kind, old.id, newImpact, occurred, now)
-        else {
-            val targetId = cashAccountId ?: entry.cash_account_id
-            val target = db.cash().cashAccount(targetId) ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT)
-            if (db.cash().editEntry(entry.id, entry.revision, target.id, target.savings_account_id,
-                    target.currency_code, if (cashAccountId != null) newImpact else entry.delta_minor,
-                    occurred, entry.note, cashAccountId == null, now) != 1) {
-                throw DomainException(ErrorCode.STALE_RECORD)
-            }
-        }
+        cash.syncSourceEntry(entry, old.operation_id, kind, old.id, cashAccountId, newImpact, occurred, now)
     }
 }

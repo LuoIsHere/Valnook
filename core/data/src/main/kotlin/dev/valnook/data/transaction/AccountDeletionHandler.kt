@@ -74,6 +74,8 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
         exec("DELETE FROM demo_labels WHERE entity_kind='CASH' AND entity_id=?", id)
         exec("UPDATE savings_accounts SET revision=revision+1,updated_at_ms=? WHERE id=?", now, command.accountId)
         fault(TransactionPoint.AFTER_BUSINESS)
+        // Spent once used, as for instruments: a code never serves a second deletion.
+        command.confirmation?.let { pending.remove(it.ticket) }
         return OperationResult("BALANCE_ACCOUNT", id)
     }
 
@@ -102,6 +104,7 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
         if (parent.icon_type == "IMAGE") exec("DELETE FROM account_icon_images WHERE id=? AND NOT EXISTS (SELECT 1 FROM savings_accounts WHERE icon_type='IMAGE' AND icon_value=?)", parent.icon_value, parent.icon_value)
         // Operation receipts contain only IDs/digests and must remain to prevent old requests replaying.
         fault(TransactionPoint.AFTER_BUSINESS)
+        pending.remove(command.confirmation.ticket)
         return OperationResult("ACCOUNT", id)
     }
 

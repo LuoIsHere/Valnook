@@ -1,5 +1,6 @@
 package dev.valnook.data
 
+import kotlinx.coroutines.flow.first
 import android.content.Context
 import androidx.room.Room
 import androidx.room.testing.MigrationTestHelper
@@ -231,5 +232,16 @@ class AccountOrderingDatabaseTest {
         assertEquals(RoomOverview(source).snapshot().groups, RoomOverview(target).snapshot().groups)
         assertEquals(RoomOverview(source).snapshot().accounts, RoomOverview(target).snapshot().accounts)
         assertEquals(RoomOverview(source).snapshot().cash, RoomOverview(target).snapshot().cash)
+    }
+
+    @Test fun the_account_list_carries_each_accounts_group() = kotlinx.coroutines.runBlocking {
+        val db = database()
+        val a = account(db, "A"); val b = account(db, "B")
+        val commands = RoomFinancialCommands(db, clock)
+        val group = commands.execute(SaveAccountGroup(operation(), null, "Cards")).id
+        commands.execute(MoveAccountsToGroup(operation(), group, listOf(b)))
+        val read = dev.valnook.data.repository.RoomAccounts(db).observe_accounts().first().associate { it.id to it.groupId }
+        assertEquals(AccountGroup.DEFAULT_ID, read[a])
+        assertEquals(group, read[b])
     }
 }

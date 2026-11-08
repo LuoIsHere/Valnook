@@ -1,5 +1,7 @@
 package dev.valnook.data
 
+import dev.valnook.domain.model.DomainException
+import dev.valnook.domain.model.ErrorCode
 import androidx.room.Room
 import androidx.room.withTransaction
 import androidx.test.core.app.ApplicationProvider
@@ -39,6 +41,17 @@ class CashBalanceAfterTest {
     }
 
     @After fun close() { db.close() }
+
+    @Test fun a_balance_without_a_sub_account_is_refused_when_several_could_be_meant() = runBlocking {
+        val account = commands.testAccount("Two of a kind")
+        commands.execute(SetCashBalance(testOperationId(), account, "CNY", 100, null))
+        // A second CNY sub-account, as the account editor can add.
+        db.cash().insert_cash(CashEntity(account, "CNY", 0, 1, clock.millis(), name = "second", created_at_ms = clock.millis()))
+        val before = db.cash().cashCandidates(account, "CNY").size
+        val refused = runCatching { commands.execute(SetCashBalance(testOperationId(), account, "CNY", 500, 1)) }.exceptionOrNull()
+        assertEquals(ErrorCode.WRONG_CASH_ACCOUNT, (refused as DomainException).code)
+        assertEquals(before, db.cash().cashCandidates(account, "CNY").size)
+    }
 
     private fun at(date: String, time: String = "12:00") = LocalDateTime.parse("${date}T$time").atZone(zone).toInstant().toEpochMilli()
 

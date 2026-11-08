@@ -39,6 +39,12 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     override suspend fun execute(command: FinancialCommand, source: CommandSource): OperationResult {
         try { UUID.fromString(command.operation_id) } catch (_: IllegalArgumentException) { throw DomainException(ErrorCode.FORMAT) }
         val (kind, digest) = CommandFingerprint.fingerprint(command)
+        // A new account photo is decoded to check it before the transaction, so other saves do not wait on it.
+        (command as? SaveAccount)?.iconChange?.let { change ->
+            val image = change.image
+            if (change.icon.type == dev.valnook.domain.model.AccountIconType.IMAGE && image != null &&
+                !AccountIconImages.valid(change.icon.value, image)) throw DomainException(ErrorCode.FORMAT)
+        }
         return db.withTransaction {
             val dao = db.operations()
             val old = dao.operation(command.operation_id)

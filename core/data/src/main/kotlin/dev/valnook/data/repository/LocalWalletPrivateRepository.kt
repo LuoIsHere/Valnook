@@ -1,5 +1,7 @@
 package dev.valnook.data.repository
 
+import dev.valnook.domain.model.DomainException
+import dev.valnook.domain.model.ErrorCode
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -39,11 +41,15 @@ class LocalWalletPrivateRepository(
         File(context.noBackupFilesDir, directoryName), "${context.packageName}.$directoryName") else MemoryPrivateRecords()
 
     override suspend fun read(cardId: Long): WalletPrivateContent = withContext(Dispatchers.IO) {
-        mutex.withLock { db.withTransaction {
-            checkReadable(cardId)
-            val token = db.walletPrivateIdentity().token(cardId) ?: return@withTransaction WalletPrivateContent()
+        mutex.withLock {
+            // Only the two database reads hold a transaction; decrypting the file no longer makes every save wait.
+            // This repository's own writes still wait on the lock; a card deleted meanwhile reads as unavailable.
+            val token = db.withTransaction {
+                checkReadable(cardId)
+                db.walletPrivateIdentity().token(cardId)
+            } ?: return@withLock WalletPrivateContent()
             decode(requireNotNull(records.read(token)) { "Private card storage unavailable" })
-        } }
+        }
     }
 
     override suspend fun save(cardId: Long, content: WalletPrivateContent): WalletPrivateContent {
@@ -52,7 +58,8 @@ class LocalWalletPrivateRepository(
             checkReadable(cardId)
             val existing = db.walletPrivateIdentity().token(cardId)
             val previous = existing?.let { decode(requireNotNull(records.read(it))) } ?: WalletPrivateContent()
-            check(content.revision == previous.revision) { "Private card changed; reopen editor" }
+            // Changed elsewhere since the editor opened: an ordinary conflict, named as one.
+            if (content.revision != previous.revision) throw DomainException(ErrorCode.STALE_RECORD)
             val token = existing ?: UUID.randomUUID().toString()
             val next = content.copy(revision = previous.revision + 1)
             if (existing == null) db.walletPrivateIdentity().insert(WalletPrivateIdentity(cardId, token))
