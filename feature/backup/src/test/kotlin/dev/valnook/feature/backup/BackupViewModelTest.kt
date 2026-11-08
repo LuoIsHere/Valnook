@@ -61,6 +61,17 @@ class BackupViewModelTest {
         assertTrue(demo.workbookRequest().fileName.startsWith("Valnook_Demo_"))
     }
 
+    @Test fun picker_requests_survive_saving_and_restoring() {
+        val scope = androidx.compose.runtime.saveable.SaverScope { true }
+        val request = OutputRequest("job-1", "Valnook_20261108_000000Z_job-1.val_backup")
+        val saved = with(outputRequestSaver) { scope.save(request) }
+        assertEquals(request, outputRequestSaver.restore(requireNotNull(saved)))
+        val nothing = with(outputRequestSaver) { scope.save(null) }
+        assertNull(nothing?.let { outputRequestSaver.restore(it) })
+        val download = CloudDownloadRequest("file-1", "backup.val_backup")
+        assertEquals(download, cloudDownloadSaver.restore(requireNotNull(with(cloudDownloadSaver) { scope.save(download) })))
+    }
+
     @Test fun provider_reread_verifies_exact_bytes_and_rejects_partial_output() {
         val bytes = "portable-output".toByteArray()
         val expected = PortableFileResult("test", bytes.size.toLong(), sha256(bytes), 1, "now", false)

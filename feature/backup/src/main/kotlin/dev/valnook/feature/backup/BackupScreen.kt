@@ -18,6 +18,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
@@ -41,36 +43,53 @@ import dev.valnook.domain.portability.PortabilityErrorCode
 import dev.valnook.designsystem.FaIcon
 import dev.valnook.designsystem.FaIcons
 
+internal val outputRequestSaver = listSaver<OutputRequest?, String>(
+    save = { request -> request?.let { listOf(it.id, it.fileName) } ?: emptyList() },
+    restore = { values -> values.takeIf { it.size == 2 }?.let { OutputRequest(it[0], it[1]) } })
+internal val cloudDownloadSaver = listSaver<CloudDownloadRequest?, String>(
+    save = { request -> request?.let { listOf(it.fileId, it.fileName) } ?: emptyList() },
+    restore = { values -> values.takeIf { it.size == 2 }?.let { CloudDownloadRequest(it[0], it[1]) } })
+
+/** The picker made an empty file for a request that no longer exists: remove it rather than leave it behind. */
+private fun discardCreated(context: android.content.Context, uri: android.net.Uri?) {
+    if (uri != null) runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }
+}
+
 @Composable
 fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current.applicationContext
-    var backupRequest by remember { mutableStateOf<OutputRequest?>(null) }
-    var workbookRequest by remember { mutableStateOf<OutputRequest?>(null) }
-    var cloudDownload by remember { mutableStateOf<CloudDownloadRequest?>(null) }
+    // Kept across a recreation while the system picker is open, or its answer would find nothing to write.
+    var backupRequest by rememberSaveable(stateSaver = outputRequestSaver) { mutableStateOf<OutputRequest?>(null) }
+    var workbookRequest by rememberSaveable(stateSaver = outputRequestSaver) { mutableStateOf<OutputRequest?>(null) }
+    var cloudDownload by rememberSaveable(stateSaver = cloudDownloadSaver) { mutableStateOf<CloudDownloadRequest?>(null) }
     val activity = LocalContext.current.findActivity()
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        backupRequest?.let { request ->
-            if (uri != null) vm.createBackup(request,
-                { context.contentResolver.openOutputStream(uri, "w") },
-                { context.contentResolver.openInputStream(uri) })
-            backupRequest = null
-        }
+        val request = backupRequest
+        if (request == null) discardCreated(context, uri)
+        else if (uri != null) vm.createBackup(request,
+            { context.contentResolver.openOutputStream(uri, "w") },
+            { context.contentResolver.openInputStream(uri) })
+        backupRequest = null
     }
     val workbookLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    ) { uri -> workbookRequest?.let { request ->
-        if (uri != null) vm.exportWorkbook(request,
+    ) { uri ->
+        val request = workbookRequest
+        if (request == null) discardCreated(context, uri)
+        else if (uri != null) vm.exportWorkbook(request,
             { context.contentResolver.openOutputStream(uri, "w") },
             { context.contentResolver.openInputStream(uri) })
         workbookRequest = null
-    } }
+    }
     val downloadLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
-    ) { uri -> cloudDownload?.let { request ->
-        if (uri != null) vm.downloadCloudBackup(request) { context.contentResolver.openOutputStream(uri, "w") }
+    ) { uri ->
+        val request = cloudDownload
+        if (request == null) discardCreated(context, uri)
+        else if (uri != null) vm.downloadCloudBackup(request) { context.contentResolver.openOutputStream(uri, "w") }
         cloudDownload = null
-    } }
+    }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) vm.prepareRestore(displayName(context, uri)) { context.contentResolver.openInputStream(uri) }
     }
