@@ -647,7 +647,7 @@ private fun SessionRoot(
                             }
                             entry<AboutKey> {
                                 dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME, { open(PrivacyPolicyKey) },
-                                    { open(LicenseKey) })
+                                    { open(LicenseKey) }, BuildConfig.INTERNAL_BUILD_ID)
                             }
                             entry<LicenseKey> { dev.valnook.feature.settings.LicenseScreen() }
                             entry<PrivacyPolicyKey> {

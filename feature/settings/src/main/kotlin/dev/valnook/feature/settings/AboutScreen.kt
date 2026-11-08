@@ -24,7 +24,7 @@ import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.pageContentPadding
 
 @Composable
-fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () -> Unit = {}) {
+fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () -> Unit = {}, internalBuildId: String = "") {
     val uriHandler = LocalUriHandler.current
     val repositoryUrl = stringResource(R.string.settings_repository_url)
     LazyColumn(Modifier.fillMaxSize().testTag("about-page"), contentPadding = pageContentPadding(),
@@ -34,6 +34,9 @@ fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () 
                 Text("Valnook", style = MaterialTheme.typography.headlineSmall)
                 Text(stringResource(R.string.settings_footer_version, versionName),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (internalBuildId.isNotBlank()) Text(stringResource(R.string.settings_footer_internal, internalBuildId),
+                    Modifier.testTag("about-internal-build"), style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_footer_copyright),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_footer_license), Modifier.testTag("about-license-name"),

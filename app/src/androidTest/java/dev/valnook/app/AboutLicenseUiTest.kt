@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -38,12 +39,20 @@ class AboutLicenseUiTest {
         rule.waitUntil(10_000) { rule.onAllNodesWithTag("settings-list").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("settings-list").performScrollToNode(hasTestTag("settings-footer-license"))
         rule.onNodeWithTag("settings-footer-license").assertTextEquals("MIT License")
+        // Clear data sits in a card like the other entries, and the footer follows it without a wide gap.
+        val clear = rule.onNodeWithTag("settings-clear-data").assertHasClickAction().fetchSemanticsNode().boundsInRoot
+        val footer = rule.onNodeWithTag("settings-footer").fetchSemanticsNode().boundsInRoot
+        val gap = with(rule.density) { (footer.top - clear.bottom).toDp() }
+        assertTrue("gap $gap", gap > 0.dp && gap <= 24.dp)
         save("settings")
 
         rule.onNodeWithTag("settings-list").performScrollToNode(hasTestTag("settings-about"))
         rule.onNodeWithTag("settings-about").performClick()
         rule.waitUntil(10_000) { rule.onAllNodesWithTag("about-page").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("about-license-name").assertTextEquals("MIT License")
+        // The version and the internal build, as at the foot of Settings.
+        rule.onNodeWithText("Version " + BuildConfig.VERSION_NAME).assertExists()
+        rule.onNodeWithTag("about-internal-build").assertTextEquals("Internal build: " + BuildConfig.INTERNAL_BUILD_ID)
         // The entry is called License in every language.
         rule.onNodeWithTag("about-license").assertTextContains("License", substring = true)
         save("about")

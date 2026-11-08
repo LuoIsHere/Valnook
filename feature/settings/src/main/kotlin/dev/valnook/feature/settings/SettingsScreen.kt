@@ -45,6 +45,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.input.pointer.pointerInput
@@ -198,11 +199,16 @@ fun SettingsHome(
             item { HorizontalDivider(Modifier.padding(top = Space.lg)) }
             item { Text(stringResource(R.string.settings_danger_zone), color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.titleMedium) }
-            item { TextButton(onClick = onClear) { Text(stringResource(R.string.settings_clear_data),
-                color = MaterialTheme.colorScheme.error) } }
+            item {
+                // A card like every other entry, its title in the error colour.
+                GlassCard {
+                    SettingEntry(stringResource(R.string.settings_clear_data), stringResource(R.string.settings_clear_warning),
+                        onClear, Modifier.testTag("settings-clear-data"), titleColor = MaterialTheme.colorScheme.error)
+                }
+            }
         }
         item {
-            Column(Modifier.fillMaxWidth().padding(top = Space.xl, bottom = Space.md),
+            Column(Modifier.fillMaxWidth().padding(top = Space.md, bottom = Space.md).testTag("settings-footer"),
                 verticalArrangement = Arrangement.spacedBy(Space.xs)) {
                 Text(stringResource(R.string.settings_footer_copyright), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -219,14 +225,14 @@ fun SettingsHome(
 
 @Composable
 internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier,
-    leadingIcon: (@Composable () -> Unit)? = null) {
+    leadingIcon: (@Composable () -> Unit)? = null, titleColor: Color = Color.Unspecified) {
     Row(modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
         .clickable(role = Role.Button, onClick = onClick)
         .padding(horizontal = Space.cardInset, vertical = Space.md),
         verticalAlignment = Alignment.CenterVertically) {
         if (leadingIcon != null) Box(Modifier.padding(end = Space.md)) { leadingIcon() }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(title, style = MaterialTheme.typography.titleMedium, color = titleColor)
             Text(summary, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
