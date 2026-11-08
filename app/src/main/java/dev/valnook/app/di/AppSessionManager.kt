@@ -31,6 +31,9 @@ enum class DataMode { REAL, DEMO }
 
 data class ActiveSession(val id: String, val mode: DataMode, val graph: AppGraph)
 
+/** The first real session's id; see [AppSessionManager]. */
+internal const val REAL_SESSION_ID = "real"
+
 @Singleton
 class AppSessionManager @Inject internal constructor(
     @ApplicationContext private val context: Context,
@@ -55,7 +58,9 @@ class AppSessionManager @Inject internal constructor(
     private var activeFileJob: ActiveFileJob? = null
     @Volatile private var writeOwner: WriteOwner = WriteOwner.Mobile
     @Volatile private var webAdminReservation: WebAdminReservation? = null
-    private val initialId = UUID.randomUUID().toString()
+    // The same every launch, so state saved before the system ended the process (the page stack, drafts) is found
+    // again. Entering demo, clearing data or restoring a backup still starts a session with a new id.
+    private val initialId = REAL_SESSION_ID
     @Volatile private var currentSessionId = initialId
     private val mutable = MutableStateFlow(ActiveSession(initialId, DataMode.REAL,
         bind(realDatabaseGraph, initialId, DataMode.REAL)))
