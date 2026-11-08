@@ -89,7 +89,7 @@
     <string name="settings_fx_status_never">尚未更新</string>
     <string name="settings_fx_status_running">正在更新…</string>
     <string name="settings_fx_status_ok">汇率日期 %1$s · %2$s 更新</string>
-    <string name="settings_fx_status_failed">更新失败，%1$s 后自动重试</string>
+    <string name="settings_fx_status_failed">更新失败，%1$s 后打开或回到应用时重试</string>
     <string name="settings_fx_update_now">立即更新</string>
     <string name="settings_fx_missing">以下币种没有可用汇率：%1$s</string>
     <string name="settings_fx_readonly">汇率由自动获取更新；关闭后可以手动修改。</string>
@@ -102,7 +102,7 @@
     <string name="settings_leave_confirm">放弃修改</string>
     <string name="settings_fx_notice_title">自动获取汇率说明</string>
     <string name="settings_fx_notice_source">数据来源：汇率取自 Frankfurter 公开汇率服务（api.frankfurter.dev），数据汇总自各国央行及其他公开来源。</string>
-    <string name="settings_fx_notice_when">联网时机：每天首次打开应用、修改主币种、开启本功能或手动更新时，应用会向该服务发送请求；请求失败后，最多每 30 分钟自动重试一次。</string>
+    <string name="settings_fx_notice_when">联网时机：每天首次打开应用、修改主币种、开启本功能或手动更新时，应用会向该服务发送请求；请求失败后，会在再次打开或回到应用时重试，两次尝试至少间隔 30 分钟。</string>
     <string name="settings_fx_notice_sent">发送的数据：主币种代码、固定的币种列表和查询日期区间。服务提供方及网络中间方（如 Cloudflare）可获知您的 IP 地址和请求时间。</string>
     <string name="settings_fx_notice_not_sent">不发送的数据：余额、账户、交易等任何财务记录。</string>
     <string name="settings_fx_notice_storage">数据保存：获取的汇率保存在本机数据库中，并随备份一同保存。</string>

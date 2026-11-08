@@ -95,7 +95,7 @@
     <string name="settings_fx_status_never">Not updated yet</string>
     <string name="settings_fx_status_running">Updating…</string>
     <string name="settings_fx_status_ok">Rates of %1$s · updated %2$s</string>
-    <string name="settings_fx_status_failed">Update failed; retrying after %1$s</string>
+    <string name="settings_fx_status_failed">Update failed; tries again when you open or return to the app after %1$s</string>
     <string name="settings_fx_update_now">Update now</string>
     <string name="settings_fx_missing">No exchange rate for: %1$s</string>
     <string name="settings_fx_readonly">Rates are updated automatically; turn this off to edit them.</string>
@@ -108,7 +108,7 @@
     <string name="settings_leave_confirm">Discard changes</string>
     <string name="settings_fx_notice_title">About automatic exchange rates</string>
     <string name="settings_fx_notice_source">Source: rates come from the public Frankfurter exchange rate service (api.frankfurter.dev), which compiles data from central banks and other public sources.</string>
-    <string name="settings_fx_notice_when">When the app connects: it sends a request on the first launch each day, when the base currency changes, when this feature is turned on, and when you update manually. After a failed request it retries automatically at most once every 30 minutes.</string>
+    <string name="settings_fx_notice_when">When the app connects: it sends a request on the first launch each day, when the base currency changes, when this feature is turned on, and when you update manually. After a failed request it tries again when you open or return to the app, at least 30 minutes after the last attempt.</string>
     <string name="settings_fx_notice_sent">What is sent: the base currency code, a fixed list of currencies and the requested dates. The service provider and network intermediaries such as Cloudflare can see your IP address and the time of the request.</string>
     <string name="settings_fx_notice_not_sent">What is not sent: balances, accounts, transactions or any other financial records.</string>
     <string name="settings_fx_notice_storage">Storage: retrieved rates are stored in the database on this device and included in backups.</string>

@@ -30,9 +30,9 @@
     <string name="onboarding_fx_auto_later_hint">也可以之后在「设置 › 汇率」中开启。</string>
     <string name="fx_notice_failed_title">汇率更新失败</string>
     <string name="fx_notice_missing_title">部分币种没有汇率</string>
-    <string name="fx_notice_network">网络不可用，30 分钟后自动重试。</string>
-    <string name="fx_notice_service">汇率服务暂时不可用，30 分钟后自动重试。</string>
-    <string name="fx_notice_storage">汇率未能保存，30 分钟后自动重试。</string>
+    <string name="fx_notice_network">网络不可用，30 分钟后打开或回到应用时会重试。</string>
+    <string name="fx_notice_service">汇率服务暂时不可用，30 分钟后打开或回到应用时会重试。</string>
+    <string name="fx_notice_storage">汇率未能保存，30 分钟后打开或回到应用时会重试。</string>
     <string name="fx_notice_missing">%1$s 没有可用汇率，未计入总额。</string>
     <string name="fx_notice_using">正在使用 %1$s 的汇率。</string>
     <string name="fx_notice_using_none">暂时还没有可用的汇率。</string>
