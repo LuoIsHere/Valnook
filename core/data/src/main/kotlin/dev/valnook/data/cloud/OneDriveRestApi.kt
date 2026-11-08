@@ -143,6 +143,8 @@ internal class OneDriveRestApi(
             if (!item.has("folder") || runCatching { UUID.fromString(item.getString("name")) }.isFailure) continue
             val ref = root.copy(directory = item.getString("id"))
             try {
+                // Rotation leaves the emptied directory behind; the listing already says it holds nothing.
+                if (item.getJSONObject("folder").optInt("childCount", -1) == 0) continue
                 val archive = json(request("GET", "${ref.directoryUrl}:/snapshot.val_backup", accessToken))
                 files += metadata(accessToken, ref.copy(item = archive.getString("id")).handle)
             } catch (error: DriveRequestException) {

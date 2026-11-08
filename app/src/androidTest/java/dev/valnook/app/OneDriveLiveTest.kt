@@ -53,6 +53,29 @@ class OneDriveLiveTest {
         finally { database.close() }
     }
 
+    /** Read-only: lists the connected backup folder once and reports counts only (see LiveOneDriveListingProbe). */
+    @Test fun backup_listing_skips_directories_the_drive_reports_empty() = runBlocking {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("liveOneDriveListing") == "true")
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val (reference, folder) = SQLiteDatabase.openDatabase(context.getDatabasePath("valnook.db").path,
+            null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("SELECT account_reference,folder_id FROM cloud_backup_state WHERE id=1 AND provider='ONEDRIVE' AND folder_id IS NOT NULL", null).use {
+                if (!it.moveToFirst() || it.isNull(0)) throw AssertionError("CONNECT_VALNOOK_FIRST")
+                it.getString(0) to it.getString(1)
+            }
+        }
+        val access = MicrosoftAuthorizationGateway(context).access(reference)
+        if (access !is CloudAccessResult.Granted) throw AssertionError("MICROSOFT_REAUTH_REQUIRED")
+        val result = try { dev.valnook.data.cloud.LiveOneDriveListingProbe(folder).run(access.accessToken) }
+            catch (_: Throwable) { throw AssertionError("LISTING_FAILED") }
+        val summary = "directories=${result.directories} counted=${result.counted} emptied=${result.emptied} " +
+            "asked=${result.asked} backups=${result.backups} requests=${result.requests}"
+        instrumentation.sendStatus(0, Bundle().apply { putString("live_listing", summary) })
+        assertEquals(summary, result.directories, result.counted)
+        assertEquals(summary, result.directories - result.emptied, result.asked)
+    }
+
     @Test fun disconnect_current_device_clears_msal_session_and_cancels_backup_schedule() = runBlocking {
         assumeTrue(InstrumentationRegistry.getArguments().getString("liveOneDriveAuth") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext

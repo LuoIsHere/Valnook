@@ -195,6 +195,20 @@ class OneDriveRestApiTest {
         assertTrue(server.requests.none { it.method == "DELETE" })
     }
 
+    @Test fun a_listing_skips_an_emptied_directory_only_when_the_drive_says_it_is_empty() = runBlocking {
+        for (counts in listOf(true, false)) {
+            val server = FakeGraph(); val api = OneDriveRestApi(server)
+            val root = api.resolveOrCreateFolder("synthetic")
+            val file = upload(api, root.id)
+            server.childCounts = counts; server.emptyDirectory = true
+            val before = server.requests.size
+            assertEquals(listOf(file.id), api.listPage("synthetic", root.id, null).files.map { it.id })
+            val listing = server.requests.drop(before).map { URI(it.url).path }
+            assertTrue("/v1.0/drives/drive/items/backup:/snapshot.val_backup" in listing)
+            assertEquals("counts=$counts", !counts, listing.any { "/items/empty" in it })
+        }
+    }
+
     @Test fun rate_limit_retries_are_bounded_and_respect_retry_after() = runBlocking {
         var calls = 0; val delays = mutableListOf<Long>()
         val api = OneDriveRestApi(CloudHttpTransport { _, _ -> calls++; CloudHttpResponse(429, mapOf("Retry-After" to "2"), byteArrayOf()) }, { delays += it })
@@ -255,6 +269,10 @@ class OneDriveRestApiTest {
         var deleted = false
         var loseFinalResponse = false
         var unrelatedFile = false
+        /** Whether the listing gives each directory's child count, as OneDrive does. */
+        var childCounts = false
+        /** A directory rotation emptied, as OneDrive keeps it after both files go. */
+        var emptyDirectory = false
         override suspend fun execute(request: CloudHttpRequest, output: OutputStream?): CloudHttpResponse {
             requests += request
             val path = URI(request.url).path
@@ -275,9 +293,14 @@ class OneDriveRestApiTest {
                     backupName = JSONObject(request.body!!.toString(Charsets.UTF_8)).getString("name")
                     response(201, item("backup", backupName!!, "root", true))
                 }
-                path == "${base}root/children" -> response(value = JSONObject().put("value", JSONArray().also {
-                    if (!deleted && backupName != null) it.put(item("backup", backupName!!, "root", true))
-                }))
+                path == "${base}root/children" -> {
+                    fun JSONObject.withCount(count: Int) = apply { if (childCounts) getJSONObject("folder").put("childCount", count) }
+                    response(value = JSONObject().put("value", JSONArray().also {
+                        if (!deleted && backupName != null) it.put(item("backup", backupName!!, "root", true).withCount(2))
+                        if (emptyDirectory) it.put(item("empty", EMPTY_DIRECTORY, "root", true).withCount(0))
+                    }))
+                }
+                path == "${base}empty:/snapshot.val_backup" -> response(404)
                 path == "${base}backup:/metadata.json:/content" && request.method == "PUT" -> { meta = request.body!!; response(201) }
                 path == "${base}backup:/metadata.json:/content" -> {
                     output!!.write(meta); CloudHttpResponse(200, emptyMap(), byteArrayOf())
@@ -308,6 +331,7 @@ class OneDriveRestApiTest {
 
     private companion object {
         const val GRAPH = "https://graph.microsoft.com"
+        const val EMPTY_DIRECTORY = "00000000-0000-4000-8000-000000000001"
         val PAYLOAD = ByteArray(1024) { (it % 127).toByte() }
     }
 }
