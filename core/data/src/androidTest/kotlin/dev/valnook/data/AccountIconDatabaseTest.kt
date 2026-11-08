@@ -31,9 +31,9 @@ class AccountIconDatabaseTest {
     @After fun close() { databases.forEach { it.close() } }
     private fun db() = ValnookDatabase.inMemory(context).also { databases += it }
     private fun operation() = UUID.randomUUID().toString()
-    private fun image(): ByteArray {
+    private fun image(color: Int = Color.BLUE): ByteArray {
         val bitmap = Bitmap.createBitmap(256, 256, Bitmap.Config.ARGB_8888)
-        bitmap.eraseColor(Color.BLUE)
+        bitmap.eraseColor(color)
         return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 100, it); bitmap.recycle() }.toByteArray()
     }
     private fun count(db: ValnookDatabase) = db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM account_icon_images")
@@ -132,6 +132,23 @@ class AccountIconDatabaseTest {
         // Exercise the existing user-requested reset only on this synthetic in-memory ledger.
         dev.valnook.data.repository.RoomDataMaintenance(target).clearBusinessData()
         assertEquals(0, count(target))
+    }
+
+    /** Backups made before schema 24 may carry a photo left behind by an icon change; a restore leaves it out. */
+    @Test fun a_restore_leaves_out_photos_no_account_shows() = runBlocking {
+        val source = db(); val shown = image(); val shownKey = AccountIconImages.digest(shown)
+        RoomFinancialCommands(source, clock).execute(SaveAccount(operation(), null, null, "Bank", "", emptyList(),
+            AccountIconChange(AccountIcon(AccountIconType.IMAGE, shownKey), shown)))
+        val orphan = image(Color.RED); val orphanKey = AccountIconImages.digest(orphan)
+        source.openHelper.writableDatabase.execSQL("INSERT INTO account_icon_images(id,data) VALUES (?,?)", arrayOf<Any>(orphanKey, orphan))
+        assertEquals(2, count(source))
+        val archive = ByteArrayOutputStream(); engine(source).createBackup(operation(), archive) {}
+        val target = db(); val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(archive.toByteArray()), "orphan.val_backup") {}
+        try { targetEngine.commitRestore(staged) {} } finally { targetEngine.close(staged) }
+        assertEquals(1, count(target))
+        assertArrayEquals(shown, RoomOverview(target).accountIconImage(shownKey))
+        assertNull(RoomOverview(target).accountIconImage(orphanKey))
     }
 
     @Test fun restore_preflight_rejects_missing_and_corrupt_image_assets() = runBlocking {

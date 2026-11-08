@@ -490,7 +490,7 @@ class MigrationTest {
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
-            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23).build()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24).build()
             try {
                 val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
                 assertEquals(listOf("shared", "orphan"), faces.map { it.key })
@@ -512,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
@@ -594,12 +594,32 @@ class MigrationTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    @Test fun v23_to_v24_removes_photos_no_account_shows() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-icons-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 23).apply {
+                execSQL("INSERT INTO account_icon_images(id,data) VALUES ('shown',X'01'),('orphan',X'02'),('savings',X'03')")
+                execSQL("""INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms,icon_type,icon_value)
+                    VALUES (1,'Bank','',1,1,'IMAGE','shown'),(2,'Second','',1,1,'IMAGE','shown'),(3,'Savings','',1,1,'SYMBOL','savings')""")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 24, true, MIGRATION_23_24).apply {
+                query("SELECT id FROM account_icon_images").use {
+                    assertTrue(it.moveToFirst()); assertEquals("shown", it.getString(0)); assertFalse(it.moveToNext())
+                }
+                query("SELECT COUNT(*) FROM savings_accounts").use { assertTrue(it.moveToFirst()); assertEquals(3L, it.getLong(0)) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
     /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach the current schema with their manual rates unchanged. */
     @Test fun released_installs_reach_the_current_schema_with_manual_rates_unchanged(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val chains = mapOf(
-            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23),
-            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23))
+            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24),
+            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24))
         chains.forEach { (version, migrations) ->
             val name = "migration-fx-v$version-${UUID.randomUUID()}.db"
             try {

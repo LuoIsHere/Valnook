@@ -47,6 +47,8 @@ internal class RestoreImporter(
                 copyCandidate(staged.stagingDatabase)
                 // Archives from before the default class do not carry it.
                 dev.valnook.data.database.ensureDefaultAssetType(target.openHelper.writableDatabase, startedAt)
+                // Archives from before schema 24 may carry photos no account shows.
+                target.openHelper.writableDatabase.execSQL(dev.valnook.data.database.DELETE_UNSHOWN_ACCOUNT_ICON_IMAGES)
                 fault(RestorePoint.AFTER_CANDIDATE_COPY)
                 target.maintenance().clearStatisticsCache()
                 // The switch is a device setting and stays; the sync record described the replaced history.
