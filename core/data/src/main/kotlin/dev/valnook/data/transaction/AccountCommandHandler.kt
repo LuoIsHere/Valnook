@@ -82,6 +82,12 @@ internal class AccountCommandHandler(
                 }
             }
             db.accounts().setIcon(accountId, icon.type.name, icon.value)
+            // The replaced photo goes once no account shows it, as when an account is deleted; else every backup keeps it.
+            val replaced = oldAccount?.takeIf { it.icon_type == "IMAGE" }?.icon_value
+            if (replaced != null && (icon.type != dev.valnook.domain.model.AccountIconType.IMAGE || icon.value != replaced)) {
+                db.openHelper.writableDatabase.execSQL("DELETE FROM account_icon_images WHERE id=? AND NOT EXISTS " +
+                    "(SELECT 1 FROM savings_accounts WHERE icon_type='IMAGE' AND icon_value=?)", arrayOf(replaced, replaced))
+            }
         }
         fault(TransactionPoint.AFTER_BUSINESS)
 

@@ -82,6 +82,22 @@ class AccountIconDatabaseTest {
         commands.execute(SaveAccount(operation(), id, account.revision, account.name, "", emptyList(),
             AccountIconChange(AccountIcon())))
         assertEquals(AccountIcon(), RoomOverview(db).snapshot().accounts.single().icon)
+        // The photo no account shows any more is gone, so backups stop carrying it.
+        assertEquals(0, count(db))
+    }
+
+    @Test fun a_replaced_photo_stays_while_another_account_shows_it() = runBlocking {
+        val db = db(); val commands = RoomFinancialCommands(db, clock)
+        val bytes = image(); val key = AccountIconImages.digest(bytes)
+        val photo = AccountIconChange(AccountIcon(AccountIconType.IMAGE, key), bytes)
+        val first = commands.execute(SaveAccount(operation(), null, null, "Bank", "", emptyList(), photo)).id
+        val second = commands.execute(SaveAccount(operation(), null, null, "Broker", "", emptyList(), photo)).id
+        assertEquals(1, count(db))
+        fun revision(id: Long) = kotlinx.coroutines.runBlocking { db.accounts().account(id)!!.revision }
+        commands.execute(SaveAccount(operation(), first, revision(first), "Bank", "", emptyList(), AccountIconChange(AccountIcon(value = "wallet"))))
+        assertEquals(1, count(db))
+        commands.execute(SaveAccount(operation(), second, revision(second), "Broker", "", emptyList(), AccountIconChange(AccountIcon(value = "wallet"))))
+        assertEquals(0, count(db))
     }
 
     @Test fun image_and_account_roll_back_together_and_invalid_image_is_rejected() = runBlocking {
