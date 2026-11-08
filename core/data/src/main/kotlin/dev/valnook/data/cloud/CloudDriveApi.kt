@@ -61,6 +61,8 @@ internal interface CloudDriveApi {
     ): RemoteBackupFile
     suspend fun listPage(accessToken: String, folderId: String, pageToken: String?): RemoteBackupPage
     suspend fun trash(accessToken: String, fileId: String, beforeRemoteSideEffect: suspend () -> Unit)
+    /** Like [trash], for this app's copy that never got the verified marker; a verified backup is refused. */
+    suspend fun trashUnverified(accessToken: String, fileId: String, beforeRemoteSideEffect: suspend () -> Unit)
     suspend fun download(accessToken: String, fileId: String, output: OutputStream)
 }
 

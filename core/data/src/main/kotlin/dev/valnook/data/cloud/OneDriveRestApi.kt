@@ -156,9 +156,16 @@ internal class OneDriveRestApi(
         return RemoteBackupPage(files, page.optString("@odata.nextLink").takeIf { it.isNotBlank() })
     }
 
-    override suspend fun trash(accessToken: String, fileId: String, beforeRemoteSideEffect: suspend () -> Unit) {
+    override suspend fun trash(accessToken: String, fileId: String, beforeRemoteSideEffect: suspend () -> Unit) =
+        deleteBackup(accessToken, fileId, verified = true, beforeRemoteSideEffect)
+
+    override suspend fun trashUnverified(accessToken: String, fileId: String, beforeRemoteSideEffect: suspend () -> Unit) =
+        deleteBackup(accessToken, fileId, verified = false, beforeRemoteSideEffect)
+
+    private suspend fun deleteBackup(accessToken: String, fileId: String, verified: Boolean,
+        beforeRemoteSideEffect: suspend () -> Unit) {
         val file = metadata(accessToken, fileId)
-        if (file.properties["verificationState"] != "verified") invalid()
+        if ((file.properties["verificationState"] == "verified") != verified) invalid()
         val ref = Ref.file(fileId)
         // Delete only our two known files, never unrelated content a user placed in the folder.
         val children = json(request("GET", "${ref.directoryUrl}/children", accessToken))

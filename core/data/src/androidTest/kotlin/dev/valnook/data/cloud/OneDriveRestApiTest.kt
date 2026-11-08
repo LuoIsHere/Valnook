@@ -174,6 +174,27 @@ class OneDriveRestApiTest {
         assertFalse(server.deleted)
     }
 
+    @Test fun an_unverified_copy_is_removed_only_through_its_own_path() = runBlocking {
+        val server = FakeGraph(); val api = OneDriveRestApi(server)
+        val file = upload(api, api.resolveOrCreateFolder("synthetic").id)
+        expectCloud(CloudBackupError.VERIFY_FAILED) { api.trash("synthetic", file.id) {} }
+        server.unrelatedFile = true
+        expectCloud(CloudBackupError.DRIVE_PERMISSION) { api.trashUnverified("synthetic", file.id) {} }
+        assertFalse(server.deleted)
+        server.unrelatedFile = false
+        api.trashUnverified("synthetic", file.id) {}
+        assertTrue(server.deleted)
+    }
+
+    @Test fun a_verified_backup_is_never_removed_as_unverified() = runBlocking {
+        val server = FakeGraph(); val api = OneDriveRestApi(server)
+        val file = upload(api, api.resolveOrCreateFolder("synthetic").id)
+        api.markVerified("synthetic", file, file.properties + ("verificationState" to "verified")) {}
+        expectCloud(CloudBackupError.VERIFY_FAILED) { api.trashUnverified("synthetic", file.id) {} }
+        assertFalse(server.deleted)
+        assertTrue(server.requests.none { it.method == "DELETE" })
+    }
+
     @Test fun rate_limit_retries_are_bounded_and_respect_retry_after() = runBlocking {
         var calls = 0; val delays = mutableListOf<Long>()
         val api = OneDriveRestApi(CloudHttpTransport { _, _ -> calls++; CloudHttpResponse(429, mapOf("Retry-After" to "2"), byteArrayOf()) }, { delays += it })

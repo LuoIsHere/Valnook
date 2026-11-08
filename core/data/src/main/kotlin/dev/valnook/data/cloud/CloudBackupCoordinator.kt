@@ -25,6 +25,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
 
+/** How long this app's copy may stay unverified before rotation removes it: longer than any upload and check. */
+internal const val UNVERIFIED_COPY_GRACE_MS = 3L * 24 * 60 * 60 * 1000
+
 class CloudBackupCoordinator internal constructor(
     context: Context,
     private val database: ValnookDatabase,
@@ -563,7 +566,10 @@ class CloudBackupCoordinator internal constructor(
         return finished
     }
 
-    /** Trashes verified backups beyond the retention count and returns the managed backups left. */
+    /**
+     * Trashes verified backups beyond the retention count, then this app's copies still unverified after
+     * [UNVERIFIED_COPY_GRACE_MS], and returns the managed backups left.
+     */
     private suspend fun rotate(token: String, folderId: String, generation: Generation,
         cycleId: String, automatic: Boolean): List<RemoteBackupFile> {
         val managed = listManaged(token, folderId)
@@ -574,8 +580,41 @@ class CloudBackupCoordinator internal constructor(
             assertGeneration(generation, cycleId, automatic)
             drive.trash(token, old.id) { assertGeneration(generation, cycleId, automatic) }
             old.id
-        }.toSet()
+        }.toMutableSet()
+        trashed += trashStaleUnverified(token, managed, generation, cycleId, automatic)
         return managed.filterNot { it.id in trashed }
+    }
+
+    /**
+     * A copy whose check was cut short and never reconciled stays unverified, and the verified-only rotation
+     * would keep it for good. Wait long enough that another device still checking its own upload is never
+     * touched; without a trusted time, wait for a later cycle. Best effort: a copy that cannot go now is
+     * tried again next time, and does not make this backup's cleanup incomplete.
+     */
+    private suspend fun trashStaleUnverified(token: String, managed: List<RemoteBackupFile>, generation: Generation,
+        cycleId: String, automatic: Boolean): Set<String> {
+        val stale = managed.filter { it.properties["verificationState"] == "uploaded-unverified" }
+        if (stale.isEmpty()) return emptySet()
+        val now = try { trustedNow(token) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) { null }
+            ?: return emptySet()
+        val trashed = mutableSetOf<String>()
+        stale.filter { file ->
+            runCatching { Instant.parse(file.createdTime).toEpochMilli() }.getOrNull()
+                ?.let { now - it >= UNVERIFIED_COPY_GRACE_MS } == true
+        }.forEach { file ->
+            assertGeneration(generation, cycleId, automatic)
+            try {
+                drive.trashUnverified(token, file.id) { assertGeneration(generation, cycleId, automatic) }
+                trashed += file.id
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: CloudBackupException) {
+                if (error.error == CloudBackupError.SESSION_EXPIRED) throw error
+            } catch (_: Exception) {
+                // Left for the next rotation.
+            }
+        }
+        return trashed
     }
 
     private suspend fun reconcileUnknown(token: String, folderId: String, generation: Generation,

@@ -445,6 +445,62 @@ class CloudBackupCoordinatorTest {
         assertTrue(drive.trashedIds.isEmpty())
     }
 
+    @Test fun rotation_removes_copies_left_unverified_for_three_days_and_keeps_newer_ones() = runBlocking {
+        connect()
+        repeat(2) { drive.seedVerified(it + 1) }
+        // The clock reads 2026-10-03T06:00Z: one copy is just over three days old, the other just under.
+        drive.seedUnverified("stale", "2026-09-30T05:59:59Z")
+        drive.seedUnverified("recent", "2026-09-30T06:00:01Z")
+
+        coordinator.manualBackup()
+
+        val state = coordinator.observeState().first()
+        assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
+        assertFalse(state.cleanupIncomplete)
+        assertEquals(listOf("stale"), drive.trashedUnverifiedIds)
+        assertTrue(drive.trashedIds.isEmpty())
+        val listed = state.backups.map { it.fileId }
+        assertFalse("stale" in listed)
+        assertTrue("recent" in listed && "old-1" in listed && "new-1" in listed)
+    }
+
+    @Test fun an_unverified_copy_that_cannot_be_removed_waits_without_marking_cleanup_incomplete() = runBlocking {
+        connect()
+        drive.seedUnverified("stale", "2026-09-01T00:00:00Z")
+        drive.failTrashUnverified = true
+
+        coordinator.manualBackup()
+
+        val state = coordinator.observeState().first()
+        assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
+        assertFalse(state.cleanupIncomplete)
+        assertTrue("stale" in state.backups.map { it.fileId })
+    }
+
+    @Test fun when_the_time_is_lost_after_the_upload_no_unverified_copy_is_removed() = runBlocking {
+        connect()
+        drive.seedUnverified("stale", "2026-09-01T00:00:00Z")
+        var timeAvailable = true
+        val untimed = CloudBackupCoordinator(context, database, RoomPortabilityEngine(context, database,
+            Clock.fixed(Instant.parse("2026-10-03T06:00:00Z"), ZoneOffset.UTC),
+            AppBuildInfo("valnook", "0.0.5", 5, "20261003.4", "20261003.4", 10)),
+            CloudAccessProvider { CloudAccessResult.Granted("synthetic-access-token") }, object : CloudDriveApi by drive {
+                override suspend fun serverUtcMs(accessToken: String): Long? = null
+                override suspend fun upload(accessToken: String, folderId: String, localFile: File, fileName: String,
+                    appProperties: Map<String, String>, beforeRemoteSideEffect: suspend () -> Unit): RemoteBackupFile =
+                    drive.upload(accessToken, folderId, localFile, fileName, appProperties, beforeRemoteSideEffect)
+                        .also { timeAvailable = false }
+            }, scheduler, object : NetworkUtcClock {
+                override suspend fun nowUtcMs(): Long? = if (timeAvailable) networkClock.value else null
+            }, network)
+
+        untimed.manualBackup()
+
+        assertEquals(BackupAttemptState.SUCCEEDED, untimed.observeState().first().attemptState)
+        assertTrue(drive.trashedUnverifiedIds.isEmpty())
+        assertFalse(drive.files.single { it.id == "stale" }.trashed)
+    }
+
     @Test fun gd2_two_logical_devices_share_one_retention_set() = runBlocking {
         val secondDatabase = Room.inMemoryDatabaseBuilder(context, ValnookDatabase::class.java)
             .addCallback(ValnookDatabase.seed).build()
@@ -613,6 +669,8 @@ class CloudBackupCoordinatorTest {
         var failAfterUploadWithUnknownOutcome = false
         var failUpload: DriveRequestException? = null
         var failTrash = false
+        var failTrashUnverified = false
+        val trashedUnverifiedIds = mutableListOf<String>()
         var failDownload: DriveRequestException? = null
         var afterFirstUploadGate: (suspend () -> Unit)? = null
         private val folder = RemoteBackupFolder("managed-folder", "Valnook_backup")
@@ -668,9 +726,26 @@ class CloudBackupCoordinatorTest {
             val index = files.indexOfFirst { it.id == fileId }
             files[index] = files[index].copy(trashed = true)
         }
+        override suspend fun trashUnverified(accessToken: String, fileId: String,
+            beforeRemoteSideEffect: suspend () -> Unit) {
+            beforeRemoteSideEffect()
+            if (failTrashUnverified) throw DriveRequestException(503, false)
+            val index = files.indexOfFirst { it.id == fileId }
+            check(files[index].properties["verificationState"] != "verified")
+            trashedUnverifiedIds += fileId
+            files[index] = files[index].copy(trashed = true)
+        }
         override suspend fun download(accessToken: String, fileId: String, output: OutputStream) {
             failDownload?.let { throw it }
             output.write(contents[fileId] ?: byteArrayOf(1, 2, 3))
+        }
+        /** This app's copy whose check never finished, uploaded at [createdTime]. */
+        fun seedUnverified(id: String, createdTime: String) {
+            files += RemoteBackupFile(id, "Valnook_$id.val_backup", createdTime, 100, "0".repeat(32), listOf(folder.id), mapOf(
+                "app" to "valnook", "role" to "backup", "verificationState" to "uploaded-unverified",
+                "backupId" to "backup-$id", "attemptId" to "attempt-$id", "formatVersion" to "1", "dataSchemaVersion" to "1",
+                "databaseSchemaVersion" to "10", "appVersion" to "0.0.5", "internalBuildRevision" to "fixture",
+                "snapshotCreatedAtUtc" to createdTime), false)
         }
         fun seedVerified(order: Int, databaseSchema: Int = 10) {
             files += RemoteBackupFile("old-$order", "Valnook_old_$order.val_backup",
