@@ -87,7 +87,7 @@
     <string name="wallet_copy">"Copy %1$s"</string>
     <string name="wallet_private_card_details">Private card details</string>
     <string name="wallet_card_numbers_cardholder_names_expiry">Card numbers, cardholder names, expiry dates, CVV1 and CVV2 are sensitive. Disclosure may cause financial loss.</string>
-    <string name="wallet_details_entered_here_are_encrypted">Details entered here are encrypted only on this device, using Android Keystore to manage keys and AES-GCM to encrypt content. They are not uploaded, included in local or OneDrive cloud backups or file exports, or accessible through web management.</string>
+    <string name="wallet_details_entered_here_are_encrypted">Details entered here are encrypted on this device only, with keys managed by Android Keystore and content encrypted with AES-GCM. They are never uploaded, never included in local or OneDrive backups or file exports, and cannot be accessed from Web administration.</string>
     <string name="wallet_uninstalling_clearing_app_data_successfully">Uninstalling, clearing app data or successfully replacing data from a backup makes these details unrecoverable. Enable your device\'s app lock for Valnook where available.</string>
     <string name="wallet_copying_field_places_system_clipboard">Copying a field places it on the system clipboard, outside this app\'s encrypted storage. Use this action with care.</string>
     <string name="wallet_fullest_extent_permitted_by_applicable">To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.</string>

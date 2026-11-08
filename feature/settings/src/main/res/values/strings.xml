@@ -48,7 +48,7 @@
     <string name="settings_color_loss">Loss -100.00</string>
     <string name="settings_color_zero">Zero 0.00</string>
     <string name="settings_clear_warning">This action cannot be undone in the app.</string>
-    <string name="settings_clear_scope">Accounts, cash accounts, deposits, instruments, holdings, trades, base currency, and rates will be cleared. Language and gain/loss colors are kept.</string>
+    <string name="settings_clear_scope">All accounts and subaccounts, deposits, instruments, holdings and trades, price history, asset classes, account groups and icons, Wallet cards and card faces (including private card backs), base currency, exchange rates, and change history will be cleared, and automatic exchange rates turned off. Language, theme, gain/loss colors, and navigation bar settings are kept.</string>
     <string name="settings_clear_input">Enter the code exactly</string>
     <string name="settings_clear_failed">Clear failed. Existing data remains consistent; try again.</string>
     <string name="settings_clearing">Clearing</string>

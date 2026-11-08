@@ -27,8 +27,8 @@ const copy = {
     pairTitle: "连接到手机", pairCopy: "请在手机上打开网页端管理，并输入手机显示的 6 位配对码。", pairCode: "配对码", connect: "连接",
     trustedLan: "仅用于可信局域网。此版本使用 HTTP/WS，不提供传输加密。", mainNav: "主导航", theme: "切换主题", close: "关闭",
     pairWrong: "配对码不正确，手机上已生成新码。", pairInvalid: "配对码不正确，请核对手机上显示的 6 位数字。", pairFailed: "连接失败", wsFailed: "WebSocket 连接未建立。请检查浏览器代理、VPN 或安全软件，然后在手机上重新开启网页端管理。", qrConnecting: "正在使用二维码凭据连接…", loadFailed: "加载失败",
-    account: "账户", cash: "可用现金", creditBalance: "信用账户余额", balanceAccounts: "账户", deposits: "定期", investmentValue: "投资市值", totalAssets: "总资产", complete: "完整",
-    settled: "已结算", holding: "持有", name: "名称", note: "备注", currency: "币种", balance: "余额", principal: "本金",
+    account: "账户", cash: "可用现金", creditBalance: "信用账户余额", balanceAccounts: "账户", deposits: "定期", investmentValue: "投资市值", totalAssets: "净资产", complete: "完整",
+    settled: "已结算", depositActive: "存续中", name: "名称", note: "备注", currency: "币种", balance: "余额", principal: "本金",
     start: "开始", endDate: "结束", annualRate: "年利率", status: "状态", quantity: "数量", currentPrice: "现价", marketValue: "市值", pnl: "盈亏",
     accountDetails: "账户详情", openDeposit: "开立存单", editAccount: "编辑账户",
  fromDate: "开始日期", toDate: "结束日期", all: "全部",
@@ -44,7 +44,7 @@ const copy = {
     monthlyChange: "本月变化", accountDistribution: "主账户分布", assetTypeDistribution: "资产类型分布", currencyDistribution: "币种分布",
     history: "历史资产变化", staleRecord: "记录已变化，请刷新后重试。", staleBalance: "余额已变化，请刷新后重试。",
     currencyLocked: "该币种已被交易使用，不能修改。", symbolLocked: "代码已被交易使用，不能修改。",
-    insufficientHolding: "持仓数量不足。", invalidFormat: "输入格式不正确。", saveFailed: "保存失败",
+    insufficientHolding: "持仓数量不足。", invalidFormat: "输入格式不正确。", saveFailed: "保存失败：{reason}", saveFailedCode: "保存失败（错误码 {code}）",
     cashChange: "余额调整", depositOpen: "存单开立", depositClose: "存单结算", operation: "操作",
     savingsAccount: "储蓄账户", creditAccount: "信用账户", creditLimit: "信用额度", usedLimit: "已用额度", availableLimit: "可用额度",
     limitSource: "额度来源", independentLimit: "独立额度", statementDay: "账单日", dueRule: "最后还款日规则", dueValue: "规则日期/天数",
@@ -63,8 +63,8 @@ const copy = {
     pairTitle: "Connect to phone", pairCopy: "Open Web administration on your phone and enter its 6-digit pairing code.", pairCode: "Pairing code", connect: "Connect",
     trustedLan: "Use only on a trusted local network. This version uses HTTP/WS without transport encryption.", mainNav: "Main navigation", theme: "Toggle theme", close: "Close",
     pairWrong: "The pairing code was incorrect. A new code is now shown on the phone.", pairInvalid: "The pairing code was incorrect. Check the six digits on the phone.", pairFailed: "Connection failed", wsFailed: "The WebSocket connection could not be established. Check the browser proxy, VPN, or security software, then restart Web administration on the phone.", qrConnecting: "Connecting with QR credentials…", loadFailed: "Load failed",
-    account: "Account", cash: "Available cash", creditBalance: "Credit account balance", balanceAccounts: "Accounts", deposits: "Deposits", investmentValue: "Investment value", totalAssets: "Total assets", complete: "Complete",
-    settled: "Settled", holding: "Open", name: "Name", note: "Note", currency: "Currency", balance: "Balance", principal: "Principal",
+    account: "Account", cash: "Available cash", creditBalance: "Credit account balance", balanceAccounts: "Accounts", deposits: "Deposits", investmentValue: "Investment value", totalAssets: "Net assets", complete: "Complete",
+    settled: "Settled", depositActive: "Active", name: "Name", note: "Note", currency: "Currency", balance: "Balance", principal: "Principal",
     start: "Start", endDate: "End", annualRate: "Annual rate", status: "Status", quantity: "Quantity", currentPrice: "Current price", marketValue: "Market value", pnl: "P/L",
     accountDetails: "Account details", openDeposit: "Open deposit", editAccount: "Edit account",
  fromDate: "From", toDate: "To", all: "All",
@@ -80,7 +80,7 @@ const copy = {
     monthlyChange: "Change this month", accountDistribution: "Account distribution", assetTypeDistribution: "Asset type distribution", currencyDistribution: "Currency distribution",
     history: "Asset history", staleRecord: "This record changed. Refresh and try again.", staleBalance: "This balance changed. Refresh and try again.",
     currencyLocked: "The currency is locked after use in a trade.", symbolLocked: "The symbol is locked after use in a trade.",
-    insufficientHolding: "Insufficient holding quantity.", invalidFormat: "Check the input format.", saveFailed: "Save failed",
+    insufficientHolding: "Insufficient holding quantity.", invalidFormat: "Check the input format.", saveFailed: "Save failed: {reason}", saveFailedCode: "Save failed (error code {code})",
     cashChange: "Balance adjustment", depositOpen: "Deposit opened", depositClose: "Deposit settled", operation: "Action",
     savingsAccount: "Savings account", creditAccount: "Credit account", creditLimit: "Credit limit", usedLimit: "Used", availableLimit: "Available",
     limitSource: "Limit source", independentLimit: "Independent limit", statementDay: "Statement day", dueRule: "Payment due rule", dueValue: "Rule day/days",
@@ -207,7 +207,7 @@ Object.assign(copy.en, {
 
 const domainMessages = {
   CURRENCY: ["请输入有效币种代码，例如 CNY 或 USD。", "Enter a valid currency code, such as CNY or USD."],
-  PRECISION: ["小数位数过多，请按币种或数量精度调整。", "Too many decimal places. Check currency or quantity precision."],
+  PRECISION: ["小数位过多：金额按币种精度，现价最多 5 位，成交价、份额与利率最多 8 位。", "Too many decimal places. Amounts follow currency precision; current prices allow up to 5, and trade prices, quantities, and rates up to 8."],
   OVERFLOW: ["数值超出支持范围。", "This value exceeds the supported range."],
   POSITIVE: ["请输入大于零的数值。", "Enter a value greater than zero."],
   DATE: ["请检查日期和时间范围。", "Check the date and time range."],
@@ -230,9 +230,25 @@ const domainMessages = {
   CREDIT_SOURCE_CYCLE: ["额度共享关系不能相互引用。", "Credit sources cannot reference each other."],
   HISTORY_CONFLICT: ["此修改与后续记录冲突，请核对交易时间和数量。", "This change conflicts with later records. Check the time and quantity."],
   OPERATION_CONFLICT: ["提交内容与原操作不一致，请刷新核对。", "The submission differs from the original operation. Refresh and review."],
-  NOT_FOUND: ["该记录已不存在，请刷新页面。", "This record is no longer available. Refresh the page."]
+  NOT_FOUND: ["该记录已不存在，请刷新页面。", "This record is no longer available. Refresh the page."],
+  SOURCE_RECORD: ["请修改来源记录，联动现金会同步更新。", "Edit the source record; linked cash will update with it."],
+  PRICE_CONFIRMATION: ["更换币种后，请核对当前价格并勾选确认。", "After changing currency, check the current price and confirm its meaning."],
+  INVALID_ACCOUNT_TYPE: ["账户类型创建后不能直接修改。", "The account type cannot be changed after creation."],
+  CREDIT_LIMIT_IN_USE: ["有其他信用账户正在共享该额度，请先解除关联。", "Other credit accounts share this limit. Unlink them first."],
+  BALANCE_ACCOUNT_IN_USE: ["该子账户存在余额、历史记录或业务关联，无法删除。", "This subaccount has a balance, history, or business link and cannot be deleted."],
+  WALLET_FACE_IN_USE: ["这张卡面正在使用，请先为使用它的卡片更换卡面。", "This card face is in use. Change the face of the cards using it first."],
+  WALLET_FACE_DUPLICATE: ["这张卡面已在卡面库中。", "This card face is already in the library."],
+  WALLET_FACE_LIBRARY_FULL: ["卡面库已满，请先删除不用的卡面。", "The card face library is full. Delete faces you no longer need first."],
+  SESSION_EXPIRED: ["当前数据会话已结束，请刷新页面。", "This data session has ended. Refresh the page."],
+  SESSION_BUSY: ["已有其他浏览器会话正在使用。", "Another browser session is active."],
+  WEB_ADMIN_ACTIVE: ["网页端管理正在进行，请稍后再试。", "Web administration is in progress. Try again later."],
+  MAINTENANCE_ACTIVE: ["手机正在恢复、清空数据或处理文件，请稍后再试。", "The phone is restoring, clearing data, or handling a file. Try again later."]
 };
 Object.entries(domainMessages).forEach(([key, [zh, en]]) => { copy["zh-CN"][key] = zh; copy.en[key] = en; });
+// The names the app gives its account icons (account_icon_labels), for the icon buttons.
+const iconLabels = { "zh-CN": { account_balance: "银行", account_balance_wallet: "账户钱包", credit_card: "信用卡", savings: "储蓄", payments: "付款", wallet: "钱包", trending_up: "增长", show_chart: "图表", monitoring: "投资", business_center: "商务", home: "住宅", apartment: "公寓", storefront: "商店", shopping_bag: "购物", work: "工作", paid: "资金", currency_exchange: "换汇", public: "全球", flight: "旅行", directions_car: "汽车", school: "教育", family_restroom: "家庭", favorite: "收藏", star: "星标" },
+  en: { account_balance: "Bank", account_balance_wallet: "Account wallet", credit_card: "Credit card", savings: "Savings", payments: "Payments", wallet: "Wallet", trending_up: "Growth", show_chart: "Chart", monitoring: "Investments", business_center: "Business", home: "Home", apartment: "Apartment", storefront: "Store", shopping_bag: "Shopping", work: "Work", paid: "Money", currency_exchange: "Exchange", public: "Global", flight: "Travel", directions_car: "Car", school: "Education", family_restroom: "Family", favorite: "Favorite", star: "Star" } };
+const iconLabel = key => (iconLabels[state.locale] || iconLabels["zh-CN"])[key] || key.replaceAll("_", " ");
 
 Object.assign(copy["zh-CN"], {
   updatePrices: "更新价格", priceSearch: "搜索名称或代码", priceChanges: "已修改 {n} 项",
@@ -354,4 +370,4 @@ Object.assign(copy.en, { dividend: "Dividend", deletedInstrumentDividend: "Delet
 // The built-in class is stored under its Chinese name; other classes read as the user named them.
 const DEFAULT_TYPE_NAME = "未分类";
 function typeLabel(name, isDefault = false) { return isDefault || name === DEFAULT_TYPE_NAME ? t("uncategorized") : name; }
-export { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion, typeLabel };
+export { el, clear, fmt, fmtPrice, fmtQuantity, when, epochDay, gainClass, accountName, uuid, restoreSessionCredentials, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t, motion, typeLabel, iconLabel };

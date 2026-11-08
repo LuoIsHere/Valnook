@@ -25,7 +25,7 @@
     <string name="account_name">名称</string>
     <string name="account_note">备注</string>
     <string name="account_balance_accounts">账户</string>
-    <string name="account_balance_name">账户名称</string>
+    <string name="account_balance_name">子账户名称</string>
     <string name="account_type">账户类型</string>
     <string name="account_type_savings">储蓄</string>
     <string name="account_type_credit">信用</string>
@@ -41,12 +41,12 @@
     <string name="account_credit_usage">已用 %1$s / %2$s %3$s</string>
     <string name="account_credit_over_limit">已超出信用额度 %1$s %2$s</string>
     <string name="account_balance">余额</string>
-    <string name="account_cancel_balance_account">取消此账户</string>
+    <string name="account_cancel_balance_account">放弃新增子账户</string>
     <string name="account_delete_balance_account">删除账户</string>
     <string name="account_delete_title">删除这个账户？</string>
     <string name="account_delete_message">仅可删除余额为零，且没有流水、存单、交易关联或共享额度成员的空账户。</string>
     <string name="account_delete_confirm">删除</string>
-    <string name="account_add_balance_account">＋ 添加账户</string>
+    <string name="account_add_balance_account">＋ 添加子账户</string>
     <string name="account_review_retry">核对并重试</string>
     <string name="account_save">保存</string>
     <string name="account_unknown_result">保存结果待确认，请重试；不会重复记账。</string>

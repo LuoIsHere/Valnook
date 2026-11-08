@@ -1,4 +1,4 @@
-import { $, state, t, el } from "./core.js";
+import { $, state, t, el, iconLabel } from "./core.js";
 import { staticPhotoSize } from "./photo-validation.js";
 import { symbols, uiSymbols } from "./symbols.js";
 
@@ -85,7 +85,7 @@ export function iconPicker(current) {
     preview.addEventListener("pointermove", move); preview.addEventListener("lostpointercapture", end);
   });
   const grid = el("div", { class: "symbol-grid", role: "group", "aria-label": t("icon") },
-    Object.keys(symbols).map(key => el("button", { type: "button", "aria-label": key.replaceAll("_", " "), title: key.replaceAll("_", " "), "aria-pressed": String((current?.value || "account_balance") === key), onclick: event => {
+    Object.keys(symbols).map(key => el("button", { type: "button", "aria-label": iconLabel(key), title: iconLabel(key), "aria-pressed": String((current?.value || "account_balance") === key), onclick: event => {
       imageVersion++; processing = false; change = { type: "SYMBOL", value: key }; bitmap = null;
       preview.hidden = slider.hidden = true; currentAvatar.hidden = false; currentAvatar.replaceChildren(symbol(key));
       grid.querySelectorAll("button").forEach(v => v.setAttribute("aria-pressed", String(v === event.currentTarget)));

@@ -3,7 +3,7 @@
     <string name="backup_description">创建离线可携带备份、从已验证备份覆盖当前数据，或导出分析工作簿。</string>
     <string name="backup_demo_description">演示模式只能导出当前合成演示数据工作簿。</string>
     <string name="backup_create_local">创建本地备份</string>
-    <string name="backup_restore">导入备份</string>
+    <string name="backup_restore">从备份恢复</string>
     <string name="backup_export_excel">导出 Excel</string>
     <string name="backup_export_demo_excel">导出演示 Excel</string>
     <string name="backup_saved_verified">已保存并复核：%1$s</string>
@@ -42,7 +42,7 @@
     <string name="cloud_refresh">刷新</string>
     <string name="cloud_automatic">自动备份</string>
     <string name="cloud_paused_after_restore">恢复后已暂停</string>
-    <string name="cloud_resume_automatic">恢复自动备份</string>
+    <string name="cloud_resume_automatic">重新开启自动备份</string>
     <string name="cloud_interval_hours">备份间隔（小时）</string>
     <string name="cloud_save_interval">保存</string>
     <string name="cloud_latest_result">最近结果</string>

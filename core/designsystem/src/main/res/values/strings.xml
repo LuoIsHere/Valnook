@@ -35,7 +35,6 @@
     <string name="trade_edit_hint">Holdings and linked cash update by the difference. The current price stays unchanged.</string>
     <string name="error_record_stale">This record was changed or deleted. Go back and refresh before editing.</string>
     <string name="error_source_record">Edit the source record; linked cash will update with it.</string>
-    <string name="accounts">Accounts</string>
     <string name="add_account">Add account</string>
     <string name="edit_account">Edit account</string>
     <string name="name">Name</string>
@@ -109,7 +108,7 @@
     <string name="error_conflict">The operation ID conflicts with another request. Go back and review records.</string>
     <string name="error_closed">The deposit is already settled and cannot return funds again.</string>
     <string name="error_maturity">The deposit has not matured and cannot be settled yet.</string>
-    <string name="error_precision">Too many decimal places. Amounts follow currency precision; prices, quantities, and rates allow up to eight.</string>
+    <string name="error_precision">Too many decimal places. Amounts follow currency precision; current prices allow up to 5, and trade prices, quantities, and rates up to 8.</string>
     <string name="error_overflow">The value is too large to save. Use a smaller value.</string>
     <string name="error_name">Name is required and must be at most 200 characters.</string>
     <string name="error_type">This class already exists. Choose the existing class.</string>

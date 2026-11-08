@@ -35,7 +35,6 @@
     <string name="trade_edit_hint">修改后持仓与联动现金按差额调整，当前价格不变。</string>
     <string name="error_record_stale">记录已被修改或删除，请返回刷新后再编辑。</string>
     <string name="error_source_record">请修改来源记录，联动现金会同步更新。</string>
-    <string name="accounts">储蓄账户</string>
     <string name="add_account">添加账户</string>
     <string name="edit_account">编辑账户</string>
     <string name="name">名称</string>
@@ -109,7 +108,7 @@
     <string name="error_conflict">请求标识冲突，请返回核对记录。</string>
     <string name="error_closed">存单已经结束，不能再次回款。</string>
     <string name="error_maturity">存单尚未到期，暂不能结束。</string>
-    <string name="error_precision">小数位超出限制：金额按币种精度，单价、份额与利率最多八位。</string>
+    <string name="error_precision">小数位过多：金额按币种精度，现价最多 5 位，成交价、份额与利率最多 8 位。</string>
     <string name="error_overflow">数值超出可保存范围，请减小输入。</string>
     <string name="error_name">名称必填，且不得超过 200 字。</string>
     <string name="error_type">该类型已存在，请选择已有类型。</string>

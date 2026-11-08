@@ -12,7 +12,6 @@
     <string name="investment_total_value">Total investment value</string>
     <string name="investment_total_unrealized">Unrealized P/L</string>
     <string name="investment_total_realized">Realized P/L to date</string>
-    <string name="investment_current_fx_hint">Totals use currently configured rates. Unconfigured currency pairs use 1. These figures do not represent historical FX gains.</string>
     <string name="investment_no_holdings_summary">No current holdings. Historical realized P/L is still included.</string>
     <string name="investment_open_account">View %1$s holdings and records</string>
     <string name="investment_realized_value">Realized P/L %1$s</string>
@@ -94,7 +93,7 @@
     <string name="instrument_delete_confirm">Delete</string>
     <string name="instrument_delete_simple">Delete “%1$s”? It has no trades.</string>
     <string name="instrument_delete_scope">Removes its positions in %1$d account(s), %2$d trade(s) and %3$d price record(s).</string>
-    <string name="instrument_delete_value">Its current market value of %1$s leaves your total assets.</string>
+    <string name="instrument_delete_value">Its current value of %1$s will be removed from your net assets.</string>
     <string name="instrument_delete_cash">Its %1$d cash entries stay and balances do not change; past statistics are recalculated.</string>
     <string name="instrument_delete_code">Confirmation code: %1$s</string>
     <string name="instrument_delete_code_input">Enter the code</string>

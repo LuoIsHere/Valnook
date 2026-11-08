@@ -302,7 +302,7 @@ async function accountDetail(id, returnState = null) {
   const depositRows = data.deposits.map(v => el("tr", { "data-clickable": "true", onclick: () => depositForm(v, null, savingsCash) },
     el("td", { text: v.currencyCode }), el("td", { class: "numeric", text: fmt(v.principal, v.currencyCode) }),
     el("td", { text: v.startDate }), el("td", { text: v.endDate }),
-    el("td", { class: "numeric", text: `${fmt(v.annualRatePercent)}%` }), el("td", { text: v.closed ? t("settled") : t("holding") })));
+    el("td", { class: "numeric", text: `${fmt(v.annualRatePercent)}%` }), el("td", { text: v.closed ? t("settled") : t("depositActive") })));
   // Positions whose trades were all deleted are neither held nor closed; the app hides them too.
   const positionRows = data.positions.filter(v => Number(v.quantity) > 0 || v.closed === true).map(v => el("tr", { "data-clickable": "true", onclick: () => positionDetail(v.id) },
     el("td", {}, el("strong", { text: v.name }), el("div", { class: "subtle", text: v.symbol })),
@@ -871,7 +871,7 @@ async function saveForm(buttonNode, errorNode, path, method, body) {
 }
 function errorMessage(error) {
   const labels = { STALE_RECORD: t("staleRecord"), STALE_BALANCE: t("staleBalance"), CURRENCY_LOCKED: t("currencyLocked"), SYMBOL_LOCKED: t("symbolLocked"), INSUFFICIENT_HOLDING: t("insufficientHolding"), FORMAT: t("invalidFormat") };
-  return labels[error.code] || (error.code && t(error.code) !== error.code ? t(error.code) : null) || `${t("saveFailed")}: ${error.code || error.message}`;
+  return labels[error.code] || (error.code && t(error.code) !== error.code ? t(error.code) : null) || (error.code ? t("saveFailedCode").replace("{code}", error.code) : t("saveFailed").replace("{reason}", error.message));
 }
 let toastTimer, drawerOrigin, drawerCycle = 0, toastCycle = 0;
 function captureDrawerParent() {

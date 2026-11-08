@@ -48,7 +48,7 @@
     <string name="settings_color_loss">亏损 -100.00</string>
     <string name="settings_color_zero">零值 0.00</string>
     <string name="settings_clear_warning">此操作无法在应用内撤销。</string>
-    <string name="settings_clear_scope">将清空账户、现金账户、存单、标的、持仓、交易、主币种和汇率；语言与涨跌配色会保留。</string>
+    <string name="settings_clear_scope">将清空全部账户与子账户、存单、标的、持仓与交易、价格历史、资产类型、账户分类与图标、卡包卡片与卡面（含卡片背面私密内容）、主币种、汇率和修改历史，并关闭自动获取汇率。语言、主题、涨跌配色和导航栏设置会保留。</string>
     <string name="settings_clear_input">请准确输入确认串</string>
     <string name="settings_clear_failed">清空失败，原数据仍保持一致，请重试。</string>
     <string name="settings_clearing">正在清空</string>

@@ -155,7 +155,7 @@ internal class SpreadsheetWriter(
             sheet.row(text(label(english, "信用账户余额", "Credit account balance")), decimal(valuation.creditBalance.amount), text(base))
             sheet.row(text(label(english, "未结束存单本金", "Open deposit principal")), decimal(valuation.depositValue.amount), text(base))
             sheet.row(text(label(english, "当前投资市值", "Current investment value")), decimal(valuation.investmentValue.amount), text(base))
-            sheet.row(text(label(english, "总资产", "Total assets")), decimal(valuation.total.amount), text(base))
+            sheet.row(text(label(english, "净资产", "Net assets")), decimal(valuation.total.amount), text(base))
             sheet.row(text(label(english, "主账户数", "Account count")), number(snapshot.accounts.size.toString()))
             sheet.row(text(label(english, "子账户数", "Balance account count")), number(snapshot.cash.size.toString()))
             sheet.row(text(label(english, "储蓄账户数", "Savings account count")),

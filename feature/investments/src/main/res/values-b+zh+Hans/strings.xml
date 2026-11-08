@@ -12,7 +12,6 @@
     <string name="investment_total_value">总投资市值</string>
     <string name="investment_total_unrealized">浮动盈亏</string>
     <string name="investment_total_realized">累计已实现盈亏</string>
-    <string name="investment_current_fx_hint">汇总按当前设置的汇率折算；未设置的币种对按 1 折算，不代表历史汇兑收益。</string>
     <string name="investment_no_holdings_summary">暂无持仓，历史已实现盈亏仍参与汇总</string>
     <string name="investment_open_account">查看 %1$s 持仓与记录</string>
     <string name="investment_realized_value">已实现盈亏 %1$s</string>
@@ -92,7 +91,7 @@
     <string name="instrument_delete_confirm">删除</string>
     <string name="instrument_delete_simple">确定删除「%1$s」吗？它没有交易记录。</string>
     <string name="instrument_delete_scope">将删除它在 %1$d 个账户中的持仓、%2$d 笔交易记录和 %3$d 条历史价格。</string>
-    <string name="instrument_delete_value">当前持有市值 %1$s 将从总资产中移除。</string>
+    <string name="instrument_delete_value">当前市值 %1$s 将从净资产中移除。</string>
     <string name="instrument_delete_cash">交易产生的 %1$d 条现金流水会保留，现金余额不变；历史统计会重新计算。</string>
     <string name="instrument_delete_code">确认码：%1$s</string>
     <string name="instrument_delete_code_input">输入确认码</string>

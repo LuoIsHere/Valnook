@@ -25,7 +25,7 @@
     <string name="account_name">Name</string>
     <string name="account_note">Note</string>
     <string name="account_balance_accounts">Accounts</string>
-    <string name="account_balance_name">Account name</string>
+    <string name="account_balance_name">Subaccount name</string>
     <string name="account_type">Account type</string>
     <string name="account_type_savings">Savings</string>
     <string name="account_type_credit">Credit</string>
@@ -41,12 +41,12 @@
     <string name="account_credit_usage">Used %1$s / %2$s %3$s</string>
     <string name="account_credit_over_limit">Over limit %1$s %2$s</string>
     <string name="account_balance">Balance</string>
-    <string name="account_cancel_balance_account">Cancel this account</string>
+    <string name="account_cancel_balance_account">Discard new subaccount</string>
     <string name="account_delete_balance_account">Delete account</string>
     <string name="account_delete_title">Delete this account?</string>
     <string name="account_delete_message">Only an empty account with no balance, history, linked deposits, trades, or shared-limit members can be deleted.</string>
     <string name="account_delete_confirm">Delete</string>
-    <string name="account_add_balance_account">+ Add account</string>
+    <string name="account_add_balance_account">+ Add subaccount</string>
     <string name="account_review_retry">Review and retry</string>
     <string name="account_save">Save</string>
     <string name="account_unknown_result">Save result not yet confirmed. Retry safely without creating a duplicate.</string>
