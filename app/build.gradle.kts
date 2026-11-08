@@ -12,6 +12,30 @@ val releaseVersion = Properties().apply {
     rootProject.file("version.properties").inputStream().use { load(it) }
 }
 
+/**
+ * The commit's date and its place among that day's commits, such as 20261108.3. Backups record it and are refused
+ * by a build with a smaller one, so it must be the same for every build of one commit and rise with history: the
+ * date is the commit's own (in the time zone it was made in), not the day of building. Without git, the value in
+ * version.properties. A shallow clone counts only the commits it has, so release builds need the day's history.
+ */
+val internalBuildId: String = run {
+    val dates = runCatching {
+        val log = providers.exec {
+            commandLine("git", "log", "--format=%cd", "--date=format:%Y%m%d", "HEAD")
+            workingDir = rootDir
+            isIgnoreExitValue = true
+        }
+        if (log.result.get().exitValue == 0) log.standardOutput.asText.get().lines().filter { it.isNotBlank() } else null
+    }.getOrNull()
+    val day = dates?.firstOrNull()
+    if (day == null) {
+        logger.warn("Valnook: git history unavailable; internal build falls back to version.properties")
+        releaseVersion.getProperty("build.id")
+    } else {
+        "$day.${dates.count { it == day }}"
+    }
+}
+
 // Public application registration values; no client secret belongs in an Android client.
 val microsoftClientId = providers.gradleProperty("valnook.microsoft.clientId")
     .orElse("397cfb5c-e171-4b47-a3a2-fc0f6513a447")
@@ -29,7 +53,7 @@ android {
         targetSdk = 36
         versionCode = releaseVersion.getProperty("version.code").toInt()
         versionName = releaseVersion.getProperty("version.name")
-        buildConfigField("String", "INTERNAL_BUILD_ID", "\"${releaseVersion.getProperty("build.id")}\"")
+        buildConfigField("String", "INTERNAL_BUILD_ID", "\"$internalBuildId\"")
 
         buildConfigField("String", "MICROSOFT_CLIENT_ID", "\"${microsoftClientId.get()}\"")
         testInstrumentationRunner = "dev.valnook.app.HiltTestRunner"
