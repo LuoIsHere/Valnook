@@ -24,6 +24,13 @@ interface TradeDao {
         (SELECT id FROM investments WHERE instrument_id=:instrumentId)
         AND (occurred_at_ms < :time OR (occurred_at_ms = :time AND id < :id)) ORDER BY occurred_at_ms DESC,id DESC LIMIT :limit""")
     suspend fun nextInstrumentTrades(instrumentId: Long, time: Long, id: Long, limit: Int): List<TradeEntity>
+    /** One month across every account, bounded by the month so nothing older is read. */
+    @Query("""SELECT * FROM investment_trades WHERE is_deleted=0 AND investment_id IN
+        (SELECT id FROM investments WHERE instrument_id=:instrumentId)
+        AND occurred_at_ms>=:startMs AND occurred_at_ms<:endMs
+        AND (:time IS NULL OR occurred_at_ms<:time OR (occurred_at_ms=:time AND id<:id))
+        ORDER BY occurred_at_ms DESC,id DESC LIMIT :size""")
+    suspend fun instrumentMonthPage(instrumentId: Long, startMs: Long, endMs: Long, time: Long?, id: Long?, size: Int): List<TradeEntity>
     @Insert suspend fun insert_trade(value: TradeEntity): Long
     @Query("SELECT * FROM investment_trades WHERE id=:id")
     suspend fun trade(id: Long): TradeEntity?

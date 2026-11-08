@@ -111,6 +111,26 @@ class InvestmentsViewModelTest {
         assertEquals(0,java.math.BigDecimal("12.5").compareTo(totals.unrealizedPercent))
         assertEquals("106.6666666667",totals.average!!.toPlainString())
     }
+    @Test fun instrument_page_reads_the_snapshot_once_and_shows_a_failed_read()=runTest(dispatcher) {
+        var reads=0
+        val base=overview(held(1,10,"10","1000"))
+        val counting=object:OverviewRepository by base {
+            override fun observeSnapshot()=flow { reads++; emit(base.snapshot()) }
+        }
+        val vm=InstrumentDetailViewModel(1,counting,repo,instruments,SavedStateHandle(),clock)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){vm.state.collect()}
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){vm.trades.collect()}
+        vm.state.first{it!=InstrumentDetailState.Loading}
+        // The page and its account filter share one read.
+        assertEquals(1,reads)
+        val failing=object:OverviewRepository by base {
+            override fun observeSnapshot()=flow<AssetSnapshot> { throw java.io.IOException("synthetic") }
+        }
+        val broken=InstrumentDetailViewModel(1,failing,repo,instruments,SavedStateHandle(),clock)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){broken.state.collect()}
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)){broken.trades.collect()}
+        assertEquals(InstrumentDetailState.Failed,broken.state.first{it!=InstrumentDetailState.Loading})
+    }
     @Test fun instrument_trades_page_all_accounts_or_one_and_stop_when_hidden()=runTest(dispatcher) {
         var active=0
         val cursors=mutableListOf<TradeCursor?>()

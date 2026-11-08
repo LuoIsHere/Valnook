@@ -12,6 +12,10 @@ class RoomInvestments(private val db: ValnookDatabase) : InvestmentRepository {
     override suspend fun tradeMonthPage(positionId: Long, month: LedgerMonth, cursor: TradeCursor?, size: Int) =
         db.trades().monthPage(positionId, month.startMs, month.endMs, cursor?.occurred_at_ms, cursor?.id, size.coerceIn(1,100)).map { it.toModel() }
 
+    override suspend fun instrumentTradeMonthPage(instrumentId: Long, month: LedgerMonth, cursor: TradeCursor?, size: Int) =
+        db.trades().instrumentMonthPage(instrumentId, month.startMs, month.endMs, cursor?.occurred_at_ms, cursor?.id,
+            size.coerceIn(1, 100)).map { it.toModel() }
+
     override fun observe_trade(account_id: Long, id: Long) =
         db.trades().observe_trade(account_id, id).map { it?.toModel() }
 

@@ -57,9 +57,12 @@ class InstrumentDetailViewModel(val instrumentId: Long, overview: OverviewReposi
     fun selectMonth(value: YearMonth) { saved["ledgerMonth"] = value.toString() }
     fun selectAccount(id: Long?) { saved["accountFilter"] = id }
 
-    private val snapshots = overview.observeSnapshot()
+    // Read once per change for both the page and the account filter. A failure travels as a value: shared flows
+    // do not pass errors on, and the page shows it as Failed.
+    private val snapshots = overview.observeSnapshot().map { Result.success(it) }.catch { emit(Result.failure(it)) }
+        .shareIn(viewModelScope, SharingStarted.WhileSubscribed(0), replay = 1)
 
-    val state: StateFlow<InstrumentDetailState> = combine(snapshots,
+    val state: StateFlow<InstrumentDetailState> = combine(snapshots.map { it.getOrThrow() },
         instruments.observePriceHistory(instrumentId).catch { emit(emptyList()) },
         investments.observeInstrumentDividends(instrumentId).catch { emit(0L) }) { snapshot, prices, dividends ->
         build(snapshot, prices, dividends)
@@ -97,7 +100,7 @@ class InstrumentDetailViewModel(val instrumentId: Long, overview: OverviewReposi
     }
 
     /** The filtered account's position; [NO_POSITION] when it has none, so nothing is shown. */
-    private val source = combine(accountFilter, snapshots) { filter, snapshot ->
+    private val source = combine(accountFilter, snapshots.mapNotNull { it.getOrNull() }) { filter, snapshot ->
         filter?.let { id -> snapshot.positions.firstOrNull { it.instrumentId == instrumentId && it.account_id == id }?.id ?: NO_POSITION }
     }.distinctUntilChanged()
 
