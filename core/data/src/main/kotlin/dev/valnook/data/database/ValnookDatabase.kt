@@ -53,9 +53,15 @@ abstract class ValnookDatabase : RoomDatabase() {
                 db.execSQL("INSERT INTO cloud_backup_state(id,account_reference,account_display,folder_id,connection_generation,automatic_enabled,interval_hours,pause_reason,schedule_generation,next_due_at_utc_ms,scheduled_cycle_id,attempt_state,latest_error,last_attempt_at_utc_ms,last_success_at_utc_ms,cleanup_incomplete,pending_banner_event_id,pending_banner_error,observed_restore_attempt_id,updated_at_ms) VALUES (1,NULL,NULL,NULL,1,0,24,'NONE',1,NULL,NULL,'IDLE',NULL,NULL,NULL,0,NULL,NULL,NULL,?)", arrayOf(now))
             }
         }
-        /** Every opening, after creation and migrations: databases from before the default class get it here. */
+        /**
+         * Every opening, after creation and migrations: databases from before the default class get it here, and a
+         * restore cut short by a crash or a kill no longer holds the maintenance flag, as nothing restores yet.
+         */
         val defaults = object : Callback() {
-            override fun onOpen(db: SupportSQLiteDatabase) { ensureDefaultAssetType(db, System.currentTimeMillis()) }
+            override fun onOpen(db: SupportSQLiteDatabase) {
+                ensureDefaultAssetType(db, System.currentTimeMillis())
+                db.execSQL("UPDATE local_maintenance_state SET maintenance_in_progress=0 WHERE maintenance_in_progress<>0")
+            }
         }
         fun open(context: Context): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")

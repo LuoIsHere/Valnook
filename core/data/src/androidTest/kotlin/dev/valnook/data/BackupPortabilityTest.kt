@@ -44,6 +44,7 @@ import java.security.MessageDigest
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import dev.valnook.data.portability.BackupContract
@@ -377,6 +378,48 @@ class BackupPortabilityTest {
             }
         }
     }
+
+    @Test fun a_cancelled_restore_clears_the_maintenance_flag() = runBlocking {
+        val source = database("cancel-source")
+        RoomFinancialCommands(source, clock).testAccount("replacement")
+        val packageOutput = ByteArrayOutputStream()
+        engine(source).createBackup(UUID.randomUUID().toString(), packageOutput) {}
+        val target = database("cancel-target")
+        RoomFinancialCommands(target, clock).testAccount("keep")
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(packageOutput.toByteArray()), "cancel.val_backup") {}
+        try {
+            // Leaving the backup page cancels the restore part way.
+            var job: kotlinx.coroutines.Job? = null
+            val importer = RestoreImporter(target, clock) { point -> if (point == RestorePoint.AFTER_CLEAR) job!!.cancel() }
+            job = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                importer.commit(staged, staged.generationAtPreview)
+            }
+            job.start()
+            job.join()
+            assertTrue(job.isCancelled)
+            assertEquals(listOf("keep"), RoomOverview(target).snapshot().accounts.map { it.name })
+            assertEquals(0, maintenanceFlag(target))
+        } finally {
+            targetEngine.close(staged)
+        }
+    }
+
+    @Test fun opening_the_database_clears_a_flag_left_by_a_killed_restore() = runBlocking {
+        val name = "killed-${UUID.randomUUID()}.db"
+        val first = Room.databaseBuilder(context, ValnookDatabase::class.java, name)
+            .addCallback(ValnookDatabase.seed).addCallback(ValnookDatabase.defaults).build()
+        first.audit().setMaintenance(true, clock.millis())
+        assertEquals(1, maintenanceFlag(first))
+        first.close()
+        // Opened again as on the next launch, before anything restores.
+        val again = Room.databaseBuilder(context, ValnookDatabase::class.java, name)
+            .addCallback(ValnookDatabase.seed).addCallback(ValnookDatabase.defaults).build()
+        try { assertEquals(0, maintenanceFlag(again)) } finally { again.close(); context.deleteDatabase(name) }
+    }
+
+    private fun maintenanceFlag(db: ValnookDatabase): Int = db.openHelper.readableDatabase.query(
+        "SELECT maintenance_in_progress FROM local_maintenance_state WHERE id=1").use { it.moveToFirst(); it.getInt(0) }
 
     @Test fun compatibility_uses_numeric_versions_and_rejects_unknown_required_features() {
         val reader = buildInfo()

@@ -1,5 +1,7 @@
 package dev.valnook.data.portability
 
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
@@ -72,7 +74,8 @@ internal class RestoreImporter(
                 ))
             }
         } catch (error: Exception) {
-            runCatching { target.audit().setMaintenance(false, clock.millis()) }
+            // Also when cancelled (leaving the backup page): a cancelled coroutine cannot suspend for Room otherwise.
+            withContext(NonCancellable) { runCatching { target.audit().setMaintenance(false, clock.millis()) } }
             throw error
         }
         val generation = target.audit().generation()
