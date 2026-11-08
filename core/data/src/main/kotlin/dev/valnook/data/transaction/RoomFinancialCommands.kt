@@ -75,7 +75,6 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is DeleteInstrument -> instrumentDeletion.delete(command, now)
                 is SaveInstrument -> instruments.save(command, now)
                 is UpdateInstrumentPrices -> instruments.updatePrices(command, now)
-                is EditInstrumentPrice -> instruments.editPrice(command, now)
                 is CreateInvestmentPosition -> positions.create(command, now)
                 is SetCashBalance -> accounts.setBalance(command, now)
                 is EditCashEntry -> accounts.editEntry(command, now)
@@ -111,11 +110,6 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 val old = command.instrumentId?.let { db.instruments().instrument(it) }
                 if (old == null || old.current_price_e5 != command.currentPriceE5 ||
                     old.currency_code != command.currencyCode) day(now) else null
-            }
-            is EditInstrumentPrice -> {
-                val old = db.statistics().price(command.priceRecordId)
-                    ?: throw DomainException(ErrorCode.NOT_FOUND)
-                minOf(day(old.effective_at_ms), day(command.effectiveAtMs)).coerceAtLeast(baseline)
             }
             is SaveAccount -> if (command.cashChanges.any { row ->
                 row.includeInAvailableCash != null && row.cashAccountId?.let { db.cash().cashAccount(it)?.include_in_available_cash } != row.includeInAvailableCash

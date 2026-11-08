@@ -107,9 +107,10 @@ class BackupPortabilityTest {
         sourceCommands.execute(RecordInvestmentTrade(testOperationId(), sharedPositionId, Direction.SELL,
             10_000_000L, 101_000_000_00L, clock.millis() - 36_000_000L, false, fee_minor = 7))
         val sharedPriceOperation = testOperationId()
-        val price = source.statistics().prices().single { it.instrument_id == instrumentId }
-        sourceCommands.execute(EditInstrumentPrice(sharedPriceOperation, price.id, price.revision,
-            1_500_000_00L, clock.millis() - 1_000L))
+        // A price update reaches every account holding the instrument.
+        val instrument = requireNotNull(source.instruments().instrument(instrumentId))
+        sourceCommands.execute(UpdateInstrumentPrices(sharedPriceOperation,
+            listOf(InstrumentPriceChange(instrumentId, instrument.revision, 1_500_000_00L))))
         source.openHelper.readableDatabase.query(
             """SELECT COUNT(*) FROM audit_event_accounts a JOIN audit_events e ON e.event_id=a.event_id
                 WHERE e.operation_id=?""", arrayOf(sharedPriceOperation)

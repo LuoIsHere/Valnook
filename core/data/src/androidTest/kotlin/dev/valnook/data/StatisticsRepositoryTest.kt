@@ -7,7 +7,6 @@ import dev.valnook.data.repository.RoomStatistics
 import dev.valnook.data.repository.RoomSettings
 import dev.valnook.data.transaction.RoomFinancialCommands
 import dev.valnook.domain.model.*
-import dev.valnook.domain.repository.EditInstrumentPrice
 import dev.valnook.domain.repository.SaveFinancialSettings
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
@@ -412,19 +411,6 @@ class StatisticsRepositoryTest {
         val series = RoomStatistics(db, clock).loadSeries(StatisticsRequest(StatisticsMetric.TOTAL_ASSETS,
             StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10)))
         decimal("330", requireNotNull(series.points[0].value))
-    }
-
-    @Test fun correctingHistoricalPriceInvalidatesItsControlRangeWithoutChangingLaterPrice() = runBlocking {
-        val repository = RoomStatistics(db, clock)
-        val request = StatisticsRequest(StatisticsMetric.INVESTMENT_VALUE,
-            StatisticsPeriod(StatisticsGranularity.DAILY, 2026, 10))
-        decimal("200", requireNotNull(repository.loadSeries(request).points[0].value))
-        val old = db.statistics().prices().first { it.price_e5 == 10_000_000L }
-        RoomFinancialCommands(db, clock).execute(EditInstrumentPrice(UUID.randomUUID().toString(),
-            old.id, old.revision, 9_000_000, old.effective_at_ms))
-        val corrected = repository.loadSeries(request)
-        decimal("180", requireNotNull(corrected.points[0].value))
-        decimal("240", requireNotNull(corrected.points[1].value))
     }
 
     @Test fun allHistoricalPointsUseCurrentManualRateAndMissingRateIsLeftOut() = runBlocking {

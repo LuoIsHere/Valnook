@@ -72,18 +72,4 @@ internal class InstrumentCommandHandler(private val db: ValnookDatabase, private
         }
         return OperationResult("INSTRUMENT_PRICES", 0)
     }
-
-    suspend fun editPrice(command: EditInstrumentPrice, now: Long): OperationResult {
-        val old = db.statistics().price(command.priceRecordId) ?: throw DomainException(ErrorCode.NOT_FOUND)
-        if (old.is_deleted || old.revision != command.expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
-        R.check_nonnegative(command.priceE5)
-        if (db.statistics().editPrice(old.id, old.revision, command.priceE5, command.effectiveAtMs, now) != 1) {
-            throw DomainException(ErrorCode.STALE_RECORD)
-        }
-        val latest = db.statistics().latestPrice(old.instrument_id, now)
-        if (latest != null) db.instruments().updateCurrentPriceFromHistory(old.instrument_id,
-            latest.price_e5, latest.effective_at_ms, now)
-        fault(TransactionPoint.AFTER_BUSINESS)
-        return OperationResult("INSTRUMENT_PRICE", old.id)
-    }
 }

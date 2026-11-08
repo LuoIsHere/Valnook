@@ -72,13 +72,6 @@ interface StatisticsDao {
         ORDER BY effective_at_ms DESC,id DESC""")
     fun pricesNewestFirst(instrumentId: Long): Flow<List<InstrumentPriceEntity>>
 
-    @Query("SELECT * FROM instrument_price_history WHERE id=:id")
-    suspend fun price(id: Long): InstrumentPriceEntity?
-
-    @Query("""UPDATE instrument_price_history SET price_e5=:price,effective_at_ms=:effective,
-        revision=revision+1,updated_at_ms=:now WHERE id=:id AND revision=:expectedRevision AND is_deleted=0""")
-    suspend fun editPrice(id: Long, expectedRevision: Long, price: Long, effective: Long, now: Long): Int
-
     @Query("""SELECT * FROM instrument_price_history WHERE instrument_id=:instrumentId AND is_deleted=0
         AND effective_at_ms<=:now ORDER BY effective_at_ms DESC,id DESC LIMIT 1""")
     suspend fun latestPrice(instrumentId: Long, now: Long): InstrumentPriceEntity?

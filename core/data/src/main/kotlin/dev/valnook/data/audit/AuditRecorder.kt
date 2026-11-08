@@ -132,7 +132,6 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is DeleteAccount, is DeleteInstrument -> null
         is SaveInstrument -> command.instrumentId?.let { "instruments" to it }
         is UpdateInstrumentPrices -> null
-        is EditInstrumentPrice -> "instrument_price_history" to command.priceRecordId
         is CreateInvestmentPosition -> null
         is SetCashBalance -> null
         is EditCashEntry -> "cash_entries" to command.entry_id
@@ -199,7 +198,6 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is UpdateInstrumentPrices -> command.changes.forEach {
                 accountsForInstrument(it.instrumentId).forEach(accounts::add)
             }
-            is EditInstrumentPrice -> accountsForPrice(result.id).forEach(accounts::add)
             is SaveAssetType -> accountsForType(result.id).forEach(accounts::add)
             is DeleteAssetType -> Unit
             is CreateInvestmentPosition -> accounts.add(command.accountId)
@@ -236,10 +234,6 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
 
     private fun accountsForInstrument(id: Long): Set<Long> = scalarLongSet(
         "SELECT DISTINCT savings_account_id FROM investments WHERE instrument_id=?", id)
-
-    private fun accountsForPrice(id: Long): Set<Long> = scalarLongSet(
-        """SELECT DISTINCT p.savings_account_id FROM instrument_price_history h
-            JOIN investments p ON p.instrument_id=h.instrument_id WHERE h.id=?""", id)
 
     private fun accountsForType(id: Long): Set<Long> = scalarLongSet(
         """SELECT DISTINCT p.savings_account_id FROM investments p

@@ -79,9 +79,6 @@ data class SaveInstrument(override val operation_id: String, val instrumentId: L
 data class DeleteInstrument(override val operation_id: String, val instrumentId: Long, val expectedRevision: Long,
     val confirmation: DeletionConfirmation? = null) : FinancialCommand
 
-data class EditInstrumentPrice(override val operation_id: String, val priceRecordId: Long,
-    val expectedRevision: Long, val priceE5: Long, val effectiveAtMs: Long) : FinancialCommand
-
 data class InstrumentPriceChange(val instrumentId: Long, val expectedRevision: Long, val priceE5: Long)
 /**
  * [recordUnchanged]: a price saved by hand counts as an update even when it is the same, so it is dated now and
