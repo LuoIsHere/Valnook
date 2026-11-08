@@ -74,6 +74,8 @@ private enum class Picking { BUY, SELL, DIVIDEND }
     contextAccountId: Long?, onTitleReserve: (Int) -> Unit, onTrade: (Long, Long) -> Unit,
     onBuy: (Long, Long?) -> Unit, onSell: (Long, Long) -> Unit, onDividend: (Long, Long) -> Unit) {
     val trades by vm.trades.collectAsStateWithLifecycle()
+    // Grouped once per page of trades, not on every recomposition while the header scrolls.
+    val tradeDays = remember(trades.rows) { trades.rows.groupBy { it.localDate() } }
     val priceEditor by vm.priceEditor.collectAsStateWithLifecycle()
     val month by vm.month.collectAsStateWithLifecycle()
     val filter by vm.accountFilter.collectAsStateWithLifecycle()
@@ -131,7 +133,7 @@ private enum class Picking { BUY, SELL, DIVIDEND }
                 }
             }
             // One card per day, newest first, as the pages arrive.
-            trades.rows.groupBy { it.localDate() }.forEach { (date, rows) ->
+            tradeDays.forEach { (date, rows) ->
                 item("day-$date") { TradeDay(date, rows, accountNames) { trade ->
                     accountNames[trade.investment_id]?.let { onTrade(it.id, trade.id) } } }
             }
@@ -187,7 +189,7 @@ private enum class Picking { BUY, SELL, DIVIDEND }
                         style = small, color = muted, maxLines = 1)
                     else {
                         Text(stringResource(R.string.investment_unrealized), style = small, color = muted, maxLines = 1)
-                        val percent = totals.unrealizedPercent?.let { " (" + (if (it.signum() > 0) "+" else "") +
+                        val percent = totals.unrealizedPercent?.let { " (" + (if (displayedSign(it, 2) > 0) "+" else "") +
                             it.setScale(2, RoundingMode.HALF_UP).toPlainString() + "%)" }.orEmpty()
                         Text(signed(totals.unrealized, currency) + percent, style = small.copy(fontFeatureSettings = "tnum"),
                             color = profitColor(displayedSign(totals.unrealized, currency.fraction_digits)), maxLines = 1)

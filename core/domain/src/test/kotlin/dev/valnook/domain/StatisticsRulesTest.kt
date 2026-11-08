@@ -24,32 +24,6 @@ class StatisticsRulesTest {
         assertEquals(2027, StatisticsPeriod(StatisticsGranularity.MONTHLY, 2026).next().year)
     }
 
-    @Test fun axisHandlesZeroNegativeConstantAndHugeValues() {
-        listOf(listOf("0"), listOf("-20", "-10"), listOf("4", "4"), listOf("1E+30", "2E+30"))
-            .forEach { raw ->
-                val scale = requireNotNull(StatisticsAxis.scale(raw.map(::BigDecimal)))
-                assertTrue(scale.minimum < scale.maximum)
-                assertTrue(scale.ticks.size in 5..7)
-                raw.map(::BigDecimal).forEach { assertTrue(it >= scale.minimum && it <= scale.maximum) }
-            }
-    }
-
-    @Test fun smallUpdatesReuseAxisAndOverflowExpandsIt() {
-        val first = requireNotNull(StatisticsAxis.scale(listOf(BigDecimal("100"), BigDecimal("110"))))
-        assertSame(first, StatisticsAxis.scale(listOf(BigDecimal("101"), BigDecimal("109")), first))
-        val expanded = requireNotNull(StatisticsAxis.scale(listOf(BigDecimal("101"), first.maximum + BigDecimal.ONE), first))
-        assertTrue(expanded.maximum > first.maximum)
-    }
-
-    @Test fun largeConstantSeriesUsesCompactUnitPaddingInsteadOfPercentagePadding() {
-        val value = BigDecimal("114494358.429")
-        val scale = requireNotNull(StatisticsAxis.scale(List(4) { value }))
-
-        assertTrue(value >= scale.minimum && value <= scale.maximum)
-        assertTrue(scale.maximum - scale.minimum <= BigDecimal("300000"))
-        assertTrue(scale.ticks.size in 5..7)
-    }
-
     @Test fun monotoneCurveDoesNotOvershootNeighbourValues() {
         val points = listOf(CurvePoint(0f, 0f), CurvePoint(1f, 10f), CurvePoint(2f, 2f), CurvePoint(3f, 12f))
         MonotoneCurve.segments(points).forEach { segment ->

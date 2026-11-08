@@ -16,7 +16,16 @@ data class TradeFormUiState(val mode: TradeFormMode, val instrumentId: Long?, va
     val direction: Direction, val quantityInput: String, val executionPriceInput: String, val feeInput: String,
     val occurredAt: LocalDateTime, val cashLinked: Boolean, val cashAccountId: Long? = null, val name: String = "",
     val loaded: Boolean = false, val failed: Boolean = false,
-    val originalCashImpactMinor: Long = 0, val setAsCurrentPrice: Boolean = false, val priceUpdatedAtMs: Long? = null)
+    val originalCashImpactMinor: Long = 0, val setAsCurrentPrice: Boolean = false, val priceUpdatedAtMs: Long? = null,
+    val originalOccurredAtMs: Long? = null)
+
+/**
+ * The time to store: the record's own while the local time shown is unchanged. When clocks fall back, one local
+ * time is two instants, and converting it again would move the record an hour earlier.
+ */
+internal fun keptEpoch(local: LocalDateTime, zone: ZoneId, original: Long?): Long =
+    original?.takeIf { Instant.ofEpochMilli(it).atZone(zone).toLocalDateTime() == local }
+        ?: local.atZone(zone).toInstant().toEpochMilli()
 
 internal fun tradeAmountWithFee(direction: Direction, amountMinor: Long, feeMinor: Long): Long = when (direction) {
     Direction.BUY -> R.add(amountMinor, feeMinor)
@@ -41,7 +50,8 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         saved.get<String>("occurredAt")?.let(LocalDateTime::parse) ?: LocalDateTime.now(clock).withSecond(0).withNano(0),
         saved["linked"] ?: false, saved["cashAccountId"], saved["name"] ?: "",
         saved["loaded"] ?: false, originalCashImpactMinor = saved["originalCashImpact"] ?: 0,
-        setAsCurrentPrice = saved["setAsCurrentPrice"] ?: false, priceUpdatedAtMs = saved["priceUpdatedAt"]))
+        setAsCurrentPrice = saved["setAsCurrentPrice"] ?: false, priceUpdatedAtMs = saved["priceUpdatedAt"],
+        originalOccurredAtMs = saved["originalOccurredAt"]))
     val state = mutable.asStateFlow()
     val cashAccounts = cashRepository.observe_cash(accountId).map { rows ->
         rows.filter { it.type == BalanceAccountType.SAVINGS }
@@ -65,11 +75,12 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
                 direction = trade?.direction ?: input.direction,
                 quantityInput = trade?.let { R.format_e8(it.quantity_e8) } ?: input.quantityInput,
                 executionPriceInput = trade?.let { R.format_e8(it.execution_price_e8) }
-                    ?: instrument?.let { java.math.BigDecimal.valueOf(it.currentPriceE5, 5).stripTrailingZeros().toPlainString() }.orEmpty(),
+                    ?: instrument?.let { priceText(it.currentPriceE5) }.orEmpty(),
                 feeInput = trade?.let { R.format_units(it.fee_minor, it.currency.fraction_digits) } ?: input.feeInput,
                 occurredAt = trade?.let { Instant.ofEpochMilli(it.occurred_at_ms).atZone(clock.zone).toLocalDateTime() } ?: input.occurredAt,
                 cashLinked = trade?.cash_linked ?: false, cashAccountId = trade?.cashAccountId,
                 name = instrument?.name.orEmpty(), loaded = true, priceUpdatedAtMs = instrument?.priceUpdatedAtMs,
+                originalOccurredAtMs = trade?.occurred_at_ms,
                 originalCashImpactMinor = if (trade?.cash_linked == true)
                     if (trade.direction == Direction.BUY) -tradeAmountWithFee(trade.direction, trade.amount_minor, trade.fee_minor)
                     else tradeAmountWithFee(trade.direction, trade.amount_minor, trade.fee_minor) else 0))
@@ -94,6 +105,7 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         saved["originalCashImpact"] = value.originalCashImpactMinor
         saved["setAsCurrentPrice"] = value.setAsCurrentPrice
         saved["priceUpdatedAt"] = value.priceUpdatedAtMs
+        saved["originalOccurredAt"] = value.originalOccurredAtMs
     }
     /**
      * A new buy or sell may set its price as the current one, unless it is older than the current price: that would
@@ -134,7 +146,7 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
     fun submit() = session.submit {
         val input = state.value
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
-        val occurredAtMs = input.occurredAt.atZone(clock.zone).toInstant().toEpochMilli()
+        val occurredAtMs = keptEpoch(input.occurredAt, clock.zone, input.originalOccurredAtMs)
         when (input.mode) {
             TradeFormMode.CREATE -> RecordInvestmentTrade(operationId, input.positionId ?: 0L,
                 input.direction, R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), occurredAtMs,

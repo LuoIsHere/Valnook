@@ -44,6 +44,11 @@ object DecimalRules {
         exact_long(BigDecimal.valueOf(current).subtract(BigDecimal.valueOf(previous)).add(BigDecimal.valueOf(replacement)))
     fun format_units(value: Long, scale: Int): String = BigDecimal.valueOf(value, scale).toPlainString()
     fun format_display(value: Long, scale: Int): String = group_thousands(format_units(value, scale))
+    /**
+     * The sign a value shows with once rounded half up to [scale]: what displays as zero is neither gain nor loss.
+     * Every page decides "+" and colour by this, so a residue never shows as "+0.00" in a gain colour.
+     */
+    fun displayed_sign(value: BigDecimal?, scale: Int): Int = value?.setScale(scale, RoundingMode.HALF_UP)?.signum() ?: 0
     /** Converted totals: rounded half up to [scale], grouped like stored amounts. */
     fun format_display(value: BigDecimal, scale: Int): String =
         group_thousands(value.setScale(scale, RoundingMode.HALF_UP).toPlainString())

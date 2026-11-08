@@ -86,4 +86,12 @@ class DecimalRulesTest {
         assertEquals(33000,R.amount(R.parse_e8("3"),R.parse_e8("110"),cny,true))
         assertEquals(108000,R.amount(R.parse_e8("9"),R.parse_e8("120"),cny))
     }
+
+    @Test fun the_displayed_sign_follows_the_rounded_value() {
+        assertEquals(0, R.displayed_sign(java.math.BigDecimal("0.004"), 2))
+        assertEquals(0, R.displayed_sign(java.math.BigDecimal("-0.004"), 2))
+        assertEquals(1, R.displayed_sign(java.math.BigDecimal("0.005"), 2))
+        assertEquals(-1, R.displayed_sign(java.math.BigDecimal("-0.005"), 2))
+        assertEquals(0, R.displayed_sign(null, 2))
+    }
 }

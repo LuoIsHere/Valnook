@@ -61,8 +61,11 @@ internal fun pricePlot(prices: List<InstrumentPricePoint>): Pair<List<Instrument
     }
     val chosen = (selected ?: points.lastIndex).let(points::getOrNull)
     val readout = chosen?.let { shortDate(it.atMs, locale) + " · " + priceText(it.priceE5) + " " + currency.code }.orEmpty()
-    val description = stringResource(R.string.instrument_price_trend) + "; " +
-        points.distinct().joinToString("; ") { shortDate(it.atMs, locale) + ": " + priceText(it.priceE5) }
+    val title = stringResource(R.string.instrument_price_trend)
+    // Every point read aloud; made once per set of points, not on each frame of a drag.
+    val description = remember(points, locale, title) {
+        title + "; " + points.distinct().joinToString("; ") { shortDate(it.atMs, locale) + ": " + priceText(it.priceE5) }
+    }
     TrendChart(values, labels, selected, onSelect, curvePath = { group ->
         Path().apply {
             moveTo(group.first().x, group.first().y)

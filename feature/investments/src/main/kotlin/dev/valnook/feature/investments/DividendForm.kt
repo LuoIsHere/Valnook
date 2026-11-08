@@ -27,7 +27,7 @@ import java.util.UUID
 data class DividendFormUiState(val positionId: Long?, val tradeId: Long?, val expectedRevision: Long? = null,
     val currency: Currency? = null, val name: String = "", val amountInput: String = "", val date: LocalDate,
     val time: LocalTime = DIVIDEND_TIME, val cashLinked: Boolean = true, val cashAccountId: Long? = null,
-    val loaded: Boolean = false, val failed: Boolean = false)
+    val loaded: Boolean = false, val failed: Boolean = false, val originalAtMs: Long? = null)
 
 /** Dividends are dated by day; at its end they come after anything bought that day. */
 internal val DIVIDEND_TIME: LocalTime = LocalTime.of(23, 59)
@@ -44,7 +44,7 @@ class DividendFormViewModel(private val accountId: Long, positionId: Long?, trad
         saved.get<String>("currency")?.let(Currency::of), saved["name"] ?: "", saved["amount"] ?: "",
         saved.get<String>("date")?.let(LocalDate::parse) ?: LocalDate.now(clock),
         saved.get<String>("time")?.let(LocalTime::parse) ?: DIVIDEND_TIME, saved["linked"] ?: true, saved["cashAccountId"],
-        saved["loaded"] ?: false))
+        saved["loaded"] ?: false, originalAtMs = saved["originalAt"]))
     val state = mutable.asStateFlow()
     val cashAccounts = cashRepository.observe_cash(accountId).map { rows -> rows.filter { it.type == BalanceAccountType.SAVINGS } }
         .catch { emit(emptyList()) }
@@ -65,7 +65,7 @@ class DividendFormViewModel(private val accountId: Long, positionId: Long?, trad
                 name = instrument.name, amountInput = trade?.let { Money.format_units(it.amount_minor, it.currency.fraction_digits) }
                     ?: input.amountInput, date = at?.toLocalDate() ?: input.date, time = at?.toLocalTime() ?: DIVIDEND_TIME,
                 cashLinked = trade?.cash_linked ?: input.cashLinked, cashAccountId = trade?.cashAccountId ?: input.cashAccountId,
-                loaded = true))
+                loaded = true, originalAtMs = trade?.occurred_at_ms))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { mutable.value = state.value.copy(failed = true) }
     }
@@ -75,7 +75,7 @@ class DividendFormViewModel(private val accountId: Long, positionId: Long?, trad
         saved["positionId"] = value.positionId; saved["revision"] = value.expectedRevision; saved["currency"] = value.currency?.code
         saved["name"] = value.name; saved["amount"] = value.amountInput; saved["date"] = value.date.toString()
         saved["time"] = value.time.toString(); saved["linked"] = value.cashLinked; saved["cashAccountId"] = value.cashAccountId
-        saved["loaded"] = value.loaded
+        saved["loaded"] = value.loaded; saved["originalAt"] = value.originalAtMs
     }
     fun update(transform: (DividendFormUiState) -> DividendFormUiState) { if (submission.value.editable) change(transform(state.value)) }
     /** Linked by default: the first savings account in the currency, until another is chosen. */
@@ -92,7 +92,7 @@ class DividendFormViewModel(private val accountId: Long, positionId: Long?, trad
         if (!input.loaded) throw DomainException(ErrorCode.NOT_FOUND)
         val currency = requireNotNull(input.currency)
         val amount = Money.parse_units(input.amountInput, currency.fraction_digits)
-        val at = input.date.atTime(input.time).atZone(clock.zone).toInstant().toEpochMilli()
+        val at = keptEpoch(input.date.atTime(input.time), clock.zone, input.originalAtMs)
         val cash = if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null
         if (isNew) RecordDividend(operationId, requireNotNull(input.positionId), amount, at, input.cashLinked, cash)
         else EditDividend(operationId, requireNotNull(input.tradeId), requireNotNull(input.expectedRevision), amount, at,
@@ -109,11 +109,8 @@ data class DividendToolbarState(val busy: Boolean, val enabled: Boolean, val sav
 
 @Composable fun DividendSaveAction(state: DividendToolbarState?) {
     val label = stringResource(dev.valnook.core.designsystem.R.string.save)
-    IconButton({ state?.save?.invoke() }, enabled = state?.enabled == true,
-        modifier = Modifier.testTag("dividend-save").semantics { contentDescription = label }) {
-        if (state?.busy == true) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        else FaIcon(FaIcons.check, modifier = Modifier.size(22.dp))
-    }
+    ToolbarSaveAction(label, state?.busy == true, state?.enabled == true, { state?.save?.invoke() },
+        Modifier.testTag("dividend-save"))
 }
 
 @Composable fun dividendFormTitle(isNew: Boolean): String =

@@ -33,11 +33,11 @@ internal fun profitColor(sign: Int): Color = when {
 }
 
 /** Sign of a value after rounding to [digits]; residue that displays as zero stays neutral. */
-internal fun displayedSign(value: BigDecimal?, digits: Int): Int =
-    value?.setScale(digits, RoundingMode.HALF_UP)?.signum() ?: 0
+internal fun displayedSign(value: BigDecimal?, digits: Int): Int = dev.valnook.domain.money.DecimalRules.displayed_sign(value, digits)
 
-private fun number(value: BigDecimal?, digits: Int): String =
-    value?.setScale(digits, RoundingMode.HALF_UP)?.toPlainString() ?: "—"
+/** Grouped like every other amount on the page: "123 456.78". */
+internal fun number(value: BigDecimal?, digits: Int): String =
+    value?.let { dev.valnook.domain.money.DecimalRules.format_display(it, digits) } ?: "—"
 
 private fun signed(value: BigDecimal?, digits: Int): String =
     (if (displayedSign(value, digits) == 1) "+" else "") + number(value, digits)

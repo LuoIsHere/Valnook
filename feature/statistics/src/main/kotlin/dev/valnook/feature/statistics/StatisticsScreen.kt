@@ -28,9 +28,9 @@ import dev.valnook.designsystem.pageContentPadding
 import dev.valnook.domain.calculation.CurvePoint
 import dev.valnook.domain.calculation.MonotoneCurve
 import dev.valnook.domain.model.*
+import dev.valnook.domain.money.DecimalRules
 import java.math.BigDecimal
 import java.math.RoundingMode
-import java.text.NumberFormat
 import java.time.format.DateTimeFormatter
 import java.time.LocalDate
 import kotlinx.coroutines.delay
@@ -136,9 +136,7 @@ internal fun InteractiveChart(series: StatisticsSeries, title: String, showChang
     val dateText=selected?.date?.format(DateTimeFormatter.ofLocalizedDate(java.time.format.FormatStyle.MEDIUM).withLocale(locale)).orEmpty()
     val valueText=money(selected?.value,series.currency)
     val change=selected?.change
-    val percent=selected?.changePercent?.let {
-        (if(it.signum()>0)"+"else "")+NumberFormat.getNumberInstance(locale).apply { minimumFractionDigits=2; maximumFractionDigits=2 }.format(it)+"%"
-    }?:"—"
+    val percent=selected?.changePercent?.let { signedNumber(it,2)+"%" }?:"—"
     Column(Modifier.fillMaxWidth().testTag("statistics-readout-${series.metric.name.lowercase()}")) {
         Text(valueText,style=MaterialTheme.typography.headlineMedium.copy(fontFeatureSettings="tnum"),
             modifier=Modifier.testTag(valueTag))
@@ -153,7 +151,7 @@ internal fun InteractiveChart(series: StatisticsSeries, title: String, showChang
         Text(stringResource(if(series.period.granularity==StatisticsGranularity.DAILY) R.string.statistics_day_change else R.string.statistics_month_change),
             style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
         Text(money(change,series.currency,signed=true)+" ("+percent+")",style=MaterialTheme.typography.titleMedium.copy(fontFeatureSettings="tnum"),
-            color=when(change?.signum()) { 1->palette.gain; -1->palette.loss; else->palette.neutral },
+            color=when(displayedSign(change,series.currency?.fraction_digits?:2)) { 1->palette.gain; -1->palette.loss; else->palette.neutral },
             modifier=Modifier.testTag("statistics-change-${series.metric.name.lowercase()}"))
         }
     }
@@ -165,7 +163,7 @@ internal fun InteractiveChart(series: StatisticsSeries, title: String, showChang
         series.points.map { point -> point.value?.let { if(range.signum()==0).5f else
             .08f+.84f*(1f-it.subtract(low).divide(range,12,RoundingMode.HALF_UP).toFloat()) } }
     }
-    val labels=remember(series.period,series.points,locale) { sparseXAxisLabels(series).map { (index,_) ->
+    val labels=remember(series.period,series.points,locale) { sparseXAxisIndexes(series).map { index ->
         val date=series.points[index].date
         index to if(series.period.granularity==StatisticsGranularity.MONTHLY)date.month.getDisplayName(java.time.format.TextStyle.SHORT,locale)
             else date.dayOfMonth.toString()
@@ -187,16 +185,13 @@ internal fun InteractiveChart(series: StatisticsSeries, title: String, showChang
         modifier=Modifier.padding(top=8.dp).testTag("statistics-incomplete-${series.metric.name.lowercase()}"))
 }
 
-internal fun sparseXAxisLabels(series: StatisticsSeries): List<Pair<Int, String>> {
+/** Which points carry a label under the chart: five, a week or a quarter apart, and the last. */
+internal fun sparseXAxisIndexes(series: StatisticsSeries): List<Int> {
     if (series.points.isEmpty()) return emptyList()
     val last = series.points.lastIndex
     val indexes = if (series.period.granularity == StatisticsGranularity.DAILY)
         listOf(0, 7, 14, 21, last) else listOf(0, 3, 6, 9, last)
-    return indexes.distinct().filter { it in series.points.indices }.map { index ->
-        val date = series.points[index].date
-        index to if (series.period.granularity == StatisticsGranularity.DAILY)
-            date.dayOfMonth.toString() else date.monthValue.toString()
-    }
+    return indexes.distinct().filter { it in series.points.indices }
 }
 
 @Composable
@@ -209,47 +204,16 @@ private fun metricTitle(metric: StatisticsMetric): String = stringResource(when 
 private fun periodLabel(period: StatisticsPeriod): String = if (period.granularity == StatisticsGranularity.DAILY)
     "%04d-%02d".format(period.year, period.month) else period.year.toString()
 
-private fun money(value: BigDecimal?, currency: Currency?, signed: Boolean = false): String {
+/** Sign of a value as shown, after rounding half up: what rounds to zero is neither gain nor loss. */
+internal fun displayedSign(value: BigDecimal?, digits: Int): Int = DecimalRules.displayed_sign(value, digits)
+
+/** As every other amount: rounded half up, grouped "1 234.57", and "+" only when it shows above zero. */
+internal fun signedNumber(value: BigDecimal, digits: Int): String =
+    (if (displayedSign(value, digits) > 0) "+" else "") + DecimalRules.format_display(value, digits)
+
+internal fun money(value: BigDecimal?, currency: Currency?, signed: Boolean = false): String {
     if (value == null) return "—"
-    val prefix = if (signed && value.signum() > 0) "+" else ""
-    val format=NumberFormat.getNumberInstance().apply {
-        minimumFractionDigits=currency?.fraction_digits?:2
-        maximumFractionDigits=currency?.fraction_digits?:2
-        if(this is java.text.DecimalFormat) decimalFormatSymbols=decimalFormatSymbols.apply { groupingSeparator=' ';decimalSeparator='.' }
-    }
-    return "$prefix${format.format(value)} ${currency?.code.orEmpty()}".trim()
-}
-
-internal fun axisLabels(values: List<BigDecimal>): List<String> {
-    val formatted = values.map(::compactAxisLabel)
-    return formatted.mapIndexed { index, label ->
-        if (index == 0 || label != formatted[index - 1]) label else ""
-    }
-}
-
-private val compactAxisUnits = listOf(
-    BigDecimal.ONE to "",
-    BigDecimal("1000") to "k",
-    BigDecimal("1000000") to "M",
-    BigDecimal("1000000000") to "B",
-    BigDecimal("1000000000000") to "T",
-)
-
-internal fun compactAxisLabel(value: BigDecimal): String {
-    val rounded = value.setScale(2, RoundingMode.HALF_UP)
-    if (rounded.abs() < BigDecimal("1000")) {
-        return if (rounded.signum() == 0) "0" else rounded.stripTrailingZeros().toPlainString()
-    }
-    var unitIndex = compactAxisUnits.indexOfLast { (divisor, _) -> value.abs() >= divisor }.coerceAtLeast(1)
-    var scaled = value.divide(compactAxisUnits[unitIndex].first, 1, RoundingMode.HALF_UP)
-    while (scaled.abs() >= BigDecimal("1000") && unitIndex < compactAxisUnits.lastIndex) {
-        unitIndex++
-        scaled = value.divide(compactAxisUnits[unitIndex].first, 1, RoundingMode.HALF_UP)
-    }
-    if (scaled.abs() >= BigDecimal("1000")) {
-        val exponent = value.precision() - value.scale() - 1
-        val scientific = value.movePointLeft(exponent).setScale(1, RoundingMode.HALF_UP)
-        return "${scientific.toPlainString()}E$exponent"
-    }
-    return "${scaled.toPlainString()}${compactAxisUnits[unitIndex].second}"
+    val digits = currency?.fraction_digits ?: 2
+    val text = if (signed) signedNumber(value, digits) else DecimalRules.format_display(value, digits)
+    return "$text ${currency?.code.orEmpty()}".trim()
 }

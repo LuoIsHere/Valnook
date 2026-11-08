@@ -34,7 +34,7 @@ class InstrumentEditViewModel(val instrumentId: Long?, private val instruments: 
                 val instrument = instrumentId?.let { instruments.observeInstrument(it).first() ?: throw DomainException(ErrorCode.NOT_FOUND) }
                 updateInternal(if (instrument == null) state.value.copy(loaded = true) else InstrumentEditUiState(instrument.name,
                     instrument.symbol, instrument.typeId, instrument.currency,
-                    java.math.BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString(),
+                    priceText(instrument.currentPriceE5),
                     instrument.revision, instrument.currencyLocked, instrument.symbolLocked, false, true))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) { mutable.value = state.value.copy(loadFailed = true) }

@@ -73,40 +73,16 @@ class StatisticsViewModelTest {
         assertEquals(43_200_100L, vm.millisUntilNextLocalDay())
     }
 
-    @Test fun axisLabelsUseTwoDecimalsOrOneDecimalWithAnEnglishUnit() {
-        assertEquals(listOf("-12.35", "0", "999.99", "1.0k", "1.3M", "-2.5B"), axisLabels(listOf(
-            BigDecimal("-12.345"),
-            BigDecimal.ZERO,
-            BigDecimal("999.99"),
-            BigDecimal("1000"),
-            BigDecimal("1250000"),
-            BigDecimal("-2500000000"),
-        )))
-        assertEquals("1.0M", compactAxisLabel(BigDecimal("999999")))
-        assertEquals(listOf("117.7M", "", "117.8M", "", "117.9M"), axisLabels(listOf(
-            BigDecimal("117740000"),
-            BigDecimal("117749000"),
-            BigDecimal("117750000"),
-            BigDecimal("117849000"),
-            BigDecimal("117850000"),
-        )))
-        assertEquals(listOf("117.8M", "", ""), axisLabels(listOf(
-            BigDecimal("117774000"),
-            BigDecimal("117779000"),
-            BigDecimal("117784000"),
-        )))
-    }
-
     @Test fun xAxisUsesSparseDayAndMonthLabels() {
         fun series(period: StatisticsPeriod, dates: List<LocalDate>) = StatisticsSeries(
             StatisticsMetric.TOTAL_ASSETS, period, Currency.of("CNY"),
             dates.map { StatisticsPoint(it, BigDecimal.ONE, true) })
         val dailyDates=(1..31).map { LocalDate.of(2026,10,it) }
-        assertEquals(listOf("1","8","15","22","31"), sparseXAxisLabels(series(
-            StatisticsPeriod(StatisticsGranularity.DAILY,2026,10),dailyDates)).map { it.second })
+        val daily=series(StatisticsPeriod(StatisticsGranularity.DAILY,2026,10),dailyDates)
+        assertEquals(listOf("1","8","15","22","31"), sparseXAxisIndexes(daily).map { daily.points[it].date.dayOfMonth.toString() })
         val monthlyDates=(1..12).map { LocalDate.of(2026,it,1) }
-        assertEquals(listOf("1","4","7","10","12"), sparseXAxisLabels(series(
-            StatisticsPeriod(StatisticsGranularity.MONTHLY,2026),monthlyDates)).map { it.second })
+        val monthly=series(StatisticsPeriod(StatisticsGranularity.MONTHLY,2026),monthlyDates)
+        assertEquals(listOf("1","4","7","10","12"), sparseXAxisIndexes(monthly).map { monthly.points[it].date.monthValue.toString() })
     }
 
     private class FakeRepository : StatisticsRepository {

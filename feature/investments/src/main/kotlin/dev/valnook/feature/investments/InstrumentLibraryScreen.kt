@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.InstrumentAssets
-import java.math.BigDecimal
 
 /** Asset classes, then adding, in the title bar, as the accounts page has its groups and adding. */
 @Composable
@@ -73,9 +72,11 @@ fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long)
     // The default class shows only while it holds something; a class gone while selected falls back to all.
     val shownTypes = state.types.filter { !it.isDefault || (counts[it.id] ?: 0) > 0 }
     val selectedType = typeFilter?.takeIf { id -> shownTypes.any { it.id == id } }
+    // A space the keyboard adds at the end finds nothing otherwise, as when adding a holding.
+    val needle = query.trim()
     val matches = state.instruments.filter {
         (selectedType == null || it.instrument.typeId == selectedType) &&
-            (it.instrument.name.contains(query, true) || it.instrument.symbol.contains(query, true))
+            (it.instrument.name.contains(needle, true) || it.instrument.symbol.contains(needle, true))
     }
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     LazyColumn(Modifier.fillMaxSize().imePadding().testTag("instrument-library"), contentPadding = pageContentPadding(),
@@ -179,7 +180,7 @@ fun InstrumentLibraryContent(state: InstrumentLibraryState.Ready, onOpen: (Long)
             Column(horizontalAlignment = Alignment.End) {
                 val style = MaterialTheme.typography.titleMedium
                 Text(buildAnnotatedString {
-                    append(BigDecimal.valueOf(instrument.currentPriceE5, 5).stripTrailingZeros().toPlainString())
+                    append(priceText(instrument.currentPriceE5))
                     append(" ")
                     withStyle(SpanStyle(fontSize = 12.sp, fontWeight = FontWeight.Normal, color = muted)) { append(currency.code) }
                 }, Modifier.testTag("library-price-${instrument.id}"), style = style.copy(fontFeatureSettings = "tnum"),

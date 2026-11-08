@@ -75,5 +75,3 @@ data class CurrentStatistics(
 )
 
 data class StatisticsRequest(val metric: StatisticsMetric, val period: StatisticsPeriod)
-
-data class AxisScale(val minimum: BigDecimal, val maximum: BigDecimal, val ticks: List<BigDecimal>)
