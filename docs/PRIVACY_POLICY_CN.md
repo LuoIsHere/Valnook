@@ -118,7 +118,7 @@ OneDrive 是可选功能。连接时，您通过微软提供的授权流程登�
 
 ## 9. 第三方平台与主动联系
 
-访问或下载 GitHub 仓库内容时，GitHub 根据其[隐私声明](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement)处理网站访问及账户等信息。使用微软登录、OneDrive 或系统选择器中的第三方服务时，相应提供者按照自身规则处理身份验证、网络连接、服务运行及您提交的信息。开启自动获取汇率时，Frankfurter 汇率服务及其网络服务提供方（如 Cloudflare）按照自身规则处理请求中的 IP 地址、请求时间和第 4 节所述的请求内容。
+访问或下载 GitHub 仓库内容时，GitHub 根据其[隐私声明](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement)处理网站访问及账户等信息。使用微软登录、OneDrive 或系统选择器中的第三方服务时，相应提供者按照自身规则处理身份验证、网络连接、服务运行及您提交的信息。开启自动获取汇率时，Frankfurter 汇率服务及其网络服务提供方（如 Cloudflare）按照自身规则处理请求中的 IP 地址、请求时间和第 4 节所述的请求内容。Frankfurter 在其[常见问题](https://frankfurter.dev/#faq)中说明了隐私做法，Cloudflare 的数据处理见其[隐私政策](https://www.cloudflare.com/privacypolicy/)。
 
 如果您通过邮件或 GitHub 主动联系开发者，开发者会收到您提交的联系方式、正文和附件，并仅为处理该请求及必要的后续沟通使用和保留这些信息。您可以联系开发者请求删除相关通信，适用法律要求保留的情况除外。公开的 GitHub 议题或评论可被他人查看，请勿提交财务备份、密码、授权凭据或其他敏感内容。
 
