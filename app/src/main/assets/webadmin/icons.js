@@ -11,11 +11,10 @@ export function symbol(key) {
 export function avatar(icon) {
   const result = el("span", { class: "avatar", "aria-hidden": "true" }, symbol(icon?.value));
   if (icon?.type === "IMAGE" && /^[a-f0-9]{64}$/.test(icon.value)) {
-    const epoch = state.viewEpoch;
     fetch(`/api/v1/account-icons/${icon.value}`, { headers: state.sessionToken ? { Authorization: `Bearer ${state.sessionToken}` } : {} })
       .then(response => { if (!response.ok) throw new Error(); return response.blob(); })
       .then(blob => {
-        if (epoch !== state.viewEpoch) return;
+        // Shown wherever the row is now; one left behind by a page change is simply dropped with it.
         const url = URL.createObjectURL(blob), image = el("img", { alt: "", src: url });
         image.onload = image.onerror = () => URL.revokeObjectURL(url);
         result.replaceChildren(image);

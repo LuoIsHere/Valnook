@@ -116,7 +116,8 @@ function refreshCurrent() {
       if (state.viewEpoch === epoch + 1) window.scrollTo(0, scroll);
     } catch (error) { if (error.name !== "AbortError") notify(t("loadFailed")); }
   })().finally(() => {
-    if (epoch === state.viewEpoch) finishLoading();
+    // Opening a detail that then fails moves the view on without a page loading: still end "updating".
+    if (epoch === state.viewEpoch || !state.pageLoading) finishLoading();
     refreshTask = null; state.refreshing = false;
     if (state.pendingRefresh && $("#drawer").hidden && !state.saving) scheduleRefresh();
   });
@@ -137,7 +138,12 @@ function table(headers, rows) {
 }
 function toolbar(...nodes) { return el("div", { class: "toolbar" }, ...nodes); }
 function button(label, click, kind = "secondary") { return el("button", { class: kind, type: "button", text: label, onclick: async event => {
+  // A second click while the first is still working does nothing, so "load more" never appends a page twice.
+  const node = event.currentTarget;
+  if (node.dataset.busy) return;
+  node.dataset.busy = "true";
   try { await click(event); } catch (error) { if (error.name !== "AbortError") notify(errorMessage(error)); }
+  finally { delete node.dataset.busy; }
 } }); }
 function metric(label, value, cls = "") { return el("div", { class: "metric" }, el("div", { class: "subtle", text: label }), el("div", { class: `value ${cls}`, text: value })); }
 
@@ -486,7 +492,10 @@ async function renderRecords(reset) {
       selectField(t("type"), "type", [{ value: "", label: t("all") }, { value: "CASH", label: t("cash") }, { value: "DEPOSIT", label: t("deposit") }, { value: "TRADE", label: t("trade") }]),
       field(t("search"), "query", ""), button(t("filter"), () => renderRecords(true), "primary"));
     Object.entries(state.recordFilters).forEach(([name, value]) => { if (controls.elements[name]) controls.elements[name].value = value; });
-    controls.addEventListener("submit", event => { event.preventDefault(); renderRecords(true).catch(showError); });
+    // No submit button in this form, so Enter would do nothing: it filters, as the button does.
+    controls.addEventListener("keydown", event => {
+      if (event.key === "Enter" && event.target.matches("input")) { event.preventDefault(); renderRecords(true).catch(showError); }
+    });
     root.append(controls, el("div", { id: "records-table" }));
   // More rows come with the filters the list was loaded with, never with edits not yet applied.
   const paging = !reset && state.recordsCursor && state.recordsApplied;
@@ -544,7 +553,12 @@ async function openRecord(record) {
     const deposit = account.deposits.find(v => v.id === depositId);
     if (!deposit) throw new Error("NOT_FOUND");
     return depositForm(deposit, null, account.cash);
-  } catch (error) { showError(error); }
+  } catch (error) {
+    // The background refresh this detail cut short owns "updating": end it, as no drawer opened.
+    if (state.refreshing) finishLoading();
+    // Only a note: the records already loaded stay on the page.
+    if (error.name !== "AbortError") notify(error.code && t(error.code) !== error.code ? t(error.code) : t("loadFailed"));
+  }
 }
 function cashRecordForm(record) {
   const form = el("form", { class: "form-grid" });
@@ -552,7 +566,7 @@ function cashRecordForm(record) {
   const error = el("p", { class: "drawer-error" }); form.append(error, actions(async submit => {
     const fd = new FormData(form); await saveForm(submit, error, `/api/v1/cash-entries/${record.id}`, "PUT", {
       operationId: uuid(), dataGeneration: state.generation, expectedRevision: record.revision, currencyCode: record.currencyCode,
-      amount: fd.get("amount"), occurredAtMs: new Date(fd.get("occurred")).getTime(), note: fd.get("note") || ""
+      amount: fd.get("amount"), occurredAtMs: keptTime(fd.get("occurred"), record.businessAtMs), note: fd.get("note") || ""
     });
   })); openDrawer(t("editCashRecord"), "RECORD", form);
 }
@@ -716,7 +730,7 @@ function tradeForm(position, trade, cashAccounts) {
   const error = el("p", { class: "drawer-error" });
   const actionBar = actions(async submit => {
     const fd = new FormData(form); await saveForm(submit, error, trade ? `/api/v1/trades/${trade.id}` : position.id ? `/api/v1/positions/${position.id}/trades` : "/api/v1/trades", trade ? "PUT" : "POST", {
-      operationId: uuid(), dataGeneration: state.generation, expectedRevision: trade?.revision ?? null, accountId: position.accountId, instrumentId: position.instrumentId, direction: fd.get("direction"), quantity: fd.get("quantity"), executionPrice: fd.get("executionPrice"), fee: fd.get("fee") || "0", occurredAtMs: new Date(fd.get("occurred")).getTime(), currencyCode: position.currencyCode, cashLinked: fd.get("cashLinked") === "on", cashAccountId: fd.get("cashLinked") === "on" && fd.get("cashAccountId") ? Number(fd.get("cashAccountId")) : null,
+      operationId: uuid(), dataGeneration: state.generation, expectedRevision: trade?.revision ?? null, accountId: position.accountId, instrumentId: position.instrumentId, direction: fd.get("direction"), quantity: fd.get("quantity"), executionPrice: fd.get("executionPrice"), fee: fd.get("fee") || "0", occurredAtMs: keptTime(fd.get("occurred"), trade?.businessAtMs), currencyCode: position.currencyCode, cashLinked: fd.get("cashLinked") === "on", cashAccountId: fd.get("cashLinked") === "on" && fd.get("cashAccountId") ? Number(fd.get("cashAccountId")) : null,
       setAsCurrentPrice: !trade && fd.get("setAsCurrentPrice") === "on"
     });
   });
@@ -733,8 +747,9 @@ function depositForm(deposit, accountId = null, cashAccounts = []) {
   const eligibleCash = cashAccounts.filter(v => v.type === "SAVINGS" && (!deposit || v.currencyCode === deposit.currencyCode));
   form.append(field(t("currency"), "currency", deposit?.currencyCode || state.session.baseCurrency || "CNY", true, "text", false, !!deposit),
     field(t("principal"), "principal", deposit?.principal || "", true), field(t("rate"), "rate", deposit?.annualRatePercent || "", true),
-    field(t("startDate"), "start", deposit?.startDate || new Date().toISOString().slice(0, 10), true, "date"),
-    field(t("toDate"), "end", deposit?.endDate || new Date(Date.now() + 31536000000).toISOString().slice(0, 10), true, "date"),
+    // Today and a year on, in local dates: an ISO date of now is the UTC day, a day behind before 8:00 in UTC+8.
+    field(t("startDate"), "start", deposit?.startDate || localDay(new Date()), true, "date"),
+    field(t("toDate"), "end", deposit?.endDate || localDay(new Date(new Date().setFullYear(new Date().getFullYear() + 1))), true, "date"),
     checkField(t("cashLink"), deposit ? "openCashLinked" : "cashLinked", deposit?.openCashLinked),
     selectField(t("cashAccount"), deposit ? "openCashAccountId" : "cashAccountId", [{ value: "", label: t("none") }, ...eligibleCash.map(v => ({ value: v.id, label: `${v.name} · ${v.currencyCode}` }))], deposit?.openCashAccountId));
   if (deposit && !deposit.closed) form.append(checkField(`${t("settle")} · ${t("cashLink")}`, "closeCashLinked", deposit.closeCashLinked),
@@ -950,8 +965,12 @@ function openDrawer(title, kicker, content, confirmedReplacement = false) {
   document.body.classList.add("modal-open");
   const form = content.matches("form") ? content : $("form", content);
   if (form) {
+    // A form without its own check is changed only while it differs from how it opened.
+    const contents = () => JSON.stringify([...new FormData(form)].map(([name, value]) =>
+      [name, typeof value === "string" ? value : `${value.name}:${value.size}`]));
+    const opened = contents();
     const markDirty = () => {
-      if (!form.isDirty || form.isDirty()) form.dataset.dirty = "true";
+      if (form.isDirty ? form.isDirty() : contents() !== opened) form.dataset.dirty = "true";
       else delete form.dataset.dirty;
     };
     form.addEventListener("input", markDirty);
@@ -1028,6 +1047,9 @@ function hero(summary, primary) {
     summary.complete === false ? el("p", { class: "subtle", text: t("incomplete") }) : null);
 }
 function toLocalDateTime(ms) { const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60000); return d.toISOString().slice(0, 16); }
+function localDay(date) { return toLocalDateTime(date.getTime()).slice(0, 10); }
+/** The field shows minutes only: left as it was, the record keeps its own seconds and order within the minute. */
+function keptTime(value, original) { return original != null && value === toLocalDateTime(original) ? original : new Date(value).getTime(); }
 
 export { preload, renderNav, navigate, refreshCurrent, scheduleRefresh, closeDrawer, notify };
 hooks.error = error => { if (error.name !== "AbortError") notify(errorMessage(error)); };
