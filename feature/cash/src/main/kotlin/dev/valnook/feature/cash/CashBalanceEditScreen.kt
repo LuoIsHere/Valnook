@@ -26,11 +26,8 @@ import dev.valnook.domain.money.DecimalRules
 data class CashBalanceToolbarState(val busy:Boolean,val enabled:Boolean,val label:String,val save:()->Unit)
 
 @Composable fun CashBalanceSaveAction(state:CashBalanceToolbarState?) {
-    IconButton({state?.save?.invoke()},enabled=state?.enabled==true,
-        modifier=Modifier.testTag("cash-balance-save").semantics{contentDescription=state?.label.orEmpty()}) {
-        if(state?.busy==true)CircularProgressIndicator(Modifier.size(20.dp),strokeWidth=2.dp)
-        else FaIcon(FaIcons.check,modifier=Modifier.size(22.dp))
-    }
+    ToolbarSaveAction(state?.label.orEmpty(),state?.busy==true,state?.enabled==true,{state?.save?.invoke()},
+        Modifier.testTag("cash-balance-save"))
 }
 
 @Composable fun CashBalanceEditScreen(vm:CashBalanceEditViewModel,onBack:()->Unit,

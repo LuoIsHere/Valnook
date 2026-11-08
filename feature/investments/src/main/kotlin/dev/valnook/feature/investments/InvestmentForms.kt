@@ -118,11 +118,8 @@ data class InstrumentEditToolbarState(val busy: Boolean, val enabled: Boolean, v
 
 @Composable fun InstrumentEditSaveAction(state: InstrumentEditToolbarState?) {
     val label = stringResource(dev.valnook.core.designsystem.R.string.save)
-    IconButton({ state?.save?.invoke() }, enabled = state?.enabled == true,
-        modifier = Modifier.testTag("instrument-edit-save").semantics { contentDescription = label }) {
-        if (state?.busy == true) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        else FaIcon(FaIcons.check, modifier = Modifier.size(22.dp))
-    }
+    ToolbarSaveAction(label, state?.busy == true, state?.enabled == true, { state?.save?.invoke() },
+        Modifier.testTag("instrument-edit-save"))
 }
 
 @Composable fun instrumentEditTitle(instrumentId: Long?): String =
@@ -207,11 +204,7 @@ data class TypeEditToolbarState(val busy: Boolean, val canSave: Boolean, val sav
             enabled = state.canDelete)
     }
     val saveLabel = stringResource(dev.valnook.core.designsystem.R.string.save)
-    IconButton({ state.save() }, enabled = state.canSave,
-        modifier = Modifier.testTag("type-edit-save").semantics { contentDescription = saveLabel }) {
-        if (state.busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        else FaIcon(FaIcons.check, modifier = Modifier.size(22.dp))
-    }
+    ToolbarSaveAction(saveLabel, state.busy, state.canSave, { state.save() }, Modifier.testTag("type-edit-save"))
 }
 
 @Composable fun typeEditTitle(typeId: Long?): String =

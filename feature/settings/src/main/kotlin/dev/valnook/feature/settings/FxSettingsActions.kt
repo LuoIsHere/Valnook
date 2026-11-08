@@ -1,5 +1,6 @@
 package dev.valnook.feature.settings
 
+import dev.valnook.designsystem.ToolbarSaveAction
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
@@ -20,8 +21,6 @@ data class FxToolbarState(val busy: Boolean, val dirty: Boolean, val canSave: Bo
 @Composable
 fun FxSettingsActions(state: FxToolbarState?) {
     if (state == null) return
-    IconButton(state.save, enabled = !state.busy && state.canSave, modifier = Modifier.testTag("fx-save")) {
-        if (state.busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        else FaIcon(FaIcons.check, stringResource(R.string.settings_save))
-    }
+    ToolbarSaveAction(stringResource(R.string.settings_save), state.busy, !state.busy && state.canSave, state.save,
+        Modifier.testTag("fx-save"))
 }

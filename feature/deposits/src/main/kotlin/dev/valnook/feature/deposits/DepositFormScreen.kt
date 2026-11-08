@@ -32,11 +32,8 @@ import dev.valnook.core.designsystem.R as CoreR
 data class DepositToolbarState(val busy: Boolean, val enabled: Boolean, val label: String, val save: () -> Unit)
 
 @Composable fun DepositSaveAction(state: DepositToolbarState?) {
-    IconButton({ state?.save?.invoke() }, enabled = state?.enabled == true,
-        modifier = Modifier.testTag("deposit-form-save").semantics { contentDescription = state?.label.orEmpty() }) {
-        if (state?.busy == true) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        else FaIcon(FaIcons.check, modifier = Modifier.size(22.dp))
-    }
+    ToolbarSaveAction(state?.label.orEmpty(), state?.busy == true, state?.enabled == true, { state?.save?.invoke() },
+        Modifier.testTag("deposit-form-save"))
 }
 
 @Composable fun depositFormTitle(mode: DepositFormMode): String = stringResource(when (mode) {

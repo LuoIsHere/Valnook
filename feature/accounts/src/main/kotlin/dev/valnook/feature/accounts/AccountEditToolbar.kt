@@ -1,5 +1,6 @@
 package dev.valnook.feature.accounts
 
+import dev.valnook.designsystem.ToolbarSaveAction
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -15,11 +16,6 @@ data class AccountEditToolbarState(val busy: Boolean, val enabled: Boolean, val 
 
 @Composable fun AccountEditSaveAction(state: AccountEditToolbarState?) {
     val label = stringResource(R.string.account_save)
-    IconButton(onClick = { state?.save?.invoke() }, enabled = state?.enabled == true,
-        modifier = Modifier.testTag("account-edit-save").semantics { contentDescription = label }) {
-        if (state?.busy == true) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        else {
-            FaIcon(FaIcons.check, modifier = Modifier.size(22.dp))
-        }
-    }
+    ToolbarSaveAction(label, state?.busy == true, state?.enabled == true, { state?.save?.invoke() },
+        Modifier.testTag("account-edit-save"))
 }
