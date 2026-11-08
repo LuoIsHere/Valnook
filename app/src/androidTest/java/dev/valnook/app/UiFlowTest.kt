@@ -364,7 +364,7 @@ class UiFlowTest {
         native_picker(true)
         rule.onNodeWithContentDescription("记账时间:", substring = true).performScrollTo().performClick()
         native_picker(false)
-        rule.onNode(isToggleable()).performScrollTo().assertIsOff()
+        rule.onNode(isToggleable() and hasText("联动该账户", substring = true)).performScrollTo().assertIsOff()
         save()
         wait_text("12 份")
         shot("investment-trade")
@@ -1605,7 +1605,8 @@ class UiFlowTest {
         wait_text("+20.00%")
         wait_text("-10.00%")
         wait_text("+200.00")
-        rule.onNodeWithText("1200.00").assertExists()
+        // Grouped like every other amount on the page.
+        rule.onNodeWithText("1 200.00").assertExists()
         rule.onNodeWithTag("holding-currency-1", useUnmergedTree = true).assertTextEquals("USD")
         rule.onNodeWithTag("holding-currency-2", useUnmergedTree = true).assertTextEquals("CNY")
         wait_text("-200.00")
