@@ -403,7 +403,7 @@ class CloudBackupCoordinator internal constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                attempt = finishAfterUploadError(attempt, error, automatic, actual, cycleId, verify = true, token = token)
+                attempt = finishAfterUploadError(attempt, error, automatic, actual, cycleId, verify = true)
                 return
             }
             attempt = finishVerifiedAttempt(attempt, token, state.folder_id!!, actual, cycleId, automatic)
@@ -443,19 +443,17 @@ class CloudBackupCoordinator internal constructor(
         automatic: Boolean,
         generation: Generation,
         cycleId: String,
-        verify: Boolean = false,
-        token: String? = null
+        verify: Boolean = false
     ): CloudBackupAttemptEntity {
         val at = networkClock.nowUtcMs() ?: System.currentTimeMillis()
         if (!isGenerationCurrent(generation, cycleId, automatic)) {
             return attempt.copy(finished_at_utc_ms = at, state = BackupAttemptState.CANCELLED.name,
                 error = CloudBackupError.SESSION_EXPIRED.name).also { store.saveAttempt(it); releaseProgress() }
         }
-        // After the upload the file is there. A copy that does not match is taken back; any other failure leaves it
-        // to be checked again by the next cycle, rather than left unverified for good.
+        // After the upload the file is there. Unless it plainly does not match, it is checked again by the next cycle
+        // rather than left unverified for good. (OneDrive only deletes verified backups, so a mismatch stays.)
         val uploaded = verify && attempt.drive_file_id != null
         val mismatch = error is CloudBackupException && error.error == CloudBackupError.VERIFY_FAILED
-        if (uploaded && mismatch && token != null) trashQuietly(token, attempt.drive_file_id!!)
         val unknown = (error is DriveRequestException && error.outcomeUnknown) || (uploaded && !mismatch)
         val cloudError = when {
             error is CloudBackupException -> error.error
@@ -581,11 +579,9 @@ class CloudBackupCoordinator internal constructor(
         val found = listManaged(token, folderId).firstOrNull {
             it.id == attempt.drive_file_id || it.properties["attemptId"] == attempt.attempt_id
         } ?: return null
-        // A copy that does not match is not a backup: taken back instead of left in the quota.
-        if (runCatching { assertRemote(found, attempt) }.isFailure) { trashQuietly(token, found.id); return null }
+        if (runCatching { assertRemote(found, attempt) }.isFailure) return null
         try { drive.verify(token, found, attempt.archive_sha256, attempt.archive_size) }
         catch (cancelled: CancellationException) { throw cancelled }
-        catch (error: CloudBackupException) { if (error.error == CloudBackupError.VERIFY_FAILED) trashQuietly(token, found.id); return null }
         catch (_: Exception) { return null }
         val confirmed = try {
             when (found.properties["verificationState"]) {
@@ -760,13 +756,6 @@ class CloudBackupCoordinator internal constructor(
     }
 
     private fun verifyFailed(): Nothing = throw CloudBackupException(CloudBackupError.VERIFY_FAILED)
-
-    /** Best effort: a failure here leaves the copy where it was, as before. */
-    private suspend fun trashQuietly(token: String, fileId: String) {
-        try { drive.trash(token, fileId) {} }
-        catch (cancelled: CancellationException) { throw cancelled }
-        catch (_: Exception) { }
-    }
     private fun stale(): Nothing = throw CloudBackupException(CloudBackupError.SESSION_EXPIRED)
 
     private fun RemoteBackupFile.isManagedBackup(folderId: String): Boolean = !trashed && folderId in parents &&
@@ -817,7 +806,8 @@ class CloudBackupCoordinator internal constructor(
             else -> fallback
         }, error)
 
-    private fun digest(file: File, algorithm: String): String {
+    /** Off the caller's thread: a manual backup or a cloud restore starts on the main one, and archives are large. */
+    private suspend fun digest(file: File, algorithm: String): String = withContext(Dispatchers.IO) {
         val digest = MessageDigest.getInstance(algorithm)
         file.inputStream().use { input ->
             val buffer = ByteArray(64 * 1024)
@@ -827,7 +817,7 @@ class CloudBackupCoordinator internal constructor(
                 digest.update(buffer, 0, count)
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(it) }
+        digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun safeAddHours(start: Long, hours: Int): Long = try {

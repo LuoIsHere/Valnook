@@ -113,8 +113,7 @@ class CloudBackupCoordinatorTest {
         coordinator.manualBackup()
 
         assertEquals(5, drive.files.count { !it.trashed && it.properties["verificationState"] == "verified" })
-        // Only the copy that does not match is taken back.
-        assertEquals(listOf("new-1"), drive.trashedIds)
+        assertTrue(drive.trashedIds.isEmpty())
         assertEquals(BackupAttemptState.FAILED, coordinator.observeState().first().attemptState)
         assertEquals(CloudBackupError.VERIFY_FAILED, coordinator.observeState().first().latestError)
     }
