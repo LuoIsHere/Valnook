@@ -13,6 +13,25 @@ val releaseVersion = Properties().apply {
 }
 
 /**
+ * The version code follows from the version name and the upload number for that version: major × 1,000,000 +
+ * minor × 10,000 + patch × 100 + build, so 0.0.18 build 1 is 1801 and 0.1.0 build 1 is 10001. Each part past the
+ * major stays below 100, so the code rises with every version and upload. Backups record it and a build refuses one
+ * made by a larger code, so a release is the last build tested, never an earlier one.
+ */
+val releaseVersionCode: Int = run {
+    val name = releaseVersion.getProperty("version.name")
+    val parts = Regex("""(\d+)\.(\d+)\.(\d+)""").matchEntire(name)?.groupValues?.drop(1)?.map(String::toInt)
+        ?: error("version.name must be major.minor.patch: $name")
+    val build = releaseVersion.getProperty("version.build")?.toIntOrNull()
+        ?: error("version.build must be a number from 1 to 99")
+    val (major, minor, patch) = parts
+    require(minor in 0..99 && patch in 0..99) { "minor and patch must stay below 100: $name" }
+    require(build in 1..99) { "version.build must be from 1 to 99: $build" }
+    require(major in 0..2099) { "major too large for a version code: $name" }
+    major * 1_000_000 + minor * 10_000 + patch * 100 + build
+}
+
+/**
  * The commit's date and its place among that day's commits, such as 20261108.3. Backups record it and are refused
  * by a build with a smaller one, so it must be the same for every build of one commit and rise with history: the
  * date is the commit's own (in the time zone it was made in), not the day of building. Without git, the value in
@@ -51,7 +70,7 @@ android {
         applicationId = "dev.valnook.app"
         minSdk = 33
         targetSdk = 36
-        versionCode = releaseVersion.getProperty("version.code").toInt()
+        versionCode = releaseVersionCode
         versionName = releaseVersion.getProperty("version.name")
         buildConfigField("String", "INTERNAL_BUILD_ID", "\"$internalBuildId\"")
 
