@@ -14,9 +14,11 @@ val releaseVersion = Properties().apply {
 
 /**
  * The version code follows from the version name and the upload number for that version: major × 1,000,000 +
- * minor × 10,000 + patch × 100 + build, so 0.0.18 build 1 is 1801 and 0.1.0 build 1 is 10001. Each part past the
- * major stays below 100, so the code rises with every version and upload. Backups record it and a build refuses one
- * made by a larger code, so a release is the last build tested, never an earlier one.
+ * minor × 10,000 + patch × 100 + build, so 0.0.18 build 1 is 1801 and 0.1.0 build 1 is 10001. Minor, patch and
+ * build stay within 0-99 (build 1-99) and major within 0-2099, so the code rises with every version and upload and
+ * stays under Play's limit; anything outside fails the build. Backups record it and a build refuses one made by a
+ * larger code, so a release is the last build tested, never an earlier one. The rules for editing are in
+ * version.properties.
  */
 val releaseVersionCode: Int = run {
     val name = releaseVersion.getProperty("version.name")
