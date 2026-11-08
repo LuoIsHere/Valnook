@@ -13,7 +13,6 @@ import dev.valnook.domain.model.CashEntry
 import dev.valnook.domain.model.CashSource
 import java.time.Instant
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @Composable fun CashEntryDetailScreen(vm:CashEntryViewModel,account_name:String,on_edit:(CashEntry)->Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -36,7 +35,7 @@ import java.time.format.DateTimeFormatter
         stringResource(R.string.entry_account) to account_name,
         stringResource(R.string.currency) to entry.currency.code,
         stringResource(R.string.record_date) to time.toLocalDate().toString(),
-        stringResource(R.string.record_time) to time.format(DateTimeFormatter.ofPattern("HH:mm")),
+        stringResource(R.string.record_time) to time.format(rememberCashClock()),
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
         // A deleted instrument's trade has nothing left to open.
