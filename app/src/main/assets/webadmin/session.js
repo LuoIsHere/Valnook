@@ -46,10 +46,10 @@ async function connect() {
 
 function openSocket() {
   if (state.connecting) return state.connecting;
-  const operation = new Promise((resolve, reject) => {
+  // The session secret stays out of the URL: each connection uses a one-time ticket good for 30 seconds.
+  const operation = api("/api/v1/session/socket-ticket", { method: "POST", body: "{}" }).then(({ ticket }) => new Promise((resolve, reject) => {
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-    const ticket = state.sessionToken ? `?ticket=${encodeURIComponent(state.sessionToken)}` : "";
-    const socket = new WebSocket(`${protocol}//${location.host}/ws/v1/session${ticket}`);
+    const socket = new WebSocket(`${protocol}//${location.host}/ws/v1/session?ticket=${encodeURIComponent(ticket)}`);
     const timer = setTimeout(() => { socket.close(); reject(new Error("WS_TIMEOUT")); }, 15000);
     let ready = false;
     socket.addEventListener("error", () => {
@@ -76,7 +76,7 @@ function openSocket() {
         if (state.session && state.allowReconnect && !document.body.dataset.ended) reconnect();
       }
     });
-  });
+  }));
   state.connecting = operation;
   return operation.finally(() => { if (state.connecting === operation) state.connecting = null; });
 }

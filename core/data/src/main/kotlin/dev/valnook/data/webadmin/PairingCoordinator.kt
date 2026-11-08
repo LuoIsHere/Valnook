@@ -11,6 +11,8 @@ const val PENDING_SOCKET_TIMEOUT_MS = 15_000L
 /** Each guess is still one in a million, and at most five a minute from one address. */
 const val WRONG_CODES_BEFORE_ROTATION = 3
 const val WEB_SESSION_COOKIE = "valnook_web_session"
+/** A WebSocket ticket is good for one connection within this time, so the session secret never goes in a URL. */
+const val SOCKET_TICKET_TTL_MS = 30_000L
 
 data class PairingPublicState(
     val qrToken: String?,
@@ -51,6 +53,7 @@ class PairingCoordinator(
     private var active: Session? = null
     private val globalAttempts = ArrayDeque<Long>()
     private val sourceAttempts = mutableMapOf<String, ArrayDeque<Long>>()
+    private var socketTicket: SocketTicket? = null
 
     @Synchronized
     fun begin(nowMs: Long): PairingPublicState {
@@ -99,17 +102,48 @@ class PairingCoordinator(
     }
 
     @Synchronized
-    fun activate(cookieSecret: String, nowMs: Long): String? {
+    fun activate(cookieSecret: String, nowMs: Long): String? =
+        activateWhere(nowMs) { hashEquals(it.cookieHash, cookieSecret) }
+
+    /**
+     * A one-time ticket for the next WebSocket of the session [cookieSecret] belongs to, pending or active; it replaces
+     * any earlier ticket. Null when the secret or the CSRF token does not match.
+     */
+    @Synchronized
+    fun issueSocketTicket(cookieSecret: String, csrfToken: String?, nowMs: Long): String? {
+        expire(nowMs)
+        if (activeExpired(nowMs)) return null
+        val value = listOfNotNull(pending, active).firstOrNull { hashEquals(it.cookieHash, cookieSecret) } ?: return null
+        if (csrfToken == null || !constantEquals(value.csrfToken, csrfToken)) return null
+        val ticket = randomToken(32)
+        socketTicket = SocketTicket(sha256(ticket), value.sessionId, nowMs + SOCKET_TICKET_TTL_MS)
+        return ticket
+    }
+
+    /** Like [activate], with a ticket from [issueSocketTicket]; a matching ticket is used up, even if activation fails. */
+    @Synchronized
+    fun activateWithTicket(ticket: String, nowMs: Long): String? {
+        val held = socketTicket ?: return null
+        if (nowMs >= held.expiresAtMs) {
+            socketTicket = null
+            return null
+        }
+        if (!MessageDigest.isEqual(held.hash, sha256(ticket))) return null
+        socketTicket = null
+        return activateWhere(nowMs) { it.sessionId == held.sessionId }
+    }
+
+    private fun activateWhere(nowMs: Long, matches: (Session) -> Boolean): String? {
         expire(nowMs)
         if (activeExpired(nowMs)) return null
         pending?.let { value ->
-            if (!hashEquals(value.cookieHash, cookieSecret)) return null
+            if (!matches(value)) return null
             pending = null
             active = value.copy(pendingExpiresAtMs = null, lastSeenAtMs = nowMs, lastActivityAtMs = nowMs)
             return value.sessionId
         }
         val value = active ?: return null
-        if (!hashEquals(value.cookieHash, cookieSecret)) return null
+        if (!matches(value)) return null
         active = value.copy(lastSeenAtMs = nowMs)
         return value.sessionId
     }
@@ -227,6 +261,7 @@ class PairingCoordinator(
         active = null
         globalAttempts.clear()
         sourceAttempts.clear()
+        socketTicket = null
     }
 
     private fun randomToken(bytes: Int): String = ByteArray(bytes).also(random::nextBytes).let {
@@ -241,6 +276,8 @@ class PairingCoordinator(
 
     private fun sha256(value: String): ByteArray = MessageDigest.getInstance("SHA-256")
         .digest(value.toByteArray(Charsets.UTF_8))
+
+    private class SocketTicket(val hash: ByteArray, val sessionId: String, val expiresAtMs: Long)
 
     private data class Session(
         val sessionId: String,

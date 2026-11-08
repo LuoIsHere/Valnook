@@ -166,4 +166,48 @@ class PairingCoordinatorTest {
         assertEquals(0L, value.idleRemaining(600_000))
     }
 
+    private fun granted(value: PairingCoordinator, nowMs: Long): PairingGrant {
+        val token = requireNotNull(value.begin(nowMs).qrToken)
+        return (value.pairQr(token, "192.0.2.2", nowMs) as PairingResult.Granted).grant
+    }
+
+    @Test fun a_socket_ticket_needs_the_session_secret_and_csrf_and_works_before_the_first_socket() {
+        val value = coordinator()
+        val grant = granted(value, 0)
+        assertNull(value.issueSocketTicket("wrong-session-secret-long-enough", grant.csrfToken, 1))
+        assertNull(value.issueSocketTicket(grant.cookieSecret, null, 1))
+        assertNull(value.issueSocketTicket(grant.cookieSecret, "wrong", 1))
+        val ticket = requireNotNull(value.issueSocketTicket(grant.cookieSecret, grant.csrfToken, 1))
+        assertNotEquals(grant.cookieSecret, ticket)
+        // The secret itself is not a ticket.
+        assertNull(value.activateWithTicket(grant.cookieSecret, 2))
+        assertEquals(grant.sessionId, value.activateWithTicket(ticket, 2))
+        assertEquals(grant.sessionId, value.authenticate(grant.cookieSecret, grant.csrfToken, mutation = true, nowMs = 3))
+    }
+
+    @Test fun a_socket_ticket_opens_one_socket_within_its_time() {
+        val value = coordinator()
+        val grant = granted(value, 0)
+        assertEquals(grant.sessionId, value.activate(grant.cookieSecret, 1))
+        val used = requireNotNull(value.issueSocketTicket(grant.cookieSecret, grant.csrfToken, 10))
+        assertNull(value.activateWithTicket("wrong-ticket", 11))
+        assertEquals(grant.sessionId, value.activateWithTicket(used, 12))
+        assertNull(value.activateWithTicket(used, 13))
+        val late = requireNotNull(value.issueSocketTicket(grant.cookieSecret, grant.csrfToken, 20))
+        assertNull(value.activateWithTicket(late, 20 + SOCKET_TICKET_TTL_MS))
+        val inTime = requireNotNull(value.issueSocketTicket(grant.cookieSecret, grant.csrfToken, 100))
+        assertEquals(grant.sessionId, value.activateWithTicket(inTime, 99 + SOCKET_TICKET_TTL_MS))
+    }
+
+    @Test fun a_new_ticket_replaces_the_old_and_ending_pairing_voids_it() {
+        val value = coordinator()
+        val grant = granted(value, 0)
+        val first = requireNotNull(value.issueSocketTicket(grant.cookieSecret, grant.csrfToken, 1))
+        val second = requireNotNull(value.issueSocketTicket(grant.cookieSecret, grant.csrfToken, 2))
+        assertNull(value.activateWithTicket(first, 3))
+        val voided = requireNotNull(value.issueSocketTicket(grant.cookieSecret, grant.csrfToken, 4))
+        assertNotEquals(second, voided)
+        value.stop()
+        assertNull(value.activateWithTicket(voided, 5))
+    }
 }

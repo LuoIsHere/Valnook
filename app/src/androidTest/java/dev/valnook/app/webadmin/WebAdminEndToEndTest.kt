@@ -844,10 +844,23 @@ class WebAdminEndToEndTest {
         val pairedBody = JSONObject(paired.body)
         val csrf = pairedBody.getString("csrfToken")
         val sessionToken = pairedBody.getString("sessionToken")
+        fun ticket(): String {
+            val issued = http(endpoint, "POST", "/api/v1/session/socket-ticket", origin = origin,
+                bearer = sessionToken, csrf = csrf, body = "{}")
+            assertEquals(200, issued.status)
+            return JSONObject(issued.body).getString("ticket")
+        }
 
-        val first = openWebSocket(endpoint, origin, cookie = "", ticket = sessionToken)
+        // The session secret itself no longer opens a WebSocket from the URL, and a ticket needs the CSRF token.
+        assertRefused(openWebSocket(endpoint, origin, cookie = "", ticket = sessionToken))
+        assertEquals(401, http(endpoint, "POST", "/api/v1/session/socket-ticket", origin = origin,
+            bearer = sessionToken, body = "{}").status)
+        // A ticket is issued while the session still waits for its first WebSocket, and opens one connection only.
+        val firstTicket = ticket()
+        val first = openWebSocket(endpoint, origin, cookie = "", ticket = firstTicket)
         awaitPhase(WebAdminPhase.ACTIVE)
-        val replacement = openWebSocket(endpoint, origin, cookie = "", ticket = sessionToken)
+        assertRefused(openWebSocket(endpoint, origin, cookie = "", ticket = firstTicket))
+        val replacement = openWebSocket(endpoint, origin, cookie = "", ticket = ticket())
         delay(500)
         assertEquals(WebAdminPhase.ACTIVE, web.state.value.phase)
         assertEquals(200, http(endpoint, "GET", "/api/v1/session", bearer = sessionToken).status)
@@ -865,7 +878,7 @@ class WebAdminEndToEndTest {
         assertEquals(401, http(endpoint, "POST", "/api/v1/session/resume", origin = origin,
             bearer = "wrong-session-token-that-is-long-enough", body = "{}").status)
 
-        val resumed = openWebSocket(endpoint, origin, cookie = "", ticket = sessionToken)
+        val resumed = openWebSocket(endpoint, origin, cookie = "", ticket = ticket())
         delay(500)
         assertEquals(WebAdminPhase.ACTIVE, web.state.value.phase)
         assertEquals(200, http(endpoint, "GET", "/api/v1/session", bearer = sessionToken).status)
@@ -1051,6 +1064,15 @@ class WebAdminEndToEndTest {
         }
         assertTrue(header.toString(Charsets.ISO_8859_1.name()).startsWith("HTTP/1.1 101"))
         return socket
+    }
+
+    /** A refused session still completes the upgrade, then the server closes at once with a policy close. */
+    private fun assertRefused(socket: Socket) = socket.use {
+        val input = it.getInputStream()
+        val first = input.read()
+        val payload = ByteArray(input.read() and 0x7f).also { value -> readFully(input, value) }
+        assertEquals(0x8, first and 0x0f)
+        assertEquals(1008, ((payload[0].toInt() and 0xff) shl 8) or (payload[1].toInt() and 0xff))
     }
 
     private fun sendMaskedText(socket: Socket, value: String) {

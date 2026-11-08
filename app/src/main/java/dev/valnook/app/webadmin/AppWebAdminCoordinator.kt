@@ -147,6 +147,13 @@ class AppWebAdminCoordinator @Inject constructor(
             }.toString())
         }
 
+        if (request.path == "/api/v1/session/socket-ticket" && request.method == "POST") {
+            // Also for a session still waiting for its first WebSocket, which the API below does not accept yet.
+            val ticket = sessionSecret?.let { pairing.issueSocketTicket(it, request.headers["x-valnook-csrf"], sessionNow()) }
+                ?: return error(401, "SESSION_EXPIRED", clearCookie = true)
+            return json(200, buildJsonObject { put("ticket", ticket) }.toString())
+        }
+
         val csrf = request.headers["x-valnook-csrf"]
         val sessionId = pairing.authenticate(sessionSecret, csrf, mutation, sessionNow())
             ?: return error(401, "SESSION_EXPIRED", true, clearCookie = true)
@@ -163,8 +170,9 @@ class AppWebAdminCoordinator @Inject constructor(
             return@withLock WebSocketAdmission(false, status = 403)
         }
         val now = sessionNow()
-        val sessionId = (cookie(request.headers["cookie"]) ?: socketTicket(request.query))
-            ?.let { pairing.activate(it, now) }
+        // The session secret itself is never accepted in the URL: without the cookie, only a one-time ticket.
+        val sessionId = cookie(request.headers["cookie"])?.let { pairing.activate(it, now) }
+            ?: socketTicket(request.query)?.let { pairing.activateWithTicket(it, now) }
             ?: return@withLock WebSocketAdmission(false, status = 409)
         try {
             if (activeSessionId == null) {
