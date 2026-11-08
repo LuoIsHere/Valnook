@@ -43,6 +43,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
@@ -357,13 +358,17 @@ private fun SessionRoot(
     val glassTop = current.isRoot() || current == HiddenWalletKey
     val toolbarScrollState = rememberToolbarScrollState(stack)
     val toolbarScrollBehavior = TopAppBarDefaults.pinnedScrollBehavior(toolbarScrollState)
+    // Only whether content is under the bar reaches composition, not every pixel of a scroll.
+    val scrolledUnder by remember(toolbarScrollState) { derivedStateOf { toolbarScrollState.contentOffset < -0.5f } }
     val toolbarBackgroundAlpha by animateFloatAsState(
         // The account and sub-account pages' balance moves up into the bar, so the bar stays clear there; nothing
         // scrolls under it.
-        if (current !is AccountKey && current !is CashKey && current !is InstrumentKey && (if(walletCurrent)walletToolbar?.scrolled==true else toolbarScrollState.contentOffset < -0.5f)) 1f else 0f,
+        if (current !is AccountKey && current !is CashKey && current !is InstrumentKey && (if(walletCurrent)walletToolbar?.scrolled==true else scrolledUnder)) 1f else 0f,
         animationSpec = tween(120), label = "toolbar-background")
     val density = LocalDensity.current
-    val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
+    // Whether the keyboard is open, not its height on each frame of its animation.
+    val ime = WindowInsets.ime
+    val keyboardOpen by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
     val showCapsule = current.isRoot() && !keyboardOpen && !walletDetail
     var overlayHeightPx by remember { mutableIntStateOf(0) }
     val systemBottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
@@ -377,7 +382,7 @@ private fun SessionRoot(
     val navigationPaused = !current.isRoot() || keyboardOpen || walletDetail || walletNavigationHidden
     SideEffect { navigationCollapse.paused = navigationPaused }
     // The same top the toolbar's background goes by.
-    val atPageTop = if (walletCurrent) walletToolbar?.scrolled != true else toolbarScrollState.contentOffset >= -0.5f
+    val atPageTop = if (walletCurrent) walletToolbar?.scrolled != true else !scrolledUnder
     LaunchedEffect(atPageTop, navigationPaused) { if (atPageTop) navigationCollapse.atTop() }
     // Another root page opens with the whole bar; coming back from a sub-page keeps the bar as it was.
     var lastRoot by remember(graph.sessionId) { mutableStateOf<NavKey?>(null) }

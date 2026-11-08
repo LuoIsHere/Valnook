@@ -1,5 +1,8 @@
 package dev.valnook.feature.wallet
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -41,7 +44,7 @@ import java.time.*
         val trend by vm.trend.collectAsStateWithLifecycle()
         val account=snapshot?.cash?.firstOrNull{it.id==card.boundCashAccountId}
         val parent=snapshot?.accounts?.firstOrNull{it.id==account?.account_id}
-        val names=snapshot?.cash.orEmpty().associate { cash->cash.id to listOf(snapshot?.accounts?.firstOrNull{it.id==cash.account_id}?.name,cash.name).filterNotNull().joinToString(" · ") }
+        val names=remember(snapshot){snapshot?.cash.orEmpty().associate { cash->cash.id to listOf(snapshot?.accounts?.firstOrNull{it.id==cash.account_id}?.name,cash.name).filterNotNull().joinToString(" · ") }}
         var collapse by rememberSaveable { mutableFloatStateOf(0f) }
         // The card glow fades out over the first tenth of the header collapse.
         fun glowFade()=(1f-collapse/.1f).coerceIn(0f,1f)
@@ -54,9 +57,18 @@ import java.time.*
         }
         val list=rememberLazyListState()
         var chooseMonth by rememberSaveable { mutableStateOf(false) }
-        val localTitle=if(collapse>.5f)account?.name?:card.name else card.name
+        // Only what changes the page reaches composition; the collapse itself is read while laying out and drawing.
+        val titleCollapsed by remember{derivedStateOf{collapse>.5f}}
+        val cardTappable by remember{derivedStateOf{collapse<.8f}}
+        val localTitle=if(titleCollapsed)account?.name?:card.name else card.name
         val scrolled by remember{derivedStateOf{collapse>0f||list.firstVisibleItemIndex>0||list.firstVisibleItemScrollOffset>0}}
-        SideEffect{onTitle(localTitle);onScrolled(scrolled);onGlowFade(glowFade())}
+        val days=remember(ledger.rows){ledger.rows.groupBy{Instant.ofEpochMilli(it.occurred_at_ms).atZone(vm.zone).toLocalDate()}}
+        SideEffect{onTitle(localTitle)}
+        // Told as they change, not on each recomposition, which a scroll no longer causes.
+        val reportScrolled by rememberUpdatedState(onScrolled)
+        val reportGlowFade by rememberUpdatedState(onGlowFade)
+        LaunchedEffect(Unit){snapshotFlow{scrolled}.collect{reportScrolled(it)}}
+        LaunchedEffect(Unit){snapshotFlow{glowFade()}.collect{reportGlowFade(it)}}
         DisposableEffect(card.id){onDispose{onTitle(null);onScrolled(false)}}
         BoxWithConstraints(Modifier.fillMaxSize().testTag("wallet-detail").pointerInput(returnEnabled){
             if(!returnEnabled)awaitPointerEventScope {
@@ -86,7 +98,11 @@ import java.time.*
             Column(Modifier.fillMaxSize().nestedScroll(nested).padding(top=LocalPageTopSpace.current,bottom=LocalPageBottomSpace.current)) {
                 // At rest the card's glow spreads on every side. As the header collapses the glow fades out and the clip
                 // closes in, but always reaches past the opaque panel's rounded corners: the panel covers the card, not the clip.
-                Box(Modifier.fillMaxWidth().height(headerHeight*(1-collapse)).drawWithContent {
+                Box(Modifier.fillMaxWidth().layout{measurable,constraints->
+                    val height=constraints.constrainHeight((headerPx*(1f-collapse)).roundToInt().coerceAtLeast(0))
+                    val placeable=measurable.measure(constraints.copy(minHeight=height,maxHeight=height))
+                    layout(placeable.width,height){placeable.place(0,0)}
+                }.drawWithContent {
                     clipRect(-size.width,-size.height,size.width*2,size.height+maxOf(panelCorner.toPx(),64.dp.toPx()*glowFade())){this@drawWithContent.drawContent()}
                 },contentAlignment=Alignment.TopCenter) {
                     WalletFlippingCard(card,cache,privateState,cardModifier.width(width).requiredHeight(width/WalletRules.ASPECT).graphicsLayer {
@@ -96,7 +112,7 @@ import java.time.*
                         val visible=((.8f-collapse)/.7f).coerceIn(0f,1f)
                         alpha=if(returning)maxOf(visible,(progress()*4).coerceIn(0f,1f))else visible
                     }.semantics{contentDescription=card.name}.clickable(interactionSource=remember{androidx.compose.foundation.interaction.MutableInteractionSource()},
-                        indication=null,enabled=returnEnabled&&collapse<.8f&&privateState.angle.value==0f&&!privateState.desiredBack,
+                        indication=null,enabled=returnEnabled&&cardTappable&&privateState.angle.value==0f&&!privateState.desiredBack,
                         onClickLabel=wording("Back to wallet","返回卡包"),onClick=onReturn),returnEnabled,{glow()*glowFade()},::glowFade)
                 }
                 GlassSurface(Modifier.fillMaxWidth().weight(1f,fill=false).padding(horizontal=16.dp).then(panelMotion),RoundedCornerShape(panelCorner),tintAlpha=1f) {
@@ -138,7 +154,7 @@ import java.time.*
                             else if(ledger.failed)item("error"){TextButton(vm::retry){Text(wording("Could not load this month. Retry","本月记录加载失败，点击重试"))}}
                             else if(ledger.rows.isEmpty())item("empty"){cashSlots.emptyMonth(Modifier.padding(top=8.dp))}
                             // Newest first, so each day's changes stay together in their order.
-                            ledger.rows.groupBy{Instant.ofEpochMilli(it.occurred_at_ms).atZone(vm.zone).toLocalDate()}.forEach { (date,rows) ->
+                            days.forEach { (date,rows) ->
                                 item("day-$date"){cashSlots.dayGroup(date,rows){id->onEntry(account.account_id,account.id,id)}}
                             }
                             if(ledger.more)item("more") {
