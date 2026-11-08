@@ -5,6 +5,8 @@ import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.model.AppLanguage
 import dev.valnook.domain.portability.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
@@ -25,10 +27,8 @@ class RoomPortabilityEngine(
 ) {
     private val appContext = context.applicationContext
     private val workRoot = File(appContext.cacheDir, "valnook-portability").also(BackupSnapshotWriter::secureDirectory)
-    private val snapshotWriter = BackupSnapshotWriter(db, clock, buildInfo, workRoot, limits)
     private val archiveReader = ArchiveReader(appContext, buildInfo, limits, workRoot)
     private val importer = RestoreImporter(db, clock)
-    private val spreadsheetWriter = SpreadsheetWriter(db, clock, buildInfo, workRoot)
 
     fun buildInfo(): AppBuildInfo = buildInfo
 
@@ -40,7 +40,7 @@ class RoomPortabilityEngine(
         progress: (PortabilityProgress) -> Unit
     ): PortableFileResult {
         progress(PortabilityProgress(PortabilityStage.PREPARING_SNAPSHOT))
-        val value = snapshotWriter.create(backupId)
+        val value = readSnapshot { BackupSnapshotWriter(it, clock, buildInfo, workRoot, limits).create(backupId) }
         try {
             progress(PortabilityProgress(PortabilityStage.VALIDATING_PACKAGE, value.recordCount))
             val check = archiveReader.stage(value.archive, value.packageSha256, "self-check.val_backup", generation())
@@ -118,6 +118,34 @@ class RoomPortabilityEngine(
 
     fun close(staged: StagedRestore) = archiveReader.close(staged)
 
+    /**
+     * Runs [block] on a copy of the database as it was at one moment, so writing a backup or a workbook, which takes
+     * long, never holds the write lock: saving goes on meanwhile. The copy is made on a read-only connection of its own
+     * (a reader does not block writers in WAL mode). It is a plain copy of all the data, so it stays in the private
+     * work folder and goes when [block] ends; a copy left by a process that died is cleared with that folder at start.
+     */
+    internal suspend fun <T> readSnapshot(block: suspend (ValnookDatabase) -> T): T {
+        val file = File(workRoot, "snapshot-${UUID.randomUUID()}.db")
+        try {
+            withContext(Dispatchers.IO) { copyDatabaseInto(file) }
+            val copy = ValnookDatabase.staging(appContext, file.path)
+            try { return block(copy) } finally { copy.close() }
+        } finally {
+            android.database.sqlite.SQLiteDatabase.deleteDatabase(file)
+        }
+    }
+
+    private fun copyDatabaseInto(file: File) {
+        val path = db.openHelper.readableDatabase.path
+        // An in-memory database (tests) has no file another connection could open; it is copied on its own connection.
+        if (path == null || path == ":memory:" || path.isBlank()) {
+            db.openHelper.writableDatabase.execSQL("VACUUM INTO ?", arrayOf<Any>(file.path))
+            return
+        }
+        android.database.sqlite.SQLiteDatabase.openDatabase(path, null, android.database.sqlite.SQLiteDatabase.OPEN_READONLY)
+            .use { it.execSQL("VACUUM INTO ?", arrayOf<Any>(file.path)) }
+    }
+
     suspend fun exportWorkbook(
         reportId: String,
         language: AppLanguage,
@@ -126,7 +154,7 @@ class RoomPortabilityEngine(
         progress: (PortabilityProgress) -> Unit
     ): PortableFileResult {
         progress(PortabilityProgress(PortabilityStage.PREPARING_SNAPSHOT))
-        val workbook = spreadsheetWriter.create(reportId, language, demo)
+        val workbook = readSnapshot { SpreadsheetWriter(it, clock, buildInfo, workRoot).create(reportId, language, demo) }
         try {
             progress(PortabilityProgress(PortabilityStage.COPYING_OUTPUT, workbook.recordCount))
             workbook.file.inputStream().use { it.copyTo(output, COPY_BUFFER_SIZE) }
