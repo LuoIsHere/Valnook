@@ -16,12 +16,12 @@ import dev.valnook.feature.settings.navigationLabel
 
 /**
  * The surrounding layer is transparent; only the capsule paints a background. [fold] narrows it to the current page
- * (0 whole, 1 folded); tapping the folded capsule calls [onExpand].
+ * (0 whole, 1 folded), read only while laying out and drawing; tapping the folded capsule calls [onExpand].
  */
 @Composable
 internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId>,
     onSelect: (NavKey) -> Unit, modifier: Modifier, backdrop: GlassBackdrop? = null,
-    fold: Float = 0f, onExpand: () -> Unit = {}) {
+    fold: () -> Float = { 0f }, onExpand: () -> Unit = {}) {
     val selected = itemForKey(current)
     val expandLabel = stringResource(R.string.nav_expand_bar, navigationLabel(selected))
     Box(modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))

@@ -724,7 +724,7 @@ private fun SessionRoot(
             FloatingNavigationBar(current, settings.navigation.visibleInOrder, { if (!walletDetail) selectRoot(it) },
                 Modifier.fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
                     .testTag("floating-navigation-overlay"), backdrop,
-                fold = navigationFold, onExpand = navigationCollapse::expand)
+                fold = { navigationFold }, onExpand = navigationCollapse::expand)
         }
     }
 }

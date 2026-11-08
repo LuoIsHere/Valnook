@@ -30,6 +30,8 @@ class NavigationCapsuleCollapseUiTest {
     private var chosen by mutableStateOf("C")
     private var collapse by mutableFloatStateOf(0f)
     private var expanded = 0
+    /** How many times the tabs' names were composed: each composition of the bar asks for every name again. */
+    private var labelCalls = 0
 
     /** Set by [scene]: px per dp. A wide host is drawn at a low density so all of it stays on the screen. */
     private var density = 0f
@@ -41,9 +43,9 @@ class NavigationCapsuleCollapseUiTest {
             CompositionLocalProvider(LocalLayoutDirection provides direction,
                 LocalDensity provides Density(density ?: current.density, current.fontScale)) {
                 ValnookTheme { Box { Box(Modifier.requiredWidth(width.dp).testTag("host")) {
-                    NavigationCapsule(pages, chosen, { chosen = it }, { FaIcons.gear }, { it },
+                    NavigationCapsule(pages, chosen, { chosen = it }, { FaIcons.gear }, { labelCalls++; it },
                         optionModifier = { Modifier.testTag("tab-$it") },
-                        collapse = collapse, onExpand = { expanded++ }, expandLabel = "Current page: $chosen, tap to expand")
+                        collapse = { collapse }, onExpand = { expanded++ }, expandLabel = "Current page: $chosen, tap to expand")
                 } } }
             }
         }
@@ -89,6 +91,26 @@ class NavigationCapsuleCollapseUiTest {
         val middle = bounds("navigation-capsule").width
         assertTrue(middle < full && middle > folded)
         rule.onNodeWithTag("navigation-expand").assertDoesNotExist()
+    }
+
+    @Test fun folding_short_of_halfway_does_not_compose_the_bar_again() {
+        scene()
+        val full = bounds("navigation-capsule").width
+        val composed = labelCalls
+        var last = full
+        for (step in listOf(.1f, .2f, .3f, .45f)) {
+            collapse = step
+            rule.waitForIdle()
+            val width = bounds("navigation-capsule").width
+            assertTrue("The capsule narrows at $step", width < last)
+            last = width
+        }
+        assertEquals("Moving the fold composes nothing", composed, labelCalls)
+        rule.onNodeWithTag("navigation-expand").assertDoesNotExist()
+        // Crossing halfway is the one change that composes: the capsule becomes the expand button.
+        collapse = .6f
+        rule.waitForIdle()
+        rule.onNodeWithTag("navigation-expand").assertExists()
     }
 
     private fun px(dp: Float) = dp * density
