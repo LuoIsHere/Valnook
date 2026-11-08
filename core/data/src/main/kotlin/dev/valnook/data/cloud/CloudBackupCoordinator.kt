@@ -313,6 +313,9 @@ class CloudBackupCoordinator internal constructor(
         var archive: File? = null
         var attempt: CloudBackupAttemptEntity? = null
         try {
+            // Nothing else writes archives while no cycle runs: any left (a kill, a cancel) are plain copies of the data.
+            cloudRoot.listFiles { file -> file.isDirectory && file.name.startsWith("attempt-") }
+                ?.forEach { it.deleteRecursively() }
             reconcileRestorePause()
             var state = requireConnection()
             val actual = Generation(state.connection_generation, state.schedule_generation)
@@ -400,7 +403,7 @@ class CloudBackupCoordinator internal constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
-                attempt = finishAfterUploadError(attempt, error, automatic, actual, cycleId, verify = true)
+                attempt = finishAfterUploadError(attempt, error, automatic, actual, cycleId, verify = true, token = token)
                 return
             }
             attempt = finishVerifiedAttempt(attempt, token, state.folder_id!!, actual, cycleId, automatic)
@@ -418,7 +421,8 @@ class CloudBackupCoordinator internal constructor(
             }
             releaseProgress()
         } finally {
-            if (attempt?.state != BackupAttemptState.UNKNOWN_RESULT.name) archive?.parentFile?.deleteRecursively()
+            // Never kept, even when the outcome is unknown: reconciling only checks the remote copy.
+            archive?.parentFile?.deleteRecursively()
             running.set(false)
         }
     }
@@ -439,14 +443,20 @@ class CloudBackupCoordinator internal constructor(
         automatic: Boolean,
         generation: Generation,
         cycleId: String,
-        verify: Boolean = false
+        verify: Boolean = false,
+        token: String? = null
     ): CloudBackupAttemptEntity {
         val at = networkClock.nowUtcMs() ?: System.currentTimeMillis()
         if (!isGenerationCurrent(generation, cycleId, automatic)) {
             return attempt.copy(finished_at_utc_ms = at, state = BackupAttemptState.CANCELLED.name,
                 error = CloudBackupError.SESSION_EXPIRED.name).also { store.saveAttempt(it); releaseProgress() }
         }
-        val unknown = error is DriveRequestException && error.outcomeUnknown
+        // After the upload the file is there. A copy that does not match is taken back; any other failure leaves it
+        // to be checked again by the next cycle, rather than left unverified for good.
+        val uploaded = verify && attempt.drive_file_id != null
+        val mismatch = error is CloudBackupException && error.error == CloudBackupError.VERIFY_FAILED
+        if (uploaded && mismatch && token != null) trashQuietly(token, attempt.drive_file_id!!)
+        val unknown = (error is DriveRequestException && error.outcomeUnknown) || (uploaded && !mismatch)
         val cloudError = when {
             error is CloudBackupException -> error.error
             unknown -> CloudBackupError.UPLOAD_UNKNOWN
@@ -564,15 +574,18 @@ class CloudBackupCoordinator internal constructor(
 
     private suspend fun reconcileUnknown(token: String, folderId: String, generation: Generation,
         cycleId: String, automatic: Boolean): CloudBackupAttemptEntity? {
+        // Also an upload or check a cancel or a kill cut short: no cycle runs now, so those states are stale.
         val attempt = store.latestAttempt()?.takeIf {
-            it.provider == drive.provider.name && it.state == BackupAttemptState.UNKNOWN_RESULT.name && it.folder_id == folderId
+            it.provider == drive.provider.name && it.state in RECONCILED_STATES && it.folder_id == folderId
         } ?: return null
         val found = listManaged(token, folderId).firstOrNull {
             it.id == attempt.drive_file_id || it.properties["attemptId"] == attempt.attempt_id
         } ?: return null
-        if (runCatching { assertRemote(found, attempt) }.isFailure) return null
+        // A copy that does not match is not a backup: taken back instead of left in the quota.
+        if (runCatching { assertRemote(found, attempt) }.isFailure) { trashQuietly(token, found.id); return null }
         try { drive.verify(token, found, attempt.archive_sha256, attempt.archive_size) }
         catch (cancelled: CancellationException) { throw cancelled }
+        catch (error: CloudBackupException) { if (error.error == CloudBackupError.VERIFY_FAILED) trashQuietly(token, found.id); return null }
         catch (_: Exception) { return null }
         val confirmed = try {
             when (found.properties["verificationState"]) {
@@ -747,6 +760,13 @@ class CloudBackupCoordinator internal constructor(
     }
 
     private fun verifyFailed(): Nothing = throw CloudBackupException(CloudBackupError.VERIFY_FAILED)
+
+    /** Best effort: a failure here leaves the copy where it was, as before. */
+    private suspend fun trashQuietly(token: String, fileId: String) {
+        try { drive.trash(token, fileId) {} }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (_: Exception) { }
+    }
     private fun stale(): Nothing = throw CloudBackupException(CloudBackupError.SESSION_EXPIRED)
 
     private fun RemoteBackupFile.isManagedBackup(folderId: String): Boolean = !trashed && folderId in parents &&
@@ -830,6 +850,8 @@ class CloudBackupCoordinator internal constructor(
         val FAILURE_STATES = setOf(BackupAttemptState.FAILED, BackupAttemptState.UNKNOWN_RESULT,
             BackupAttemptState.PREPARATION_FAILED)
         val PROGRESS_STATES = setOf(BackupAttemptState.PREPARING.name, BackupAttemptState.UPLOADING.name,
+            BackupAttemptState.VERIFYING.name)
+        val RECONCILED_STATES = setOf(BackupAttemptState.UNKNOWN_RESULT.name, BackupAttemptState.UPLOADING.name,
             BackupAttemptState.VERIFYING.name)
         val WAITING_STATES = setOf(BackupAttemptState.WAITING_NETWORK.name,
             BackupAttemptState.WAITING_NETWORK_TIME.name)

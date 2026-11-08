@@ -113,7 +113,8 @@ class CloudBackupCoordinatorTest {
         coordinator.manualBackup()
 
         assertEquals(5, drive.files.count { !it.trashed && it.properties["verificationState"] == "verified" })
-        assertTrue(drive.trashedIds.isEmpty())
+        // Only the copy that does not match is taken back.
+        assertEquals(listOf("new-1"), drive.trashedIds)
         assertEquals(BackupAttemptState.FAILED, coordinator.observeState().first().attemptState)
         assertEquals(CloudBackupError.VERIFY_FAILED, coordinator.observeState().first().latestError)
     }
@@ -278,7 +279,8 @@ class CloudBackupCoordinatorTest {
 
         val unknown = database.cloudBackup().latestAttempt()!!
         assertEquals(BackupAttemptState.UNKNOWN_RESULT.name, unknown.state)
-        assertTrue(File(unknown.local_archive_path!!).isFile)
+        // The plain archive is not kept: reconciling only checks the remote copy.
+        assertFalse(File(unknown.local_archive_path!!).exists())
         assertEquals(1, drive.uploadCalls)
 
         drive.failAfterUploadWithUnknownOutcome = false
@@ -289,6 +291,28 @@ class CloudBackupCoordinatorTest {
         assertEquals(1, drive.uploadCalls)
         assertEquals("verified", drive.files.single().properties["verificationState"])
         assertFalse(File(unknown.local_archive_path).exists())
+    }
+
+    @Test fun gd2_a_check_cut_short_after_the_upload_is_reconciled_not_left_unverified() = runBlocking {
+        connect()
+        // A plain archive left by an earlier killed cycle.
+        val left = File(File(context.cacheDir, "valnook-cloud"), "attempt-left-behind").apply { mkdirs() }
+        File(left, "archive.val_backup").writeText("synthetic")
+        drive.failDownload = DriveRequestException(503, false)
+
+        coordinator.manualBackup()
+
+        assertEquals(BackupAttemptState.UNKNOWN_RESULT.name, database.cloudBackup().latestAttempt()!!.state)
+        assertTrue(drive.trashedIds.isEmpty())
+        assertFalse(left.exists())
+        assertEquals(1, drive.uploadCalls)
+
+        drive.failDownload = null
+        coordinator.manualBackup()
+
+        assertEquals(BackupAttemptState.SUCCEEDED.name, database.cloudBackup().latestAttempt()!!.state)
+        assertEquals(1, drive.uploadCalls)
+        assertEquals("verified", drive.files.single().properties["verificationState"])
     }
 
     @Test fun gd2_disconnect_during_upload_prevents_old_cycle_from_overwriting_disconnected_state() = runBlocking {
@@ -576,6 +600,7 @@ class CloudBackupCoordinatorTest {
         var failAfterUploadWithUnknownOutcome = false
         var failUpload: DriveRequestException? = null
         var failTrash = false
+        var failDownload: DriveRequestException? = null
         var afterFirstUploadGate: (suspend () -> Unit)? = null
         private val folder = RemoteBackupFolder("managed-folder", "Valnook_backup")
 
@@ -631,6 +656,7 @@ class CloudBackupCoordinatorTest {
             files[index] = files[index].copy(trashed = true)
         }
         override suspend fun download(accessToken: String, fileId: String, output: OutputStream) {
+            failDownload?.let { throw it }
             output.write(contents[fileId] ?: byteArrayOf(1, 2, 3))
         }
         fun seedVerified(order: Int, databaseSchema: Int = 10) {
