@@ -150,7 +150,7 @@ class InstrumentDetailUiTest {
         save("history")
     }
 
-    @Test fun the_history_shows_one_account_from_the_menu_or_its_row() {
+    @Test fun the_history_shows_one_account_from_its_menu() {
         seed(); show()
         list().performScrollToNode(hasTestTag("instrument-trade-filter"))
         rule.onNodeWithTag("instrument-trade-filter").assertTextContains("全部账户").performClick()
@@ -160,14 +160,14 @@ class InstrumentDetailUiTest {
         rule.waitUntil(5_000) { shownTrades() == 1 }
         rule.onAllNodes(hasText("买入 · Broker")).assertCountEquals(1)
         save("filtered")
-        // A tap on another account's row shows that one; a second tap all of them again.
-        list().performScrollToNode(hasTestTag("instrument-account-$closed"))
-        rule.onNodeWithTag("instrument-account-$closed").performClick().assertIsSelected()
-        rule.waitUntil(5_000) { shownTrades() == 2 }
-        rule.onNodeWithTag("instrument-account-$closed").performClick().assertIsNotSelected()
+        // Back to every account from the same menu.
+        rule.onNodeWithTag("instrument-trade-filter").performClick()
+        rule.onNodeWithTag("instrument-trade-filter-all").performClick()
         rule.waitUntil(5_000) { shownTrades() == 4 }
-        list().performScrollToNode(hasTestTag("instrument-trade-filter"))
         rule.onNodeWithTag("instrument-trade-filter").assertTextContains("全部账户")
+        // The account rows only show each share: they have nothing to open, so they take no tap.
+        list().performScrollToNode(hasTestTag("instrument-account-$closed"))
+        listOf(savings, broker, closed).forEach { rule.onNodeWithTag("instrument-account-$it").assert(hasClickAction().not()) }
     }
 
     @Test fun buying_and_selling_choose_the_account_starting_with_the_one_it_came_from() {

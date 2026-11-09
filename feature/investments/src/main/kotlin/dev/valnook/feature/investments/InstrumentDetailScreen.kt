@@ -116,7 +116,7 @@ private enum class Picking { BUY, SELL, DIVIDEND }
                         Text(stringResource(R.string.investment_dividend), maxLines = 1) }
                 }
             }
-            item("accounts") { AccountHoldings(ready.holdings, currency, filter) { id -> vm.selectAccount(if (filter == id) null else id) } }
+            item("accounts") { AccountHoldings(ready.holdings, currency) }
             item("history-header") {
                 Row(Modifier.fillMaxWidth().padding(top = Space.md).trimHeight(12.dp).testTag("instrument-history-header"),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -258,8 +258,8 @@ private enum class Picking { BUY, SELL, DIVIDEND }
     }
 }
 
-/** Each account's share; a tap shows only its trades below, a second tap all of them again. */
-@Composable private fun AccountHoldings(holdings: List<InstrumentHolding>, currency: Currency, filter: Long?, onAccount: (Long) -> Unit) {
+/** Each account's share, for reading only: the history's menu shows one account's trades. */
+@Composable private fun AccountHoldings(holdings: List<InstrumentHolding>, currency: Currency) {
     Column(Modifier.fillMaxWidth().padding(top = Space.md), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.instrument_accounts_title), Modifier.padding(start = 4.dp).semantics { heading() },
             style = MaterialTheme.typography.titleMedium)
@@ -269,19 +269,17 @@ private enum class Picking { BUY, SELL, DIVIDEND }
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             holdings.forEachIndexed { index, holding ->
                 if (index > 0) FormDivider()
-                AccountHoldingRow(holding, currency, filter == holding.account.id) { onAccount(holding.account.id) }
+                AccountHoldingRow(holding, currency)
             }
         }
     }
 }
 
-@Composable private fun AccountHoldingRow(holding: InstrumentHolding, currency: Currency, chosen: Boolean, onClick: () -> Unit) {
+@Composable private fun AccountHoldingRow(holding: InstrumentHolding, currency: Currency) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     val small = MaterialTheme.typography.bodySmall
     val open = holding.position.holding_quantity_e8 > 0
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp)
-        .background(if (chosen) MaterialTheme.colorScheme.surfaceContainer else androidx.compose.ui.graphics.Color.Transparent)
-        .clickable(role = Role.Button, onClick = onClick).semantics(mergeDescendants = true) { selected = chosen }
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).semantics(mergeDescendants = true) {}
         .testTag("instrument-account-${holding.account.id}").padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         AccountAvatar(holding.account.icon.symbol, holding.account.icon.imageKey, size = 32.dp)
