@@ -126,12 +126,13 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
  * A balance with its trend. Collapsing takes the layout height away without clipping or resizing anything: the
  * balance moves into the title bar, ending [collapsedEndInset] from the end so the bar's buttons stay clear, and the
  * chart keeps its size (resizing would rebuild and squash its path) while the opaque content below slides over it.
- * [top] and [trailing] fade first and are gone before the balance moves, so the balance never crosses them; the chart
- * fades a little later. [onTitleReserve] tells the bar how much room to leave.
+ * [top], [trailing] and [below] (a line under the balance) fade first and are gone before the balance moves, so the
+ * balance never crosses them; the chart fades a little later. [onTitleReserve] tells the bar how much room to leave.
  */
 @Composable fun CollapsingBalanceHeader(collapse: HeaderCollapse, balance: String, balanceColor: Color,
     onTitleReserve: (Int) -> Unit, modifier: Modifier = Modifier, balanceModifier: Modifier = Modifier,
     collapsedEndInset: Dp = 44.dp, trailing: (@Composable () -> Unit)? = null,
+    below: (@Composable ColumnScope.(fading: Modifier) -> Unit)? = null,
     top: @Composable ColumnScope.(fading: Modifier) -> Unit,
     chart: @Composable ColumnScope.(Modifier) -> Unit) {
     val density = LocalDensity.current
@@ -188,6 +189,7 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
                 Box(fading.padding(start = 8.dp).then(if (hidden) Modifier.clearAndSetSemantics {} else Modifier)) { trailing() }
             }
         }
+        below?.invoke(this, fading)
         Spacer(Modifier.height(4.dp))
         chart(Modifier.graphicsLayer {
             alpha = (1f - collapse.progress * 3f).coerceAtLeast(0f)

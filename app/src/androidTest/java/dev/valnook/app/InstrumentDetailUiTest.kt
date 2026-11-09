@@ -114,8 +114,16 @@ class InstrumentDetailUiTest {
     @Test fun totals_and_accounts_cover_every_account_whichever_way_it_opened() {
         seed(); show()
         // 15 units worth 1 800.00 at 120, costing 1 600.00: +200.00, 12.50%.
-        rule.onNodeWithTag("instrument-value", useUnmergedTree = true).assertTextContains("1 800.00 CNY")
-        rule.onNodeWithTag("instrument-header-line").assertTextContains("+200.00 (+12.50%)", substring = true)
+        // The header leads with today's price and the day it was set; the total over every account is in the card.
+        rule.onNodeWithTag("instrument-price", useUnmergedTree = true).assertTextContains("120 CNY")
+        rule.onNodeWithTag("instrument-header-line").assertTextContains("更新", substring = true)
+        rule.onNodeWithTag("instrument-price-update").assertHasClickAction()
+        rule.onNodeWithTag("instrument-value").assertTextContains("持仓总额 1 800.00 CNY")
+        rule.onNodeWithTag("instrument-unrealized").assertTextContains("+200.00 (+12.50%)")
+        // The total and its note read as one pair.
+        val total = rule.onNodeWithTag("instrument-value").fetchSemanticsNode().boundsInRoot
+        val note = rule.onNodeWithTag("instrument-fee-note").fetchSemanticsNode().boundsInRoot
+        assertTrue("total $total note $note", note.top - total.bottom <= with(rule.density) { 4.dp.toPx() })
         rule.onNodeWithTag("instrument-quantity").assertTextContains("15", substring = true)
         rule.onNodeWithTag("instrument-average").assertTextContains("106.66667", substring = true)
         rule.onNodeWithTag("instrument-cost").assertTextContains("1 600.00", substring = true)
@@ -195,7 +203,7 @@ class InstrumentDetailUiTest {
         // Created and updated three times on one day: the trend keeps only that day's last price.
         assertEquals(listOf(11_800_000L), prices().map { it.priceE5 })
         val line = rule.onNodeWithTag("instrument-header-line")
-        line.assertTextContains("浮动盈亏", substring = true)
+        line.assertTextContains("更新", substring = true)
         val chart = rule.onNodeWithTag("instrument-price-trend")
         assertTrue(chart.fetchSemanticsNode().boundsInRoot.width > 200f)
         chart.performTouchInput { down(centerLeft + androidx.compose.ui.geometry.Offset(4f, 0f)) }
@@ -205,7 +213,7 @@ class InstrumentDetailUiTest {
         save("trend-touched")
         chart.performTouchInput { up() }
         rule.waitForIdle()
-        line.assertTextContains("浮动盈亏", substring = true)
+        line.assertTextContains("更新", substring = true)
     }
 
     private fun revision() = runBlocking { graph.instruments.observeInstrument(instrument).first()!!.revision }
@@ -242,6 +250,6 @@ class InstrumentDetailUiTest {
         rule.onNodeWithTag("instrument-price-save").performClick()
         dialogGone()
         rule.waitUntil(5_000) { prices().first().priceE5 == 13_000_000L }
-        rule.onNodeWithTag("instrument-price").assertTextContains("现价 130 CNY", substring = true)
+        rule.onNodeWithTag("instrument-price", useUnmergedTree = true).assertTextContains("130 CNY")
     }
 }

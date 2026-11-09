@@ -101,10 +101,10 @@ private enum class Picking { BUY, SELL, DIVIDEND }
     val collapse = rememberHeaderCollapse("instrument-${instrument.id}")
     val accountNames = remember(ready.holdings) { ready.holdings.associate { it.position.id to it.account } }
     Column(Modifier.fillMaxSize().nestedScroll(collapse)) {
-        InstrumentHeader(collapse, ready, onTitleReserve)
+        InstrumentHeader(collapse, ready, onTitleReserve, vm::openPriceEditor)
         LazyColumn(Modifier.fillMaxWidth().weight(1f).background(MaterialTheme.colorScheme.background)
             .testTag("instrument-detail-list"), state = listState, contentPadding = pageContentPadding()) {
-            item("summary") { HoldingSummary(instrument, ready.totals, vm::openPriceEditor) }
+            item("summary") { HoldingSummary(instrument, ready.totals) }
             item("actions") {
                 Row(Modifier.fillMaxWidth().padding(top = Space.md), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ActionButton(::buy, Modifier.weight(1f).testTag("instrument-buy"), enabled = ready.accounts.isNotEmpty()) {
@@ -162,8 +162,12 @@ private enum class Picking { BUY, SELL, DIVIDEND }
     }
 }
 
-/** The total value over every account collapses into the title bar; above it the floating result, or the touched price. */
-@Composable private fun InstrumentHeader(collapse: HeaderCollapse, ready: InstrumentDetailState.Ready, onTitleReserve: (Int) -> Unit) {
+/**
+ * Today's price, which collapses into the title bar, with its update button beside it; under it the day it was updated,
+ * or the touched point's day and price.
+ */
+@Composable private fun InstrumentHeader(collapse: HeaderCollapse, ready: InstrumentDetailState.Ready, onTitleReserve: (Int) -> Unit,
+    onPrice: () -> Unit) {
     val instrument = ready.instrument
     val currency = instrument.currency
     val locale = LocalConfiguration.current.locales[0]
@@ -172,30 +176,23 @@ private enum class Picking { BUY, SELL, DIVIDEND }
     val (points, positions) = remember(prices) { pricePlot(prices) }
     var selectedIndex by remember(points) { mutableStateOf<Int?>(null) }
     val selected = selectedIndex?.let(points::getOrNull)
-    val totals = ready.totals
-    CollapsingBalanceHeader(collapse, money(totals.marketValue, currency), MaterialTheme.colorScheme.onSurface, onTitleReserve,
-        Modifier.testTag("instrument-header"), Modifier.testTag("instrument-value"),
+    CollapsingBalanceHeader(collapse, priceText(instrument.currentPriceE5) + " " + currency.code,
+        MaterialTheme.colorScheme.onSurface, onTitleReserve,
+        Modifier.testTag("instrument-header"), Modifier.testTag("instrument-price"),
+        trailing = {
+            ActionButton(onPrice, Modifier.heightIn(min = 36.dp).testTag("instrument-price-update")) {
+                Text(stringResource(R.string.instrument_price_update_action), maxLines = 1) }
+        },
+        below = { fading ->
+            Text(if (selected != null) shortDate(selected.atMs, locale) + " · " + priceText(selected.priceE5) + " " + currency.code
+                else stringResource(R.string.instrument_price_updated, shortDate(instrument.priceUpdatedAtMs, locale)),
+                fading.fillMaxWidth().heightIn(min = 20.dp).testTag("instrument-header-line"),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        },
         top = { fading ->
-            Column(fading.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(listOf(instrument.symbol, currency.code, typeLabel(instrument.typeName)).filter { it.isNotBlank() }.joinToString(" · "),
-                    Modifier.testTag("instrument-code"), style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(Modifier.fillMaxWidth().heightIn(min = 20.dp).semantics(mergeDescendants = true) {}
-                    .testTag("instrument-header-line"), horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    val small = MaterialTheme.typography.bodySmall
-                    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-                    if (selected != null) Text(shortDate(selected.atMs, locale) + " · " + priceText(selected.priceE5) + " " + currency.code,
-                        style = small, color = muted, maxLines = 1)
-                    else {
-                        Text(stringResource(R.string.investment_unrealized), style = small, color = muted, maxLines = 1)
-                        val percent = totals.unrealizedPercent?.let { " (" + (if (displayedSign(it, 2) > 0) "+" else "") +
-                            it.setScale(2, RoundingMode.HALF_UP).toPlainString() + "%)" }.orEmpty()
-                        Text(signed(totals.unrealized, currency) + percent, style = small.copy(fontFeatureSettings = "tnum"),
-                            color = profitColor(displayedSign(totals.unrealized, currency.fraction_digits)), maxLines = 1)
-                    }
-                }
-            }
+            Text(listOf(instrument.symbol, currency.code, typeLabel(instrument.typeName)).filter { it.isNotBlank() }.joinToString(" · "),
+                fading.fillMaxWidth().testTag("instrument-code"), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }) { chartModifier ->
         InstrumentPriceTrend(points, positions, currency, selectedIndex, { index ->
             // Ignored while closing: the chart is on its way out and may sit under the finger.
@@ -213,10 +210,9 @@ private enum class Picking { BUY, SELL, DIVIDEND }
     }
 }
 
-/** Units, average and cost over every account, what they realized, and today's price with its update button. */
-@Composable private fun HoldingSummary(instrument: Instrument, totals: InstrumentTotals, onPrice: () -> Unit) {
+/** Units, average and cost over every account, what they realized, and what they are worth now with its result. */
+@Composable private fun HoldingSummary(instrument: Instrument, totals: InstrumentTotals) {
     val currency = instrument.currency
-    val locale = LocalConfiguration.current.locales[0]
     GlassCard(Modifier.testTag("instrument-summary")) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -239,15 +235,23 @@ private enum class Picking { BUY, SELL, DIVIDEND }
                 }
             }
             HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.instrument_price_line, priceText(instrument.currentPriceE5) + " " + currency.code,
-                    shortDate(instrument.priceUpdatedAtMs, locale)), Modifier.weight(1f).testTag("instrument-price"),
-                    style = MaterialTheme.typography.bodyMedium)
-                ActionButton(onPrice, Modifier.heightIn(min = 36.dp).testTag("instrument-price-update")) {
-                    Text(stringResource(R.string.instrument_price_update_action)) }
+            // The total and the note read as one pair, closer together than the metrics above.
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.instrument_total_line, money(totals.marketValue, currency)),
+                        Modifier.weight(1f).testTag("instrument-value"), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                        maxLines = 2)
+                    val percent = totals.unrealizedPercent?.let { " (" + (if (displayedSign(it, 2) > 0) "+" else "") +
+                        it.setScale(2, RoundingMode.HALF_UP).toPlainString() + "%)" }.orEmpty()
+                    val unrealized = signed(totals.unrealized, currency) + percent
+                    val described = stringResource(R.string.investment_unrealized_value, unrealized)
+                    Text(unrealized, Modifier.testTag("instrument-unrealized").semantics { contentDescription = described },
+                        style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                        color = profitColor(displayedSign(totals.unrealized, currency.fraction_digits)), maxLines = 1)
+                }
+                Text(stringResource(R.string.investment_cost_includes_fees), Modifier.testTag("instrument-fee-note"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(stringResource(R.string.investment_cost_includes_fees), style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

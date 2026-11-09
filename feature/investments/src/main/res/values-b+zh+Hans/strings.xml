@@ -142,7 +142,8 @@
     <string name="instrument_average_label">持仓均价</string>
     <string name="instrument_cost_label">持仓成本</string>
     <string name="instrument_realized_label">累计已实现</string>
-    <string name="instrument_price_line">现价 %1$s · %2$s更新</string>
+    <string name="instrument_price_updated">%1$s更新</string>
+    <string name="instrument_total_line">持仓总额 %1$s</string>
     <string name="instrument_price_update_action">更新价格</string>
     <string name="instrument_accounts_title">各账户持仓</string>
     <string name="instrument_closed_position">已清仓</string>

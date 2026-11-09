@@ -146,7 +146,8 @@
     <string name="instrument_average_label">Average cost</string>
     <string name="instrument_cost_label">Cost</string>
     <string name="instrument_realized_label">Realized</string>
-    <string name="instrument_price_line">Price %1$s · updated %2$s</string>
+    <string name="instrument_price_updated">Updated %1$s</string>
+    <string name="instrument_total_line">Total value %1$s</string>
     <string name="instrument_price_update_action">Update price</string>
     <string name="instrument_accounts_title">By account</string>
     <string name="instrument_closed_position">Closed</string>
