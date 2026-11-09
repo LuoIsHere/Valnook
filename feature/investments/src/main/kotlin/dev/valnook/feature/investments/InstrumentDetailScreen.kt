@@ -14,6 +14,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -117,7 +118,8 @@ private enum class Picking { BUY, SELL, DIVIDEND }
             }
             item("accounts") { AccountHoldings(ready.holdings, currency, filter) { id -> vm.selectAccount(if (filter == id) null else id) } }
             item("history-header") {
-                Row(Modifier.fillMaxWidth().padding(top = Space.lg), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().padding(top = Space.md).trimHeight(12.dp).testTag("instrument-history-header"),
+                    verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.investment_trade_history), Modifier.weight(1f).semantics { heading() },
                         style = MaterialTheme.typography.titleMedium)
                     AccountFilter(ready.holdings.map { it.account }, filter, vm::selectAccount)
@@ -258,7 +260,7 @@ private enum class Picking { BUY, SELL, DIVIDEND }
 
 /** Each account's share; a tap shows only its trades below, a second tap all of them again. */
 @Composable private fun AccountHoldings(holdings: List<InstrumentHolding>, currency: Currency, filter: Long?, onAccount: (Long) -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = Space.lg), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = Space.md), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(stringResource(R.string.instrument_accounts_title), Modifier.padding(start = 4.dp).semantics { heading() },
             style = MaterialTheme.typography.titleMedium)
         GlassCard(Modifier.testTag("instrument-accounts")) {
@@ -325,6 +327,16 @@ private enum class Picking { BUY, SELL, DIVIDEND }
             }
         }
     }
+}
+
+/**
+ * Laid out [by] shorter and centred, so the filter's 48.dp touch target, which still reaches past it, does not push
+ * the month away from the history's title.
+ */
+private fun Modifier.trimHeight(by: androidx.compose.ui.unit.Dp) = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val trim = by.roundToPx().coerceIn(0, placeable.height)
+    layout(placeable.width, placeable.height - trim) { placeable.place(0, -trim / 2) }
 }
 
 /** "9月3日周四" or "Thu, Sep 3". */

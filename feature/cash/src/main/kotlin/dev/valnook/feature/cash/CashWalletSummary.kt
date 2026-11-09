@@ -64,7 +64,9 @@ import java.time.LocalDate
                 style = style.copy(fontFeatureSettings = "tnum"),
                 autoSize = TextAutoSize.StepBased(12.sp, style.fontSize, .5.sp),
                 color = if (!credit && account.balance_minor < 0) colors.error else colors.onSurface)
-            CashTrendChart(trend, account, Modifier.width(72.dp), compact = true)
+            // No taller than the balance beside it, so the line adds no gap under the amount; this height wins over
+            // the list rows' 48.dp, which suit their two lines of text.
+            CashTrendChart(trend, account, Modifier.width(72.dp).height(28.dp), compact = true)
         }
         if (account.note.isNotBlank()) Text(account.note, Modifier.padding(top = 4.dp).testTag("wallet-cash-note"),
             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)

@@ -6,6 +6,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -101,6 +102,8 @@ class WalletDetailSummaryUiTest {
         val spark = bounds("cash-sparkline-${cash.id}")
         assertTrue("The sparkline is right of the balance", spark.left >= balance.right - 1)
         assertTrue("…on its line", spark.top < balance.bottom && spark.bottom > balance.top)
+        // No taller than the balance, so it leaves no gap under the amount.
+        assertTrue("sparkline $spark taller than balance $balance", spark.height <= balance.height + with(rule.density) { 1.dp.toPx() })
         // The note is plain text under the balance; with nothing else to say there is no details card.
         val note = bounds("wallet-cash-note")
         assertTrue("The note sits under the balance", note.top >= balance.bottom - 1 && note.left <= balance.left + 1)

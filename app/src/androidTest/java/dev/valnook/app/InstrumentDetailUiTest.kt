@@ -140,6 +140,10 @@ class InstrumentDetailUiTest {
         // October has all four trades, newest first, each with its account.
         list().performScrollToNode(hasTestTag("month-next"))
         rule.onNodeWithTag("ledger-month").assertTextEquals("2026年10月")
+        // The month follows the history's title closely; the filter's touch target does not push it away.
+        val header = rule.onNodeWithTag("instrument-history-header").fetchSemanticsNode().boundsInRoot
+        val month = rule.onNodeWithTag("ledger-month").fetchSemanticsNode().boundsInRoot
+        assertTrue("header $header month $month", month.top - header.bottom <= with(rule.density) { 12.dp.toPx() })
         rule.waitUntil(5_000) { shownTrades() == 4 }
         list().performScrollToNode(hasText("卖出 · Old bank"))
         rule.onAllNodes(hasText("卖出 · Old bank")).assertCountEquals(1)

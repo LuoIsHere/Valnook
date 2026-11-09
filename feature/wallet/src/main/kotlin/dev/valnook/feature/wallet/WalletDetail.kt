@@ -140,7 +140,7 @@ import java.time.*
                                 val minimum=minOf(first,current);val maximum=maxOf(last,current)
                                 val locale=LocalConfiguration.current.locales[0]
                                 // As on the sub-account page: the title, with the month and its arrows at the end of its line.
-                                Row(Modifier.fillMaxWidth().padding(top=12.dp).testTag("wallet-changes-header"),verticalAlignment=Alignment.CenterVertically) {
+                                Row(Modifier.fillMaxWidth().padding(top=4.dp).testTag("wallet-changes-header"),verticalAlignment=Alignment.CenterVertically) {
                                     Text(stringResource(R.string.wallet_funds_activity),Modifier.weight(1f).semantics{heading()},style=MaterialTheme.typography.titleMedium)
                                     IconButton({vm.month(maxOf(ledger.month.minusMonths(1),minimum))},Modifier.size(36.dp).testTag("wallet-month-previous"),
                                         enabled=ledger.month>minimum){ChevronIcon(false,stringResource(R.string.wallet_previous_month))}
@@ -153,7 +153,7 @@ import java.time.*
                             }
                             if(ledger.loading && ledger.rows.isEmpty())item("loading"){Box(Modifier.fillMaxWidth().height(80.dp),contentAlignment=Alignment.Center){CircularProgressIndicator(Modifier.size(22.dp))}}
                             else if(ledger.failed)item("error"){TextButton(vm::retry){Text(stringResource(R.string.wallet_could_not_load_month_retry))}}
-                            else if(ledger.rows.isEmpty())item("empty"){cashSlots.emptyMonth(Modifier.padding(top=8.dp))}
+                            else if(ledger.rows.isEmpty())item("empty"){cashSlots.emptyMonth(Modifier.padding(top=4.dp))}
                             // Newest first, so each day's changes stay together in their order.
                             days.forEach { (date,rows) ->
                                 item("day-$date"){cashSlots.dayGroup(date,rows){id->onEntry(account.account_id,account.id,id)}}
