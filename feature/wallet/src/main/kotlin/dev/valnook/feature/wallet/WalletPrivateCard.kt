@@ -94,10 +94,12 @@ import dev.valnook.designsystem.FaIcons
         }
         val lines=walletNumberLines(value.number,value.showNumberSpacing)
         val number:@Composable (Modifier,androidx.compose.ui.unit.Dp?)->Unit={ modifier,height ->
-            Row(modifier.fillMaxWidth().padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {
-                BoxWithConstraints(Modifier.weight(1f)) {
+            // The number and its copy button are centred together, so the button stays right beside the digits.
+            Row(modifier.fillMaxWidth().padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically,
+                horizontalArrangement=Arrangement.Center) {
+                BoxWithConstraints(Modifier.weight(1f,fill=false)) {
                     val style=privateFittedStyle(lines,maxWidth,25f,height)
-                    Column(Modifier.fillMaxWidth(),horizontalAlignment=Alignment.CenterHorizontally) {
+                    Column(Modifier.width(minOf(fittedWidth(lines,style),maxWidth)),horizontalAlignment=Alignment.CenterHorizontally) {
                         lines.forEachIndexed { index,line ->
                             Text(line,color=ink,style=style,maxLines=1,softWrap=false,textAlign=TextAlign.Center,
                                 modifier=Modifier.fillMaxWidth().testTag("wallet-private-number-line-$index"))
@@ -143,13 +145,17 @@ import dev.valnook.designsystem.FaIcons
     }
 }
 
-/** The copy button sits beside both lines, so its 48.dp touch target no longer pushes the value away from its label. */
+/**
+ * The copy button sits beside both lines, so its 48.dp touch target no longer pushes the value away from its label.
+ * The lines take only their own width, so the button follows the text instead of the field's far edge.
+ */
 @Composable private fun BackField(label:String,value:String,ink:Color,modifier:Modifier,tag:String,copy:((String)->Unit)?,enabled:Boolean) {
     Row(modifier,verticalAlignment=Alignment.CenterVertically) {
-        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(1.dp)) {
+        Column(Modifier.weight(1f,fill=false),verticalArrangement=Arrangement.spacedBy(1.dp)) {
             Text(label,color=ink.copy(alpha=.62f),fontSize=8.sp,lineHeight=10.sp,letterSpacing=.6.sp,maxLines=1)
-            BoxWithConstraints(Modifier.fillMaxWidth()) {
-                Text(value,color=ink,style=privateFittedStyle(listOf(value),maxWidth,13f),maxLines=1,softWrap=false,modifier=Modifier.fillMaxWidth())
+            BoxWithConstraints {
+                val style=privateFittedStyle(listOf(value),maxWidth,13f)
+                Text(value,Modifier.width(minOf(fittedWidth(listOf(value),style),maxWidth)),color=ink,style=style,maxLines=1,softWrap=false)
             }
         }
         if(copy!=null&&value.isNotEmpty()) PrivateCopyButton(when(tag) {
@@ -157,6 +163,20 @@ import dev.valnook.designsystem.FaIcons
             "holder" -> stringResource(R.string.wallet_copy_cardholder_name)
             else -> stringResource(R.string.wallet_copy, label)
         },"wallet-copy-$tag",ink,enabled){copy(value)}
+    }
+}
+
+/**
+ * The longest of [lines] in [style] plus the 4px margin [privateFittedStyle] leaves. A text exactly as wide as its own
+ * line is reported as overflowing, so a line sized to its content keeps the slack it had when it spanned the row.
+ */
+@Composable private fun fittedWidth(lines:List<String>,style:TextStyle):androidx.compose.ui.unit.Dp {
+    val measurer=rememberTextMeasurer()
+    val density=LocalDensity.current
+    return remember(lines,style,measurer,density) {
+        // A card back may have no number at all.
+        val widest=lines.maxOfOrNull{measurer.measure(it,style,softWrap=false,maxLines=1).size.width}?:return@remember 0.dp
+        with(density){(widest+4).toDp()}
     }
 }
 

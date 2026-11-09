@@ -300,7 +300,14 @@ class WalletUiTest {
             assertTrue("fields $expiry above holder $name",expiry.bottom<=name.top)
             assertTrue("number ${number.last()} above fields $expiry",number.last().bottom<=expiry.top)
             assertTrue("edit $edit above number ${number.first()}",edit.bottom<=number.first().top)
-            rule.onNodeWithTag("wallet-copy-holder",useUnmergedTree=true).assertExists()
+            // Each copy button follows its text closely, not the far edge of the field or the card.
+            fun copyButton(field:String)=rule.onNodeWithTag("wallet-copy-$field",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+            val near=with(rule.density){4.dp.toPx()}
+            listOf("holder" to maxOf(name.right,label.right),"expiry" to maxOf(expiry.right,bounds("VALID THRU").right),
+                "number" to number.maxOf{it.right}).forEach { (field,textRight)->
+                val button=copyButton(field)
+                assertTrue("$field button $button far from text ending at $textRight",button.left>=textRight-1f&&button.left-textRight<=near)
+            }
         }
     }
     @Test fun private_holder_is_limited_to_26_characters_saved_encrypted_and_copyable() {
