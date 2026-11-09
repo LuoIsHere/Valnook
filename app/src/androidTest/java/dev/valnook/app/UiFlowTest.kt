@@ -330,7 +330,7 @@ class UiFlowTest {
         summary.assert(hasAnyDescendant(hasText("$days 天")))
         summary.assert(hasAnyDescendant(hasText("+"+R.format_display(interest,2))))
         summary.assert(hasAnyDescendant(hasText(R.format_display(400000+interest,2)+" CNY")))
-        rule.onNodeWithText("开立扣款联动现金").performScrollTo().performClick()
+        rule.onNodeWithText(localized(dev.valnook.feature.deposits.R.string.deposit_link_open)).performScrollTo().performClick()
         rule.onNodeWithTag("deposit-cash-change").assertTextContains("-4000.00 CNY",substring=true)
         shot("deposit-open-form")
         save_deposit()
@@ -824,7 +824,8 @@ class UiFlowTest {
         wait_text(sellUnitPriceLabel)
         rule.onNodeWithTag("trade-record-$tradeId").assertExists()
         rule.onNodeWithTag("trade-record-$sellTradeId").assertExists()
-        rule.onNodeWithText(updatePriceLabel).performScrollTo().assertIsDisplayed().performClick()
+        // The price's update button sits beside it at the top of the page, outside the list.
+        rule.onNodeWithTag("instrument-price-update").assertTextContains(updatePriceLabel).assertIsDisplayed().performClick()
         wait_text(sharedPriceHint)
         rule.onNodeWithText(currentPriceLabel).performTextReplacement("1500")
         save(saveLabel)
