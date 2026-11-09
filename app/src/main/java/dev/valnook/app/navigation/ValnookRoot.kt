@@ -500,7 +500,7 @@ private fun SessionRoot(
                                     }, { open(ClearDataKey) }, { open(NavigationSettingsKey) }, { open(BackupKey) },
                                     { open(WebAdminKey) },
                                     { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID,
-                                    themeMode, onThemeChange, onAbout = { open(AboutKey) },
+                                    BuildConfig.VERSION_CODE, themeMode, onThemeChange, onAbout = { open(AboutKey) },
                                     onCardFaces = { open(WalletFaceLibraryKey) })
                             }
                             entry<WalletFaceLibraryKey> {
@@ -509,7 +509,8 @@ private fun SessionRoot(
                                 }, walletOverview.cache, toolbars.onWalletFaces)
                             }
                             entry<AboutKey> {
-                                dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME, { open(PrivacyPolicyKey) },
+                                dev.valnook.feature.settings.AboutScreen(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE,
+                                    { open(PrivacyPolicyKey) },
                                     { open(LicenseKey) }, BuildConfig.INTERNAL_BUILD_ID, { open(ThirdPartyKey) })
                             }
                             entry<LicenseKey> { dev.valnook.feature.settings.LicenseScreen() }

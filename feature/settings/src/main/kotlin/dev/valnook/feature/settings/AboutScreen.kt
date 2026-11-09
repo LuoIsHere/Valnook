@@ -24,7 +24,7 @@ import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.pageContentPadding
 
 @Composable
-fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () -> Unit = {}, internalBuildId: String = "",
+fun AboutScreen(versionName: String, versionCode: Int, onPrivacyPolicy: () -> Unit, onLicense: () -> Unit = {}, internalBuildId: String = "",
     onThirdParty: () -> Unit = {}) {
     val uriHandler = LocalUriHandler.current
     val repositoryUrl = stringResource(R.string.settings_repository_url)
@@ -33,8 +33,8 @@ fun AboutScreen(versionName: String, onPrivacyPolicy: () -> Unit, onLicense: () 
         item {
             Column(Modifier.padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                 Text("Valnook", style = MaterialTheme.typography.headlineSmall)
-                Text(stringResource(R.string.settings_footer_version, versionName),
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.settings_footer_version, versionName, versionCode),
+                    Modifier.testTag("about-version"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (internalBuildId.isNotBlank()) Text(stringResource(R.string.settings_footer_internal, internalBuildId),
                     Modifier.testTag("about-internal-build"), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

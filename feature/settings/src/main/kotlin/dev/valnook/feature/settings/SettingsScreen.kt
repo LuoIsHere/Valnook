@@ -97,6 +97,7 @@ fun SettingsHome(
     onHiddenPage: (NavigationItemId) -> Unit,
     versionName: String,
     internalBuildId: String,
+    versionCode: Int,
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     onThemeChange: suspend (AppThemeMode) -> Boolean = { false },
     onAbout: () -> Unit = {},
@@ -214,7 +215,8 @@ fun SettingsHome(
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_footer_license), Modifier.testTag("settings-footer-license"),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(stringResource(R.string.settings_footer_version, versionName), style = MaterialTheme.typography.bodySmall,
+                Text(stringResource(R.string.settings_footer_version, versionName, versionCode),
+                    Modifier.testTag("settings-footer-version"), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(stringResource(R.string.settings_footer_internal, internalBuildId), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)

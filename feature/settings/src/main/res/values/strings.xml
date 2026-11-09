@@ -77,7 +77,7 @@
     <string name="settings_visible">Visible</string>
     <string name="settings_hidden">Hidden</string>
     <string name="settings_footer_copyright" translatable="false">Copyright © 2026 luoishere.</string>
-    <string name="settings_footer_version" translatable="false">Version %1$s</string>
+    <string name="settings_footer_version" translatable="false">Version %1$s (%2$d)</string>
     <string name="settings_footer_internal" translatable="false">Internal build: %1$s</string>
     <string name="settings_footer_license" translatable="false">MIT License</string>
     <string name="settings_license" translatable="false">License</string>

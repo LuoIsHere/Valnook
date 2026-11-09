@@ -51,7 +51,7 @@ class SettingsGlassUiTest {
     private fun home(store: Store, demo: Boolean = false, dark: Boolean = false) {
         val vm = SettingsViewModel(store, store, SavedStateHandle())
         rule.setContent { ValnookTheme(dark_theme = dark) {
-            SettingsHome(vm, demo, false, false, {}, {}, {}, {}, {}, {}, {}, "0.0.9", "test")
+            SettingsHome(vm, demo, false, false, {}, {}, {}, {}, {}, {}, {}, "0.0.9", "test", 909)
         } }
     }
 
