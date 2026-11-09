@@ -148,6 +148,7 @@
     <string name="instrument_realized_label">Realized</string>
     <string name="instrument_price_updated">Updated %1$s</string>
     <string name="instrument_total_line">Total value %1$s</string>
+    <string name="investment_trade_account">Account</string>
     <string name="instrument_price_update_action">Update price</string>
     <string name="instrument_accounts_title">By account</string>
     <string name="instrument_closed_position">Closed</string>

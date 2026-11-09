@@ -32,7 +32,7 @@ data class DividendFormUiState(val positionId: Long?, val tradeId: Long?, val ex
 /** Dividends are dated by day; at its end they come after anything bought that day. */
 internal val DIVIDEND_TIME: LocalTime = LocalTime.of(23, 59)
 
-class DividendFormViewModel(private val accountId: Long, positionId: Long?, tradeId: Long?,
+class DividendFormViewModel(initialAccountId: Long, positionId: Long?, tradeId: Long?,
     private val repository: InvestmentRepository, private val instruments: InstrumentRepository, cashRepository: CashRepository,
     commands: FinancialCommands, private val clock: Clock, private val saved: SavedStateHandle) : ViewModel() {
     val isNew = tradeId == null
@@ -46,7 +46,12 @@ class DividendFormViewModel(private val accountId: Long, positionId: Long?, trad
         saved.get<String>("time")?.let(LocalTime::parse) ?: DIVIDEND_TIME, saved["linked"] ?: true, saved["cashAccountId"],
         saved["loaded"] ?: false, originalAtMs = saved["originalAt"]))
     val state = mutable.asStateFlow()
-    val cashAccounts = cashRepository.observe_cash(accountId).map { rows -> rows.filter { it.type == BalanceAccountType.SAVINGS } }
+    private val account = MutableStateFlow(saved.get<Long>("accountId") ?: initialAccountId)
+    /** The account it is paid into; a new dividend from an instrument's page may move to another before saving. */
+    val accountId: StateFlow<Long> = account.asStateFlow()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val cashAccounts = account.flatMapLatest { id -> cashRepository.observe_cash(id) }
+        .map { rows -> rows.filter { it.type == BalanceAccountType.SAVINGS } }
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(0), emptyList())
     init { if (!state.value.loaded) load() }
@@ -58,7 +63,7 @@ class DividendFormViewModel(private val accountId: Long, positionId: Long?, trad
             if (trade != null && trade.direction != Direction.DIVIDEND) throw DomainException(ErrorCode.NOT_FOUND)
             val asset = (trade?.investment_id ?: input.positionId)?.let { repository.observe_investment(it).first() }
                 ?: throw DomainException(ErrorCode.NOT_FOUND)
-            if (asset.account_id != accountId) throw DomainException(ErrorCode.NOT_FOUND)
+            if (asset.account_id != account.value) throw DomainException(ErrorCode.NOT_FOUND)
             val instrument = instruments.observeInstrument(asset.instrumentId).first() ?: throw DomainException(ErrorCode.NOT_FOUND)
             val at = trade?.let { Instant.ofEpochMilli(it.occurred_at_ms).atZone(clock.zone) }
             change(input.copy(positionId = asset.id, expectedRevision = trade?.revision, currency = instrument.currency,
@@ -86,6 +91,16 @@ class DividendFormViewModel(private val accountId: Long, positionId: Long?, trad
     }
     fun setCashLinked(linked: Boolean) = update { it.copy(cashLinked = linked) }
     fun selectCashAccount(id: Long) = update { it.copy(cashLinked = true, cashAccountId = id) }
+    /**
+     * Moves a new dividend to [id], where the instrument is held as [positionId]. The amount and day stay; the cash
+     * account is cleared, and the new account's first one is linked as for any new dividend.
+     */
+    fun selectAccount(id: Long, positionId: Long) {
+        if (!isNew || !submission.value.editable || id == account.value) return
+        account.value = id
+        saved["accountId"] = id
+        change(state.value.copy(positionId = positionId, cashAccountId = null))
+    }
 
     fun submit() = session.submit {
         val input = state.value
@@ -116,9 +131,12 @@ data class DividendToolbarState(val busy: Boolean, val enabled: Boolean, val sav
 @Composable fun dividendFormTitle(isNew: Boolean): String =
     stringResource(if (isNew) R.string.dividend_record_title else R.string.dividend_edit_title)
 
-/** The account and instrument it is for, the amount and day, then whether it reaches cash. */
+/**
+ * The account and instrument it is for, the amount and day, then whether it reaches cash. [onChooseAccount], given for
+ * a new dividend opened from an instrument's page, shows the account as a row that opens the choice of another.
+ */
 @Composable fun DividendForm(vm: DividendFormViewModel, accountName: String, onBack: () -> Unit,
-    onToolbar: (DividendToolbarState?) -> Unit = {}) {
+    onToolbar: (DividendToolbarState?) -> Unit = {}, onChooseAccount: (() -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     val cashAccounts by vm.cashAccounts.collectAsStateWithLifecycle()
@@ -138,10 +156,15 @@ data class DividendToolbarState(val busy: Boolean, val enabled: Boolean, val sav
     val editable = submission.editable
     val currency = requireNotNull(state.currency)
     FormLayout(dividendFormTitle(vm.isNew), busy, canSave, vm::submit, showSaveButton = false) {
-        Text(listOf(state.name, accountName).filter { it.isNotBlank() }.joinToString(" · "), Modifier.padding(start = 4.dp)
-            .testTag("dividend-subject"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val choosable = onChooseAccount != null && vm.isNew
+        // With the account as its own row, the line above names only the instrument.
+        Text(listOf(state.name, accountName.takeUnless { choosable }.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "),
+            Modifier.padding(start = 4.dp).testTag("dividend-subject"), style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         GlassCard {
             Column(Modifier.padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (choosable) FilledChoiceField(stringResource(R.string.investment_trade_account), accountName,
+                    requireNotNull(onChooseAccount), Modifier.testTag("dividend-account"), enabled = editable)
                 FilledField(stringResource(R.string.dividend_amount, currency.code), state.amountInput,
                     { value -> vm.update { it.copy(amountInput = value) } }, numeric = true, enabled = editable)
                 val dateLabel = stringResource(R.string.dividend_date)

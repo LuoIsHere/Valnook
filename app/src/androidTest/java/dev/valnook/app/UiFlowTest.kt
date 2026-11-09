@@ -167,10 +167,13 @@ class UiFlowTest {
             .performScrollToNode(hasText(text))
         rule.onNodeWithText(text).performClick()
     }
-    /** With more than one account, buying asks where to; [id] is the account to choose. */
+    /** A new trade opens in an account already; its account row opens the choice of [id], and the form comes back. */
     private fun pick_account(id:Long=account_id) {
+        rule.waitUntil(15000){rule.onAllNodesWithTag("trade-account").fetchSemanticsNodes().isNotEmpty()}
+        rule.onNodeWithTag("trade-account").performScrollTo().performClick()
         rule.waitUntil(5000){rule.onAllNodesWithTag("instrument-account-picker").fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithTag("instrument-account-pick-$id").performClick()
+        rule.waitUntil(5000){rule.onAllNodesWithTag("instrument-account-picker").fetchSemanticsNodes().isEmpty()}
     }
     private fun click_record(tag:String) {
         // Ledgers show one month at a time; step back to the record's month when it is not in this one.
@@ -350,7 +353,8 @@ class UiFlowTest {
         wait_text("合成投资")
         rule.onNodeWithText("合成投资").performClick()
         wait_text("交易历史")
-        click_list("更新价格")
+        // The price's update button sits beside it at the top of the page.
+        rule.onNodeWithTag("instrument-price-update").performClick()
         wait_text("该当前价格由此标的在所有账户中共用。")
         rule.onNodeWithText("合成投资 · TEST · CNY").assertExists()
         rule.onNodeWithText("当前每份价格（最多 5 位小数）").performTextReplacement("105")
@@ -1327,13 +1331,20 @@ class UiFlowTest {
         rule.onNodeWithText("合成派息基金").performClick()
         wait_text("交易历史")
         rule.onNodeWithTag("instrument-dividends").assertDoesNotExist()
-        // Two accounts have held it, so the dividend asks which one received it.
+        // Two accounts have held it: the form opens in one, and its account row moves it to the other.
         rule.onNodeWithTag("instrument-dividend").performClick()
-        wait_text("派息到哪个账户")
-        rule.onNodeWithTag("instrument-account-pick-$account_id").performClick()
         rule.waitUntil(15000){rule.onAllNodesWithTag("dividend-save").fetchSemanticsNodes().isNotEmpty()}
         wait_text("记录派息")
-        rule.onNodeWithTag("dividend-subject").assertTextEquals("合成派息基金 · 合成账户 A")
+        rule.onNodeWithTag("dividend-subject").assertTextEquals("合成派息基金")
+        // It starts in the account holding more, and moves to the other and back.
+        rule.onNodeWithTag("dividend-account").assert(hasContentDescription("合成账户 A", substring = true))
+        listOf(other to "合成账户 B", account_id to "合成账户 A").forEach { (id, name) ->
+            rule.onNodeWithTag("dividend-account").performClick()
+            wait_text("派息到哪个账户")
+            rule.onNodeWithTag("instrument-account-pick-$id").performClick()
+            rule.waitUntil(5000){rule.onAllNodesWithTag("instrument-account-picker").fetchSemanticsNodes().isEmpty()}
+            rule.waitUntil(5000){rule.onAllNodes(hasTestTag("dividend-account") and hasContentDescription(name, substring = true)).fetchSemanticsNodes().isNotEmpty()}
+        }
         rule.onNodeWithTag("dividend-save").assertIsNotEnabled()
         rule.onNodeWithTag("switch-同时计入现金").assertIsOn()
         rule.onNodeWithTag("input-税后到账金额（CNY）").performTextInput("12.34")

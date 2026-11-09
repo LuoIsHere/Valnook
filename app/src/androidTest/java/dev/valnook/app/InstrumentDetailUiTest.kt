@@ -54,6 +54,7 @@ class InstrumentDetailUiTest {
     private var closed = 0L
     private var savingsPosition = 0L
     private var brokerPosition = 0L
+    private var closedPosition = 0L
     private lateinit var vm: InstrumentDetailViewModel
 
     @Before fun prepare() { hilt.inject(); rule.waitForIdle() }
@@ -72,7 +73,7 @@ class InstrumentDetailUiTest {
         instrument = commands.execute(SaveInstrument(id(), null, null, "Blue chip fund", "005827", type, "CNY", 12_000_000)).id
         savingsPosition = commands.execute(CreateInvestmentPosition(id(), savings, instrument)).id
         brokerPosition = commands.execute(CreateInvestmentPosition(id(), broker, instrument)).id
-        val closedPosition = commands.execute(CreateInvestmentPosition(id(), closed, instrument)).id
+        closedPosition = commands.execute(CreateInvestmentPosition(id(), closed, instrument)).id
         commands.execute(RecordInvestmentTrade(id(), savingsPosition, Direction.BUY, R.parse_e8("10"), R.parse_e8("100"), at(1, 10), false))
         commands.execute(RecordInvestmentTrade(id(), brokerPosition, Direction.BUY, R.parse_e8("5"), R.parse_e8("120"), at(2, 9), false))
         commands.execute(RecordInvestmentTrade(id(), closedPosition, Direction.BUY, R.parse_e8("2"), R.parse_e8("100"), at(1, 9), false))
@@ -170,27 +171,16 @@ class InstrumentDetailUiTest {
         listOf(savings, broker, closed).forEach { rule.onNodeWithTag("instrument-account-$it").assert(hasClickAction().not()) }
     }
 
-    @Test fun buying_and_selling_choose_the_account_starting_with_the_one_it_came_from() {
-        seed(); show(contextAccount = broker)
+    @Test fun buying_and_selling_open_in_the_account_it_came_from_else_the_one_holding_most() {
+        seed(); show(contextAccount = closed)
+        // Opened from the sold-out account: a buy goes there; it has nothing to sell, so a sale starts in the
+        // account holding the most. No choice comes first: the form's account row offers it.
         rule.onNodeWithTag("instrument-buy").performClick()
-        rule.onNodeWithTag("instrument-account-picker").assertExists()
-        // Every account can buy; the one it came from is first and marked.
-        val picks = listOf(broker, savings, closed).map { rule.onNodeWithTag("instrument-account-pick-$it").fetchSemanticsNode().boundsInRoot.top }
-        assertEquals(picks.sorted(), picks)
-        rule.onNodeWithTag("instrument-account-pick-$broker").assertIsSelected()
-        save("buy-picker")
-        rule.onNodeWithTag("instrument-account-pick-$closed").performClick()
-        rule.waitForIdle()
-        assertEquals(1, bought.size)
-        assertEquals(closed, bought.single().first)
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("instrument-account-picker").fetchSemanticsNodes().isEmpty() }
-        // Only accounts holding units can sell.
         rule.onNodeWithTag("instrument-sell").performClick()
-        rule.onNodeWithTag("instrument-account-pick-$closed").assertDoesNotExist()
-        rule.onNodeWithTag("instrument-account-pick-$savings").performClick()
         rule.waitForIdle()
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("instrument-account-picker").fetchSemanticsNodes().isEmpty() }
+        assertEquals(listOf(closed to closedPosition), bought)
         assertEquals(listOf(savings to savingsPosition), sold)
+        rule.onAllNodesWithTag("instrument-account-picker").assertCountEquals(0)
         // A trade opens with its own account.
         list().performScrollToNode(hasText("买入 · Bank"))
         rule.onNode(hasText("买入 · Bank")).performClick()
@@ -218,6 +208,36 @@ class InstrumentDetailUiTest {
         chart.performTouchInput { up() }
         rule.waitForIdle()
         line.assertTextContains("更新", substring = true)
+    }
+
+    @Test fun the_account_page_lists_the_accounts_that_can_take_it_and_marks_the_current_one() {
+        seed()
+        var chosen: Pair<Long, Long?>? = null
+        val direction = androidx.compose.runtime.mutableStateOf(Direction.SELL)
+        rule.runOnUiThread {
+            vm = InstrumentDetailViewModel(instrument, graph.overview, graph.investments, graph.instruments,
+                SavedStateHandle(), graph.clock, graph.commands)
+            store.put("picker", vm)
+            rule.activity.setContent { ValnookTheme { Surface(Modifier.fillMaxSize()) {
+                dev.valnook.feature.investments.InstrumentAccountPicker(vm, direction.value, savings) { account, position ->
+                    chosen = account to position }
+            } } }
+        }
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("instrument-account-picker").fetchSemanticsNodes().isNotEmpty() }
+        // Only accounts holding units can sell; the form's account is marked.
+        rule.onNodeWithTag("instrument-account-pick-$closed").assertDoesNotExist()
+        rule.onNodeWithTag("instrument-account-pick-$savings").assertIsSelected()
+        save("account-pick-sell")
+        rule.onNodeWithTag("instrument-account-pick-$broker").assertIsNotSelected().performClick()
+        assertEquals(broker to brokerPosition, chosen)
+        // Any account can buy, and any that has held it can receive a dividend, sold out or not.
+        listOf(Direction.BUY, Direction.DIVIDEND).forEach { value ->
+            rule.runOnUiThread { direction.value = value }
+            rule.waitForIdle()
+            listOf(savings, broker, closed).forEach { rule.onNodeWithTag("instrument-account-pick-$it").assertExists() }
+        }
+        rule.onNodeWithTag("instrument-account-pick-$closed").performClick()
+        assertEquals(closed to closedPosition, chosen)
     }
 
     private fun revision() = runBlocking { graph.instruments.observeInstrument(instrument).first()!!.revision }

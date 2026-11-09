@@ -247,6 +247,8 @@ private fun SessionRoot(
     val accountName: (Long) -> String = { id -> accounts.firstOrNull { it.id == id }?.name.orEmpty() }
     val scope = rememberCoroutineScope()
     val open: (NavKey) -> Unit = { route -> if (stack.last() != route) stack.add(route) }
+    // A form's account choice comes back here from its page.
+    val accountPicks = remember(graph.sessionId) { AccountPicks() }
     var walletToolbar by remember(graph.sessionId) { mutableStateOf<WalletToolbar?>(null) }
     val walletOverview=androidx.lifecycle.viewmodel.compose.viewModel(key="wallet-overview-${graph.sessionId}") {
         dev.valnook.feature.wallet.WalletOverviewViewModel(requireNotNull(graph.wallet))
@@ -458,7 +460,7 @@ private fun SessionRoot(
                                 updateTitleReserve) { parent, cash ->
                                 deleteTarget = parent to cash
                             }
-                            investmentEntries(graph, open, back, accountName, updateTitleReserve, toolbars.onType, toolbars.onInstrument,
+                            investmentEntries(graph, open, back, accountName, updateTitleReserve, accountPicks, toolbars.onType, toolbars.onInstrument,
                                 toolbars.onDividend)
                             ledgerEntries(graph, open, back, accountName, toolbars.onBalance, updateTitleReserve, toolbars.onDeposit)
                             // A page left off the bar opens from settings as its hidden key: the same page.

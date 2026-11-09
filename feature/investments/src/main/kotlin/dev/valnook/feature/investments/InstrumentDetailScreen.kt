@@ -69,8 +69,6 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
     }
 }
 
-private enum class Picking { BUY, SELL, DIVIDEND }
-
 @Composable private fun InstrumentDetailContent(vm: InstrumentDetailViewModel, ready: InstrumentDetailState.Ready,
     contextAccountId: Long?, onTitleReserve: (Int) -> Unit, onTrade: (Long, Long) -> Unit,
     onBuy: (Long, Long?) -> Unit, onSell: (Long, Long) -> Unit, onDividend: (Long, Long) -> Unit) {
@@ -85,19 +83,17 @@ private enum class Picking { BUY, SELL, DIVIDEND }
     val listState = rememberLazyListState()
     var shownMonth by rememberSaveable { mutableStateOf(month) }
     LaunchedEffect(month) { if (shownMonth != month) { listState.scrollToItem(0); shownMonth = month } }
-    var picking by rememberSaveable { mutableStateOf<Picking?>(null) }
     val held = ready.holdings.filter { it.position.holding_quantity_e8 > 0 }
-    fun buy() {
-        // With one account there is nothing to choose.
-        if (ready.accounts.size == 1) onBuy(ready.accounts[0].id,
-            ready.holdings.firstOrNull { it.account.id == ready.accounts[0].id }?.position?.id)
-        else picking = Picking.BUY
+    // Each opens its form in the likeliest account; the form's account row chooses another.
+    fun buy() { defaultAccount(ready, Direction.BUY, contextAccountId)?.let { onBuy(it.id, positionIn(ready, it.id)) } }
+    fun sell() {
+        defaultAccount(ready, Direction.SELL, contextAccountId)?.let { account ->
+            positionIn(ready, account.id)?.let { onSell(account.id, it) } }
     }
-    fun sell() { if (held.size == 1) onSell(held[0].account.id, held[0].position.id) else picking = Picking.SELL }
     // Any account that has held it may receive one, sold out or not.
     fun dividend() {
-        if (ready.holdings.size == 1) onDividend(ready.holdings[0].account.id, ready.holdings[0].position.id)
-        else picking = Picking.DIVIDEND
+        defaultAccount(ready, Direction.DIVIDEND, contextAccountId)?.let { account ->
+            positionIn(ready, account.id)?.let { onDividend(account.id, it) } }
     }
     val collapse = rememberHeaderCollapse("instrument-${instrument.id}")
     val accountNames = remember(ready.holdings) { ready.holdings.associate { it.position.id to it.account } }
@@ -146,22 +142,6 @@ private enum class Picking { BUY, SELL, DIVIDEND }
         }
     }
     priceEditor?.let { editor -> PriceDialog(editor, vm::savePrice, vm::closePriceEditor) }
-    picking?.let { mode ->
-        val choices = when (mode) {
-            Picking.BUY -> ready.accounts
-            Picking.SELL -> held.map { it.account }
-            Picking.DIVIDEND -> ready.holdings.map { it.account }
-        }
-        AccountPicker(mode, choices, ready.holdings, contextAccountId, currency, { picking = null }) { account ->
-            picking = null
-            val position = ready.holdings.firstOrNull { it.account.id == account.id }?.position
-            when (mode) {
-                Picking.BUY -> onBuy(account.id, position?.id)
-                Picking.SELL -> position?.let { onSell(account.id, it.id) }
-                Picking.DIVIDEND -> position?.let { onDividend(account.id, it.id) }
-            }
-        }
-    }
 }
 
 /**
@@ -435,44 +415,6 @@ private fun dayLabel(date: LocalDate, locale: java.util.Locale): String =
                         else Text(stringResource(dev.valnook.core.designsystem.R.string.save))
                     }
                 }
-            }
-        }
-    }
-}
-
-/** Where to buy into or sell from; the account the page was opened from comes first and is marked. */
-@Composable private fun AccountPicker(mode: Picking, accounts: List<SavingsAccount>, holdings: List<InstrumentHolding>,
-    contextAccountId: Long?, currency: Currency, onDismiss: () -> Unit, onChoose: (SavingsAccount) -> Unit) {
-    val ordered = remember(accounts, contextAccountId) { accounts.sortedByDescending { it.id == contextAccountId } }
-    AnimatedGlassDialog(true, onDismiss) {
-        GlassCard(Modifier.testTag("instrument-account-picker")) {
-            Column(Modifier.padding(vertical = 16.dp)) {
-                Text(stringResource(when (mode) {
-                    Picking.BUY -> R.string.instrument_buy_into
-                    Picking.SELL -> R.string.instrument_sell_from
-                    Picking.DIVIDEND -> R.string.instrument_dividend_to
-                }),
-                    Modifier.padding(horizontal = 20.dp).semantics { heading() }, style = MaterialTheme.typography.titleLarge)
-                Spacer(Modifier.height(8.dp))
-                ordered.forEach { account ->
-                    val position = holdings.firstOrNull { it.account.id == account.id }?.position
-                    val chosen = account.id == contextAccountId
-                    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button) { onChoose(account) }
-                        .semantics(mergeDescendants = true) { selected = chosen }
-                        .testTag("instrument-account-pick-${account.id}").padding(horizontal = 20.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        AccountAvatar(account.icon.symbol, account.icon.imageKey, size = 32.dp)
-                        Column(Modifier.weight(1f)) {
-                            Text(account.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (position != null && position.holding_quantity_e8 > 0) Text(stringResource(R.string.investment_units,
-                                DecimalRules.format_e8(position.holding_quantity_e8)), style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        if (chosen) FaIcon(FaIcons.check, null, Modifier.size(18.dp), MaterialTheme.colorScheme.primary)
-                    }
-                }
-                TextButton(onDismiss, Modifier.align(Alignment.End).padding(end = 12.dp, top = 4.dp)) {
-                    Text(stringResource(dev.valnook.core.designsystem.R.string.cancel)) }
             }
         }
     }

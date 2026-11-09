@@ -34,7 +34,7 @@ internal fun tradeAmountWithFee(direction: Direction, amountMinor: Long, feeMino
     Direction.DIVIDEND -> amountMinor
 }
 
-class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instrumentId: Long?,
+class TradeFormViewModel(initialAccountId: Long, mode: TradeFormMode, instrumentId: Long?,
     positionId: Long?, tradeId: Long?, direction: Direction, private val repository: InvestmentRepository,
     private val instruments: InstrumentRepository, cashRepository: CashRepository, commands: FinancialCommands,
     private val clock: Clock, private val saved: SavedStateHandle) : ViewModel() {
@@ -53,7 +53,11 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
         setAsCurrentPrice = saved["setAsCurrentPrice"] ?: false, priceUpdatedAtMs = saved["priceUpdatedAt"],
         originalOccurredAtMs = saved["originalOccurredAt"]))
     val state = mutable.asStateFlow()
-    val cashAccounts = cashRepository.observe_cash(accountId).map { rows ->
+    private val account = MutableStateFlow(saved.get<Long>("accountId") ?: initialAccountId)
+    /** The account it is recorded in; a new trade from an instrument's page may move to another before saving. */
+    val accountId: StateFlow<Long> = account.asStateFlow()
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val cashAccounts = account.flatMapLatest { id -> cashRepository.observe_cash(id) }.map { rows ->
         rows.filter { it.type == BalanceAccountType.SAVINGS }
     }
         .catch { emit(emptyList()) }
@@ -66,7 +70,7 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
             val trade = input.tradeId?.let { repository.get_trade(it) ?: throw DomainException(ErrorCode.NOT_FOUND) }
             val assetId = trade?.investment_id ?: input.positionId
             val asset = assetId?.let { repository.observe_investment(it).first() ?: throw DomainException(ErrorCode.NOT_FOUND) }
-            if (asset != null && asset.account_id != accountId) throw DomainException(ErrorCode.NOT_FOUND)
+            if (asset != null && asset.account_id != account.value) throw DomainException(ErrorCode.NOT_FOUND)
             val instrument = (asset?.instrumentId ?: input.instrumentId)?.let {
                 instruments.observeInstrument(it).first() ?: throw DomainException(ErrorCode.NOT_FOUND)
             }
@@ -123,6 +127,17 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
             cashAccountId = if (!linked) null else current.cashAccountId ?: candidates.singleOrNull()?.id)
     }
     fun selectCashAccount(id: Long) = update { it.copy(cashLinked = true, cashAccountId = id) }
+    /**
+     * Moves a new trade to [id], holding the instrument as [positionId] if it already does. What was typed stays; the
+     * cash account belonged to the old account, so it is cleared to be chosen again.
+     */
+    fun selectAccount(id: Long, positionId: Long?) {
+        val current = state.value
+        if (current.mode != TradeFormMode.CREATE || !submission.value.editable || id == account.value) return
+        account.value = id
+        saved["accountId"] = id
+        change(current.copy(positionId = positionId, expectedRevision = null, cashLinked = false, cashAccountId = null))
+    }
     fun amountPreview(): String? = runCatching {
         val input = state.value
         val currency = requireNotNull(input.currency)
@@ -151,7 +166,7 @@ class TradeFormViewModel(private val accountId: Long, mode: TradeFormMode, instr
             TradeFormMode.CREATE -> RecordInvestmentTrade(operationId, input.positionId ?: 0L,
                 input.direction, R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), occurredAtMs,
                 input.cashLinked, if (input.cashLinked) input.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT) else null,
-                R.parse_units(input.feeInput, requireNotNull(input.currency).fraction_digits), accountId, input.instrumentId,
+                R.parse_units(input.feeInput, requireNotNull(input.currency).fraction_digits), account.value, input.instrumentId,
                 setAsCurrentPrice = input.setAsCurrentPrice && canSetCurrentPrice(input))
             TradeFormMode.EDIT -> EditInvestmentTrade(operationId, requireNotNull(input.tradeId), requireNotNull(input.expectedRevision),
                 input.direction, R.parse_e8(input.quantityInput, true), R.parse_e8(input.executionPriceInput, true), occurredAtMs,

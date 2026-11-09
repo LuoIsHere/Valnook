@@ -48,6 +48,7 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     TypesKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_manage_types)
     is InstrumentEditKey -> dev.valnook.feature.investments.instrumentEditTitle(current.id)
     is DividendFormKey -> dev.valnook.feature.investments.dividendFormTitle(current.tradeId == null)
+    is InvestmentAccountPickKey -> dev.valnook.feature.investments.accountPickTitle(current.direction)
     is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
     is InstrumentKey -> instrumentName(current.id).orEmpty()
     is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)

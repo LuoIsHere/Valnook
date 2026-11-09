@@ -38,7 +38,12 @@ import java.time.*
     }
 }
 
-@Composable fun TradeForm(vm: TradeFormViewModel, onBack: () -> Unit) {
+/**
+ * A buy, sell or its edit. [onChooseAccount], given for a new trade opened from an instrument's page, shows the
+ * account as a row that opens the choice of another; [accountName] names it.
+ */
+@Composable fun TradeForm(vm: TradeFormViewModel, onBack: () -> Unit, accountName: String = "",
+    onChooseAccount: (() -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
     val submission by vm.submission.collectAsStateWithLifecycle()
     val cashAccounts by vm.cashAccounts.collectAsStateWithLifecycle()
@@ -57,6 +62,10 @@ import java.time.*
         else if (state.mode == TradeFormMode.DELETE) stringResource(R.string.investment_confirm_delete)
         else stringResource(R.string.investment_save)) {
         Text(state.name)
+        if (onChooseAccount != null && state.mode == TradeFormMode.CREATE)
+            Box(Modifier.testTag("trade-account")) {
+                SelectorField(stringResource(R.string.investment_trade_account), accountName, onChooseAccount, submission.editable)
+            }
         if (state.mode == TradeFormMode.DELETE) Text(stringResource(R.string.investment_delete_hint))
         else {
             if (state.mode == TradeFormMode.EDIT) ChoiceField(stringResource(R.string.investment_trade_direction), state.direction.name,

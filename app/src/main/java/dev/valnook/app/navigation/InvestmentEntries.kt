@@ -1,6 +1,11 @@
 package dev.valnook.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.createSavedStateHandle
 import androidx.navigation3.runtime.*
 import dev.valnook.app.di.AppGraph
@@ -9,9 +14,31 @@ import dev.valnook.feature.statistics.*
 import dev.valnook.domain.model.Direction
 import dev.valnook.domain.model.StatisticsMetric
 import kotlinx.coroutines.flow.map
+import java.util.UUID
+
+/**
+ * Accounts chosen on [InvestmentAccountPickKey], waiting for the form that asked: the account and the instrument's
+ * position there, by the form's request. Held for the session; a form takes its answer when it is shown again.
+ */
+internal class AccountPicks { val chosen = mutableStateMapOf<String, Pair<Long, Long?>>() }
+
+/**
+ * For a new record of [instrumentId], opens the account choice and hands the answer to [onPicked]; null, with no
+ * choice offered, otherwise.
+ */
+@Composable private fun accountChooser(instrumentId: Long?, direction: Direction, accountId: Long, picks: AccountPicks,
+    open: (NavKey) -> Unit, onPicked: (accountId: Long, positionId: Long?) -> Unit): (() -> Unit)? {
+    if (instrumentId == null) return null
+    val request = rememberSaveable { UUID.randomUUID().toString() }
+    val picked = picks.chosen[request]
+    LaunchedEffect(picked) {
+        if (picked != null) { picks.chosen.remove(request); onPicked(picked.first, picked.second) }
+    }
+    return { open(InvestmentAccountPickKey(instrumentId, direction, accountId, request)) }
+}
 
 internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open: (NavKey) -> Unit, back: () -> Unit,
-    accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit,
+    accountName: (Long) -> String, onTitleReserve: (NavKey, Int) -> Unit, picks: AccountPicks,
     onTypeToolbar: (TypeEditToolbarState?) -> Unit = {}, onInstrumentToolbar: (InstrumentEditToolbarState?) -> Unit = {},
     onDividendToolbar: (DividendToolbarState?) -> Unit = {}) {
     // A page left off the bar opens from settings as its hidden key: the same page.
@@ -34,7 +61,15 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
                 direction = Direction.BUY)) },
             onSell = { accountId, positionId -> open(TradeFormKey(accountId, TradeFormMode.CREATE, route.id, positionId,
                 direction = Direction.SELL)) },
-            onDividend = { accountId, positionId -> open(DividendFormKey(accountId, positionId)) })
+            onDividend = { accountId, positionId -> open(DividendFormKey(accountId, positionId, instrumentId = route.id)) })
+    }
+    entry<InvestmentAccountPickKey> { route ->
+        val vm = pageViewModel { InstrumentDetailViewModel(route.instrumentId, graph.overview, graph.investments, graph.instruments,
+            createSavedStateHandle(), graph.clock, graph.commands) }
+        InstrumentAccountPicker(vm, route.direction, route.selectedAccountId) { accountId, positionId ->
+            picks.chosen[route.request] = accountId to positionId
+            back()
+        }
     }
     entry<PositionCreateKey> { route ->
         val vm = pageViewModel { PositionCreateViewModel(graph.instruments, createSavedStateHandle()) }
@@ -66,12 +101,18 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
         val vm = pageViewModel { TradeFormViewModel(route.accountId, route.mode, route.instrumentId, route.positionId,
             route.tradeId, route.direction, graph.investments, graph.instruments, graph.cash,
             graph.commands, graph.clock, createSavedStateHandle()) }
-        TradeForm(vm, back)
+        val accountId by vm.accountId.collectAsStateWithLifecycle()
+        val choose = accountChooser(route.instrumentId?.takeIf { route.mode == TradeFormMode.CREATE }, route.direction,
+            accountId, picks, open) { id, positionId -> vm.selectAccount(id, positionId) }
+        TradeForm(vm, back, accountName(accountId), choose)
     }
     entry<DividendFormKey> { route ->
         val vm = pageViewModel { DividendFormViewModel(route.accountId, route.positionId, route.tradeId, graph.investments,
             graph.instruments, graph.cash, graph.commands, graph.clock, createSavedStateHandle()) }
-        DividendForm(vm, accountName(route.accountId), back, onDividendToolbar)
+        val accountId by vm.accountId.collectAsStateWithLifecycle()
+        val choose = accountChooser(route.instrumentId?.takeIf { route.tradeId == null }, Direction.DIVIDEND, accountId, picks,
+            open) { id, positionId -> positionId?.let { vm.selectAccount(id, it) } }
+        DividendForm(vm, accountName(accountId), back, onDividendToolbar, choose)
     }
 }
 

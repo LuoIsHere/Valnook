@@ -71,7 +71,7 @@ class TradeFormUiTest {
                 CompositionLocalProvider(LocalContext provides LocalContext.current.createConfigurationContext(config),
                     LocalConfiguration provides config, LocalPageTopBarHeight provides 56.dp) {
                     ValnookTheme(dark_theme = dark) { Surface(Modifier.fillMaxSize()) {
-                        Box(Modifier.padding(top = 56.dp).width(360.dp).height(720.dp)) { TradeForm(vm) {} }
+                        Box(Modifier.padding(top = 56.dp).width(360.dp).height(720.dp)) { TradeForm(vm, {}) }
                     } }
                 }
             }
@@ -111,5 +111,51 @@ class TradeFormUiTest {
         val dark = show(Direction.SELL, dark = true)
         rule.runOnUiThread { dark.update { it.copy(occurredAt = it.occurredAt.minusDays(1)) } }
         save("sell-older-dark")
+    }
+
+    @Test fun a_new_trade_moves_to_another_account_keeping_what_was_typed() = runBlocking<Unit> {
+        seed()
+        val other = graph.commands.execute(SaveAccount(id(), null, null, "Synthetic bank", "", emptyList())).id
+        graph.commands.execute(SetCashBalance(id(), account, "CNY", 100_000, null))
+        val saved = SavedStateHandle()
+        lateinit var vm: TradeFormViewModel
+        rule.runOnUiThread {
+            vm = TradeFormViewModel(account, TradeFormMode.CREATE, instrument, position, null, Direction.BUY, graph.investments,
+                graph.instruments, graph.cash, graph.commands, graph.clock, saved)
+            store.put("move", vm)
+            // Shown, so its cash accounts are read.
+            rule.activity.setContent { ValnookTheme { Surface(Modifier.fillMaxSize()) { TradeForm(vm, {}) } } }
+        }
+        rule.waitUntil(10_000) { vm.state.value.loaded && vm.cashAccounts.value.isNotEmpty() }
+        rule.runOnUiThread {
+            vm.update { it.copy(quantityInput = "3", executionPriceInput = "101", feeInput = "0.5") }
+            vm.setCashLinked(true)
+        }
+        rule.waitForIdle()
+        assertEquals(true, vm.state.value.cashAccountId != null)
+        // The other account has no position yet and no cash: what was typed stays, the cash choice is cleared.
+        rule.runOnUiThread { vm.selectAccount(other, null) }
+        rule.waitForIdle()
+        assertEquals(other, vm.accountId.value)
+        val moved = vm.state.value
+        assertEquals(listOf("3", "101", "0.5"), listOf(moved.quantityInput, moved.executionPriceInput, moved.feeInput))
+        assertEquals(null, moved.positionId)
+        assertEquals(false, moved.cashLinked)
+        assertEquals(null, moved.cashAccountId)
+        rule.waitUntil(5_000) { vm.cashAccounts.value.isEmpty() }
+        // Recreated from its saved state, it is still in the account chosen.
+        lateinit var again: TradeFormViewModel
+        rule.runOnUiThread {
+            again = TradeFormViewModel(account, TradeFormMode.CREATE, instrument, position, null, Direction.BUY, graph.investments,
+                graph.instruments, graph.cash, graph.commands, graph.clock, saved)
+            store.put("again", again)
+        }
+        assertEquals(other, again.accountId.value)
+        // Saved, the buy opens a position in the account it moved to.
+        rule.runOnUiThread { vm.submit() }
+        rule.waitUntil(10_000) { vm.submission.value.phase == SubmissionPhase.SUCCEEDED }
+        val positions = graph.overview.observeSnapshot().first().positions.filter { it.instrumentId == instrument }
+        assertEquals(dev.valnook.domain.money.DecimalRules.parse_e8("3"),
+            positions.single { it.account_id == other }.holding_quantity_e8)
     }
 }
