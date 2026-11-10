@@ -41,14 +41,15 @@ private val RateFieldShape = RoundedCornerShape(10.dp)
  * Shared financial form; navigation, draft storage and saving belong to the caller. The base currency and the rates
  * each sit in a grouped card, as on the account edit page: a rate row removes with ⊖, changes its currency by tapping
  * the code and takes the rate straight in its field. [readOnly] keeps the base selectable but shows the rates as
- * plain text (automatic mode); [notes] adds a small line under a currency's rate.
+ * plain text (automatic mode); [notes] adds a small line under a currency's rate. [noBaseHint] replaces the line shown
+ * while no base is chosen, for a caller that cannot go on without one.
  */
 @Composable
 fun FxRateEditor(base: Currency?, rows: List<FxRateDraft>, busy: Boolean,
     onBase: (Currency) -> Unit, onAdd: () -> Unit,
     onUpdate: (Int, Currency?, String?) -> Unit, onRemove: (Int) -> Unit,
     readOnly: Boolean = false, notes: Map<String, String> = emptyMap(), showDefaultHint: Boolean = true,
-    emptyText: String? = null) {
+    emptyText: String? = null, noBaseHint: String? = null) {
     val editable = !busy && !readOnly
     val language = interfaceLanguage()
     val options = remember(language) { Currency.options(language) }
@@ -61,7 +62,7 @@ fun FxRateEditor(base: Currency?, rows: List<FxRateDraft>, busy: Boolean,
                 CurrencyChoice(base?.code.orEmpty(), { onBase(Currency.of(it)) }, !busy, options, glass = true,
                     field = { open -> BaseRow(base, names[base?.code], !busy, open) })
             }
-            if (base == null) Hint(stringResource(R.string.settings_no_base))
+            if (base == null) Hint(noBaseHint ?: stringResource(R.string.settings_no_base))
         }
         if (base != null && (rows.isNotEmpty() || !readOnly || emptyText != null)) {
             FormSection(stringResource(R.string.settings_fx_rates_section, base.code)) {

@@ -207,7 +207,8 @@ private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
                         if (state.draft.rates.isNotEmpty() && !state.draft.autoFx) pendingBase = it.code else vm.base(it)
                     }
                 }, onAdd = vm::addRate, onUpdate = vm::updateRate, onRemove = vm::removeRate,
-                    readOnly = state.draft.autoFx, showDefaultHint = !state.draft.autoFx)
+                    readOnly = state.draft.autoFx, showDefaultHint = !state.draft.autoFx,
+                    noBaseHint = stringResource(R.string.onboarding_no_base))
                 state.error?.let {
                     Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("onboarding-error"))
                 }

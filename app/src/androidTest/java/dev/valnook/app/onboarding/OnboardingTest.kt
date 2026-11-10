@@ -130,6 +130,9 @@ class OnboardingTest {
         rule.onNodeWithContentDescription("返回").performClick()
         goFinance()
         rule.onNodeWithTag("onboarding-finish").assertIsNotEnabled()
+        // Finishing needs a base, so the settings page's "everything else works" line must not show here.
+        rule.onNodeWithText("选择主币种后即可完成设置。").assertIsDisplayed()
+        rule.onNodeWithText("未设置主币种", substring = true).assertDoesNotExist()
         rule.onNodeWithTag("fx-base").performTouchInput { click(center) }
         rule.onNode(hasText("CNY", substring = true) and hasClickAction()).performClick()
         waitFor { vm.state.value.draft.base?.code == "CNY" }
