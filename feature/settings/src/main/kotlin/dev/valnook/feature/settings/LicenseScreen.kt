@@ -11,7 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import dev.valnook.designsystem.pageContentPadding
 
@@ -21,7 +21,7 @@ import dev.valnook.designsystem.pageContentPadding
  */
 @Composable
 fun LicenseScreen() {
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val text = remember(resources) {
         resources.openRawResource(R.raw.license).bufferedReader(Charsets.UTF_8).use { it.readText() }.let(::reflowLicense)
     }

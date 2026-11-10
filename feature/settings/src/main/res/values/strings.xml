@@ -1,4 +1,4 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="settings_title">Settings</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_system">Follow system</string>
@@ -130,7 +130,8 @@
     <string name="settings_navigation_hide_page">Hide %1$s</string>
     <string name="settings_navigation_show_page">Show %1$s</string>
     <string name="settings_navigation_hint">Hidden pages can still be opened from Settings › Hidden pages.</string>
-    <string name="settings_navigation_full">The bar shows up to %1$d pages. Hide one to add another.</string>
+    <!-- The limit is always more than one page, so the plural wording is always right. -->
+    <string name="settings_navigation_full" tools:ignore="PluralsCandidate">The bar shows up to %1$d pages. Hide one to add another.</string>
     <string name="settings_fx_summary">Base currency %1$s · %2$s</string>
     <string name="settings_fx_summary_unset">No base currency · %1$s</string>
     <string name="settings_third_party">Third-party notices</string>

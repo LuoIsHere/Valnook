@@ -37,18 +37,19 @@ fun <T> LazyListScope.glassCardItems(items: List<T>, key: (T) -> Any, name: Stri
     footer: (@Composable ColumnScope.() -> Unit)? = null, row: @Composable (T) -> Unit) {
     val count = items.size + if (footer != null) 1 else 0
     itemsIndexed(items, key = { _, item -> "$name:${key(item)}" }, contentType = { _, _ -> "$name:row" }) { index, item ->
-        GlassCardPiece(index == 0, index == count - 1, gap, cardModifier) {
+        GlassCardPiece(index == 0, index == count - 1, gap, modifier = cardModifier) {
             if (index > 0) divider()
             row(item)
         }
     }
     if (footer != null) item(key = "$name:footer", contentType = "$name:footer") {
-        GlassCardPiece(items.isEmpty(), true, gap, cardModifier, footer)
+        GlassCardPiece(items.isEmpty(), true, gap, modifier = cardModifier, content = footer)
     }
 }
 
-@Composable private fun GlassCardPiece(first: Boolean, last: Boolean, gap: Dp, cardModifier: Modifier,
+// [modifier] is the caller's card modifier; it applies to the first piece only.
+@Composable private fun GlassCardPiece(first: Boolean, last: Boolean, gap: Dp, modifier: Modifier,
     content: @Composable ColumnScope.() -> Unit) {
-    GlassSurface((if (first) Modifier.padding(top = gap).then(cardModifier) else Modifier).fillMaxWidth(),
+    GlassSurface((if (first) Modifier.padding(top = gap).then(modifier) else Modifier).fillMaxWidth(),
         glassCardPieceShape(first, last)) { Column(content = content) }
 }

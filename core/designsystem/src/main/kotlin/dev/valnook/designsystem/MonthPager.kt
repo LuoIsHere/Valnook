@@ -23,6 +23,8 @@ fun localMonthLabel(month: YearMonth, locale: java.util.Locale): String =
  * The month between its two arrows, centered on its own line by default. [label] names the month; it defaults to
  * the numeric year and month.
  */
+// Full width by default, so every page's pager centres the month the same way.
+@Suppress("ModifierParameter")
 @Composable fun MonthPager(month: YearMonth, onChange: (YearMonth) -> Unit, modifier: Modifier = Modifier.fillMaxWidth(),
     horizontalArrangement: Arrangement.Horizontal = Arrangement.Center,
     label: (YearMonth, java.util.Locale) -> String = { value, locale -> value.format(DateTimeFormatter.ofPattern("yyyy-MM", locale)) }) {

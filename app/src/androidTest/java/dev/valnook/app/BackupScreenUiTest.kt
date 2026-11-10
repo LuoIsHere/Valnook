@@ -98,7 +98,8 @@ class BackupScreenUiTest {
             override fun observeState() = cloudState
         }
         val settings = object : SettingsRepository { override fun observeSettings() = flowOf(AppSettings()) }
-        rule.setContent { ValnookTheme { BackupScreen(BackupViewModel(UnavailableDataPortability, settings, false, cloud), false) } }
+        val vm = BackupViewModel(UnavailableDataPortability, settings, false, cloud)
+        rule.setContent { ValnookTheme { BackupScreen(vm, false) } }
         rule.onNodeWithTag("cloud-backups-empty").performScrollTo()
         rule.onNodeWithText(context.getString(dev.valnook.feature.backup.R.string.cloud_backups_not_fetched)).assertExists()
         rule.onNodeWithTag("cloud-backups-refreshed").assertDoesNotExist()

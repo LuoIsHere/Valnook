@@ -1,3 +1,7 @@
+// The icons default to their own size, and keep Material Icon's (id, contentDescription, modifier, tint) order, so a
+// caller passes only what differs. Following the lint rule would change every icon's size across the app.
+@file:Suppress("ModifierParameter")
+
 package dev.valnook.designsystem
 
 import androidx.annotation.DrawableRes

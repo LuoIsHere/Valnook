@@ -49,7 +49,7 @@ data class InstrumentTradesState(val rows: List<Trade> = emptyList(), val hasMor
  */
 class InstrumentDetailViewModel(val instrumentId: Long, overview: OverviewRepository,
     private val investments: InvestmentRepository, instruments: InstrumentRepository,
-    private val saved: SavedStateHandle = SavedStateHandle(), private val clock: Clock = Clock.systemDefaultZone(),
+    private val saved: SavedStateHandle, private val clock: Clock = Clock.systemDefaultZone(),
     private val commands: FinancialCommands? = null) : ViewModel() {
     val month = saved.getStateFlow("ledgerMonth", YearMonth.now(clock).toString())
     /** The account whose trades are shown, or null for all of them. */

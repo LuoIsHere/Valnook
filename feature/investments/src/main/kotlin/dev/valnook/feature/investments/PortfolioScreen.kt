@@ -43,8 +43,8 @@ private fun displayedSign(total: ConvertedTotal): Int =
  * A summary figure and, when part of it is missing, why. With [onOpen] the whole figure opens its details, a small
  * chevron after the label saying so.
  */
-@Composable private fun TotalLine(label: String, total: ConvertedTotal, colorByValue: Boolean = false,
-    onOpen: (() -> Unit)? = null, openDescription: String = "", modifier: Modifier = Modifier) {
+@Composable private fun TotalLine(label: String, total: ConvertedTotal, modifier: Modifier = Modifier,
+    colorByValue: Boolean = false, onOpen: (() -> Unit)? = null, openDescription: String = "") {
     val valueColor = if (colorByValue && total.complete) profitColor(displayedSign(total))
         else MaterialTheme.colorScheme.onSurfaceVariant
     // Both figures of a row take the 48dp the one that opens needs, so the reasons under them stay level.

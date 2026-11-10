@@ -10,7 +10,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.testTag
 import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.pageContentPadding
@@ -22,7 +22,7 @@ import dev.valnook.designsystem.pageContentPadding
  */
 @Composable
 fun ThirdPartyNoticesScreen() {
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val blocks = remember(resources) {
         resources.openRawResource(R.raw.third_party_notices).bufferedReader(Charsets.UTF_8).use { it.readText() }
             .let(::noticeBlocks)
