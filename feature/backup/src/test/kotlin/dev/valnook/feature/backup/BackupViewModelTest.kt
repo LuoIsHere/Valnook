@@ -150,6 +150,29 @@ class BackupViewModelTest {
         assertTrue(done.completedFile!!.outputVerified)
     }
 
+    @Test fun the_finished_backup_names_the_file_as_saved_and_falls_back_to_its_own_name() = runTest(dispatcher) {
+        val bytes = "portable-output".toByteArray()
+        val portability = object : DataPortability by UnavailableDataPortability {
+            override val backupAndRestoreAllowed = true
+            override suspend fun createBackup(backupId: String, output: java.io.OutputStream,
+                progress: (PortabilityProgress) -> Unit): PortableFileResult {
+                output.write(bytes)
+                return PortableFileResult("Valnook_engine.val_backup", bytes.size.toLong(), sha256(bytes), 1, "now", false)
+            }
+        }
+        suspend fun finishedName(savedName: String?): String {
+            val vm = BackupViewModel(portability, settings, demo = false)
+            vm.createBackup(vm.backupRequest(), { java.io.ByteArrayOutputStream() }, savedName) { ByteArrayInputStream(bytes) }
+            return kotlinx.coroutines.withContext(Dispatchers.Default.limitedParallelism(1)) {
+                withTimeout(5_000) { vm.state.first { !it.busy && it.completedFile != null } }
+            }.completedFile!!.also { assertTrue(it.outputVerified) }.fileName
+        }
+        // Renamed in the picker, and given an extension by the provider.
+        assertEquals("Monthly copy.val_backup.zip", finishedName("Monthly copy.val_backup.zip"))
+        assertEquals("Valnook_engine.val_backup", finishedName(" "))
+        assertEquals("Valnook_engine.val_backup", finishedName(null))
+    }
+
     @Test fun a_cloud_restore_does_not_start_while_a_local_job_runs() = runTest(dispatcher) {
         val bytes = "portable-output".toByteArray()
         val reading = java.util.concurrent.CountDownLatch(1)

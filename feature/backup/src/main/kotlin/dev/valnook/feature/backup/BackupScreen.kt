@@ -69,7 +69,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         if (request == null) discardCreated(context, uri)
         else if (uri != null) vm.createBackup(request,
             { context.contentResolver.openOutputStream(uri, "w") },
-            { context.contentResolver.openInputStream(uri) })
+            savedName = savedName(context, uri),
+            openInput = { context.contentResolver.openInputStream(uri) })
         backupRequest = null
     }
     val workbookLauncher = rememberLauncherForActivityResult(
@@ -79,7 +80,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         if (request == null) discardCreated(context, uri)
         else if (uri != null) vm.exportWorkbook(request,
             { context.contentResolver.openOutputStream(uri, "w") },
-            { context.contentResolver.openInputStream(uri) })
+            savedName = savedName(context, uri),
+            openInput = { context.contentResolver.openInputStream(uri) })
         workbookRequest = null
     }
     val downloadLauncher = rememberLauncherForActivityResult(
@@ -441,11 +443,15 @@ private val FAILED_ATTEMPTS = setOf(BackupAttemptState.FAILED, BackupAttemptStat
     else -> stringResource(R.string.cloud_error_generic)
 }
 
-private fun displayName(context: android.content.Context, uri: Uri): String = runCatching {
+// The name the provider gives the document; the picker may have changed the suggested one.
+private fun savedName(context: android.content.Context, uri: Uri): String? = runCatching {
     context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
         if (cursor.moveToFirst()) cursor.getString(0) else null
     }
-}.getOrNull() ?: uri.lastPathSegment.orEmpty()
+}.getOrNull()?.takeIf { it.isNotBlank() }
+
+private fun displayName(context: android.content.Context, uri: Uri): String =
+    savedName(context, uri) ?: uri.lastPathSegment.orEmpty()
 
 private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
     is android.app.Activity -> this

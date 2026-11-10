@@ -140,9 +140,11 @@ class BackupViewModel(
         }
     }
 
+    /** [savedName] is the name the file was saved under, shown in place of the suggested one. */
     fun createBackup(
         request: OutputRequest,
         openOutput: () -> OutputStream?,
+        savedName: String? = null,
         openInput: () -> InputStream? = { null }
     ) = runJob {
         if (!portability.backupAndRestoreAllowed) throw PortabilityException(PortabilityErrorCode.DEMO_RESTRICTED)
@@ -152,14 +154,16 @@ class BackupViewModel(
         }
         result = result.copy(outputVerified = withContext(Dispatchers.IO) {
             verifyProviderCopy(result, openInput)
-        })
+        }, fileName = savedName?.takeIf { it.isNotBlank() } ?: result.fileName)
         mutable.value = state.value.copy(busy = false, stage = null, completedFile = result,
             preview = null, challenge = null, restoreResult = null, error = null)
     }
 
+    /** [savedName] is the name the file was saved under, shown in place of the suggested one. */
     fun exportWorkbook(
         request: OutputRequest,
         openOutput: () -> OutputStream?,
+        savedName: String? = null,
         openInput: () -> InputStream? = { null }
     ) = runJob {
         val language = settings.observeSettings().first().language
@@ -169,7 +173,7 @@ class BackupViewModel(
         }
         result = result.copy(outputVerified = withContext(Dispatchers.IO) {
             verifyProviderCopy(result, openInput)
-        })
+        }, fileName = savedName?.takeIf { it.isNotBlank() } ?: result.fileName)
         mutable.value = state.value.copy(busy = false, stage = null, completedFile = result,
             preview = null, challenge = null, restoreResult = null, error = null)
     }
