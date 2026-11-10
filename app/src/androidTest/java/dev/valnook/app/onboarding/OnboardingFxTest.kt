@@ -72,6 +72,8 @@ class OnboardingFxTest {
 
         rule.onNodeWithTag("onboarding-fx-auto").performClick()
         rule.onNodeWithTag("fx-notice").assertExists()
+        // Only the text scrolls, so the buttons are on screen however tall the notice is.
+        listOf("fx-notice-cancel", "fx-notice-skip", "fx-notice-accept").forEach { rule.onNodeWithTag(it).assertIsDisplayed() }
         rule.onNodeWithTag("fx-notice-cancel").performClick()
         rule.waitUntil(5_000) { !vm.state.value.fxNotice }
         assertTrue(!vm.state.value.draft.autoFx)

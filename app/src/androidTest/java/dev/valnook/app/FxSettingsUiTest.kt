@@ -137,6 +137,8 @@ class FxSettingsUiTest {
         rule.onNodeWithTag("fx-discard-confirm").performClick()
         rule.onNodeWithTag("fx-notice").assertExists()
         rule.onNodeWithText("不构成投资、理财或其他财务建议", substring = true).assertExists()
+        // Only the text scrolls, so the buttons are on screen however tall the notice is.
+        listOf("fx-notice-cancel", "fx-notice-skip", "fx-notice-accept").forEach { rule.onNodeWithTag(it).assertIsDisplayed() }
         rule.onNodeWithTag("fx-notice-skip").performClick()
         rule.onNodeWithTag("fx-notice-accept").performClick()
         rule.waitUntil(5_000) { sync.calls == listOf("dismiss", "auto:true") }

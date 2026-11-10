@@ -30,14 +30,18 @@ fun FxNetworkNoticeDialog(onCancel: () -> Unit, onAccept: (dontShowAgain: Boolea
     val maximumHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } * .8f
     AnimatedGlassDialog(true, onCancel) {
         GlassCard {
-            Column(Modifier.heightIn(max = maximumHeight).verticalScroll(rememberScrollState()).padding(22.dp)
-                .testTag("fx-notice"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Only the text scrolls: on a short screen or with large fonts the title and the buttons stay in view.
+            Column(Modifier.heightIn(max = maximumHeight).padding(22.dp).testTag("fx-notice"),
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.settings_fx_notice_title), style = MaterialTheme.typography.titleLarge)
-                listOf(R.string.settings_fx_notice_source, R.string.settings_fx_notice_when, R.string.settings_fx_notice_sent,
-                    R.string.settings_fx_notice_not_sent, R.string.settings_fx_notice_storage, R.string.settings_fx_notice_replace)
-                    .forEach { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
-                Text(stringResource(R.string.settings_fx_notice_disclaimer), style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold)
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).testTag("fx-notice-text"),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    listOf(R.string.settings_fx_notice_source, R.string.settings_fx_notice_when, R.string.settings_fx_notice_sent,
+                        R.string.settings_fx_notice_not_sent, R.string.settings_fx_notice_storage, R.string.settings_fx_notice_replace)
+                        .forEach { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
+                    Text(stringResource(R.string.settings_fx_notice_disclaimer), style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold)
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onCancel, Modifier.testTag("fx-notice-cancel")) { Text(stringResource(R.string.settings_fx_notice_cancel)) }
                     Spacer(Modifier.weight(1f))
