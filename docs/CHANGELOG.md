@@ -1,5 +1,73 @@
 # Changelog
 
+## 0.0.18
+
+### Exchange rates
+- Valnook now runs on Android 13 or later (previously Android 16).
+- Added automatic exchange rates from Frankfurter in Settings > Exchange rates and during setup. It is off by default and shows what is sent and stored before it is turned on, with an option not to show this again.
+- When automatic rates are on, rates update once a day on first opening the app, after changing the base currency, when turned on, or with Update now. A failed update is retried no sooner than 30 minutes later, and a notice at the top of the screen names the cause and the rates still in use.
+- While automatic rates are on, the rates are read-only. Turning them off keeps the last retrieved rates for editing.
+- Retrieved rates are kept as daily history on the device and included in full backups. Statistics value each past day at that day's rate and fall back to the current rate where no history exists. The automatic rate switch stays as set on each device and is not restored from backups.
+- Currencies without an exchange rate are now left out of totals and marked as missing, in both automatic and manual modes, instead of being counted at 1:1.
+- Base currency and exchange rates are now edited on one page, saved from the toolbar. Leaving the page with unsaved rates asks first.
+- Currency names now follow the interface language.
+
+### Accounts and cash
+- Redesigned the account page. The header with the balance collapses while scrolling, a three-month net assets trend shows the value of any day you touch, and credit cards are listed above savings with their limit and billing details.
+- Redesigned the account edit page as grouped settings rows.
+- Sub-account pages collapse like the account page. Balance changes are grouped by day with the balance after each change and the time of each entry.
+- A wallet card's sub-account page now uses the same layout, with the card's note shown under the balance.
+- Ledger and trade times follow the system's 12- or 24-hour setting.
+
+### Investments
+- Each instrument now has one page covering every account. The page leads with the current price, its update date, and an Update price button, followed by the total value, unrealized profit, holdings by account, and the trade history by month with an account filter. Its price trend shows one price per day.
+- Buy, sell, and dividend forms now include an account row that opens a list of the accounts that can take the trade.
+- A new trade can also set its price as the instrument's current price.
+- Added dividends. A dividend records the after-tax amount, can be added to a sub-account's cash, and counts toward realized profit without changing units or cost.
+- Added a realized profit breakdown by instrument, opened from the Investments page.
+- Added a built-in Uncategorized asset class. Deleting an asset class moves its instruments to Uncategorized.
+- Instruments with trades can now be deleted after entering a confirmation code. The cash they moved is kept and labelled as belonging to a deleted instrument.
+- All instruments and an account's holdings are now shown as single cards, with asset class filters and search.
+
+### Deposits
+- Redesigned the Deposits tab, the deposit form, and the deposit details.
+- Fixed terms that start at the end of a month, such as 31 October to 30 April, not being recognised as six months.
+- Changing a deposit's currency now clears a sub-account of the old currency and picks the new currency's only sub-account.
+
+### Interface
+- The bottom navigation now shows icons with names. It folds to the current page while a page scrolls down and opens again with a tap. Long names are kept whole.
+- Redesigned the navigation settings page. Leaving it with unsaved changes asks first.
+- Replaced the app's icons with Font Awesome Free icons.
+- About now shows the version code beside the version name, the internal build, the full MIT License, and third-party notices.
+- Setup now explains that a base currency is needed to finish, and that automatic rates can be turned on later.
+- Wallet card back copy buttons now sit beside their text.
+- Clarified wording throughout the app and web management in Chinese and English.
+- Scrolling, the keyboard, and long lists are smoother, and statistics work only for the page on screen.
+
+### Backups and OneDrive
+- The OneDrive backup list is now kept on the device and shows when it was last refreshed. A backup removed elsewhere is reported and dropped from the list.
+- Uploads whose check was interrupted are settled on the next backup, and copies left unverified for three days are moved to the OneDrive recycle bin.
+- Fixed automatic backups stopping after an access or network error, and a scheduled backup being replaced when the app started.
+- Local backups and Excel exports now report the file name as saved.
+- Backups and exports no longer hold up editing while they are written.
+- Full backups now use data format 10, which adds exchange rate history. Backups created with 0.0.18 cannot be restored in earlier versions; backups from earlier versions can still be restored.
+- Removed the unused Google Drive code. Google Drive backup has been disabled since 0.0.17.
+
+### Web management
+- Added the Uncategorized class, cash moved by deleted instruments, and dividends, which are read-only.
+- Pairing is more reliable and recovers after an interruption. Timeouts are reported, and record pages follow the filters that were applied.
+- The live connection now opens with a one-time ticket instead of the session credential.
+
+### Other fixes
+- Fixed the cursor jumping when switching an amount between positive and negative.
+- Fixed demo names staying in English after switching the language back to the system default.
+- Fixed the last point of trend charts being cut in half.
+- Fixed the open page and unsaved drafts being lost when Android closed the app in the background.
+- Fixed the app keeping the time zone it started in after the device time zone changed.
+- Fixed account photos replaced earlier being left on the device.
+- Amounts in statistics and holdings are rounded and grouped like other amounts, and a value shown as zero has no sign or color.
+- Updated the privacy policy for automatic exchange rates and current backup behavior.
+
 ## 0.0.17
 
 - Added account groups. Main accounts can be sorted into named groups that fold and unfold with an animation on the Accounts page, with a total in each group header. A group manager creates, renames, reorders, and deletes groups and moves accounts between them.
