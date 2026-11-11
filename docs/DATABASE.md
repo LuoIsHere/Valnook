@@ -1,8 +1,8 @@
 # Valnook Database Structure
 
-This document describes how Valnook stores data on the device. It covers database schema 21, used by Valnook 0.0.17.
+This document describes how Valnook stores data on the device. It covers database schema 24, used by Valnook 0.0.18.
 
-The database is the app's internal storage, not a stable interface. Tables and columns can change in any version, and the app migrates existing data automatically when it is updated. The exported Room schema, [`21.json`](../core/data/schemas/dev.valnook.data.database.ValnookDatabase/21.json), is the authoritative definition; this document explains what the tables mean.
+The database is the app's internal storage, not a stable interface. Tables and columns can change in any version, and the app migrates existing data automatically when it is updated. The exported Room schema, [`24.json`](../core/data/schemas/dev.valnook.data.database.ValnookDatabase/24.json), is the authoritative definition; this document explains what the tables mean.
 
 ## Storage overview
 
@@ -28,7 +28,7 @@ The database is the app's internal storage, not a stable interface. Tables and c
 | `is_deleted` | Soft delete. The row stays so that history remains consistent. |
 | `operation_id` | The receipt of the write that created the row; see `operations`. |
 | Booleans | Stored as `INTEGER` 0 or 1. |
-| Single-row tables | `app_settings`, `statistics_state`, `audit_metadata`, `local_maintenance_state`, and `cloud_backup_state` always have one row with `id` 1. |
+| Single-row tables | `app_settings`, `statistics_state`, `audit_metadata`, `local_maintenance_state`, `cloud_backup_state`, and `fx_local_state` always have one row with `id` 1. |
 
 ## Relationships
 
@@ -93,15 +93,15 @@ Main accounts, such as a bank or a broker. Each holds subaccounts, term deposits
 | `updated_at_ms` | INTEGER |  | When the row was last changed (UTC ms). |
 | `revision` | INTEGER |  | Revision for optimistic concurrency; increases on every change. |
 | `display_order` | INTEGER |  | Global order of accounts: group order first, then position inside the group. |
-| `icon_type` | TEXT |  | `SYMBOL` for a built-in Material Symbol, `IMAGE` for an imported picture. |
-| `icon_value` | TEXT |  | Symbol name, or the ID of a row in `account_icon_images`. |
+| `icon_type` | TEXT |  | `SYMBOL` for a built-in icon, `IMAGE` for an imported picture. |
+| `icon_value` | TEXT |  | Built-in icon name, or the ID of a row in `account_icon_images`. |
 | `show_deposit_summary` | INTEGER |  | Boolean. Show the term-deposit summary on the account. |
 | `show_investment_summary` | INTEGER |  | Boolean. Show the investment summary on the account. |
 | `group_id` | INTEGER |  | The account's group (`account_groups.id`). Not a declared foreign key; accounts whose group is missing sort with the default group. |
 
 #### `account_icon_images`
 
-Imported account icon pictures, stored once and shared by content.
+Imported account icon pictures, stored once and shared by content. A picture is removed as soon as no account shows it.
 
 | Column | Type | Null | Description |
 | --- | --- | --- | --- |
@@ -182,7 +182,7 @@ Keys: Unique: (`open_operation_id`). Unique: (`close_operation_id`). `savings_ac
 
 #### `asset_types`
 
-User-defined asset types, such as stocks or funds, used to group instruments.
+Asset types, such as stocks or funds, used to group instruments. One row is the built-in Uncategorized type: its `normalized_name` is `~default` and its stored `name` is `未分类`, shown in the app language. It cannot be renamed or deleted, and the app adds it when it is missing. Deleting another type moves its instruments to Uncategorized.
 
 | Column | Type | Null | Description |
 | --- | --- | --- | --- |
@@ -232,7 +232,7 @@ Holdings: one instrument in one main account. Quantities and costs are rebuilt f
 | `opening_cost_price_e8` | INTEGER | yes | Legacy opening cost price. Unused since schema 8. |
 | `opening_at_ms` | INTEGER |  | Legacy opening time. Unused since schema 8. |
 | `remaining_cost` | TEXT | yes | Cost of the quantity held, as a decimal string in the instrument currency. |
-| `realized_profit` | TEXT | yes | Realized profit or loss so far, as a decimal string. |
+| `realized_profit` | TEXT | yes | Realized profit or loss so far, including dividends, as a decimal string. |
 | `chronology_valid` | INTEGER |  | Boolean. False when the trades cannot be replayed in date order, for example a sale before the purchase. |
 | `algorithm_version` | INTEGER |  | Version of the cost rule used for `remaining_cost` and `realized_profit`. |
 | `position_state` | TEXT |  | `PENDING` (no trades yet), `HOLDING`, or `CLOSED` (traded, nothing held). |
@@ -242,14 +242,14 @@ Keys: Unique: (`savings_account_id`, `instrument_id`). `savings_account_id` → 
 
 #### `investment_trades`
 
-Buy and sell trades of a holding.
+Buys, sells and dividends of a holding. A dividend moves no units: its `quantity_e8`, `execution_price_e8` and `fee_minor` are 0, and `amount_minor` is the amount received after tax.
 
 | Column | Type | Null | Description |
 | --- | --- | --- | --- |
 | `id` (PK) | INTEGER |  | Trade ID. |
 | `investment_id` | INTEGER |  | Holding. |
 | `operation_id` | TEXT |  | Receipt of the operation that created the trade. |
-| `direction` | TEXT |  | `BUY` or `SELL`. |
+| `direction` | TEXT |  | `BUY`, `SELL` or `DIVIDEND`. |
 | `quantity_e8` | INTEGER |  | Quantity times 10^8. |
 | `execution_price_e8` | INTEGER |  | Execution price times 10^8. |
 | `amount_minor` | INTEGER |  | Trade amount, quantity times price rounded to the currency, in minor units. Excludes the fee. |
@@ -309,7 +309,7 @@ Balance changes as they were applied, with the balance before and after. Togethe
 | `savings_account_id` | INTEGER |  | Main account. |
 | `currency_code` | TEXT |  | Currency. |
 | `cash_account_id` | INTEGER |  | Subaccount. |
-| `reason` | TEXT |  | What caused the change, such as `CASH_SET`, `BUY`, `SELL`, `TERM_OPEN` or `TERM_CLOSE`. |
+| `reason` | TEXT |  | What caused the change, such as `CASH_SET`, `BUY`, `SELL`, `DIVIDEND`, `TERM_OPEN` or `TERM_CLOSE`. |
 | `delta_minor` | INTEGER |  | Change in minor units. |
 | `balance_before_minor` | INTEGER |  | Balance before. |
 | `balance_after_minor` | INTEGER |  | Balance after. |
@@ -328,8 +328,8 @@ The records shown in a subaccount's history, dated by when they happened. Each p
 | `savings_account_id` | INTEGER |  | Main account. |
 | `currency_code` | TEXT |  | Currency. |
 | `cash_account_id` | INTEGER |  | Subaccount. |
-| `source_kind` | TEXT |  | `CASH_SET` (balance adjustment), `TRADE`, `TERM_OPEN` or `TERM_CLOSE`. |
-| `source_id` | INTEGER | yes | ID of the trade or deposit behind the record. Empty for balance adjustments. |
+| `source_kind` | TEXT |  | `CASH_SET` (balance adjustment), `TRADE`, `DIVIDEND`, `TERM_OPEN` or `TERM_CLOSE`. `TRADE_REMOVED` and `DIVIDEND_REMOVED` mark cash moved by an instrument that was later deleted. |
+| `source_id` | INTEGER | yes | ID of the trade, dividend or deposit behind the record. Empty for balance adjustments and for records of a deleted instrument. |
 | `delta_minor` | INTEGER |  | Change in minor units. |
 | `occurred_at_ms` | INTEGER |  | When it happened (UTC ms). |
 | `note` | TEXT |  | Note. |
@@ -415,7 +415,7 @@ Keys: `base_currency` → `currencies` (on delete: RESTRICT).
 
 #### `fx_rates`
 
-Exchange rates entered by the user.
+The current exchange rates used for totals: entered by the user, or written by automatic exchange rates while they are on.
 
 | Column | Type | Null | Description |
 | --- | --- | --- | --- |
@@ -425,6 +425,21 @@ Exchange rates entered by the user.
 | `updated_at_ms` | INTEGER |  | When the row was last changed (UTC ms). |
 
 Keys: Primary key: (`source_currency`, `target_currency`). `source_currency` → `currencies` (on delete: RESTRICT). `target_currency` → `currencies` (on delete: RESTRICT).
+
+#### `fx_rate_history`
+
+Daily exchange rates retrieved by automatic exchange rates, used to value each past day in statistics. Only rows for the current base currency are kept; changing the base currency deletes the others.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `base_currency` (PK) | TEXT |  | The base currency. |
+| `quote_currency` (PK) | TEXT |  | The other currency. |
+| `local_day` (PK) | INTEGER |  | The local date the rate applies to, as epoch day. |
+| `source_date` | INTEGER |  | The date the source published the rate, as epoch day. It is on or before `local_day`, for example on weekends. |
+| `rate` | TEXT |  | Decimal string exactly as the source returned it: one unit of the base currency equals `rate` units of the quote currency. |
+| `fetched_at_ms` | INTEGER |  | When the rate was retrieved (UTC ms). |
+
+Rows are never changed once written. Keys: Primary key: (`base_currency`, `quote_currency`, `local_day`). `base_currency` → `currencies` (on delete: RESTRICT). `quote_currency` → `currencies` (on delete: RESTRICT).
 
 ### Statistics cache
 
@@ -469,6 +484,7 @@ Computed daily values for the statistics charts. Rebuilt from source data when i
 | `source_revision` | INTEGER |  | `statistics_state.source_revision` the value was computed from. |
 | `rule_version` | INTEGER |  | Statistics rule version. |
 | `computed_at_ms` | INTEGER |  | When the value was computed (UTC ms). |
+| `complete` | INTEGER |  | Boolean. False when a currency had no exchange rate that day and was left out of the value. |
 
 Keys: Primary key: (`metric`, `epoch_day`).
 
@@ -566,6 +582,7 @@ A single row with the cloud backup connection and schedule.
 | `observed_restore_attempt_id` | TEXT | yes | Last restore already taken into account by the scheduler. |
 | `updated_at_ms` | INTEGER |  | When the row was last changed (UTC ms). |
 | `provider` | TEXT |  | Cloud provider. Rows from builds that still had Google Drive may hold `GOOGLE_DRIVE`; current builds write `ONEDRIVE`. |
+| `backups_refreshed_at_utc_ms` | INTEGER | yes | When the cloud backup list in `cloud_backup_index` was last fetched (UTC ms). Empty until it is fetched. |
 
 #### `cloud_backup_attempts`
 
@@ -582,7 +599,7 @@ Cloud backup attempts, kept so an upload whose result was lost can be found and 
 | `folder_id` | TEXT |  | Backup folder reference. |
 | `planned_drive_file_id` | TEXT | yes | Unused by OneDrive; kept from the Google Drive adapter. |
 | `drive_file_id` | TEXT | yes | Reference to the uploaded archive. |
-| `local_archive_path` | TEXT |  | Path of the temporary archive. The file is deleted after the attempt unless its result is uncertain. |
+| `local_archive_path` | TEXT |  | Path of the temporary archive. The file is deleted when the attempt ends; anything an interrupted attempt left behind is removed before the next backup starts. |
 | `archive_sha256` | TEXT |  | SHA-256 of the archive. |
 | `archive_md5` | TEXT |  | MD5 of the archive. |
 | `archive_size` | INTEGER |  | Archive size in bytes. |
@@ -593,6 +610,43 @@ Cloud backup attempts, kept so an upload whose result was lost can be found and 
 | `provider` | TEXT |  | Cloud provider, as in `cloud_backup_state`. |
 
 Keys: Unique: (`cycle_id`).
+
+#### `fx_local_state`
+
+A single row with this device's automatic exchange rate setting and the result of the latest update.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `id` (PK) | INTEGER |  | Always `1`. |
+| `auto_enabled` | INTEGER |  | Boolean. Automatic exchange rates are on. Off by default. |
+| `notice_dismissed` | INTEGER |  | Boolean. The notice shown before turning automatic rates on is no longer shown. |
+| `last_success_day` | INTEGER | yes | Local date of the latest successful update, as epoch day. |
+| `last_success_at_ms` | INTEGER | yes | Time of the latest successful update (UTC ms). |
+| `last_attempt_at_ms` | INTEGER | yes | Time of the latest attempt, successful or not (UTC ms). |
+| `last_error` | TEXT | yes | Why the latest attempt failed, such as `NETWORK` or `RATE_LIMITED`. Empty after a success. |
+| `data_date` | INTEGER | yes | The latest publication date among the rates retrieved by the latest successful update, as epoch day. |
+
+#### `cloud_backup_index`
+
+The cloud backup list as last fetched from OneDrive, kept so it is available offline and after a restart. It is cleared when OneDrive is disconnected.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `file_id` (PK) | TEXT |  | Reference to the backup file in OneDrive. |
+| `provider` | TEXT |  | Cloud provider, as in `cloud_backup_state`. |
+| `account_reference` | TEXT |  | The Microsoft account the list belongs to. Rows of another account are not shown. |
+| `folder_id` | TEXT |  | Reference to the backup folder. |
+| `position` | INTEGER |  | Position in the list, newest first. |
+| `file_name` | TEXT |  | File name offered when the backup is downloaded. |
+| `snapshot_created_at_utc` | TEXT |  | When the backup was created, as an ISO 8601 UTC time. |
+| `drive_created_at_utc` | TEXT |  | When OneDrive stored the file, as an ISO 8601 UTC time. |
+| `byte_count` | INTEGER |  | File size in bytes. |
+| `app_version` | TEXT |  | Version of the app that made the backup. |
+| `internal_build_revision` | TEXT |  | Internal build of the app that made the backup. |
+| `database_schema_version` | INTEGER |  | Database schema of the app that made the backup. |
+| `format_version` | INTEGER |  | Backup format version. |
+| `data_schema_version` | INTEGER |  | Backup data version. |
+| `verification_state` | TEXT |  | Whether the upload was read back and checked, as recorded with the file. |
 
 ### Demo data
 
@@ -612,9 +666,9 @@ Keys: Primary key: (`entity_kind`, `entity_id`, `field_name`).
 
 ## Source data, derived data, and device-local state
 
-- **Source data** is what you entered: accounts, groups, subaccounts, credit settings, deposits, asset types, instruments, holdings, trades, balance records, prices, settings, exchange rates, wallet cards and faces, operation receipts, and operation history.
+- **Source data** is what you entered, or what automatic exchange rates retrieved: accounts, groups, subaccounts, credit settings, deposits, asset types, instruments, holdings, trades and dividends, balance records, prices, settings, exchange rates and their history, wallet cards and faces, operation receipts, and operation history.
 - **Derived data** can be rebuilt from source data at any time: `statistics_cache`, from the starting point kept in `statistics_state` and `statistics_baseline_items`. The holding fields `holding_quantity_e8`, `remaining_cost`, `realized_profit`, and `position_state` are also recomputed from the trades whenever they change.
-- **Device-local state** belongs to this installation and never leaves it: `local_maintenance_state`, `cloud_backup_state`, `cloud_backup_attempts`, and `local_wallet_identity`.
+- **Device-local state** belongs to this installation and never leaves it: `local_maintenance_state`, `cloud_backup_state`, `cloud_backup_attempts`, `cloud_backup_index`, `fx_local_state`, and `local_wallet_identity`.
 - **Demo text** lives in `demo_labels`, which is only filled in the bundled demo database.
 
 ## Backups
@@ -643,6 +697,7 @@ A full backup (`.val_backup`) is a ZIP archive with a manifest and one file per 
 | `currencies` | `data/currencies.json` |
 | `app_settings` | `preferences/financial.json` and `preferences/appearance.json` |
 | `fx_rates` | `preferences/financial.json` |
+| `fx_rate_history` | `data/fx_rate_history.jsonl`, from backup data version 10 (0.0.18) |
 | `statistics_state` | `data/valuation_baselines.jsonl` |
 | `statistics_baseline_items` | `data/valuation_baselines.jsonl` |
 | `statistics_cache` | Not included. Rebuilt after a restore. |
@@ -652,9 +707,11 @@ A full backup (`.val_backup`) is a ZIP archive with a manifest and one file per 
 | `local_maintenance_state` | Not included. Device-local. |
 | `cloud_backup_state` | Not included. Device-local. |
 | `cloud_backup_attempts` | Not included. Device-local. |
+| `cloud_backup_index` | Not included. Device-local; a restore leaves it as it is. |
+| `fx_local_state` | Not included. Device-local; a restore keeps the automatic rate switch and clears the latest update result. |
 | `demo_labels` | Not included. Demo only. |
 
-The archive also contains `verification/snapshot_totals.json`, which lets a restore confirm that totals match. Restoring replaces the local data in one transaction, rebuilds the statistics cache, and leaves card backs empty. Backups from earlier versions can be restored; backups from 0.0.17 cannot be restored by earlier versions. See [How OneDrive Backup Works](ONEDRIVE_BACKUP.md) for cloud backups.
+The archive also contains `verification/snapshot_totals.json`, which lets a restore confirm that totals match. Restoring replaces the local data in one transaction, rebuilds the statistics cache, and leaves card backs empty. Backups from earlier versions can be restored; a backup without exchange rate history restores with an empty history. Backups from 0.0.18 use backup data version 10 and cannot be restored by earlier versions. See [How OneDrive Backup Works](ONEDRIVE_BACKUP.md) for cloud backups.
 
 ## How the app writes data
 
@@ -664,7 +721,7 @@ The archive also contains `verification/snapshot_totals.json`, which lets a rest
 - Every change, including wallet changes, advances `local_maintenance_state.dataset_generation`.
 - Balance changes are written twice: as an applied change with the balance before and after (`cash_movements`), and as a dated record in the subaccount's history (`cash_entries`).
 - Changes mark the affected days of the statistics cache as invalid; they are recomputed the next time statistics are read.
-- Clear data deletes all source data and history, keeps display settings and the cloud connection, and recreates the default account group.
+- Clear data deletes all source data and history, including exchange rates and their history, keeps display settings and the cloud connection, and recreates the default account group and the Uncategorized asset type. It also turns automatic exchange rates off.
 
 ## Schema history
 
@@ -690,3 +747,6 @@ The archive also contains `verification/snapshot_totals.json`, which lets a rest
 | 18 → 19 | Holding costs recomputed with cost rule 5; no table changes. |
 | 19 → 20 | Account groups. |
 | 20 → 21 | Names and dates in the card face library. |
+| 21 → 22 | Exchange rate history, the device-local automatic rate state, and the completeness flag in the statistics cache. |
+| 22 → 23 | Device-local copy of the cloud backup list, and when it was last fetched. |
+| 23 → 24 | Account photos no account shows are removed; no table changes. |
