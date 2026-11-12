@@ -151,4 +151,16 @@
         <item quantity="other">Payment due in %1$d days</item>
     </plurals>
     <string name="record_type">Type</string>
+    <!-- Groups in the bill category icon picker (BillIcons). -->
+    <string name="bill_icon_group_food">Food &amp; drink</string>
+    <string name="bill_icon_group_shopping">Shopping</string>
+    <string name="bill_icon_group_transport">Transport</string>
+    <string name="bill_icon_group_home">Home</string>
+    <string name="bill_icon_group_digital">Phone &amp; digital</string>
+    <string name="bill_icon_group_leisure">Leisure</string>
+    <string name="bill_icon_group_health">Health</string>
+    <string name="bill_icon_group_learning">Learning</string>
+    <string name="bill_icon_group_family">Family &amp; people</string>
+    <string name="bill_icon_group_money">Work &amp; money</string>
+    <string name="bill_icon_group_other">Other</string>
 </resources>

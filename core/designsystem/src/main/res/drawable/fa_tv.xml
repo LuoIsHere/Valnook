@@ -1,0 +1,10 @@
+<!-- Font Awesome Free 7.3.1 by @fontawesome, https://fontawesome.com. License: CC BY 4.0, https://creativecommons.org/licenses/by/4.0/. Copyright 2026 Fonticons, Inc. Modified: converted to an Android vector drawable. Generated, do not edit. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="640"
+    android:viewportHeight="640">
+  <path
+      android:fillColor="@android:color/white"
+      android:pathData="M96 160L96 400L544 400L544 160L96 160zM32 160C32 124.7 60.7 96 96 96L544 96C579.3 96 608 124.7 608 160L608 400C608 435.3 579.3 464 544 464L96 464C60.7 464 32 435.3 32 400L32 160zM192 512L448 512C465.7 512 480 526.3 480 544C480 561.7 465.7 576 448 576L192 576C174.3 576 160 561.7 160 544C160 526.3 174.3 512 192 512z"/>
+</vector>

@@ -149,4 +149,16 @@
         <item quantity="other">还款日还有 %1$d 天</item>
     </plurals>
     <string name="record_type">类型</string>
+    <!-- Groups in the bill category icon picker (BillIcons). -->
+    <string name="bill_icon_group_food">餐饮</string>
+    <string name="bill_icon_group_shopping">购物</string>
+    <string name="bill_icon_group_transport">交通</string>
+    <string name="bill_icon_group_home">居家</string>
+    <string name="bill_icon_group_digital">通讯与数码</string>
+    <string name="bill_icon_group_leisure">休闲娱乐</string>
+    <string name="bill_icon_group_health">医疗健康</string>
+    <string name="bill_icon_group_learning">学习</string>
+    <string name="bill_icon_group_family">家人与人情</string>
+    <string name="bill_icon_group_money">工作与理财</string>
+    <string name="bill_icon_group_other">其他</string>
 </resources>
