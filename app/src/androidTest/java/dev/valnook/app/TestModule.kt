@@ -45,6 +45,11 @@ object TestModule {
                     val baseline = java.time.LocalDate.of(2026, 10, 1)
                     db.execSQL("UPDATE statistics_state SET baseline_at_ms=?,earliest_invalidated_epoch_day=? WHERE id=1",
                         arrayOf(baseline.atStartOfDay(ZoneId.of("Asia/Hong_Kong")).toInstant().toEpochMilli(), baseline.toEpochDay()))
+                    // Tests find controls by their Chinese text. With "follow the system" the root would reset the
+                    // app language to the device's, so the fixture chooses Simplified Chinese (see HiltTestRunner).
+                    db.execSQL("INSERT INTO app_settings(id,base_currency,revision,language,gain_loss_scheme,navigation_order," +
+                        "navigation_visible) VALUES(1,NULL,0,'ZH_HANS','GREEN_GAIN','BILLS,ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS'," +
+                        "'ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS')")
                 }
             })
             .build()
