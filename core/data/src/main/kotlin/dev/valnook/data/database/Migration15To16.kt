@@ -2,7 +2,6 @@ package dev.valnook.data.database
 
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-import dev.valnook.domain.model.NavigationConfiguration
 
 val MIGRATION_15_16 = object : Migration(15, 16) {
     override fun migrate(db: SupportSQLiteDatabase) {
@@ -15,11 +14,24 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
         db.execSQL("CREATE INDEX IF NOT EXISTS index_wallet_cards_image_key ON wallet_cards(image_key)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_wallet_cards_bound_cash_account_id ON wallet_cards(bound_cash_account_id)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_wallet_cards_display_order_id ON wallet_cards(display_order,id)")
+        // Frozen as written for schema 16: the wallet goes after accounts and is shown. Later pages (bills) are added
+        // when the settings are read, not here, so this step stays the same however the navigation rules grow.
         db.query("SELECT navigation_order,navigation_visible FROM app_settings WHERE id=1").use { row ->
             if (row.moveToFirst()) {
-                val navigation = NavigationConfiguration.restore(row.getString(0), row.getString(1))
-                db.execSQL("UPDATE app_settings SET navigation_order=?,navigation_visible=? WHERE id=1", arrayOf(
-                    navigation.order.joinToString(",") { it.name }, navigation.visible.joinToString(",") { it.name }))
+                val pages = listOf("ACCOUNTS", "INVESTMENTS", "STATISTICS", "SETTINGS")
+                fun parse(raw: String?) = raw.orEmpty().split(',').filter { it in pages || it == "WALLET" }.distinct()
+                val order = parse(row.getString(0)).toMutableList()
+                val visible = parse(row.getString(1)).toMutableSet()
+                if (order.isNotEmpty()) {
+                    if ("WALLET" !in order) {
+                        order.add((order.indexOf("ACCOUNTS") + 1).coerceAtLeast(0), "WALLET")
+                        visible.add("WALLET")
+                    }
+                    pages.filterNot(order::contains).forEach(order::add)
+                    visible.add("SETTINGS")
+                    db.execSQL("UPDATE app_settings SET navigation_order=?,navigation_visible=? WHERE id=1", arrayOf(
+                        order.joinToString(","), order.filter(visible::contains).joinToString(",")))
+                }
             }
         }
     }

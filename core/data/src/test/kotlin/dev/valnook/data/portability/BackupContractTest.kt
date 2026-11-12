@@ -22,6 +22,7 @@ class BackupContractTest {
         assertEquals(BackupContract.tables.map { it.table }.toSet() - "fx_rate_history" - bills, tables(9))
         assertEquals(BackupContract.tables.map { it.table }.toSet() - bills, tables(10))
         assertEquals(BackupContract.tables.map { it.table }.toSet(), tables(11))
+        assertEquals(tables(11), tables(12))
     }
 
     @Test fun rate_history_starts_at_version_ten_and_keeps_device_state_out() {
@@ -59,6 +60,7 @@ class BackupContractTest {
         }
         assertTrue(order.indexOf("cash_accounts") < order.indexOf("bill_categories"))
         assertTrue("bills-v1" in BackupContract.requiredFeatures)
+        assertTrue("account_deleted" !in columns(11, "bill_entries") && "account_deleted" in columns(12, "bill_entries"))
     }
 
     @Test fun unknown_versions_have_no_tables() {

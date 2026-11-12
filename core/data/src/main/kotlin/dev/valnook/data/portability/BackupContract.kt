@@ -121,7 +121,7 @@ internal object BackupContract {
             long("fee_minor"), text("counterparty"), long("category_id", true), long("sub_category_id", true),
             bool("count_in_stats"), bool("reimbursable"), text("reimburse_state"), long("parent_id", true),
             text("batch_id", true), text("note"), long("revision"), bool("is_deleted"), long("created_at_ms"),
-            long("updated_at_ms")
+            long("updated_at_ms"), bool("account_deleted")
         ), "id"),
         PortableTable("data/term_deposits.jsonl", "term_deposits", listOf(
             long("id"), long("savings_account_id"), text("currency_code"), long("principal_minor"),
@@ -205,7 +205,8 @@ internal object BackupContract {
         "face_style" to 7,
         "group_id" to 8,
         "label" to 9, "added_at_ms" to 9,
-        "is_favorite" to 11, "favorite_order" to 11
+        "is_favorite" to 11, "favorite_order" to 11,
+        "account_deleted" to 12
     )
 
     /** The tables and columns an archive of [dataSchemaVersion] contains; empty for unknown versions. */

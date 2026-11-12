@@ -74,8 +74,11 @@ interface BillRepository {
     /** The earliest month that has a bill, if any. */
     fun observeFirstBillAt(): Flow<Long?>
     fun observeAccountChoices(): Flow<List<BillAccountChoice>>
-    /** Notes used before with [categoryId] (or its subcategories), most used first, then most recent. */
-    fun observeRecentNotes(categoryId: Long, limit: Int = 6): Flow<List<String>>
+    /**
+     * Notes used before on exactly this category, most used first, then most recent: with [subCategoryId] that
+     * subcategory's, otherwise those on [categoryId] without a subcategory. Each category keeps its own.
+     */
+    fun observeRecentNotes(categoryId: Long, subCategoryId: Long?, limit: Int = 6): Flow<List<String>>
     /** How many bills still use the category or its subcategories. */
     suspend fun categoryUsage(categoryId: Long): Int
     /** The automatic rates stored for [day] under [base]: 1 base = value of each quote currency. */

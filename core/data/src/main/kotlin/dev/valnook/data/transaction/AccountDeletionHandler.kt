@@ -136,7 +136,7 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
             val fromGone = bill.cash_account_id in cashIds
             val toGone = bill.to_cash_account_id in cashIds
             var next = bill.copy(revision = bill.revision + 1, updated_at_ms = now)
-            next = if (bill.type != BillType.TRANSFER.name) next.copy(cash_account_id = null)
+            next = if (bill.type != BillType.TRANSFER.name) next.copy(cash_account_id = null, account_deleted = true)
             else when {
                 // Nothing of the user's is left on either side.
                 (fromGone || bill.cash_account_id == null) && (toGone || bill.to_cash_account_id == null) ->

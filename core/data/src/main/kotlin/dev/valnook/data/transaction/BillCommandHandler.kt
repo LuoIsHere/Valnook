@@ -55,8 +55,8 @@ internal class BillCommandHandler(
         fault(TransactionPoint.AFTER_BUSINESS)
         syncLegs(id, entity.operation_id, command.operation_id, resolved.legs, entity.occurred_at_ms, now,
             if (old == null) "BILL" else "BILL_EDIT")
-        // The account a category was last used with only follows new bills.
-        if (old == null && entity.cash_account_id != null && entity.category_id != null) {
+        // The account a category was last used with (none included) only follows new bills.
+        if (old == null && entity.category_id != null) {
             dao.rememberAccount(entity.category_id, entity.cash_account_id)
             entity.sub_category_id?.let { dao.rememberAccount(it, entity.cash_account_id) }
         }
@@ -124,9 +124,10 @@ internal class BillCommandHandler(
     private suspend fun resolveSpending(draft: BillDraft, note: String): Resolved {
         if (draft.transferKind != null || draft.toCashAccountId != null || draft.toAmountMinor != null ||
             draft.feeMinor != 0L || draft.counterparty.isNotBlank()) throw DomainException(ErrorCode.FORMAT)
-        val account = account(draft.cashAccountId ?: throw DomainException(ErrorCode.WRONG_CASH_ACCOUNT))
+        // No account: the bill is kept on its own and moves no balance.
+        val account = draft.cashAccountId?.let { account(it) }
         val currency = cash.currency(draft.currencyCode)
-        val accountCurrency = cash.currency(account.currency_code)
+        val accountCurrency = account?.let { cash.currency(it.currency_code) } ?: currency
         R.check_nonnegative(draft.amountMinor, positive = true)
         if (draft.discountMinor < 0 || draft.discountMinor >= draft.amountMinor) throw DomainException(ErrorCode.FORMAT)
         val paid = draft.amountMinor - draft.discountMinor
@@ -141,10 +142,10 @@ internal class BillCommandHandler(
         }
         val delta = if (draft.type == BillType.EXPENSE) -draft.accountAmountMinor else draft.accountAmountMinor
         return Resolved(entity(draft, note).copy(
-            currency_code = currency.code, cash_account_id = account.id, account_currency_code = accountCurrency.code,
+            currency_code = currency.code, cash_account_id = account?.id, account_currency_code = accountCurrency.code,
             rate = rate, rate_source = source.name, category_id = category.id, sub_category_id = draft.subCategoryId,
             count_in_stats = draft.countInStats,
-        ), listOf(Leg(CashSource.BILL, account.id, delta)))
+        ), listOfNotNull(account?.let { Leg(CashSource.BILL, it.id, delta) }))
     }
 
     private suspend fun resolveTransfer(draft: BillDraft, note: String): Resolved {

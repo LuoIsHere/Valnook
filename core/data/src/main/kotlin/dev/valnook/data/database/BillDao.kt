@@ -46,8 +46,9 @@ interface BillDao {
     @Query("UPDATE bill_categories SET sort_order=:order,revision=revision+1,updated_at_ms=:now WHERE id=:id")
     suspend fun setCategoryOrder(id: Long, order: Long, now: Long): Int
 
+    /** The account a category was last used with; null when that bill was on no account. */
     @Query("UPDATE bill_categories SET last_cash_account_id=:cashAccountId WHERE id=:id")
-    suspend fun rememberAccount(id: Long, cashAccountId: Long): Int
+    suspend fun rememberAccount(id: Long, cashAccountId: Long?): Int
 
     @Query("DELETE FROM bill_categories WHERE id=:id")
     suspend fun deleteCategory(id: Long): Int
@@ -87,9 +88,11 @@ interface BillDao {
     @Query("SELECT MIN(occurred_at_ms) FROM bill_entries WHERE is_deleted=0")
     fun observeFirstBillAt(): Flow<Long?>
 
-    @Query("""SELECT note FROM bill_entries WHERE is_deleted=0 AND note<>'' AND (category_id=:categoryId OR sub_category_id=:categoryId)
+    /** Notes of bills on exactly this category: a subcategory's own, or a top-level one's without a subcategory. */
+    @Query("""SELECT note FROM bill_entries WHERE is_deleted=0 AND note<>'' AND category_id=:categoryId
+        AND ((:subCategoryId IS NULL AND sub_category_id IS NULL) OR sub_category_id=:subCategoryId)
         GROUP BY note ORDER BY COUNT(*) DESC,MAX(occurred_at_ms) DESC LIMIT :limit""")
-    fun observeRecentNotes(categoryId: Long, limit: Int): Flow<List<String>>
+    fun observeRecentNotes(categoryId: Long, subCategoryId: Long?, limit: Int): Flow<List<String>>
 
     /** The cash entries a bill moves, deleted ones included. */
     @Query("SELECT * FROM cash_entries WHERE source_kind IN ('BILL','BILL_TRANSFER_IN') AND source_id=:billId ORDER BY id")

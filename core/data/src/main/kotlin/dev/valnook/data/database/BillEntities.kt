@@ -79,4 +79,9 @@ data class BillEntryEntity(
     val is_deleted: Boolean,
     val created_at_ms: Long,
     val updated_at_ms: Long,
+    /**
+     * Set when [cash_account_id] was emptied because its sub-account was deleted (schema 26). An expense or income
+     * whose account is empty without it was recorded on no account at all.
+     */
+    @ColumnInfo(defaultValue = "0") val account_deleted: Boolean = false,
 )

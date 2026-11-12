@@ -36,7 +36,8 @@ data class BillCategory(
  * What the bill form hands to saving, for a new bill and an edit alike.
  *
  * - Expense and income: [amountMinor] (before [discountMinor]) is in [currencyCode]; the sub-account
- *   [cashAccountId] moves by [accountAmountMinor] in its own currency, which is the paid amount times [rate].
+ *   [cashAccountId] moves by [accountAmountMinor] in its own currency, which is the paid amount times [rate]. With no
+ *   [cashAccountId] the bill moves no account: [accountAmountMinor] is the paid amount and the rate 1.
  * - Transfer: [amountMinor] = [accountAmountMinor] leaves [cashAccountId] in its currency (plus [feeMinor]) and
  *   [toAmountMinor] arrives in [toCashAccountId]; [rate] is how much of the destination currency one unit of the
  *   source buys. An external side has no account: from outside, only [toCashAccountId] and [toAmountMinor] are set
@@ -94,6 +95,8 @@ data class Bill(
     val revision: Long,
     val createdAtMs: Long,
     val updatedAtMs: Long,
+    /** Its account was deleted; an expense or income with no account and this false was kept on no account. */
+    val accountDeleted: Boolean = false,
 ) {
     val paidMinor: Long get() = amountMinor - discountMinor
 

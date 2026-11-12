@@ -175,6 +175,29 @@ class BillDataTest {
         assertEquals(category("other") to category("other.uncategorized"), bill.categoryId to bill.subCategoryId)
     }
 
+    @Test fun a_bill_on_no_account_moves_no_balance_and_each_category_remembers_its_own() = runBlocking {
+        val (a, b, _) = accounts()
+        val noAccount = save(expense(a, 1_200).copy(cashAccountId = null))
+        assertTrue(legs(noAccount).isEmpty())
+        assertEquals(1_000_000L, balance(a))
+        val stored = RoomBills(db).observeBill(noAccount).first()!!
+        assertEquals(listOf(null, false, 1_200L), listOf(stored.cashAccountId, stored.accountDeleted, stored.accountAmountMinor))
+        // A rate other than 1 makes no sense without an account.
+        expect(ErrorCode.FORMAT) { save(expense(a, 100).copy(cashAccountId = null, currencyCode = "USD", accountAmountMinor = 710,
+            rate = BigDecimal("7.1"), rateSource = BillRateSource.ONE_TIME)) }
+
+        // Lunch was last on no account, breakfast on B; each remembers its own.
+        save(expense(b, 300, sub = "food.breakfast").copy(note = "Synthetic toast"))
+        assertNull(db.bills().category(category("food.lunch"))!!.last_cash_account_id)
+        assertEquals(b, db.bills().category(category("food.breakfast"))!!.last_cash_account_id)
+        // And so do their notes: lunch's are not breakfast's, and the top level keeps its own.
+        save(expense(a, 500, sub = null).copy(note = "Synthetic snack"))
+        val bills = RoomBills(db)
+        assertEquals(listOf("Synthetic lunch"), bills.observeRecentNotes(category("food"), category("food.lunch")).first())
+        assertEquals(listOf("Synthetic toast"), bills.observeRecentNotes(category("food"), category("food.breakfast")).first())
+        assertEquals(listOf("Synthetic snack"), bills.observeRecentNotes(category("food"), null).first())
+    }
+
     @Test fun deleted_accounts_leave_their_bills_and_turn_transfers_outward() = runBlocking {
         val (a, b, _) = accounts()
         val bank = db.cash().cashAccount(a)!!.savings_account_id
@@ -191,6 +214,7 @@ class BillDataTest {
 
         val bills = RoomBills(db)
         assertNull(bills.observeBill(lunch).first()!!.cashAccountId)
+        assertTrue(bills.observeBill(lunch).first()!!.accountDeleted)
         val inward = bills.observeBill(moved).first()!!
         assertEquals(TransferKind.FROM_EXTERNAL, inward.transferKind)
         assertEquals("Synthetic Bank · A", inward.counterparty)

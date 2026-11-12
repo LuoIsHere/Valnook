@@ -37,8 +37,8 @@ class RoomBills(private val db: ValnookDatabase) : BillRepository {
     override fun observeAccountChoices(): Flow<List<BillAccountChoice>> =
         dao.observeAccountRows().map(::choices).distinctUntilChanged()
 
-    override fun observeRecentNotes(categoryId: Long, limit: Int): Flow<List<String>> =
-        dao.observeRecentNotes(categoryId, limit).distinctUntilChanged()
+    override fun observeRecentNotes(categoryId: Long, subCategoryId: Long?, limit: Int): Flow<List<String>> =
+        dao.observeRecentNotes(categoryId, subCategoryId, limit).distinctUntilChanged()
 
     override suspend fun categoryUsage(categoryId: Long): Int = dao.categoryUsage(categoryId)
 
@@ -77,4 +77,5 @@ internal fun BillEntryEntity.toModel() = Bill(
     toCurrency = to_currency_code?.let(Currency::of), toAmountMinor = to_amount_minor, feeMinor = fee_minor,
     counterparty = counterparty, categoryId = category_id, subCategoryId = sub_category_id,
     countInStats = count_in_stats, reimbursable = reimbursable, reimburseState = ReimburseState.valueOf(reimburse_state),
-    parentId = parent_id, note = note, revision = revision, createdAtMs = created_at_ms, updatedAtMs = updated_at_ms)
+    parentId = parent_id, note = note, revision = revision, createdAtMs = created_at_ms, updatedAtMs = updated_at_ms,
+    accountDeleted = account_deleted)

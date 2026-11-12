@@ -316,6 +316,7 @@ internal class SpreadsheetWriter(
         var count = 0L
         val deleted = label(english, "已删除的账户", "Deleted account")
         val outside = label(english, "外部账户", "Outside account")
+        val noAccount = label(english, "不计入账户", "No account")
         fun category(key: String?, custom: String?): String =
             custom ?: dev.valnook.domain.model.BillCategoryPresets.name(key, english).orEmpty()
         SheetXml(file, freezeRows = 1, autoFilter = true).use { sheet ->
@@ -330,7 +331,7 @@ internal class SpreadsheetWriter(
                 SELECT b.occurred_at_ms,b.type,b.transfer_kind,c.builtin_key,c.custom_name,s.builtin_key,s.custom_name,
                     b.amount_minor,b.discount_minor,b.currency_code,a.name,ca.name,b.account_currency_code,b.account_amount_minor,
                     b.rate,b.rate_source,ta.name,tc.name,b.to_currency_code,b.to_amount_minor,b.fee_minor,b.counterparty,
-                    b.count_in_stats,b.note,b.id
+                    b.count_in_stats,b.note,b.id,b.account_deleted
                 FROM bill_entries b
                 LEFT JOIN bill_categories c ON c.id=b.category_id LEFT JOIN bill_categories s ON s.id=b.sub_category_id
                 LEFT JOIN cash_accounts ca ON ca.id=b.cash_account_id LEFT JOIN savings_accounts a ON a.id=ca.savings_account_id
@@ -347,6 +348,7 @@ internal class SpreadsheetWriter(
                     val discount = cursor.getLong(8)
                     fun accountName(main: String?, sub: String?, external: Boolean): String = when {
                         external -> cursor.getString(21).ifBlank { outside }
+                        sub == null && type != "TRANSFER" && cursor.getInt(25) == 0 -> noAccount
                         sub == null -> deleted
                         main == null || main == sub -> sub
                         else -> "$main · $sub"

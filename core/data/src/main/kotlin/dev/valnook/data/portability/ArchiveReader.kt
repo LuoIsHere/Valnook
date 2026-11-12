@@ -186,6 +186,9 @@ internal class ArchiveReader(
             // Archives written before bills existed start with the preset categories, like a new database.
             if (dataSchemaVersion < 11) dev.valnook.data.database.insertDefaultBillCategories(db.openHelper.writableDatabase,
                 System.currentTimeMillis())
+            // Before data schema 12 a bill only lost its account when the account was deleted.
+            if (dataSchemaVersion == 11) db.openHelper.writableDatabase.execSQL(
+                "UPDATE bill_entries SET account_deleted=1 WHERE type<>'TRANSFER' AND cash_account_id IS NULL")
             counts["data/valuation_baselines.jsonl"] = loadValuationBaselines(db, root)
             counts["data/audit_metadata.json"] = loadAuditMetadata(db, root)
             counts.putAll(loadPreferences(db, root))
@@ -529,6 +532,8 @@ internal class ArchiveReader(
                 }
             }
         }
+        db.query("SELECT 1 FROM bill_entries WHERE account_deleted<>0 AND (cash_account_id IS NOT NULL OR type='TRANSFER') LIMIT 1")
+            .use { if (it.moveToFirst()) invalid() }
         // A bill's cash entries point at a bill that exists.
         db.query("""SELECT 1 FROM cash_entries e WHERE e.source_kind IN ('BILL','BILL_TRANSFER_IN')
             AND (e.source_id IS NULL OR NOT EXISTS (SELECT 1 FROM bill_entries b WHERE b.id=e.source_id)) LIMIT 1""")
@@ -709,9 +714,13 @@ internal class ArchiveReader(
         if (result == -1L) relationship()
     }
 
+    /** The pages a backup's navigation lists: the wallet arrived with data schema 6, bills with 11. */
     private fun validateNavigation(order: String, visible: String) {
-        val all = if ("WALLET" in order.split(',')) setOf("ACCOUNTS", "WALLET", "INVESTMENTS", "STATISTICS", "SETTINGS") else setOf("ACCOUNTS", "INVESTMENTS", "STATISTICS", "SETTINGS")
         val orderValues = order.split(',')
+        val all = setOf("ACCOUNTS", "INVESTMENTS", "STATISTICS", "SETTINGS") +
+            (if ("WALLET" in orderValues) setOf("WALLET") else emptySet()) +
+            (if ("BILLS" in orderValues) setOf("BILLS") else emptySet())
+        if ("BILLS" in orderValues && "WALLET" !in orderValues) invalid()
         val visibleValues = visible.split(',').filter(String::isNotBlank)
         if (orderValues.toSet() != all || orderValues.size != all.size ||
             visibleValues.any { it !in all } || visibleValues.toSet().size != visibleValues.size ||

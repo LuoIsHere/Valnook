@@ -195,7 +195,8 @@ class BackupPortabilityTest {
         val workbookEntries = zipEntries(workbookBytes)
         assertTrue("[Content_Types].xml" in workbookEntries)
         assertTrue("xl/workbook.xml" in workbookEntries)
-        assertEquals(7, workbookEntries.count { it.startsWith("xl/worksheets/sheet") })
+        // The summary, two sheets per account and the bills sheet.
+        assertEquals(8, workbookEntries.count { it.startsWith("xl/worksheets/sheet") })
         val workbookXml = zipText(workbookBytes, "xl/worksheets/sheet1.xml")
         assertTrue(workbookXml.contains("仅供分析"))
         assertTrue(workbookXml.contains("信用账户数"))
@@ -210,13 +211,13 @@ class BackupPortabilityTest {
         }
     }
 
-    @Test fun empty_english_workbook_is_valid_and_contains_only_the_summary_sheet() = runBlocking {
+    @Test fun empty_english_workbook_is_valid_with_the_summary_and_bills_sheets() = runBlocking {
         val output = ByteArrayOutputStream()
         engine(database("empty-workbook")).exportWorkbook(
             UUID.randomUUID().toString(), AppLanguage.ENGLISH, false, output
         ) {}
         val bytes = output.toByteArray()
-        assertEquals(1, zipEntries(bytes).count { it.startsWith("xl/worksheets/sheet") })
+        assertEquals(2, zipEntries(bytes).count { it.startsWith("xl/worksheets/sheet") })
         val summary = zipText(bytes, "xl/worksheets/sheet1.xml")
         assertTrue(summary.contains("For analysis only"))
         assertFalse(summary.contains("<f>"))
@@ -880,6 +881,9 @@ class BackupPortabilityTest {
         if (version < 8) files.remove("data/account_groups.jsonl")
         if (version < 10) files.remove("data/fx_rate_history.jsonl")
         if (version < 11) { files.remove("data/bill_categories.jsonl"); files.remove("data/bill_entries.jsonl") }
+        if (version == 11) files["data/bill_entries.jsonl"] = files.getValue("data/bill_entries.jsonl").toString(Charsets.UTF_8)
+            .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
+                JSONObject(line).apply { remove("account_deleted") }.toString() + "\n" }.toByteArray()
         if(version < 4) files.remove("data/account_icon_images.jsonl")
         if (version in 6..8) files["data/wallet_card_images.jsonl"] = files.getValue("data/wallet_card_images.jsonl").toString(Charsets.UTF_8)
             .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
@@ -911,7 +915,8 @@ class BackupPortabilityTest {
             (if (version >= 7) listOf("wallet-face-style-v1") else emptyList()) +
             (if (version >= 8) listOf("account-groups-v1") else emptyList()) +
             (if (version >= 9) listOf("wallet-face-library-v1") else emptyList()) +
-            (if (version >= 10) listOf("fx-rate-history-v1") else emptyList())))
+            (if (version >= 10) listOf("fx-rate-history-v1") else emptyList()) +
+            (if (version >= 11) listOf("bills-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->

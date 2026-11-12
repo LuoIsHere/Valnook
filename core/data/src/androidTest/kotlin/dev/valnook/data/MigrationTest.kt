@@ -490,7 +490,7 @@ class MigrationTest {
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
-            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25).build()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26).build()
             try {
                 val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
                 assertEquals(listOf("shared", "orphan"), faces.map { it.key })
@@ -512,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
@@ -645,12 +645,47 @@ class MigrationTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    @Test fun v25_to_v26_marks_bills_that_lost_their_account_to_a_deletion() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-bill-accounts-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 25).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO operations(operation_id,kind,request_fingerprint,result_kind,result_id,created_at_ms) VALUES ('a','B','x','BILL',1,1),('b','B','y','BILL',2,1),('c','B','z','BILL',3,1)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms) VALUES (1,'Bank','',1,1)")
+                execSQL("""INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,
+                    currency_locked,created_at_ms) VALUES (1,'CNY',100,1,1,7,'Cash','',1,1)""")
+                // A database made at schema 25 by the helper has no presets; one category is enough here.
+                execSQL("""INSERT INTO bill_categories(id,kind,parent_id,builtin_key,custom_name,icon_key,color_key,sort_order,hidden,
+                    last_cash_account_id,revision,created_at_ms,updated_at_ms) VALUES (5,'EXPENSE',NULL,'food',NULL,'utensils','orange',0,0,NULL,1,1,1)""")
+                val food = 5L
+                fun bill(id: Long, op: String, type: String, cash: Long?, kind: String?, category: Long?) = execSQL("""INSERT INTO bill_entries(id,operation_id,
+                    type,occurred_at_ms,amount_minor,currency_code,discount_minor,cash_account_id,account_currency_code,account_amount_minor,
+                    rate,rate_source,transfer_kind,to_cash_account_id,to_currency_code,to_amount_minor,fee_minor,counterparty,category_id,
+                    sub_category_id,count_in_stats,reimbursable,reimburse_state,parent_id,batch_id,note,revision,is_deleted,created_at_ms,
+                    updated_at_ms) VALUES (?,?,?,1,100,'CNY',0,?,'CNY',100,'1','SAME',?,NULL,NULL,NULL,0,'',?,NULL,1,0,'NONE',NULL,NULL,'',1,0,1,1)""",
+                    arrayOf<Any?>(id, op, type, cash, kind, category))
+                bill(1, "a", "EXPENSE", null, null, food)
+                bill(2, "b", "EXPENSE", 7, null, food)
+                bill(3, "c", "TRANSFER", null, "FROM_EXTERNAL", null)
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 26, true, MIGRATION_25_26).apply {
+                query("SELECT id,account_deleted FROM bill_entries ORDER BY id").use {
+                    val rows = generateSequence { if (it.moveToNext()) it.getLong(0) to it.getLong(1) else null }.toList()
+                    assertEquals(listOf(1L to 1L, 2L to 0L, 3L to 0L), rows)
+                }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
     /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach the current schema with their manual rates unchanged. */
     @Test fun released_installs_reach_the_current_schema_with_manual_rates_unchanged(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val chains = mapOf(
-            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25),
-            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25))
+            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26),
+            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26))
         chains.forEach { (version, migrations) ->
             val name = "migration-fx-v$version-${UUID.randomUUID()}.db"
             try {
