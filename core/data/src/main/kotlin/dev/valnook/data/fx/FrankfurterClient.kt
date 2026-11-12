@@ -88,7 +88,11 @@ internal class FrankfurterClient(private val transport: FrankfurterTransport) {
         return parse(body, base, quoteSet, LocalDate.MIN, date)
     }
 
-    /** Only the days the source published, from [from] to [to]; spans longer than 366 days go in yearly parts. */
+    /**
+     * The days the source published from [from] to [to]; spans longer than 366 days go in yearly parts. For a quote
+     * with nothing published on a part's first day the source also sends its last value before that day; only the
+     * newest such row per quote is kept, as the value carried into the part.
+     */
     suspend fun series(base: String, quotes: Collection<String>, from: LocalDate, to: LocalDate): List<FrankfurterRate> {
         val quoteSet = checkedQuotes(base, quotes)
         require(!from.isAfter(to))
@@ -97,7 +101,8 @@ internal class FrankfurterClient(private val transport: FrankfurterTransport) {
         while (!start.isAfter(to)) {
             val end = minOf(start.plusYears(1).minusDays(1), to)
             val body = fetch("rates?base=$base&quotes=${quoteSet.joinToString(",")}&from=$start&to=$end")
-            result += parse(body, base, quoteSet, start, end)
+            val (carried, inRange) = parse(body, base, quoteSet, LocalDate.MIN, end).partition { it.date.isBefore(start) }
+            result += carried.groupBy { it.quote }.map { (_, rows) -> rows.maxBy { it.date } } + inRange
             start = end.plusDays(1)
         }
         return result

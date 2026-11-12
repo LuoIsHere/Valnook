@@ -54,6 +54,8 @@ class FxSyncCoordinatorTest {
         var failure: Exception? = null
         var status = 200
         var onRequest: suspend () -> Unit = {}
+        /** The real source also sends a quote's last earlier value when nothing was published on a range's first day. */
+        var carryIntoRanges = false
 
         override suspend fun get(url: String): FrankfurterResponse {
             urls += url
@@ -66,7 +68,12 @@ class FxSyncCoordinatorTest {
                 val days = published[quote] ?: return@flatMap emptyList<String>()
                 val chosen = query["date"]?.let { date ->
                     listOfNotNull(days.filterKeys { it <= LocalDate.parse(date) }.maxByOrNull { it.key })
-                } ?: days.entries.filter { it.key >= LocalDate.parse(query["from"]) && it.key <= LocalDate.parse(query["to"]) }
+                } ?: run {
+                    val from = LocalDate.parse(query["from"])
+                    val inRange = days.entries.filter { it.key >= from && it.key <= LocalDate.parse(query["to"]) }
+                    val earlier = days.entries.filter { it.key < from }.maxByOrNull { it.key }
+                    if (carryIntoRanges && from !in days && earlier != null) listOf(earlier) + inRange else inRange
+                }
                 chosen.map { """{"date":"${it.key}","base":"$base","quote":"$quote","rate":${it.value}}""" }
             }.joinToString(",", "[", "]")
             return FrankfurterResponse(200, json.toByteArray())
@@ -362,6 +369,25 @@ class FxSyncCoordinatorTest {
         usd = db.fx().history("CNY").filter { it.quote_currency == "USD" }.map { it.local_day }
         assertEquals((day("2024-01-01")..day("2026-10-28")).toList(), usd)   // no gap where it resumed
         assertEquals(day("2026-10-28"), db.fx().localState()!!.last_success_day)
+    }
+
+    @Test fun a_value_sent_from_before_a_year_s_range_is_carried_into_it() = runBlocking {
+        db.openHelper.writableDatabase.execSQL("UPDATE statistics_state SET baseline_at_ms=? WHERE id=1",
+            arrayOf(date("2024-06-01").atStartOfDay(shanghai).toInstant().toEpochMilli()))
+        var day = date("2024-05-20")
+        while (day <= date("2026-10-31")) {
+            // Nothing is published on New Year's Day, so each later year's range starts on an empty day.
+            if (day.dayOfYear != 1) server.published.getValue("USD")[day] = "0.1" + (day.toEpochDay() % 1000).toString().padStart(3, '0')
+            day = day.plusDays(1)
+        }
+        server.carryIntoRanges = true
+        assertEquals(FxSyncOutcome.SUCCEEDED, sync.sync(FxSyncTrigger.START))
+        val usd = history("USD").associateBy { it.first }
+        assertEquals((day("2024-06-01")..day("2026-10-28")).count(), usd.size)
+        assertEquals("2024-12-31", usd.getValue("2025-01-01").second)
+        assertEquals("2025-12-31", usd.getValue("2026-01-01").second)
+        assertEquals("2026-01-02", usd.getValue("2026-01-02").second)
+        assertNull(db.fx().localState()!!.last_error)
     }
 
     @Test fun new_rates_invalidate_only_days_valued_at_today_s_rate() = runBlocking {

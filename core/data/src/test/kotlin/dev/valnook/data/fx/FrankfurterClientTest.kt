@@ -136,8 +136,23 @@ class FrankfurterClientTest {
         }
         val invalidUtf8 = FrankfurterClient(FakeTransport { FrankfurterResponse(200, byteArrayOf(0x5b, 0xff.toByte(), 0x5d)) })
         expectError(FrankfurterError.PARSE) { invalidUtf8.rates("CNY", listOf("USD"), day("2026-10-24")) }
-        val outOfRange = FrankfurterClient(FakeTransport { ok("[${row("2026-10-19", "USD", "0.15")}]") })
-        expectError(FrankfurterError.PARSE) { outOfRange.series("CNY", listOf("USD"), day("2026-10-20"), day("2026-10-25")) }
+        val afterRange = FrankfurterClient(FakeTransport { ok("[${row("2026-10-26", "USD", "0.15")}]") })
+        expectError(FrankfurterError.PARSE) { afterRange.series("CNY", listOf("USD"), day("2026-10-20"), day("2026-10-25")) }
+    }
+
+    @Test fun series_keeps_the_newest_value_sent_from_before_each_part_as_carried() = runTest {
+        // Frankfurter sends a quote's last earlier value when nothing was published on the first day asked for.
+        val transport = FakeTransport { url ->
+            when {
+                url.contains("from=2018-01-01") -> ok("[${row("2017-12-28", "CLP", "88.1")},${row("2017-12-29", "CLP", "88.2")}," +
+                    "${row("2018-01-02", "CLP", "88.3")},${row("2018-01-01", "USD", "0.15")}]")
+                url.contains("from=2019-01-01") -> ok("[${row("2018-12-31", "CLP", "90.5")},${row("2019-01-02", "USD", "0.14")}]")
+                else -> ok("[]")
+            }
+        }
+        val rates = FrankfurterClient(transport).series("CNY", listOf("CLP", "USD"), day("2018-01-01"), day("2019-03-01"))
+        assertEquals(listOf("2017-12-29 CLP 88.2", "2018-01-02 CLP 88.3", "2018-01-01 USD 0.15",
+            "2018-12-31 CLP 90.5", "2019-01-02 USD 0.14"), rates.map { "${it.date} ${it.quote} ${it.rate}" })
     }
 
     @Test fun requests_outside_the_supported_currencies_are_rejected_before_sending() = runTest {
