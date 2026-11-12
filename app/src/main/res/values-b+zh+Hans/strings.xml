@@ -39,4 +39,13 @@
     <string name="fx_notice_using_none">暂时还没有可用的汇率。</string>
     <string name="fx_notice_sentences">%1$s%2$s</string>
     <string name="nav_expand_bar">当前页面：%1$s，点按展开导航栏</string>
+    <string name="nav_bills">记账</string>
+    <string name="nav_bill_categories">分类</string>
+    <string name="nav_add_bill">记一笔</string>
+    <string name="title_new_bill">记一笔</string>
+    <string name="title_edit_bill">编辑账单</string>
+    <string name="title_bill_detail">账单详情</string>
+    <string name="title_bill_categories">账单分类</string>
+    <string name="nav_bill_search">搜索备注</string>
+    <string name="nav_bill_search_close">关闭搜索</string>
 </resources>

@@ -42,7 +42,9 @@ class StatisticsRulesTest {
 
     @Test fun navigationConfigurationRequiresStableCompleteOrderAndSettings() {
         val defaults = NavigationConfiguration()
-        assertEquals(NavigationItemId.entries, defaults.visibleInOrder)
+        // A new install starts with bills first and statistics off the bar.
+        assertEquals(NavigationItemId.entries - NavigationItemId.STATISTICS, defaults.visibleInOrder)
+        assertEquals(NavigationItemId.BILLS, defaults.order.first())
         val onlySettings = NavigationConfiguration(NavigationItemId.entries, setOf(NavigationItemId.SETTINGS))
         assertEquals(listOf(NavigationItemId.SETTINGS), onlySettings.visibleInOrder)
         assertThrows(IllegalArgumentException::class.java) {
@@ -55,6 +57,27 @@ class StatisticsRulesTest {
             NavigationConfiguration(listOf(NavigationItemId.ACCOUNTS, NavigationItemId.ACCOUNTS,
                 NavigationItemId.STATISTICS, NavigationItemId.SETTINGS), setOf(NavigationItemId.SETTINGS))
         }
+    }
+
+    @Test fun anUpgradeAddsBillsFirstAndOnlyAFullBarGivesUpStatistics() {
+        val old = "ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS"
+        val full = NavigationConfiguration.restore(old, old)
+        assertEquals(NavigationItemId.entries, full.order)
+        assertEquals(listOf(NavigationItemId.BILLS, NavigationItemId.ACCOUNTS, NavigationItemId.WALLET,
+            NavigationItemId.INVESTMENTS, NavigationItemId.SETTINGS), full.visibleInOrder)
+        // Statistics already off the bar stays off; nothing else changes.
+        val noStatistics = NavigationConfiguration.restore(old, "ACCOUNTS,WALLET,INVESTMENTS,SETTINGS")
+        assertEquals(full.visibleInOrder, noStatistics.visibleInOrder)
+        // Another page already off the bar leaves room, so statistics keeps its place.
+        val noWallet = NavigationConfiguration.restore("STATISTICS,ACCOUNTS,WALLET,INVESTMENTS,SETTINGS",
+            "STATISTICS,ACCOUNTS,INVESTMENTS,SETTINGS")
+        assertEquals(listOf(NavigationItemId.BILLS, NavigationItemId.STATISTICS, NavigationItemId.ACCOUNTS,
+            NavigationItemId.INVESTMENTS, NavigationItemId.SETTINGS), noWallet.visibleInOrder)
+        // Saved again after the upgrade, bills is no longer new and the user's choice stands.
+        val saved = NavigationConfiguration.restore("BILLS,ACCOUNTS,WALLET,INVESTMENTS,STATISTICS,SETTINGS",
+            "ACCOUNTS,STATISTICS,SETTINGS")
+        assertEquals(listOf(NavigationItemId.ACCOUNTS, NavigationItemId.STATISTICS, NavigationItemId.SETTINGS), saved.visibleInOrder)
+        assertEquals(NavigationConfiguration(), NavigationConfiguration.restore(null, null))
     }
 
     @Test fun theBarHoldsAtMostFivePages() {

@@ -314,6 +314,7 @@ class AppSessionManager @Inject internal constructor(
         portability = SessionPortability(sessionId, mode, source.portability),
         cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator),
         fxSync = SessionFxSync(sessionId, mode),
+        bills = source.bills,
         wallet = object : dev.valnook.domain.repository.WalletRepository {
             private val delegate = dev.valnook.data.repository.RoomWallet(source.database,source.clock)
             override fun observeCards() = delegate.observeCards()

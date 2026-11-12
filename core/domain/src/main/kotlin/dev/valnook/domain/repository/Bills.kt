@@ -78,4 +78,8 @@ interface BillRepository {
     fun observeRecentNotes(categoryId: Long, limit: Int = 6): Flow<List<String>>
     /** How many bills still use the category or its subcategories. */
     suspend fun categoryUsage(categoryId: Long): Int
+    /** The automatic rates stored for [day] under [base]: 1 base = value of each quote currency. */
+    suspend fun storedRatesOn(base: String, day: java.time.LocalDate): Map<String, java.math.BigDecimal> = emptyMap()
+    /** The sub-account of the most recently added expense or income, for a new bill's account. */
+    suspend fun lastUsedCashAccountId(): Long? = null
 }

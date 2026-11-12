@@ -39,8 +39,7 @@ import java.time.ZoneId
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
         // A deleted instrument's trade has nothing left to open.
-        if(entry.source!=CashSource.TRADE_REMOVED&&entry.source!=CashSource.DIVIDEND_REMOVED&&
-            entry.source!=CashSource.BILL&&entry.source!=CashSource.BILL_TRANSFER_IN) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
+        if(entry.source!=CashSource.TRADE_REMOVED&&entry.source!=CashSource.DIVIDEND_REMOVED) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
             Text(stringResource(when(entry.source) {
                 CashSource.TRADE->R.string.view_source_trade
                 CashSource.DIVIDEND->R.string.view_source_dividend

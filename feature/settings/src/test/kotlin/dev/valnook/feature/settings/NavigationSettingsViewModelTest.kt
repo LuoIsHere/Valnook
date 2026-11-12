@@ -20,7 +20,8 @@ class NavigationSettingsViewModelTest {
     @After fun tearDown() = Dispatchers.resetMain()
 
     @Test fun changesStayInTheDraftUntilSavedAndSettingsCannotBeHidden() = runTest(dispatcher) {
-        val repository = Repository()
+        // Every page but bills on the bar.
+        val repository = Repository(NavigationConfiguration(visible = NavigationItemId.entries.toSet() - NavigationItemId.BILLS))
         val vm = NavigationSettingsViewModel(repository, repository, SavedStateHandle())
         advanceUntilIdle()
         assertFalse(vm.state.value.dirty)
@@ -30,7 +31,7 @@ class NavigationSettingsViewModelTest {
             NavigationItemId.INVESTMENTS, NavigationItemId.SETTINGS))
         assertEquals(0, repository.writes)
         assertTrue(vm.state.value.dirty)
-        assertEquals(listOf(NavigationItemId.ACCOUNTS), vm.state.value.hidden)
+        assertEquals(listOf(NavigationItemId.BILLS, NavigationItemId.ACCOUNTS), vm.state.value.hidden)
         assertTrue(NavigationItemId.SETTINGS in vm.state.value.draft.visible)
 
         vm.save()
@@ -38,7 +39,7 @@ class NavigationSettingsViewModelTest {
         assertEquals(1, repository.writes)
         assertFalse(vm.state.value.dirty)
         assertEquals(listOf(NavigationItemId.STATISTICS, NavigationItemId.WALLET, NavigationItemId.INVESTMENTS,
-            NavigationItemId.SETTINGS, NavigationItemId.ACCOUNTS), repository.value.value.navigation.order)
+            NavigationItemId.SETTINGS, NavigationItemId.BILLS, NavigationItemId.ACCOUNTS), repository.value.value.navigation.order)
         assertFalse(NavigationItemId.ACCOUNTS in repository.value.value.navigation.visible)
     }
 
@@ -75,8 +76,8 @@ class NavigationSettingsViewModelTest {
         assertEquals(5, vm.state.value.baselineRevision)
     }
 
-    private class Repository : SettingsRepository, SettingsWriter {
-        val value = MutableStateFlow(AppSettings())
+    private class Repository(navigation: NavigationConfiguration = NavigationConfiguration()) : SettingsRepository, SettingsWriter {
+        val value = MutableStateFlow(AppSettings(navigation = navigation))
         var writes = 0
         override fun observeSettings(): Flow<AppSettings> = value
         override suspend fun applyChange(change: SettingsChange): AppSettings {

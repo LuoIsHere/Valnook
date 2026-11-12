@@ -10,11 +10,12 @@ data class Instrument(val id: Long, val name: String, val symbol: String, val ty
 data class FxRate(val sourceCurrency: Currency, val targetCurrency: Currency, val rate: BigDecimal)
 enum class AppLanguage { SYSTEM, ZH_HANS, ENGLISH }
 enum class GainLossColorScheme { GREEN_GAIN, RED_GAIN }
-enum class NavigationItemId { ACCOUNTS, WALLET, INVESTMENTS, STATISTICS, SETTINGS }
+enum class NavigationItemId { BILLS, ACCOUNTS, WALLET, INVESTMENTS, STATISTICS, SETTINGS }
 
 data class NavigationConfiguration(
     val order: List<NavigationItemId> = NavigationItemId.entries,
-    val visible: Set<NavigationItemId> = NavigationItemId.entries.toSet()
+    /** A new install leaves statistics off the bar to make room for bills; it stays a tap away in settings. */
+    val visible: Set<NavigationItemId> = NavigationItemId.entries.toSet() - NavigationItemId.STATISTICS
 ) {
     init {
         require(order.size == NavigationItemId.entries.size && order.toSet() == NavigationItemId.entries.toSet())
@@ -41,6 +42,13 @@ data class NavigationConfiguration(
             if (NavigationItemId.WALLET !in order) {
                 order.add((order.indexOf(NavigationItemId.ACCOUNTS) + 1).coerceAtLeast(0), NavigationItemId.WALLET)
                 visible.add(NavigationItemId.WALLET)
+            }
+            // Bills arrive first on the bar. Only a bar that was full gives up statistics for it; one the user had
+            // already thinned keeps statistics where they put it.
+            if (NavigationItemId.BILLS !in order) {
+                order.add(0, NavigationItemId.BILLS)
+                visible.add(NavigationItemId.BILLS)
+                if (visible.size > MAX_VISIBLE) visible.remove(NavigationItemId.STATISTICS)
             }
             NavigationItemId.entries.filterNot(order::contains).forEach(order::add)
             visible.add(NavigationItemId.SETTINGS)

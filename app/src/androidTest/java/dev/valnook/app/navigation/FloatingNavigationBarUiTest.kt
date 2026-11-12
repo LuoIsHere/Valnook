@@ -28,7 +28,9 @@ import org.junit.Test
 class FloatingNavigationBarUiTest {
     @get:Rule val rule = createAndroidComposeRule<ComponentActivity>()
 
-    private fun showsWhole(locale: Locale, fontScale: Float, labels: List<String>) {
+    /** [items] is a bar as the app can show it: five pages at most. */
+    private fun showsWhole(locale: Locale, fontScale: Float, labels: List<String>,
+        items: List<NavigationItemId> = NavigationItemId.entries - NavigationItemId.BILLS) {
         rule.setContent {
             val configuration = Configuration(LocalConfiguration.current).apply { setLocale(locale) }
             val context = LocalContext.current.createConfigurationContext(configuration)
@@ -36,7 +38,7 @@ class FloatingNavigationBarUiTest {
             CompositionLocalProvider(LocalContext provides context, LocalConfiguration provides configuration,
                 LocalResources provides context.resources, LocalDensity provides Density(density, fontScale)) {
                 ValnookTheme {
-                    Box { FloatingNavigationBar(AccountsKey, NavigationItemId.entries.toList(), {}, Modifier.width(360.dp)) }
+                    Box { FloatingNavigationBar(AccountsKey, items, {}, Modifier.width(360.dp)) }
                 }
             }
         }
@@ -57,6 +59,16 @@ class FloatingNavigationBarUiTest {
     @Test fun english_tabs_are_whole_at_normal_size() = showsWhole(Locale.ENGLISH, 1f, english)
 
     @Test fun english_tabs_are_whole_at_large_size() = showsWhole(Locale.ENGLISH, 1.5f, english)
+
+    @Test fun the_default_bar_with_bills_is_whole_at_large_size() {
+        val items = dev.valnook.domain.model.NavigationConfiguration().visibleInOrder
+        showsWhole(Locale.ENGLISH, 1.5f, listOf("Bills", "Accounts", "Wallet", "Investments", "Settings"), items)
+    }
+
+    @Test fun the_default_chinese_bar_with_bills_is_whole_at_large_size() {
+        val items = dev.valnook.domain.model.NavigationConfiguration().visibleInOrder
+        showsWhole(Locale.SIMPLIFIED_CHINESE, 1.5f, listOf("记账", "账户", "卡包", "投资", "设置"), items)
+    }
 
     @Test fun chinese_tabs_are_whole_at_large_size() =
         showsWhole(Locale.SIMPLIFIED_CHINESE, 1.5f, listOf("账户", "卡包", "投资", "统计", "设置"))

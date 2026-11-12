@@ -7,6 +7,7 @@ import dev.valnook.domain.model.NavigationItemId
 
 /** Each page's icon in the bottom navigation, shared by the bar and the navigation settings preview. */
 fun navigationIcon(item: NavigationItemId): Int = when (item) {
+    NavigationItemId.BILLS -> FaIcons.receipt
     NavigationItemId.WALLET -> FaIcons.wallet
     NavigationItemId.ACCOUNTS -> FaIcons.buildingColumns
     NavigationItemId.INVESTMENTS -> FaIcons.chartLine
@@ -17,6 +18,7 @@ fun navigationIcon(item: NavigationItemId): Int = when (item) {
 /** Each page's name as the navigation shows it. */
 @Composable
 fun navigationLabel(value: NavigationItemId): String = stringResource(when (value) {
+    NavigationItemId.BILLS -> R.string.settings_nav_bills
     NavigationItemId.WALLET -> R.string.settings_nav_wallet
     NavigationItemId.ACCOUNTS -> R.string.settings_nav_accounts
     NavigationItemId.INVESTMENTS -> R.string.settings_nav_investments

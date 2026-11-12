@@ -6,6 +6,12 @@ import dev.valnook.domain.model.Direction
 import dev.valnook.feature.investments.TradeFormMode
 import dev.valnook.feature.deposits.DepositFormMode
 
+@Serializable data object BillsKey : NavKey
+@Serializable data object HiddenBillsKey : NavKey
+/** A new bill on [tab], an edit of [billId], or a new bill copied from [copyFromId]. */
+@Serializable data class BillEditorKey(val billId: Long? = null, val copyFromId: Long? = null, val tab: String = "EXPENSE") : NavKey
+@Serializable data class BillDetailKey(val id: Long) : NavKey
+@Serializable data object BillCategoriesKey : NavKey
 @Serializable data object AccountsKey : NavKey
 @Serializable data object AccountGroupsKey : NavKey
 @Serializable data object WalletKey : NavKey
@@ -63,10 +69,11 @@ import dev.valnook.feature.deposits.DepositFormMode
     val direction: Direction = Direction.BUY) : NavKey
 @Serializable data class DepositFormKey(val accountId: Long, val mode: DepositFormMode, val id: Long? = null) : NavKey
 
-internal fun NavKey.isRoot(): Boolean = this == AccountsKey || this == InvestmentsKey ||
+internal fun NavKey.isRoot(): Boolean = this == BillsKey || this == AccountsKey || this == InvestmentsKey ||
     this == StatisticsKey || this == WalletKey || this == SettingsKey
 
 internal fun dev.valnook.domain.model.NavigationItemId.rootKey(): NavKey = when (this) {
+    dev.valnook.domain.model.NavigationItemId.BILLS -> BillsKey
     dev.valnook.domain.model.NavigationItemId.WALLET -> WalletKey
     dev.valnook.domain.model.NavigationItemId.ACCOUNTS -> AccountsKey
     dev.valnook.domain.model.NavigationItemId.INVESTMENTS -> InvestmentsKey
@@ -75,6 +82,7 @@ internal fun dev.valnook.domain.model.NavigationItemId.rootKey(): NavKey = when 
 }
 
 internal fun dev.valnook.domain.model.NavigationItemId.hiddenKey(): NavKey = when (this) {
+    dev.valnook.domain.model.NavigationItemId.BILLS -> HiddenBillsKey
     dev.valnook.domain.model.NavigationItemId.WALLET -> HiddenWalletKey
     dev.valnook.domain.model.NavigationItemId.ACCOUNTS -> HiddenAccountsKey
     dev.valnook.domain.model.NavigationItemId.INVESTMENTS -> HiddenInvestmentsKey

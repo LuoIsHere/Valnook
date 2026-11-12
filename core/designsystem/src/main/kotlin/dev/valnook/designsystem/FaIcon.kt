@@ -41,10 +41,13 @@ object FaIcons {
     val chartLine = R.drawable.fa_chart_line
     val chartColumn = R.drawable.fa_chart_column
     val gear = R.drawable.fa_gear
+    val receipt = R.drawable.fa_receipt
+    val search = R.drawable.fa_magnifying_glass
+    val tags = R.drawable.fa_tags
     internal val bars = R.drawable.fa_bars
     internal val ellipsis = R.drawable.fa_ellipsis
     internal val layers = R.drawable.fa_layer_group
-    internal val plus = R.drawable.fa_plus
+    val plus = R.drawable.fa_plus
     internal val sort = R.drawable.fa_arrow_down_wide_short
 }
 

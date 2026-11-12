@@ -40,7 +40,9 @@ class AppGraph(
     val wallet: WalletRepository? = null,
     val accountGroupWriter: AccountGroupWriter? = null,
     val walletPrivate: WalletPrivateRepository? = null,
-    val fxSync: dev.valnook.domain.fx.FxRateSync = dev.valnook.domain.fx.UnavailableFxRateSync
+    val fxSync: dev.valnook.domain.fx.FxRateSync = dev.valnook.domain.fx.UnavailableFxRateSync,
+    /** Reads only; bills are written through [commands]. */
+    val bills: BillRepository? = null
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */

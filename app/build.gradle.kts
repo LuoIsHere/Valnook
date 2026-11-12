@@ -111,6 +111,7 @@ dependencies {
     implementation(project(":feature:accounts"))
     implementation(project(":feature:wallet"))
     implementation(project(":feature:cash"))
+    implementation(project(":feature:bills"))
     implementation(project(":feature:deposits"))
     implementation(project(":feature:investments"))
     implementation(project(":feature:settings"))

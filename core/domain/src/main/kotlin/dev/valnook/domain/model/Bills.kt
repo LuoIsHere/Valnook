@@ -145,6 +145,41 @@ object BillRules {
     }
 }
 
+/** The rate a new bill starts with; the user can always replace it for this bill only. */
+object BillRates {
+    data class Suggestion(val rate: BigDecimal, val source: BillRateSource)
+
+    /**
+     * How much of [to] one [from] buys. With automatic rates on, [dayRates] (that day's stored rates, 1 base = value)
+     * come first and the current rates fill in; otherwise the manual rates. Null when either currency has no rate:
+     * a bill is never converted 1:1 by default.
+     */
+    fun suggest(from: Currency, to: Currency, settings: AppSettings, fx: dev.valnook.domain.fx.FxContext,
+        dayRates: Map<String, BigDecimal>): Suggestion? {
+        if (from == to) return Suggestion(BigDecimal.ONE, BillRateSource.SAME)
+        val base = settings.baseCurrency ?: return null
+        val resolver = dev.valnook.domain.fx.FxRateResolver(settings, fx)
+        fun inBase(code: String): BigDecimal? = when {
+            code == base.code -> BigDecimal.ONE
+            fx.autoEnabled -> dayRates[code]?.takeIf { it.signum() > 0 }
+                ?.let { BigDecimal.ONE.divide(it, java.math.MathContext.DECIMAL128) } ?: resolver.known(code)
+            else -> resolver.known(code)
+        }
+        val fromBase = inBase(from.code) ?: return null
+        val toBase = inBase(to.code)?.takeIf { it.signum() > 0 } ?: return null
+        val rate = fromBase.divide(toBase, BillRules.RATE_SCALE, RoundingMode.HALF_UP).stripTrailingZeros()
+        if (rate.signum() <= 0) return null
+        return Suggestion(rate, if (fx.autoEnabled) BillRateSource.AUTO else BillRateSource.MANUAL)
+    }
+
+    /**
+     * Whether a rate between [from] and [to] can also be kept as a manual rate: manual rates are stored against the
+     * base currency only, so one side has to be it.
+     */
+    fun canSaveAsManual(from: Currency, to: Currency, base: Currency?): Boolean =
+        base != null && from != to && (from == base || to == base)
+}
+
 /** Category colours by key; the app picks the shade for light and dark. Keys are stored, so never rename one. */
 object BillColors {
     val keys = listOf("red", "orange", "amber", "green", "teal", "cyan", "blue", "indigo", "purple", "pink", "brown", "grey")

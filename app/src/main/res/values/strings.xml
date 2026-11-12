@@ -39,4 +39,13 @@
     <string name="fx_notice_using_none">No rates are available yet.</string>
     <string name="fx_notice_sentences">%1$s %2$s</string>
     <string name="nav_expand_bar">Current page: %1$s. Tap to show the navigation bar</string>
+    <string name="nav_bills">Bills</string>
+    <string name="nav_bill_categories">Categories</string>
+    <string name="nav_add_bill">Add a bill</string>
+    <string name="title_new_bill">New bill</string>
+    <string name="title_edit_bill">Edit bill</string>
+    <string name="title_bill_detail">Bill</string>
+    <string name="title_bill_categories">Bill categories</string>
+    <string name="nav_bill_search">Search notes</string>
+    <string name="nav_bill_search_close">Close search</string>
 </resources>

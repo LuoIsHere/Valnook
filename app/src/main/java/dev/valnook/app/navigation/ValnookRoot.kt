@@ -472,6 +472,34 @@ private fun SessionRoot(
                                     maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
                             }
                             entry<WalletKey> { walletPage() }
+                            val billsPage = @Composable {
+                                dev.valnook.feature.bills.BillsScreen(pageViewModel {
+                                    dev.valnook.feature.bills.BillsViewModel(requireNotNull(graph.bills),
+                                        graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
+                                        createSavedStateHandle())
+                                }, { open(BillDetailKey(it)) }, { open(BillEditorKey(copyFromId = it)) }, toolbars.onBills)
+                            }
+                            entry<BillsKey> { billsPage() }
+                            entry<HiddenBillsKey> { billsPage() }
+                            entry<BillEditorKey> { route ->
+                                dev.valnook.feature.bills.BillEditorScreen(pageViewModel {
+                                    dev.valnook.feature.bills.BillEditorViewModel(route.billId, route.copyFromId,
+                                        dev.valnook.feature.bills.BillTab.valueOf(route.tab), requireNotNull(graph.bills),
+                                        graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(),
+                                        graph.settingsWriter, graph.clock, createSavedStateHandle())
+                                }, onDone = pop, onManageCategories = { open(BillCategoriesKey) })
+                            }
+                            entry<BillDetailKey> { route ->
+                                dev.valnook.feature.bills.BillDetailScreen(pageViewModel {
+                                    dev.valnook.feature.bills.BillDetailViewModel(route.id, requireNotNull(graph.bills), graph.commands)
+                                }, { open(BillEditorKey(billId = it)) }, { open(BillEditorKey(copyFromId = it)) }, onDeleted = pop)
+                            }
+                            entry<BillCategoriesKey> {
+                                dev.valnook.feature.bills.BillCategoriesScreen(pageViewModel {
+                                    dev.valnook.feature.bills.BillCategoriesViewModel(requireNotNull(graph.bills), graph.commands,
+                                        createSavedStateHandle())
+                                })
+                            }
                             entry<HiddenWalletKey> { walletPage() }
                             val statisticsPage = @Composable {
                                 StatisticsScreen(pageViewModel {
@@ -580,7 +608,8 @@ private fun SessionRoot(
             FloatingNavigationBar(current, settings.navigation.visibleInOrder, { if (!walletDetail) selectRoot(it) },
                 Modifier.fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
                     .testTag("floating-navigation-overlay"), backdrop,
-                fold = { navigationFold }, onExpand = navigationCollapse::expand)
+                fold = { navigationFold }, onExpand = navigationCollapse::expand,
+                onAddBill = if (graph.bills != null && !walletDetail) ({ open(BillEditorKey()) }) else null)
         }
     }
 }

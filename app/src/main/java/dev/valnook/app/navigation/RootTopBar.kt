@@ -23,6 +23,10 @@ import dev.valnook.feature.wallet.*
 internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long) -> String,
     instrumentName: (Long) -> String?, cashName: (Long) -> String?): String = when (current) {
     WalletKey, HiddenWalletKey -> walletTitle ?: stringResource(R.string.nav_wallet)
+    BillsKey, HiddenBillsKey -> stringResource(R.string.nav_bills)
+    is BillEditorKey -> stringResource(if (current.billId != null) R.string.title_edit_bill else R.string.title_new_bill)
+    is BillDetailKey -> stringResource(R.string.title_bill_detail)
+    BillCategoriesKey -> stringResource(R.string.title_bill_categories)
     AccountsKey, HiddenAccountsKey -> stringResource(R.string.nav_accounts)
     InvestmentsKey, HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
     StatisticsKey, HiddenStatisticsKey -> stringResource(R.string.nav_statistics)
@@ -73,6 +77,20 @@ internal fun RootTopBarActions(current: NavKey, walletDetail: Boolean, wallet: W
     val accountGroupsDescription = stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
     val subaccountSortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_children)
     when (current) {
+        BillsKey, HiddenBillsKey -> {
+            val searching = toolbars.bills?.searching == true
+            val searchLabel = stringResource(if (searching) R.string.nav_bill_search_close else R.string.nav_bill_search)
+            IconButton({ toolbars.bills?.toggleSearch?.invoke() }, Modifier.testTag("bills-search-toggle")
+                .semantics { contentDescription = searchLabel }) {
+                dev.valnook.designsystem.FaIcon(if (searching) dev.valnook.designsystem.FaIcons.xmark
+                    else dev.valnook.designsystem.FaIcons.search, null, Modifier.size(20.dp))
+            }
+            val categoriesLabel = stringResource(R.string.nav_bill_categories)
+            IconButton({ open(BillCategoriesKey) }, Modifier.testTag("bills-categories")
+                .semantics { contentDescription = categoriesLabel }) {
+                dev.valnook.designsystem.FaIcon(dev.valnook.designsystem.FaIcons.tags, null, Modifier.size(20.dp))
+            }
+        }
         WalletKey, HiddenWalletKey -> if (!walletDetail) {
             val addCardDescription = dev.valnook.feature.wallet.walletAddLabel()
             IconButton({ wallet?.add?.invoke() }, Modifier.testTag("wallet-add").semantics {

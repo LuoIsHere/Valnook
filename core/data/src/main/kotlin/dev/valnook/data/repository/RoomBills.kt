@@ -41,6 +41,11 @@ class RoomBills(private val db: ValnookDatabase) : BillRepository {
         dao.observeRecentNotes(categoryId, limit).distinctUntilChanged()
 
     override suspend fun categoryUsage(categoryId: Long): Int = dao.categoryUsage(categoryId)
+
+    override suspend fun lastUsedCashAccountId(): Long? = dao.lastUsedCashAccountId()
+
+    override suspend fun storedRatesOn(base: String, day: java.time.LocalDate): Map<String, java.math.BigDecimal> =
+        db.fx().historyOn(base, day.toEpochDay()).associate { it.quote_currency to it.rate.toBigDecimal() }
 }
 
 /** A credit sub-account's limit is its own or, when shared, the source's; every member's debt uses it up. */

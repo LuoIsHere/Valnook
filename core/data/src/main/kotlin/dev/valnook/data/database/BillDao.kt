@@ -80,6 +80,10 @@ interface BillDao {
         ORDER BY occurred_at_ms DESC,id DESC LIMIT :limit""")
     fun observeSearch(escaped: String, limit: Int): Flow<List<BillEntryEntity>>
 
+    @Query("""SELECT cash_account_id FROM bill_entries WHERE is_deleted=0 AND cash_account_id IS NOT NULL
+        AND type IN ('EXPENSE','INCOME') ORDER BY created_at_ms DESC,id DESC LIMIT 1""")
+    suspend fun lastUsedCashAccountId(): Long?
+
     @Query("SELECT MIN(occurred_at_ms) FROM bill_entries WHERE is_deleted=0")
     fun observeFirstBillAt(): Flow<Long?>
 
