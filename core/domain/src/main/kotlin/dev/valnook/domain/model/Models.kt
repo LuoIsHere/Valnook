@@ -133,7 +133,8 @@ sealed interface CashLinkSelection {
  * [TRADE_REMOVED] / [DIVIDEND_REMOVED]: cash a trade or dividend moved before its instrument was deleted; it no
  * longer points at the record.
  */
-enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED, DIVIDEND, DIVIDEND_REMOVED }
+/** [BILL] is a bill's own side (an expense, income, refund or a transfer's source); [BILL_TRANSFER_IN] a transfer's receiving side. */
+enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED, DIVIDEND, DIVIDEND_REMOVED, BILL, BILL_TRANSFER_IN }
 
 /**
  * [balanceAfterMinor] is the sub-account's balance right after this entry, worked out from the current balance and the

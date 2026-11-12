@@ -86,10 +86,13 @@ internal class RestoreImporter(
 
     private fun clearPortableRows() {
         val db = target.openHelper.writableDatabase
+        // Rows that point at another row of their own table go first, as each deletion is checked on its own.
+        db.execSQL("DELETE FROM bill_entries WHERE parent_id IS NOT NULL")
+        db.execSQL("DELETE FROM bill_categories WHERE parent_id IS NOT NULL")
         listOf(
             "wallet_cards", "wallet_card_images", "audit_event_accounts", "audit_events", "audit_metadata", "statistics_cache",
             "statistics_baseline_items", "statistics_state", "instrument_price_history", "demo_labels",
-            "cash_entries", "cash_movements", "investment_trades", "term_deposits", "investments",
+            "bill_entries", "bill_categories", "cash_entries", "cash_movements", "investment_trades", "term_deposits", "investments",
             "instruments", "asset_types", "credit_account_profiles", "cash_accounts", "savings_accounts", "account_groups", "account_icon_images", "operations", "fx_rates", "fx_rate_history",
             "app_settings", "currencies"
         ).forEach { table -> db.execSQL("DELETE FROM $table") }

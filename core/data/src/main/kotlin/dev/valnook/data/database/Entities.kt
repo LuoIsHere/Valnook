@@ -35,7 +35,10 @@ data class CashEntity(val savings_account_id: Long, val currency_code: String, v
     val created_at_ms: Long = updated_at_ms,
     @ColumnInfo(defaultValue = "0") val display_order: Long = 0,
     @ColumnInfo(defaultValue = "1") val include_in_available_cash: Boolean = true,
-    @ColumnInfo(defaultValue = "1") val show_on_accounts_page: Boolean = true)
+    @ColumnInfo(defaultValue = "1") val show_on_accounts_page: Boolean = true,
+    /** Pinned at the top of the bill account picker, in [favorite_order]. */
+    @ColumnInfo(defaultValue = "0") val is_favorite: Boolean = false,
+    @ColumnInfo(defaultValue = "0") val favorite_order: Long = 0)
 
 @Entity(tableName = "credit_account_profiles",
     foreignKeys = [

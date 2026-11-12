@@ -111,6 +111,9 @@
     <string name="source_dividend">派息</string>
     <string name="source_dividend_removed">已删除标的的派息</string>
     <string name="view_source_dividend">查看派息记录</string>
+    <string name="source_bill">账单</string>
+    <string name="source_bill_transfer_in">转账转入</string>
+    <string name="view_source_bill">查看账单</string>
     <string name="dividend_detail_title">派息记录</string>
     <string name="edit_dividend">编辑派息</string>
     <string name="delete_dividend">删除派息</string>

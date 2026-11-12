@@ -61,7 +61,8 @@ internal data class DatabaseGraph(
     val maintenance: DataMaintenance,
     val portability: RoomPortabilityEngine,
     val webAdminReads: dev.valnook.domain.webadmin.WebAdminReadRepository,
-    val walletPrivate: LocalWalletPrivateRepository
+    val walletPrivate: LocalWalletPrivateRepository,
+    val bills: dev.valnook.domain.repository.BillRepository
 )
 
 internal fun createDatabaseGraph(
@@ -97,7 +98,8 @@ internal fun createDatabaseGraph(
         webAdminReads = dev.valnook.data.webadmin.RoomWebAdminReadRepository(
             database, RoomOverview(database), RoomStatistics(database, clock),
             deposits, RoomInvestments(database)),
-        walletPrivate = LocalWalletPrivateRepository(context, database, persistentPrivateCards)
+        walletPrivate = LocalWalletPrivateRepository(context, database, persistentPrivateCards),
+        bills = dev.valnook.data.repository.RoomBills(database)
     )
 }
 

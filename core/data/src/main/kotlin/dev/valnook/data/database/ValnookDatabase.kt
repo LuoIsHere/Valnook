@@ -5,7 +5,7 @@ import androidx.room.*
 import androidx.sqlite.db.SupportSQLiteDatabase
 import dev.valnook.domain.model.Currency
 
-const val DATABASE_SCHEMA_VERSION = 24
+const val DATABASE_SCHEMA_VERSION = 25
 
 @Database(entities = [WalletPrivateIdentity::class,WalletCardEntity::class,WalletImageEntity::class,AccountIconImageEntity::class,AccountGroupEntity::class,AccountEntity::class,CurrencyEntity::class,CashEntity::class,DepositEntity::class,
     CreditAccountProfileEntity::class,
@@ -14,7 +14,7 @@ const val DATABASE_SCHEMA_VERSION = 24
     StatisticsBaselineItemEntity::class,StatisticsCacheEntity::class,DemoLabelEntity::class,
     AuditEventEntity::class,AuditEventAccountEntity::class,AuditMetadataEntity::class,
     LocalMaintenanceStateEntity::class,CloudBackupStateEntity::class,CloudBackupAttemptEntity::class,CloudBackupIndexEntity::class,
-    FxRateHistoryEntity::class,FxLocalStateEntity::class],
+    FxRateHistoryEntity::class,FxLocalStateEntity::class,BillCategoryEntity::class,BillEntryEntity::class],
     version = DATABASE_SCHEMA_VERSION, exportSchema = true)
 abstract class ValnookDatabase : RoomDatabase() {
     abstract fun walletPrivateIdentity(): WalletPrivateIdentityDao
@@ -35,6 +35,7 @@ abstract class ValnookDatabase : RoomDatabase() {
     abstract fun audit(): AuditDao
     abstract fun cloudBackup(): CloudBackupDao
     abstract fun fx(): FxDao
+    abstract fun bills(): BillDao
     companion object {
         val seed = object : Callback() {
             override fun onCreate(db: SupportSQLiteDatabase) {
@@ -46,6 +47,7 @@ abstract class ValnookDatabase : RoomDatabase() {
                     .toLocalDate().toEpochDay()
                 insertDefaultAccountGroup(db, now)
                 insertDefaultFxLocalState(db)
+                insertDefaultBillCategories(db, now)
                 db.execSQL("INSERT INTO statistics_state(id,source_revision,rule_version,baseline_at_ms,earliest_invalidated_epoch_day) VALUES (1,1,$STATISTICS_RULE_VERSION,?,?)",
                     arrayOf(now, day))
                 db.execSQL("INSERT INTO audit_metadata(id,protocol_version,tracking_start_ms,tracking_start_database_version,complete_since_start,legacy_history_before_start) VALUES (1,1,?,9,1,0)", arrayOf(now))
@@ -64,7 +66,7 @@ abstract class ValnookDatabase : RoomDatabase() {
             }
         }
         /** Every migration, oldest first; the real and the demo database open with the same list. */
-        private val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+        private val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25)
         fun open(context: Context): ValnookDatabase =
             Room.databaseBuilder(context,ValnookDatabase::class.java,"valnook.db")
                 .addCallback(seed).addCallback(defaults).addMigrations(*MIGRATIONS)

@@ -113,6 +113,7 @@ data class ArchiveManifest(
             if (dataSchemaVersion >= 8 && "account-groups-v1" !in features) incompatible()
             if (dataSchemaVersion >= 9 && "wallet-face-library-v1" !in features) incompatible()
             if (dataSchemaVersion >= 10 && "fx-rate-history-v1" !in features) incompatible()
+            if (dataSchemaVersion >= 11 && "bills-v1" !in features) incompatible()
             val files = root.list("files").map { item ->
                 val value = item.asObject()
                 requireKeys(value, setOf("path", "recordCount", "uncompressedBytes", "sha256"))

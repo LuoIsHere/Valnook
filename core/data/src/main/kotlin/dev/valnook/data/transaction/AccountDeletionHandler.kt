@@ -33,7 +33,8 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
             if (cashId == null) count("SELECT COUNT(*) FROM term_deposits WHERE savings_account_id=?", accountId)
             else count("SELECT COUNT(*) FROM term_deposits WHERE open_cash_account_id=? OR close_cash_account_id=?", cashId, cashId),
             if (cashId == null) count("SELECT COUNT(*) FROM investment_trades WHERE is_deleted=0 AND investment_id IN (SELECT id FROM investments WHERE savings_account_id=?)", accountId)
-            else count("SELECT COUNT(*) FROM investment_trades WHERE cash_account_id=? AND is_deleted=0", cashId), transfers)
+            else count("SELECT COUNT(*) FROM investment_trades WHERE cash_account_id=? AND is_deleted=0", cashId), transfers,
+            keptBills(if (cashId == null) db.cash().accountIds(accountId) else listOf(cashId)))
         pending.entries.removeAll { it.value.expires <= clock.millis() }
         while (pending.size >= 32) pending.remove(pending.keys.first())
         pending[value.ticket] = Pending(value, db.audit().generation(), clock.millis() + 300_000)
@@ -56,6 +57,7 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
         val row = db.cash().cashAccount(id)?.takeIf { it.savings_account_id == command.accountId }
             ?: throw DomainException(ErrorCode.NOT_FOUND)
         if (row.revision != command.expectedRevision) throw DomainException(ErrorCode.STALE_BALANCE)
+        keepBills(listOf(id), now)
         db.credit().dependents(id).forEach { dependent ->
             db.credit().upsert(dependent.copy(limit_source_account_id = null,
                 credit_limit_minor = requireNotNull(db.credit().profile(id)?.credit_limit_minor)))
@@ -83,6 +85,7 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
         val id = command.accountId
         val parent = db.accounts().account(id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         if (parent.revision != command.expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
+        keepBills(db.cash().accountIds(id), clock.millis())
         // Keep global instrument/type/price events and events shared with other accounts.
         exec("""DELETE FROM audit_events WHERE event_id IN
             (SELECT event_id FROM audit_event_accounts WHERE account_id=?)
@@ -106,6 +109,51 @@ internal class AccountDeletionHandler(private val db: ValnookDatabase, private v
         fault(TransactionPoint.AFTER_BUSINESS)
         pending.remove(command.confirmation.ticket)
         return OperationResult("ACCOUNT", id)
+    }
+
+    /** Bills on [cashIds] that stay after they are deleted: all but transfers with no side of the user's left. */
+    private suspend fun keptBills(cashIds: List<Long>): Int = if (cashIds.isEmpty()) 0 else
+        db.bills().billsOnAccounts(cashIds).count { bill ->
+            !bill.is_deleted && !(bill.type == BillType.TRANSFER.name &&
+                listOfNotNull(bill.cash_account_id, bill.to_cash_account_id).all { it in cashIds })
+        }
+
+    /**
+     * Bills are spending history, so they outlive the sub-accounts [cashIds]: an expense or income shows its account
+     * as deleted, a transfer with one side there becomes a transfer to or from an outside account named after it, and a
+     * transfer left with no side of the user's is deleted. Their cash entries go with the accounts.
+     */
+    private suspend fun keepBills(cashIds: List<Long>, now: Long) {
+        if (cashIds.isEmpty()) return
+        val bills = db.bills()
+        val names = cashIds.associateWith { cashId ->
+            val cash = requireNotNull(db.cash().cashAccount(cashId))
+            val account = db.accounts().account(cash.savings_account_id)?.name.orEmpty()
+            listOf(account, cash.name).filter { it.isNotBlank() }.distinct().joinToString(" · ")
+                .let { BillRules.counterpartyOrTruncated(it) }
+        }
+        bills.billsOnAccounts(cashIds).forEach { bill ->
+            val fromGone = bill.cash_account_id in cashIds
+            val toGone = bill.to_cash_account_id in cashIds
+            var next = bill.copy(revision = bill.revision + 1, updated_at_ms = now)
+            next = if (bill.type != BillType.TRANSFER.name) next.copy(cash_account_id = null)
+            else when {
+                // Nothing of the user's is left on either side.
+                (fromGone || bill.cash_account_id == null) && (toGone || bill.to_cash_account_id == null) ->
+                    next.copy(cash_account_id = null, to_cash_account_id = null, is_deleted = true)
+                fromGone -> next.copy(cash_account_id = null, transfer_kind = TransferKind.FROM_EXTERNAL.name,
+                    counterparty = names.getValue(requireNotNull(bill.cash_account_id)),
+                    currency_code = requireNotNull(bill.to_currency_code), account_currency_code = bill.to_currency_code,
+                    amount_minor = requireNotNull(bill.to_amount_minor), account_amount_minor = bill.to_amount_minor,
+                    rate = "1", rate_source = BillRateSource.SAME.name, fee_minor = 0)
+                else -> next.copy(to_cash_account_id = null, to_currency_code = null, to_amount_minor = null,
+                    transfer_kind = TransferKind.TO_EXTERNAL.name,
+                    counterparty = names.getValue(requireNotNull(bill.to_cash_account_id)),
+                    rate = "1", rate_source = BillRateSource.SAME.name)
+            }
+            check(bills.updateBill(next) == 1)
+        }
+        bills.forgetAccounts(cashIds)
     }
 
     private fun exec(statement: String, vararg args: Any) = sql.execSQL(statement, args)

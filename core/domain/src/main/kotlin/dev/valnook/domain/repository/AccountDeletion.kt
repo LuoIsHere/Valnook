@@ -6,7 +6,9 @@ data class AccountDeletionPreview(
     val ticket: String, val code: String, val accountId: Long, val balanceAccountId: Long?,
     val name: String, val revision: Long, val currencyCode: String?, val balanceMinor: Long?,
     val cashCount: Int, val entryCount: Int, val depositCount: Int, val tradeCount: Int,
-    val transfers: List<CreditLimitTransfer>
+    val transfers: List<CreditLimitTransfer>,
+    /** Bills that stay after the deletion, showing the account as deleted. */
+    val billCount: Int = 0,
 )
 
 /**

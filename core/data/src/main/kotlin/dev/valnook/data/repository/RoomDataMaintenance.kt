@@ -21,6 +21,10 @@ class RoomDataMaintenance(private val db: ValnookDatabase, private val clock: ja
             maintenance.clearStatisticsState()
             maintenance.clearPriceHistory()
             maintenance.clearDemoLabels()
+            maintenance.clearChildBills()
+            maintenance.clearBills()
+            maintenance.clearSubcategories()
+            maintenance.clearBillCategories()
             maintenance.clearCashEntries()
             maintenance.clearCashMovements()
             maintenance.clearTrades()
@@ -38,6 +42,8 @@ class RoomDataMaintenance(private val db: ValnookDatabase, private val clock: ja
                 dev.valnook.data.database.AccountGroupEntity.DEFAULT_ID, "", 0, false, now, now))
             maintenance.clearAccountIcons()
             maintenance.clearOperations()
+            // Back to the preset categories a new database starts with.
+            dev.valnook.data.database.insertDefaultBillCategories(db.openHelper.writableDatabase, now)
             db.overview().clearRates()
             db.fx().clearHistory()
             // Back to a first launch: switch off and the network notice shown again.

@@ -69,6 +69,19 @@ internal object CommandFingerprint {
             is ReorderGroupAccounts -> listOf("GROUP_ACCOUNT_ORDER", command.groupId) + command.orderedIds
             is EditCashEntry -> listOf("CASH_EDIT",command.entry_id,command.expected_revision,command.delta_minor,
                 command.occurred_at_ms,command.note.trim())
+            is SaveBill -> command.draft.let { d -> listOf("BILL_SAVE", command.billId, command.expectedRevision,
+                d.type.name, d.occurredAtMs, d.amountMinor, d.currencyCode, d.discountMinor, d.cashAccountId,
+                d.accountAmountMinor, d.rate.stripTrailingZeros().toPlainString(), d.rateSource.name, d.transferKind?.name,
+                d.toCashAccountId, d.toAmountMinor, d.feeMinor, d.counterparty.trim(), d.categoryId, d.subCategoryId,
+                d.countInStats, d.note.trim()) }
+            is DeleteBill -> listOf("BILL_DELETE", command.billId, command.expectedRevision)
+            is SaveBillCategory -> listOf("BILL_CATEGORY_SAVE", command.categoryId, command.expectedRevision,
+                command.kind.name, command.parentId, command.name?.trim(), command.iconKey, command.colorKey)
+            is SetBillCategoryHidden -> listOf("BILL_CATEGORY_HIDE", command.categoryId, command.expectedRevision, command.hidden)
+            is ReorderBillCategories -> listOf("BILL_CATEGORY_ORDER", command.kind.name, command.parentId) + command.orderedIds
+            is DeleteBillCategory -> listOf("BILL_CATEGORY_DELETE", command.categoryId, command.expectedRevision,
+                command.moveToCategoryId)
+            is SaveBillFavorites -> listOf("BILL_FAVORITES") + command.orderedCashAccountIds
         }
         val canonical = fields.joinToString("") { field -> val s=field?.toString() ?: "<null>"
             "${s.length}:$s" }

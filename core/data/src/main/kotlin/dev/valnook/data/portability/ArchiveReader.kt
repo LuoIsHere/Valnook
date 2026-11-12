@@ -8,6 +8,14 @@ import dev.valnook.data.database.AccountGroupEntity
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.data.database.insertDefaultAccountGroup
 import dev.valnook.domain.model.AccountGroupRules
+import dev.valnook.domain.model.BillCategoryKind
+import dev.valnook.domain.model.BillCategoryPresets
+import dev.valnook.domain.model.BillColors
+import dev.valnook.domain.model.BillRateSource
+import dev.valnook.domain.model.BillRules
+import dev.valnook.domain.model.BillType
+import dev.valnook.domain.model.ReimburseState
+import dev.valnook.domain.model.TransferKind
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.portability.PortabilityErrorCode
 import dev.valnook.domain.portability.PortabilityException
@@ -175,6 +183,9 @@ internal class ArchiveReader(
             if (dataSchemaVersion < 8) insertDefaultAccountGroup(db.openHelper.writableDatabase, System.currentTimeMillis())
             // Archives written before the face library name and date each face after the card that uses it.
             if (dataSchemaVersion < 9) dev.valnook.data.database.backfillWalletFaceLibrary(db.openHelper.writableDatabase)
+            // Archives written before bills existed start with the preset categories, like a new database.
+            if (dataSchemaVersion < 11) dev.valnook.data.database.insertDefaultBillCategories(db.openHelper.writableDatabase,
+                System.currentTimeMillis())
             counts["data/valuation_baselines.jsonl"] = loadValuationBaselines(db, root)
             counts["data/audit_metadata.json"] = loadAuditMetadata(db, root)
             counts.putAll(loadPreferences(db, root))
@@ -386,6 +397,7 @@ internal class ArchiveReader(
         }
         validateCreditAccounts(sql)
         validateFxHistory(sql)
+        validateBills(sql)
         if (counts["data/accounts.jsonl"] != manifest.accountCount ||
             counts["data/cash_accounts.jsonl"] != manifest.cashAccountCount ||
             counts["data/investment_trades.jsonl"] != manifest.tradeCount ||
@@ -461,6 +473,66 @@ internal class ArchiveReader(
                     cursor.getLong(5) < 0 || rate.length > 64 || !FX_RATE.matches(rate) || BigDecimal(rate).signum() <= 0) invalid()
             }
         }
+    }
+
+    /** Categories two levels deep with known presets, and bills whose fields agree with their type. */
+    private fun validateBills(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        val kinds = mutableMapOf<Long, Pair<String, Long?>>()
+        db.query("""SELECT id,kind,parent_id,builtin_key,custom_name,icon_key,color_key,sort_order,revision
+            FROM bill_categories""").use { cursor ->
+            while (cursor.moveToNext()) {
+                val kind = cursor.getString(1)
+                val builtin = if (cursor.isNull(3)) null else cursor.getString(3)
+                val custom = if (cursor.isNull(4)) null else cursor.getString(4)
+                if (kind !in BillCategoryKind.entries.map { it.name } ||
+                    (builtin != null && BillCategoryPresets.preset(builtin)?.kind?.name != kind) ||
+                    (builtin == null && custom == null) ||
+                    (custom != null && runCatching { BillRules.categoryName(custom) }.getOrNull() != custom) ||
+                    !BILL_ICON.matches(cursor.getString(5)) || cursor.getString(6) !in BillColors.keys ||
+                    cursor.getLong(7) < 0 || cursor.getLong(8) < 1) invalid()
+                kinds[cursor.getLong(0)] = kind to if (cursor.isNull(2)) null else cursor.getLong(2)
+            }
+        }
+        kinds.values.forEach { (kind, parent) ->
+            if (parent != null) kinds[parent]?.let { (parentKind, grandparent) ->
+                if (parentKind != kind || grandparent != null) invalid()
+            } ?: relationship()
+        }
+        val types = BillType.entries.map { it.name }
+        db.query("""SELECT type,amount_minor,discount_minor,account_amount_minor,rate,rate_source,transfer_kind,
+            cash_account_id,to_cash_account_id,to_amount_minor,fee_minor,category_id,sub_category_id,reimburse_state,
+            counterparty,note,revision,currency_code,account_currency_code,to_currency_code FROM bill_entries""").use { cursor ->
+            while (cursor.moveToNext()) {
+                val type = cursor.getString(0)
+                val rate = cursor.getString(4)
+                val transfer = if (cursor.isNull(6)) null else cursor.getString(6)
+                val category = if (cursor.isNull(11)) null else kinds[cursor.getLong(11)]
+                val sub = if (cursor.isNull(12)) null else kinds[cursor.getLong(12)]
+                if (type !in types || cursor.getLong(1) <= 0 || cursor.getLong(2) < 0 || cursor.getLong(2) >= cursor.getLong(1) ||
+                    cursor.getLong(3) <= 0 || rate.length > 64 || !FX_RATE.matches(rate) || BigDecimal(rate).signum() <= 0 ||
+                    cursor.getString(5) !in BillRateSource.entries.map { it.name } ||
+                    cursor.getString(13) !in ReimburseState.entries.map { it.name } || cursor.getLong(10) < 0 ||
+                    cursor.getString(14).length > 200 || cursor.getString(15).length > BillRules.MAX_NOTE_LENGTH ||
+                    cursor.getLong(16) < 1) invalid()
+                if (type == BillType.TRANSFER.name) {
+                    if (transfer !in TransferKind.entries.map { it.name } || !cursor.isNull(11) || !cursor.isNull(12) ||
+                        // Only a transfer to an outside account has no receiving side of the user's.
+                        (transfer != TransferKind.TO_EXTERNAL.name) != (!cursor.isNull(19) && !cursor.isNull(9)) ||
+                        cursor.getString(17) != cursor.getString(18)) invalid()
+                } else {
+                    // An expense or income names a top-level category of its own kind and, optionally, one of its subcategories.
+                    if (transfer != null || !cursor.isNull(8) || !cursor.isNull(9) || !cursor.isNull(19) || cursor.getLong(10) != 0L) invalid()
+                    if (type == BillType.EXPENSE.name || type == BillType.INCOME.name) {
+                        if (category == null || category.first != type || category.second != null ||
+                            (sub != null && sub.second != cursor.getLong(11))) invalid()
+                    }
+                }
+            }
+        }
+        // A bill's cash entries point at a bill that exists.
+        db.query("""SELECT 1 FROM cash_entries e WHERE e.source_kind IN ('BILL','BILL_TRANSFER_IN')
+            AND (e.source_id IS NULL OR NOT EXISTS (SELECT 1 FROM bill_entries b WHERE b.id=e.source_id)) LIMIT 1""")
+            .use { if (it.moveToFirst()) relationship() }
     }
 
     private fun validateCreditAccounts(db: androidx.sqlite.db.SupportSQLiteDatabase) {
@@ -682,6 +754,7 @@ internal class ArchiveReader(
     private companion object {
         val LONG = Regex("-?(0|[1-9][0-9]*)")
         val FX_RATE = Regex("[0-9]+(?:\\.[0-9]+)?")
+        val BILL_ICON = Regex("[a-z0-9][a-z0-9-]{0,47}")
         val MIN_FX_DAY = java.time.LocalDate.of(1900, 1, 1).toEpochDay()
         val MAX_FX_DAY = java.time.LocalDate.of(2999, 12, 31).toEpochDay()
         const val COPY_BUFFER_SIZE = 64 * 1024

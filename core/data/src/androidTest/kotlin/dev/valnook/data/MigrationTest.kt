@@ -490,7 +490,7 @@ class MigrationTest {
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
-            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24).build()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25).build()
             try {
                 val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
                 assertEquals(listOf("shared", "orphan"), faces.map { it.key })
@@ -512,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
@@ -614,12 +614,43 @@ class MigrationTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    @Test fun v24_to_v25_adds_bills_with_the_preset_categories_and_keeps_sub_accounts() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-bills-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 24).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO savings_accounts(id,name,note,created_at_ms,updated_at_ms) VALUES (1,'Bank','',1,1)")
+                execSQL("""INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,
+                    currency_locked,created_at_ms,display_order) VALUES (1,'CNY',4500,3,1,7,'Cash','',1,1,2)""")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 25, true, MIGRATION_24_25).apply {
+                query("SELECT balance_minor,revision,display_order,is_favorite,favorite_order FROM cash_accounts WHERE id=7").use {
+                    assertTrue(it.moveToFirst())
+                    assertEquals(listOf(4500L, 3L, 2L, 0L, 0L), (0..4).map(it::getLong))
+                }
+                val presets = dev.valnook.domain.model.BillCategoryPresets.all
+                query("SELECT COUNT(*) FROM bill_categories").use { assertTrue(it.moveToFirst()); assertEquals(presets.size.toLong(), it.getLong(0)) }
+                // Each subcategory sits under its preset parent, and siblings are numbered from 0 in preset order.
+                query("""SELECT c.builtin_key,p.builtin_key,c.sort_order FROM bill_categories c
+                    LEFT JOIN bill_categories p ON p.id=c.parent_id WHERE c.builtin_key IN ('food','food.lunch','income.pay')""").use {
+                    val rows = generateSequence { if (it.moveToNext()) Triple(it.getString(0), it.getString(1), it.getLong(2)) else null }.toSet()
+                    assertEquals(setOf(Triple("food", null, 0L), Triple("food.lunch", "food", 1L), Triple("income.pay", null, 0L)), rows)
+                }
+                query("SELECT COUNT(*) FROM bill_entries").use { assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0)) }
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
     /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach the current schema with their manual rates unchanged. */
     @Test fun released_installs_reach_the_current_schema_with_manual_rates_unchanged(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val chains = mapOf(
-            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24),
-            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24))
+            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25),
+            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25))
         chains.forEach { (version, migrations) ->
             val name = "migration-fx-v$version-${UUID.randomUUID()}.db"
             try {

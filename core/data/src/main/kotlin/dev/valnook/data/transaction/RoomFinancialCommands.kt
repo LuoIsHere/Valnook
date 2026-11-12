@@ -23,6 +23,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     private val groups = AccountGroupCommandHandler(db)
     private val audit = AuditRecorder(db, clock)
     private val deletion = AccountDeletionHandler(db, clock, fault)
+    private val bills = BillCommandHandler(db, cash, fault)
     override suspend fun previewAccountDeletion(accountId: Long, balanceAccountId: Long?) =
         db.withTransaction { deletion.preview(accountId, balanceAccountId) }
     override suspend fun cancelAccountDeletion(ticket: String) = db.withTransaction { deletion.cancel(ticket) }
@@ -87,6 +88,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is EditDividend -> positions.editDividend(command, now)
                 is DeleteInvestmentTrade -> positions.delete(command, now)
                 is AccountGroupCommand -> groups.execute(command, now)
+                is BillCommand -> bills.execute(command, now)
             }
             fault(TransactionPoint.BEFORE_RECEIPT)
             invalidatedDay?.let { db.statistics().invalidate(it) }
@@ -106,6 +108,14 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             }) day(now) else null
             // A class only groups what is shown now; no history depends on it.
             is SaveAssetType, is DeleteAssetType, is CreateInvestmentPosition, is AccountGroupCommand -> null
+            // Categories and favourites change no balance.
+            is SaveBillCategory, is SetBillCategoryHidden, is ReorderBillCategories, is DeleteBillCategory,
+            is SaveBillFavorites -> null
+            is SaveBill -> {
+                val old = command.billId?.let { db.bills().bill(it) }?.occurred_at_ms?.let(::day)
+                listOfNotNull(old, day(command.draft.occurredAtMs)).min().coerceAtLeast(baseline)
+            }
+            is DeleteBill -> (db.bills().bill(command.billId)?.occurred_at_ms?.let(::day) ?: baseline).coerceAtLeast(baseline)
             is SaveInstrument -> {
                 val old = command.instrumentId?.let { db.instruments().instrument(it) }
                 if (old == null || old.current_price_e5 != command.currentPriceE5 ||

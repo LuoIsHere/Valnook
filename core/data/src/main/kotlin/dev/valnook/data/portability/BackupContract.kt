@@ -59,7 +59,7 @@ internal object BackupContract {
     /** Older rules only differ in derived statistics, which restore always rebuilds. */
     val RESTORABLE_HISTORICAL_VALUATION_RULES = dev.valnook.data.database.MIN_RESTORABLE_STATISTICS_RULE_VERSION..STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1", "wallet-face-library-v1", "fx-rate-history-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1", "wallet-face-library-v1", "fx-rate-history-v1", "bills-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -83,7 +83,8 @@ internal object BackupContract {
         ), "id"),
         PortableTable("data/cash_accounts.jsonl", "cash_accounts", listOf(
             long("savings_account_id"), text("currency_code"), long("balance_minor"), long("revision"),
-            long("updated_at_ms"), long("id"), text("name"), text("note"), bool("currency_locked"), long("created_at_ms"), long("display_order"), bool("include_in_available_cash"), bool("show_on_accounts_page")
+            long("updated_at_ms"), long("id"), text("name"), text("note"), bool("currency_locked"), long("created_at_ms"), long("display_order"), bool("include_in_available_cash"), bool("show_on_accounts_page"),
+            bool("is_favorite"), long("favorite_order")
         ), "savings_account_id,id"),
         PortableTable("data/credit_account_profiles.jsonl", "credit_account_profiles", listOf(
             long("account_id"), long("credit_limit_minor", true), long("statement_day"),
@@ -104,6 +105,23 @@ internal object BackupContract {
             long("cash_account_id"), text("reason"), long("delta_minor"), long("balance_before_minor"),
             long("balance_after_minor"), long("created_at_ms")
         ), "created_at_ms,id"),
+        // Parents before their subcategories, so each row's parent is already there when it is read back.
+        PortableTable("data/bill_categories.jsonl", "bill_categories", listOf(
+            long("id"), text("kind"), long("parent_id", true), text("builtin_key", true), text("custom_name", true),
+            text("icon_key"), text("color_key"), long("sort_order"), bool("hidden"), long("last_cash_account_id", true),
+            long("revision"), long("created_at_ms"), long("updated_at_ms")
+        ), "parent_id IS NOT NULL,id"),
+        // A refund or reimbursement always comes after the bill it belongs to.
+        PortableTable("data/bill_entries.jsonl", "bill_entries", listOf(
+            long("id"), text("operation_id"), text("type"), long("occurred_at_ms"), long("amount_minor"),
+            text("currency_code"), long("discount_minor"), long("cash_account_id", true), text("account_currency_code"),
+            long("account_amount_minor"), text("rate"), text("rate_source"), text("transfer_kind", true),
+            long("to_cash_account_id", true), text("to_currency_code", true), long("to_amount_minor", true),
+            long("fee_minor"), text("counterparty"), long("category_id", true), long("sub_category_id", true),
+            bool("count_in_stats"), bool("reimbursable"), text("reimburse_state"), long("parent_id", true),
+            text("batch_id", true), text("note"), long("revision"), bool("is_deleted"), long("created_at_ms"),
+            long("updated_at_ms")
+        ), "id"),
         PortableTable("data/term_deposits.jsonl", "term_deposits", listOf(
             long("id"), long("savings_account_id"), text("currency_code"), long("principal_minor"),
             long("annual_rate_percent_e8"), localDate("start_date", "start_epoch_day"),
@@ -173,7 +191,8 @@ internal object BackupContract {
         "account_icon_images" to 4,
         "wallet_cards" to 6, "wallet_card_images" to 6,
         "account_groups" to 8,
-        "fx_rate_history" to 10
+        "fx_rate_history" to 10,
+        "bill_categories" to 11, "bill_entries" to 11
     )
 
     /** Data schema version that introduced each column name; columns not listed exist since version 1. */
@@ -184,7 +203,8 @@ internal object BackupContract {
         "include_in_available_cash" to 5, "show_on_accounts_page" to 5,
         "face_style" to 7,
         "group_id" to 8,
-        "label" to 9, "added_at_ms" to 9
+        "label" to 9, "added_at_ms" to 9,
+        "is_favorite" to 11, "favorite_order" to 11
     )
 
     /** The tables and columns an archive of [dataSchemaVersion] contains; empty for unknown versions. */
@@ -202,7 +222,7 @@ internal object BackupContract {
 
     val importOrder = listOf(
         "account_icon_images", "account_groups", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "wallet_card_images", "wallet_cards", "investments",
-        "term_deposits", "investment_trades", "cash_entries", "cash_movements", "instrument_price_history",
+        "term_deposits", "investment_trades", "cash_entries", "cash_movements", "bill_categories", "bill_entries", "instrument_price_history",
         "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "fx_rate_history", "audit_metadata",
         "audit_events", "audit_event_accounts"
     )

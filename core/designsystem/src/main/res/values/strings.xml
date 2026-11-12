@@ -111,6 +111,9 @@
     <string name="source_dividend">Dividend</string>
     <string name="source_dividend_removed">Dividend of a deleted instrument</string>
     <string name="view_source_dividend">View dividend</string>
+    <string name="source_bill">Bill</string>
+    <string name="source_bill_transfer_in">Transfer in</string>
+    <string name="view_source_bill">View bill</string>
     <string name="dividend_detail_title">Dividend</string>
     <string name="edit_dividend">Edit dividend</string>
     <string name="delete_dividend">Delete dividend</string>

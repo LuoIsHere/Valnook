@@ -19,4 +19,6 @@ internal fun cash_change_text(entry:CashEntry)=
     CashSource.TRADE_REMOVED->if(entry.delta_minor<0)R.string.source_trade_removed_buy else R.string.source_trade_removed_sell
     CashSource.DIVIDEND->R.string.source_dividend
     CashSource.DIVIDEND_REMOVED->R.string.source_dividend_removed
+    CashSource.BILL->R.string.source_bill
+    CashSource.BILL_TRANSFER_IN->R.string.source_bill_transfer_in
 })
