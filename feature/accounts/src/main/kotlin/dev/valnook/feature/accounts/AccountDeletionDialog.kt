@@ -51,6 +51,8 @@ import java.util.UUID
                     Text(stringResource(if (cashId == null) R.string.account_delete_parent_scope else R.string.account_delete_child_scope))
                     if (discardDraft) Text(stringResource(R.string.account_delete_draft_notice))
                     Text(stringResource(R.string.account_delete_counts, p.cashCount, p.entryCount, p.depositCount, p.tradeCount))
+                    // Bills are spending history and stay, showing the account as deleted.
+                    if (p.billCount > 0) Text(stringResource(R.string.account_delete_bills_kept, p.billCount))
                     p.transfers.forEach { transfer -> Text(stringResource(R.string.account_delete_transfer,
                         transfer.name, DecimalRules.format_units(transfer.limitMinor, Currency.of(transfer.currencyCode).fraction_digits), transfer.currencyCode)) }
                     if (p.transfers.isNotEmpty()) Text(stringResource(R.string.account_delete_transfer_notice))

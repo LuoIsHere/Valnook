@@ -93,6 +93,9 @@ internal class SpreadsheetWriter(
                     recordCount += writeRecords(records, account.id, english)
                     sheets += SheetDefinition(names.accounts[index].second, records)
                 }
+                val bills = File(sheetsDir, "sheet${sheets.size + 1}.xml")
+                recordCount += writeBills(bills, english)
+                sheets += SheetDefinition(names.bills, bills)
             }
             val target = File(work, "report.xlsx")
             packageWorkbook(target, sheets)
@@ -308,6 +311,83 @@ internal class SpreadsheetWriter(
         return count
     }
 
+    /** Every bill, newest first: what was paid, what each account moved, and how it was converted. */
+    private fun writeBills(file: File, english: Boolean): Long {
+        var count = 0L
+        val deleted = label(english, "已删除的账户", "Deleted account")
+        val outside = label(english, "外部账户", "Outside account")
+        fun category(key: String?, custom: String?): String =
+            custom ?: dev.valnook.domain.model.BillCategoryPresets.name(key, english).orEmpty()
+        SheetXml(file, freezeRows = 1, autoFilter = true).use { sheet ->
+            sheet.row(*listOf(
+                "时间" to "Time", "类型" to "Type", "分类" to "Category", "子分类" to "Subcategory", "金额" to "Amount",
+                "优惠" to "Discount", "实付" to "Paid", "币种" to "Currency", "账户" to "Account", "账户币种" to "Account currency",
+                "账户金额" to "Account amount", "汇率" to "Rate", "汇率来源" to "Rate source", "转入账户" to "To account",
+                "转入币种" to "To currency", "转入金额" to "Amount received", "手续费" to "Fee", "对方" to "Counterparty",
+                "计入收支" to "Counted", "备注" to "Note", "账单 ID" to "Bill ID"
+            ).map { (zh, en) -> header(label(english, zh, en)) }.toTypedArray())
+            db.openHelper.readableDatabase.query("""
+                SELECT b.occurred_at_ms,b.type,b.transfer_kind,c.builtin_key,c.custom_name,s.builtin_key,s.custom_name,
+                    b.amount_minor,b.discount_minor,b.currency_code,a.name,ca.name,b.account_currency_code,b.account_amount_minor,
+                    b.rate,b.rate_source,ta.name,tc.name,b.to_currency_code,b.to_amount_minor,b.fee_minor,b.counterparty,
+                    b.count_in_stats,b.note,b.id
+                FROM bill_entries b
+                LEFT JOIN bill_categories c ON c.id=b.category_id LEFT JOIN bill_categories s ON s.id=b.sub_category_id
+                LEFT JOIN cash_accounts ca ON ca.id=b.cash_account_id LEFT JOIN savings_accounts a ON a.id=ca.savings_account_id
+                LEFT JOIN cash_accounts tc ON tc.id=b.to_cash_account_id LEFT JOIN savings_accounts ta ON ta.id=tc.savings_account_id
+                WHERE b.is_deleted=0 ORDER BY b.occurred_at_ms DESC,b.id DESC""").use { cursor ->
+                fun str(index: Int): String? = if (cursor.isNull(index)) null else cursor.getString(index)
+                while (cursor.moveToNext()) {
+                    val type = cursor.getString(1)
+                    val transfer = str(2)
+                    val currency = Currency.of(cursor.getString(9))
+                    val accountCurrency = Currency.of(cursor.getString(12))
+                    val toCurrency = str(18)?.let(Currency::of)
+                    val amount = cursor.getLong(7)
+                    val discount = cursor.getLong(8)
+                    fun accountName(main: String?, sub: String?, external: Boolean): String = when {
+                        external -> cursor.getString(21).ifBlank { outside }
+                        sub == null -> deleted
+                        main == null || main == sub -> sub
+                        else -> "$main · $sub"
+                    }
+                    val typeName = when (type) {
+                        "EXPENSE" -> label(english, "支出", "Expense")
+                        "INCOME" -> label(english, "收入", "Income")
+                        "TRANSFER" -> label(english, "转账", "Transfer")
+                        "REFUND" -> label(english, "退款", "Refund")
+                        else -> label(english, "报销回款", "Reimbursement")
+                    }
+                    val source = when (cursor.getString(15)) {
+                        "AUTO" -> label(english, "自动汇率", "Automatic")
+                        "MANUAL" -> label(english, "手动汇率", "Manual")
+                        "ONE_TIME" -> label(english, "仅本次使用", "This bill only")
+                        "DERIVED" -> label(english, "按实际金额反推", "From the amount charged")
+                        else -> ""
+                    }
+                    val transferred = type == "TRANSFER"
+                    sheet.row(
+                        text(instantText(cursor.getLong(0))), text(typeName),
+                        text(if (transferred) "" else category(str(3), str(4))), text(category(str(5), str(6))),
+                        minor(amount, currency), minor(discount, currency), minor(amount - discount, currency), text(currency.code),
+                        text(accountName(str(10), str(11), transfer == "FROM_EXTERNAL")), text(accountCurrency.code),
+                        minor(cursor.getLong(13), accountCurrency),
+                        if (source.isEmpty()) text("") else decimal(BigDecimal(cursor.getString(14))), text(source),
+                        text(if (!transferred) "" else accountName(str(16), str(17), transfer == "TO_EXTERNAL")),
+                        text(toCurrency?.code.orEmpty()),
+                        if (cursor.isNull(19) || toCurrency == null) text("") else minor(cursor.getLong(19), toCurrency),
+                        if (cursor.getLong(20) == 0L) text("") else minor(cursor.getLong(20), accountCurrency),
+                        text(cursor.getString(21)),
+                        text(if (transferred) "" else label(english, if (cursor.getInt(22) != 0) "是" else "否",
+                            if (cursor.getInt(22) != 0) "Yes" else "No")),
+                        text(cursor.getString(23)), id(cursor.getLong(24)))
+                    count++
+                }
+            }
+        }
+        return count
+    }
+
     private fun recordCursor(accountId: Long): Cursor = db.openHelper.readableDatabase.query("""
         SELECT operation_time,business_time,operation_type,subaccount,object_name,currency,quantity,unit_price,fee,amount,
             change_summary,before_value,after_value,cash_effects,source_state,event_id,related_id FROM (
@@ -368,7 +448,7 @@ internal class SpreadsheetWriter(
             unique("${prefix}_${account.name}_${if (english) "Assets" else "资产"}") to
                 unique("${prefix}_${account.name}_${if (english) "Records" else "记录"}")
         }
-        return WorkbookNames(summary, accounts)
+        return WorkbookNames(summary, accounts, unique(if (english) "Bills" else "账单"))
     }
 
     private fun packageWorkbook(target: File, sheets: List<SheetDefinition>) {
@@ -409,7 +489,7 @@ internal class SpreadsheetWriter(
         append("""<Relationship Id="rId${count + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>""")
     }
 
-    private data class WorkbookNames(val summary: String, val accounts: List<Pair<String, String>>)
+    private data class WorkbookNames(val summary: String, val accounts: List<Pair<String, String>>, val bills: String)
     private data class SheetDefinition(val name: String, val file: File)
 
     private class SheetXml(file: File, private val freezeRows: Int, private val autoFilter: Boolean = false) : AutoCloseable {

@@ -216,6 +216,26 @@ class BillDataTest {
         assertEquals(975_000L, choice.availableCreditMinor)
     }
 
+    @Test fun the_workbook_lists_bills_on_their_own_sheet() = runBlocking {
+        val (a, b, _) = accounts()
+        save(expense(a, 3_500, discount = 500))
+        save(transfer(a, null, 1_000, TransferKind.TO_EXTERNAL, counterparty = "Synthetic friend"))
+        val build = AppBuildInfo("valnook", "0.0.19", 1901, "20261112.1", "20261112.1", DATABASE_SCHEMA_VERSION)
+        val output = ByteArrayOutputStream()
+        RoomPortabilityEngine(context, db, clock, build).exportWorkbook(id(), AppLanguage.ENGLISH, false, output) {}
+        val entries = mutableMapOf<String, String>()
+        java.util.zip.ZipInputStream(ByteArrayInputStream(output.toByteArray())).use { zip ->
+            while (true) { val entry = zip.nextEntry ?: break; entries[entry.name] = zip.readBytes().toString(Charsets.UTF_8) }
+        }
+        assertTrue(entries.getValue("xl/workbook.xml").contains("name=\"Bills\""))
+        // The bills sheet comes last; the account record sheets also mention the bills, in their audit rows.
+        val sheet = entries.filterKeys { it.startsWith("xl/worksheets/sheet") }
+            .maxBy { it.key.removePrefix("xl/worksheets/sheet").removeSuffix(".xml").toInt() }.value
+        assertTrue(sheet.contains("Synthetic lunch"))
+        listOf("Expense", "Lunch", "Transfer", "Synthetic friend", "35", "30").forEach { assertTrue(it, sheet.contains(it)) }
+        assertFalse(sheet.contains(b.toString() + " · "))
+    }
+
     @Test fun bills_and_favourites_survive_a_backup_and_restore() = runBlocking {
         val (a, b, usd) = accounts()
         val pets = commands.execute(SaveBillCategory(id(), null, null, BillCategoryKind.EXPENSE, null, "Synthetic pets", "paw", "brown")).id

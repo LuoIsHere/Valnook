@@ -106,4 +106,5 @@
         <item quantity="one">%1$d field to fix</item>
         <item quantity="other">%1$d fields to fix</item>
     </plurals>
+    <string name="account_delete_bills_kept">%1$d bills stay, showing this account as deleted.</string>
 </resources>

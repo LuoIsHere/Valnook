@@ -61,7 +61,7 @@ internal class WebAdminApiRouter(
             return success(buildJsonObject {
                 put("ticket", p.ticket); put("code", p.code); put("name", p.name); put("revision", p.revision)
                 put("dataGeneration", reads.generation()); put("cashCount", p.cashCount); put("entryCount", p.entryCount)
-                put("depositCount", p.depositCount); put("tradeCount", p.tradeCount)
+                put("depositCount", p.depositCount); put("tradeCount", p.tradeCount); put("billCount", p.billCount)
                 put("balance", p.balanceMinor?.let { DecimalRules.format_units(it, Currency.of(requireNotNull(p.currencyCode)).fraction_digits) })
                 put("currencyCode", p.currencyCode)
                 put("transfers", buildJsonArray { p.transfers.forEach { value -> add(buildJsonObject {

@@ -339,6 +339,7 @@ async function deletionForm(accountId, balanceAccountId) {
   const form = el("form", { class: "form-grid" }, el("h2", { class: "full", text: p.name }),
     el("p", { class: "full", text: t(balanceAccountId == null ? "deleteParentScope" : "deleteChildScope") }),
     el("p", { class: "full", text: `${t("subaccount")}: ${p.cashCount} · ${t("records")}: ${p.entryCount} · ${t("deposits")}: ${p.depositCount} · ${t("trade")}: ${p.tradeCount}` }),
+    p.billCount > 0 ? el("p", { class: "full", text: `${p.billCount} ${t("billsKept")}` }) : null,
     p.balance == null ? null : el("p", { class: "full", text: `${fmt(p.balance)} ${p.currencyCode}` }),
     ...p.transfers.map(v => el("p", { class: "full", text: `${v.name}: ${fmt(v.limit)} ${v.currencyCode} · ${t("independentLimit")}` })),
     p.transfers.length ? el("p", { class: "full", text: t("deleteLimitNotice") }) : null,
@@ -525,7 +526,7 @@ async function renderRecords(reset) {
   replacePage(root, !!oldControls);
 }
 function actionLabel(action) {
-  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE_REMOVED: t("deletedInstrumentTrade"), DIVIDEND: t("dividend"), DIVIDEND_REMOVED: t("deletedInstrumentDividend") })[action] || action;
+  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE_REMOVED: t("deletedInstrumentTrade"), DIVIDEND: t("dividend"), DIVIDEND_REMOVED: t("deletedInstrumentDividend"), BILL: t("bill"), BILL_TRANSFER_IN: t("billTransferIn") })[action] || action;
 }
 async function openRecord(record) {
   state.viewEpoch++;
@@ -535,6 +536,8 @@ async function openRecord(record) {
     if (record.kind === "CASH" && (record.action === "TRADE_REMOVED" || record.action === "DIVIDEND_REMOVED")) return;
     // Dividends are shown here but kept on the phone.
     if (record.action === "DIVIDEND") return notify(t("dividendOnPhone"));
+    // So are bills: their cash follows the bill.
+    if (record.kind === "CASH" && (record.action === "BILL" || record.action === "BILL_TRANSFER_IN")) return notify(t("billOnPhone"));
     if (record.kind === "TRADE" || (record.kind === "CASH" && record.action === "TRADE")) {
       const positionId = record.kind === "TRADE" ? record.childId : record.sourceParentId;
       const tradeId = record.kind === "TRADE" ? record.id : record.sourceId;
