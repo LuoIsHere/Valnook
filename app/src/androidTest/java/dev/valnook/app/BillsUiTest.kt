@@ -68,11 +68,24 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-amount").assertTextContains("60.00", substring = true)
         rule.onNodeWithTag("bill-category-food").performClick()
         rule.onNodeWithTag("bill-sub-food.lunch").performClick()
+        // A new bill starts on no account; the account pill opens the picker.
+        rule.onNodeWithTag("bill-account").assertTextEquals("不计入账户").performClick()
+        waitTag("bill-account-picker")
+        rule.onNodeWithTag("bill-account-$cashId").performClick()
+        rule.onNodeWithTag("bill-account").assertTextEquals("合成银行 · 合成储蓄卡")
         rule.onNodeWithTag("bill-confirm").assertTextEquals("=").performClick()
         rule.onNodeWithTag("bill-confirm").performClick()
         waitTag("bills-list")
         rule.waitUntil(8_000) { rule.onAllNodesWithText("−60.00 CNY").fetchSemanticsNodes().isNotEmpty() }
         assertEquals(100_000L - 6_000, balance())
+
+        // The category remembers the account it was last used with.
+        rule.onNodeWithTag("add-bill").performClick()
+        waitTag("bill-editor")
+        rule.onNodeWithTag("bill-category-food").performClick()
+        rule.onNodeWithTag("bill-account").assertTextEquals("合成银行 · 合成储蓄卡")
+        androidx.test.espresso.Espresso.pressBack()
+        waitTag("bills-list")
 
         // Edit: the amount goes from 60 to 45, and the balance follows.
         rule.onNodeWithText("午餐").performClick()

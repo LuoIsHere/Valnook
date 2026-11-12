@@ -1,6 +1,7 @@
 package dev.valnook.feature.bills
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -9,12 +10,14 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -25,6 +28,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -32,14 +36,16 @@ import dev.valnook.domain.model.BillCategory
 import dev.valnook.domain.model.BillCategoryKind
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.money.DecimalRules
+import dev.valnook.domain.repository.BillAccountChoice
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 /**
- * The bill form: tabs for expense, income and transfer over the figures, the categories and the details, with the
- * bill keypad at the bottom. The keypad gives way to the system keyboard while a text field is in use.
+ * The bill form. The figures and categories scroll; under them, always in the same place, a row of pills (account,
+ * time, whether it counts), a low note box with notes used before, and the keypad. The keypad gives way to the
+ * system keyboard while the note is typed; the pills and the note stay above it.
  */
 @Composable fun BillEditorScreen(vm: BillEditorViewModel, onDone: () -> Unit, onManageCategories: () -> Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -63,26 +69,28 @@ import java.time.format.DateTimeFormatter
                 if (state.editing) BillTab.entries.filter { (it == BillTab.TRANSFER) == (f.tab == BillTab.TRANSFER) } else BillTab.entries,
                 f.tab, vm::selectTab, optionModifier = { Modifier.testTag("bill-tab-${it.name}") }) { Text(stringResource(it.label)) }
             if (f.tab == BillTab.TRANSFER) TransferFields(state, accounts, vm, onPick = { picking = it })
-            else SpendingFields(state, accounts, vm, onPick = { picking = AccountPickTarget.OWN }, onManageCategories)
-            DetailsRow(state, vm, onTime = { timeOpen = true })
-            NoteField(state, vm)
-            ProblemHint(state)
+            else SpendingFields(state, vm, onManageCategories)
             Spacer(Modifier.height(Space.sm))
         }
+        BottomBlock(state, accounts, vm, onAccount = { picking = AccountPickTarget.OWN }, onTime = { timeOpen = true })
         if (!keyboardOpen) BillKeypad(
             confirmLabel = if (currentField(f).hasOperator) "=" else stringResource(if (state.editing) R.string.bill_save else R.string.bill_confirm),
-            confirmEnabled = (currentField(f).hasOperator || p.problem == null) && state.phase != BillSavePhase.WORKING,
-            againEnabled = !state.editing && p.problem == null && state.phase == BillSavePhase.IDLE,
+            confirmEnabled = state.phase != BillSavePhase.WORKING,
+            againEnabled = !state.editing && state.phase == BillSavePhase.IDLE,
             onKey = vm::press, onConfirm = { vm.confirm() }, onAgain = { vm.confirm(again = true) })
     }
     picking?.let { target ->
         BillAccountPicker(state.accounts,
             selected = when (target) { AccountPickTarget.TO -> f.toCashAccountId; else -> f.cashAccountId },
-            allowExternal = target != AccountPickTarget.OWN,
-            externalSelected = (target == AccountPickTarget.FROM && f.fromExternal) || (target == AccountPickTarget.TO && f.toExternal),
+            option = if (target == AccountPickTarget.OWN) PickerOption.NO_ACCOUNT else PickerOption.EXTERNAL,
+            optionSelected = when (target) {
+                AccountPickTarget.OWN -> f.cashAccountId == null
+                AccountPickTarget.FROM -> f.fromExternal
+                AccountPickTarget.TO -> f.toExternal
+            },
             onPick = { id ->
                 when (target) {
-                    AccountPickTarget.OWN -> id?.let(vm::chooseAccount)
+                    AccountPickTarget.OWN -> vm.chooseAccount(id)
                     AccountPickTarget.FROM -> vm.chooseTransferSource(id)
                     AccountPickTarget.TO -> vm.chooseTransferTarget(id)
                 }
@@ -139,14 +147,13 @@ private fun currentField(f: BillForm): BillExpression = when (f.target) {
 private fun amountText(e: BillExpression, digits: Int): String =
     e.value(digits)?.let { DecimalRules.format_display(it, digits) } ?: if (e.isEmpty) "" else e.text
 
-@Composable private fun SpendingFields(state: BillEditorState, accounts: Map<Long, dev.valnook.domain.repository.BillAccountChoice>,
-    vm: BillEditorViewModel, onPick: () -> Unit, onManageCategories: () -> Unit) {
+@Composable private fun SpendingFields(state: BillEditorState, vm: BillEditorViewModel, onManageCategories: () -> Unit) {
     val f = state.form
     val p = state.preview
     val digits = p.currency?.fraction_digits ?: 2
     FigureBox(stringResource(R.string.bill_amount), amountText(f.amount, digits), f.target == BillField.AMOUNT,
         { vm.focus(BillField.AMOUNT) }, large = true, tag = "bill-amount",
-        expression = f.amount.text.takeIf { f.amount.hasOperator || f.amount.text.endsWith("+") },
+        expression = f.amount.text.takeIf { f.amount.hasOperator },
         leading = {
             CurrencyChoice(p.currency?.code ?: "", vm::chooseCurrency, enabled = true,
                 options = Currency.options(interfaceLanguage())) { open ->
@@ -167,11 +174,9 @@ private fun amountText(e: BillExpression, digits: Int): String =
     }
     if (p.crossCurrency) ConversionBar(state, vm)
     CategoryGrid(state, vm, onManageCategories)
-    AccountChip(stringResource(R.string.bill_account), f.cashAccountId?.let(accounts::get)?.label()
-        ?: stringResource(R.string.bill_choose_account), onPick, "bill-account")
 }
 
-/** "Paid USD 20.00 × 7.1234 = CNY 142.47": the rate and the account amount can each be typed for this bill. */
+/** "1 USD = 7.1234 CNY" and the amount the account moved; either can be typed for this bill. */
 @Composable private fun ConversionBar(state: BillEditorState, vm: BillEditorViewModel) {
     val f = state.form
     val p = state.preview
@@ -179,10 +184,9 @@ private fun amountText(e: BillExpression, digits: Int): String =
     val from = (if (transfer) p.accountCurrency else p.currency) ?: return
     val to = (if (transfer) p.toCurrency else p.accountCurrency) ?: return
     val colors = MaterialTheme.colorScheme
-    val warning = p.missingRate
     GlassSurface(Modifier.fillMaxWidth().testTag("bill-conversion"), shape = RoundedCornerShape(18.dp)) {
         Column(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (warning) Text(stringResource(R.string.bill_rate_missing, from.code, to.code), color = colors.error,
+            if (p.missingRate) Text(stringResource(R.string.bill_rate_missing, from.code, to.code), color = colors.error,
                 style = MaterialTheme.typography.bodySmall)
             val rateShown = p.rate?.let { if (f.rateInverted) BigDecimal.ONE.divide(it, 12, java.math.RoundingMode.HALF_UP).stripTrailingZeros() else it }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -190,66 +194,61 @@ private fun amountText(e: BillExpression, digits: Int): String =
                 FigureBox("", rateShown?.toPlainString() ?: "", f.target == BillField.RATE, { vm.focus(BillField.RATE) },
                     Modifier.weight(1f), tag = "bill-rate", leading = {})
                 Text(if (f.rateInverted) from.code else to.code, style = MaterialTheme.typography.bodyMedium)
-                IconButton(vm::flipRateDirection, Modifier.semantics { contentDescription = "" }.testTag("bill-rate-flip")) {
+                IconButton(vm::flipRateDirection, Modifier.testTag("bill-rate-flip")) {
                     FaIcon(FaIcons.rotate, stringResource(R.string.bill_rate_flip), Modifier.size(16.dp))
                 }
             }
-            if (!transfer) {
-                val digits = to.fraction_digits
-                FigureBox(stringResource(R.string.bill_account_amount, to.code),
-                    f.accountAmount?.let { amountText(it, digits) } ?: p.convertedMinor?.let { plainAmount(it, digits) } ?: "",
-                    f.target == BillField.ACCOUNT_AMOUNT, { vm.focus(BillField.ACCOUNT_AMOUNT) }, tag = "bill-account-amount")
+            if (!transfer) FigureBox(stringResource(R.string.bill_account_amount, to.code),
+                f.accountAmount?.let { amountText(it, to.fraction_digits) } ?: p.convertedMinor?.let { plainAmount(it, to.fraction_digits) } ?: "",
+                f.target == BillField.ACCOUNT_AMOUNT, { vm.focus(BillField.ACCOUNT_AMOUNT) }, tag = "bill-account-amount")
+            if (f.rate != null || f.accountAmount != null) Row(verticalAlignment = Alignment.CenterVertically) {
+                if (p.canSaveAsManual) CheckboxRow(stringResource(R.string.bill_rate_save_manual), f.saveAsManual, vm::setSaveAsManual,
+                    Modifier.weight(1f)) else Spacer(Modifier.weight(1f))
+                TextButton(vm::resetRate, Modifier.testTag("bill-rate-reset")) { Text(stringResource(R.string.bill_rate_reset)) }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(when (p.rateSource) {
-                    dev.valnook.domain.model.BillRateSource.AUTO -> R.string.bill_rate_source_auto
-                    dev.valnook.domain.model.BillRateSource.MANUAL -> R.string.bill_rate_source_manual
-                    dev.valnook.domain.model.BillRateSource.DERIVED -> R.string.bill_rate_source_derived
-                    dev.valnook.domain.model.BillRateSource.ONE_TIME -> R.string.bill_rate_source_once
-                    else -> R.string.bill_rate_source_none
-                }), Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                if (f.rate != null || f.accountAmount != null) TextButton(vm::resetRate, Modifier.testTag("bill-rate-reset")) {
-                    Text(stringResource(R.string.bill_rate_reset))
-                }
-            }
-            if (p.canSaveAsManual && (f.rate != null || f.accountAmount != null))
-                CheckboxRow(stringResource(R.string.bill_rate_save_manual), f.saveAsManual, vm::setSaveAsManual)
         }
     }
 }
 
-/** Top-level categories of the tab's kind in a grid; the chosen one's subcategories in a row under it. */
+/**
+ * Top-level categories of the tab's kind in a grid. The chosen one opens its subcategories in a box right under its
+ * own row, between that row and the next.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable private fun CategoryGrid(state: BillEditorState, vm: BillEditorViewModel, onManageCategories: () -> Unit) {
     val f = state.form
     val kind = if (f.tab == BillTab.INCOME) BillCategoryKind.INCOME else BillCategoryKind.EXPENSE
     // A hidden category is offered only while the bill already uses it.
     val tops = state.categories.filter { it.kind == kind && it.parentId == null && (!it.hidden || it.id == f.categoryId) }
     val subs = state.categories.filter { it.parentId == f.categoryId && f.categoryId != null && (!it.hidden || it.id == f.subCategoryId) }
-    Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        BoxWithConstraints {
-            val columns = (maxWidth / 72.dp).toInt().coerceIn(4, 6)
-            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                (tops.map<BillCategory, BillCategory?> { it } + null).chunked(columns).forEach { row ->
-                    Row(Modifier.fillMaxWidth()) {
-                        row.forEach { category ->
-                            Box(Modifier.weight(1f)) {
-                                if (category == null) CategoryTile(stringResource(R.string.bill_manage_categories), "ellipsis", "grey",
-                                    false, onManageCategories, "bill-manage-categories")
-                                else CategoryTile(categoryName(category), category.iconKey, category.colorKey, category.id == f.categoryId,
-                                    { vm.chooseCategory(category.id, null) }, "bill-category-${category.builtinKey ?: category.id}")
+    BoxWithConstraints {
+        val columns = (maxWidth / 72.dp).toInt().coerceIn(4, 6)
+        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+            (tops.map<BillCategory, BillCategory?> { it } + null).chunked(columns).forEach { row ->
+                Row(Modifier.fillMaxWidth()) {
+                    row.forEach { category ->
+                        Box(Modifier.weight(1f)) {
+                            if (category == null) CategoryTile(stringResource(R.string.bill_manage_categories), "ellipsis", "grey",
+                                false, onManageCategories, "bill-manage-categories")
+                            else CategoryTile(categoryName(category), category.iconKey, category.colorKey, category.id == f.categoryId,
+                                { vm.chooseCategory(category.id, null) }, "bill-category-${category.builtinKey ?: category.id}")
+                        }
+                    }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+                if (subs.isNotEmpty() && row.any { it != null && it.id == f.categoryId }) {
+                    GlassSurface(Modifier.fillMaxWidth().testTag("bill-subcategories"), shape = RoundedCornerShape(18.dp)) {
+                        FlowRow(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            subs.forEach { sub ->
+                                val selected = sub.id == f.subCategoryId
+                                FilterChip(selected, { vm.chooseCategory(f.categoryId!!, if (selected) null else sub.id) },
+                                    { Text(categoryName(sub)) }, Modifier.testTag("bill-sub-${sub.builtinKey ?: sub.id}"),
+                                    leadingIcon = { CategoryIcon(sub.iconKey, sub.colorKey, size = 22.dp, selected = selected) })
                             }
                         }
-                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
-            }
-        }
-        if (subs.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-            subs.forEach { sub ->
-                val selected = sub.id == f.subCategoryId
-                FilterChip(selected, { vm.chooseCategory(f.categoryId!!, if (selected) null else sub.id) }, { Text(categoryName(sub)) },
-                    Modifier.testTag("bill-sub-${sub.builtinKey ?: sub.id}"),
-                    leadingIcon = { CategoryIcon(sub.iconKey, sub.colorKey, size = 22.dp, selected = selected) })
             }
         }
     }
@@ -278,7 +277,7 @@ private fun amountText(e: BillExpression, digits: Int): String =
     }
 }
 
-@Composable private fun TransferFields(state: BillEditorState, accounts: Map<Long, dev.valnook.domain.repository.BillAccountChoice>,
+@Composable private fun TransferFields(state: BillEditorState, accounts: Map<Long, BillAccountChoice>,
     vm: BillEditorViewModel, onPick: (AccountPickTarget) -> Unit) {
     val f = state.form
     val p = state.preview
@@ -306,38 +305,79 @@ private fun amountText(e: BillExpression, digits: Int): String =
         { vm.focus(BillField.FEE) }, tag = "bill-fee")
 }
 
-@Composable private fun DetailsRow(state: BillEditorState, vm: BillEditorViewModel, onTime: () -> Unit) {
+/**
+ * Always in the same place above the keypad: what is missing (after a confirm), the pills, the note and the notes used
+ * before with this category.
+ */
+@Composable private fun BottomBlock(state: BillEditorState, accounts: Map<Long, BillAccountChoice>, vm: BillEditorViewModel,
+    onAccount: () -> Unit, onTime: () -> Unit) {
     val f = state.form
-    val time = f.occurredAt
-    val formatter = rememberClockFormatter()
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        ProblemLine(state)
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("bill-pills"),
+            horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            if (f.tab != BillTab.TRANSFER) Pill(f.cashAccountId?.let { id -> accounts[id]?.label() }
+                ?: stringResource(R.string.bill_no_account), selected = f.cashAccountId != null, onClick = onAccount, tag = "bill-account")
+            Pill(timeText(f.occurredAt), selected = false, onClick = onTime, tag = "bill-time")
+            if (f.tab != BillTab.TRANSFER) Pill(stringResource(if (f.countInStats) R.string.bill_counted_pill else R.string.bill_not_counted_pill),
+                selected = f.countInStats, onClick = { vm.setCountInStats(!f.countInStats) }, tag = "bill-count-in-stats")
+        }
+        NoteBox(f.note, vm::setNote)
+        // Room for the notes used before, so the box does not jump when they appear.
+        Row(Modifier.fillMaxWidth().height(22.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Space.md), verticalAlignment = Alignment.CenterVertically) {
+            state.recentNotes.filter { it != f.note }.forEach { note ->
+                Text(note, Modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).clickable { vm.setNote(note) }
+                    .padding(horizontal = 4.dp).testTag("bill-recent-note"), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable private fun timeText(time: java.time.LocalDateTime): String {
     val today = LocalDate.now()
     val day = when (time.toLocalDate()) {
         today -> stringResource(R.string.bill_today)
         today.minusDays(1) -> stringResource(R.string.bill_yesterday)
+        today.minusDays(2) -> stringResource(R.string.bill_day_before)
         else -> time.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
     }
-    AccountChip(stringResource(R.string.bill_time), "$day ${time.toLocalTime().format(formatter)}" +
-        if (time.toLocalDate().isAfter(today)) " · " + stringResource(R.string.bill_future) else "", onTime, "bill-time")
-    if (f.tab != BillTab.TRANSFER) CheckboxRow(stringResource(R.string.bill_count_in_stats), f.countInStats, vm::setCountInStats,
-        Modifier.testTag("bill-count-in-stats"))
+    val future = if (time.toLocalDate().isAfter(today)) " · " + stringResource(R.string.bill_future) else ""
+    return "$day ${time.toLocalTime().format(rememberClockFormatter())}$future"
 }
 
-@Composable private fun NoteField(state: BillEditorState, vm: BillEditorViewModel) {
-    val f = state.form
-    GlassTextField(f.note, vm::setNote, stringResource(R.string.bill_note), Modifier.fillMaxWidth().testTag("bill-note"))
-    // Notes used before with this category, a tap away.
-    val notes = state.recentNotes.filter { it != f.note }
-    if (notes.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-        notes.forEach { note -> SuggestionChip({ vm.setNote(note) }, { Text(note, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-            Modifier.widthIn(max = 220.dp).testTag("bill-recent-note")) }
+/** A capsule as wide as its text. */
+@Composable private fun Pill(text: String, selected: Boolean, onClick: () -> Unit, tag: String) {
+    val colors = MaterialTheme.colorScheme
+    Box(Modifier.clip(RoundedCornerShape(50)).background(if (selected) colors.surfaceContainerHighest else colors.surfaceContainerHigh)
+        .clickable(role = Role.Button, onClick = onClick).semantics { this.selected = selected }
+        .padding(horizontal = 14.dp, vertical = 8.dp).testTag(tag)) {
+        Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1,
+            color = if (selected) colors.onSurface else colors.onSurfaceVariant)
     }
 }
 
-@Composable private fun ProblemHint(state: BillEditorState) {
+/** A low, single-line note box. */
+@Composable private fun NoteBox(value: String, onChange: (String) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val hint = stringResource(R.string.bill_note)
+    BasicTextField(value, onChange, Modifier.fillMaxWidth().height(40.dp).testTag("bill-note")
+        .semantics { contentDescription = hint }, singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface), cursorBrush = SolidColor(colors.primary),
+        decorationBox = { field ->
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(colors.surfaceContainerHigh)
+                .padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                field()
+            }
+        })
+}
+
+/** What still needs choosing, shown once confirm has been pressed. */
+@Composable private fun ProblemLine(state: BillEditorState) {
     val problem = state.preview.problem
-    val shown = state.error != null || (problem != null && problem != BillProblem.AMOUNT)
-    if (!shown) return
-    val text = state.error?.let { errorText(it.name) } ?: stringResource(when (problem) {
+    val text = state.error?.let { errorText(it.name) } ?: if (!state.attempted || problem == null) null else stringResource(when (problem) {
         BillProblem.DISCOUNT -> R.string.bill_problem_discount
         BillProblem.ACCOUNT -> R.string.bill_problem_account
         BillProblem.CATEGORY -> R.string.bill_problem_category
@@ -345,27 +385,27 @@ private fun amountText(e: BillExpression, digits: Int): String =
         BillProblem.SAME_ACCOUNT -> R.string.bill_problem_same_account
         BillProblem.BOTH_EXTERNAL -> R.string.bill_problem_both_external
         BillProblem.DIVIDE -> R.string.bill_problem_divide
-        else -> R.string.bill_problem_amount
+        BillProblem.AMOUNT -> R.string.bill_problem_amount
     })
-    HintMessage(text, isError = state.error != null)
+    if (text != null) Text(text, Modifier.testTag("bill-problem"), style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.error)
 }
 
 /** The keypad: digits, the four operations, delete (hold to clear), record another, and confirm. */
 @Composable fun BillKeypad(confirmLabel: String, confirmEnabled: Boolean, againEnabled: Boolean,
     onKey: (BillKey) -> Unit, onConfirm: () -> Unit, onAgain: () -> Unit) {
     val rows = listOf(
-        listOf(BillKey.D1, BillKey.D2, BillKey.D3, BillKey.PLUS, BillKey.BACKSPACE),
-        listOf(BillKey.D4, BillKey.D5, BillKey.D6, BillKey.MINUS, null),
-        listOf(BillKey.D7, BillKey.D8, BillKey.D9, BillKey.TIMES, null),
-        listOf(BillKey.POINT, BillKey.D0, BillKey.D00, BillKey.DIVIDE, null))
+        listOf(BillKey.D1, BillKey.D2, BillKey.D3, BillKey.PLUS),
+        listOf(BillKey.D4, BillKey.D5, BillKey.D6, BillKey.MINUS),
+        listOf(BillKey.D7, BillKey.D8, BillKey.D9, BillKey.TIMES),
+        listOf(BillKey.POINT, BillKey.D0, BillKey.D00, BillKey.DIVIDE))
     val againLabel = stringResource(R.string.bill_again)
     val deleteLabel = stringResource(R.string.bill_key_delete)
     GlassSurface(Modifier.fillMaxWidth().testTag("bill-keypad"), shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
         Row(Modifier.padding(8.dp)) {
             Column(Modifier.weight(4f)) {
                 rows.forEach { row ->
-                    Row { row.take(4).forEach { key -> KeyButton(key!!.symbol, Modifier.weight(1f), onClick = { onKey(key) },
-                        tag = "bill-key-${key.name}") } }
+                    Row { row.forEach { key -> KeyButton(key.symbol, Modifier.weight(1f), onClick = { onKey(key) }, tag = "bill-key-${key.name}") } }
                 }
             }
             Column(Modifier.weight(1f)) {
@@ -379,8 +419,8 @@ private fun amountText(e: BillExpression, digits: Int): String =
     }
 }
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
-@Composable private fun KeyButton(label: String, modifier: Modifier, height: androidx.compose.ui.unit.Dp = 56.dp, enabled: Boolean = true,
+@OptIn(ExperimentalFoundationApi::class)
+@Composable private fun KeyButton(label: String, modifier: Modifier, height: Dp = 56.dp, enabled: Boolean = true,
     primary: Boolean = false, small: Boolean = false, description: String? = null, onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit, tag: String) {
     val colors = MaterialTheme.colorScheme

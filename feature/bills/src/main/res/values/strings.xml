@@ -71,12 +71,6 @@
     <string name="bill_rate_missing">No %1$s→%2$s rate is set. Enter the rate for this bill.</string>
     <string name="bill_rate_reset">Use the default rate</string>
     <string name="bill_rate_save_manual">Also keep as the manual rate</string>
-    <string name="bill_rate_source">Rate source</string>
-    <string name="bill_rate_source_auto">Automatic rate on the bill date</string>
-    <string name="bill_rate_source_derived">Worked out from the amount charged</string>
-    <string name="bill_rate_source_manual">Manual rate</string>
-    <string name="bill_rate_source_none">No rate</string>
-    <string name="bill_rate_source_once">Entered for this bill</string>
     <string name="bill_refund">Refund</string>
     <string name="bill_reimbursement">Reimbursement</string>
     <string name="bill_save">Save</string>
@@ -109,4 +103,8 @@
     <string name="bills_none_this_month">No bills this month.</string>
     <string name="bills_totals_partial">Bills in a currency without a rate are left out.</string>
     <string name="bills_month_income_balance">Income %1$s · Balance %2$s</string>
+    <string name="bill_no_account">No account</string>
+    <string name="bill_no_account_hint">Recorded only; no account balance changes</string>
+    <string name="bill_counted_pill">Counted</string>
+    <string name="bill_not_counted_pill">Not counted</string>
 </resources>

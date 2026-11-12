@@ -71,12 +71,6 @@
     <string name="bill_rate_missing">未设置 %1$s→%2$s 汇率，请输入本次使用的汇率</string>
     <string name="bill_rate_reset">恢复默认汇率</string>
     <string name="bill_rate_save_manual">同时保存为手动汇率</string>
-    <string name="bill_rate_source">汇率来源</string>
-    <string name="bill_rate_source_auto">账单当天的自动汇率</string>
-    <string name="bill_rate_source_derived">按实际扣款金额反推</string>
-    <string name="bill_rate_source_manual">手动汇率</string>
-    <string name="bill_rate_source_none">没有汇率</string>
-    <string name="bill_rate_source_once">仅本次使用</string>
     <string name="bill_refund">退款</string>
     <string name="bill_reimbursement">报销回款</string>
     <string name="bill_save">保存</string>
@@ -109,4 +103,8 @@
     <string name="bills_none_this_month">本月还没有账单。</string>
     <string name="bills_totals_partial">没有汇率的币种未计入合计。</string>
     <string name="bills_month_income_balance">收入 %1$s · 结余 %2$s</string>
+    <string name="bill_no_account">不计入账户</string>
+    <string name="bill_no_account_hint">只记账，不改变任何账户的余额</string>
+    <string name="bill_counted_pill">计入收支</string>
+    <string name="bill_not_counted_pill">不计入收支</string>
 </resources>

@@ -108,7 +108,7 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
             rows += stringResource(R.string.bill_discount) to money(bill.discountMinor, bill.currency)
             rows += stringResource(R.string.bill_paid) to money(bill.paidMinor, bill.currency)
         }
-        rows += stringResource(R.string.bill_account) to sideName(bill.cashAccountId, state.accounts, false, "")
+        rows += stringResource(R.string.bill_account) to sideName(bill.cashAccountId, state.accounts, false, "", bill.accountDeleted)
         val category = bill.categoryId?.let(state.categories::get)
         val sub = bill.subCategoryId?.let(state.categories::get)
         rows += stringResource(R.string.bill_category) to (categoryName(category) + (sub?.let { " › " + categoryName(it) } ?: ""))
@@ -121,12 +121,6 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
         rows += stringResource(R.string.bill_rate) to "1 ${pairFrom.code} = ${bill.rate.stripTrailingZeros().toPlainString()} ${pairTo.code}"
         if (bill.type != BillType.TRANSFER) rows += stringResource(R.string.bill_account_amount, bill.accountCurrency.code) to
             money(bill.accountAmountMinor, bill.accountCurrency)
-        rows += stringResource(R.string.bill_rate_source) to stringResource(when (bill.rateSource) {
-            BillRateSource.AUTO -> R.string.bill_rate_source_auto
-            BillRateSource.MANUAL -> R.string.bill_rate_source_manual
-            BillRateSource.DERIVED -> R.string.bill_rate_source_derived
-            else -> R.string.bill_rate_source_once
-        })
     }
     rows += stringResource(R.string.bill_time) to time.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE) + " " +
         time.toLocalTime().format(rememberClockFormatter())

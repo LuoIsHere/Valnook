@@ -96,11 +96,14 @@ val Bill.shownCurrencyCode: String get() =
     if (type == BillType.TRANSFER && transferKind == TransferKind.FROM_EXTERNAL) (toCurrency ?: accountCurrency).code
     else accountCurrency.code
 
-/** The name of one side of a bill: its sub-account, the outside party, or a deleted account. */
+/**
+ * The name of one side of a bill: its sub-account, the outside party, or no account, which is either a deleted one
+ * ([deleted]) or none at all.
+ */
 @Composable internal fun sideName(cashAccountId: Long?, accounts: Map<Long, BillAccountChoice>, external: Boolean,
-    counterparty: String): String = when {
+    counterparty: String, deleted: Boolean = true): String = when {
     external -> counterparty.ifBlank { stringResource(R.string.bill_external_account) }
-    cashAccountId == null -> stringResource(R.string.bill_deleted_account)
+    cashAccountId == null -> stringResource(if (deleted) R.string.bill_deleted_account else R.string.bill_no_account)
     else -> accounts[cashAccountId]?.label() ?: stringResource(R.string.bill_deleted_account)
 }
 

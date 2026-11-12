@@ -123,7 +123,7 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
     val time = Instant.ofEpochMilli(bill.occurredAtMs).atZone(ZoneId.systemDefault())
     val details = listOfNotNull(
         bill.note.takeIf { it.isNotBlank() },
-        if (transfer) null else sideName(bill.cashAccountId, state.accounts, false, ""),
+        if (transfer) null else sideName(bill.cashAccountId, state.accounts, false, "", bill.accountDeleted),
         time.toLocalTime().format(rememberClockFormatter()))
     val colors = MaterialTheme.colorScheme
     val counted = transfer || bill.countInStats

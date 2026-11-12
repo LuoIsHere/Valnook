@@ -108,6 +108,8 @@ data class BillEditorState(
     val error: ErrorCode? = null,
     /** Bumps on each save that keeps the page open ("record another"), for the page to acknowledge it. */
     val savedCount: Int = 0,
+    /** Confirm was pressed while something was missing: the page says what. */
+    val attempted: Boolean = false,
 )
 
 /**
@@ -139,12 +141,13 @@ class BillEditorViewModel(
     private val fxState = fx.stateIn(viewModelScope, SharingStarted.Eagerly, FxContext())
 
     private data class Meta(val loaded: Boolean, val revision: Long?, val failed: Boolean = false,
-        val phase: BillSavePhase = BillSavePhase.IDLE, val error: ErrorCode? = null, val savedCount: Int = 0)
+        val phase: BillSavePhase = BillSavePhase.IDLE, val error: ErrorCode? = null, val savedCount: Int = 0,
+        val attempted: Boolean = false)
 
     private val categories = bills.observeCategories().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val accounts = bills.observeAccountChoices().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-    private val notes = form.map { it.subCategoryId ?: it.categoryId }.distinctUntilChanged()
-        .flatMapLatest { id -> if (id == null) flowOf(emptyList()) else bills.observeRecentNotes(id) }
+    private val notes = form.map { it.categoryId to it.subCategoryId }.distinctUntilChanged()
+        .flatMapLatest { (category, sub) -> if (category == null) flowOf(emptyList()) else bills.observeRecentNotes(category, sub) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val state: StateFlow<BillEditorState> = combine(
@@ -156,12 +159,13 @@ class BillEditorViewModel(
         @Suppress("UNCHECKED_CAST") val a = parts[3] as List<BillAccountChoice>
         @Suppress("UNCHECKED_CAST") val n = parts[4] as List<String>
         BillEditorState(m.loaded, m.failed, billId != null, f, preview(f, a, settingsValue, fxValue, day), c, a, n,
-            settingsValue?.baseCurrency, fxValue.autoEnabled, m.phase, m.error, m.savedCount)
+            settingsValue?.baseCurrency, fxValue.autoEnabled, m.phase, m.error, m.savedCount, m.attempted)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BillEditorState(form = form.value,
         preview = preview(form.value, emptyList(), null, FxContext(), emptyMap())))
 
     init {
-        if (!meta.value.loaded) viewModelScope.launch { load() } else if (billId == null) viewModelScope.launch { chooseDefaults() }
+        // A new bill starts on no account; choosing a category brings the account it was last used with.
+        if (!meta.value.loaded) viewModelScope.launch { load() }
         // The stored rates of the bill's day, for its suggested rate.
         viewModelScope.launch {
             combine(form.map { it.occurredAt.toLocalDate() }.distinctUntilChanged(),
@@ -219,15 +223,6 @@ class BillEditorViewModel(
             countInStats = bill.countInStats,
             note = bill.note,
         )
-    }
-
-    /** A new bill's account: the last one used, else the first favourite, else the first account. */
-    private suspend fun chooseDefaults() {
-        if (form.value.cashAccountId != null) return
-        val choices = accounts.first { it.isNotEmpty() }
-        val last = runCatching { bills.lastUsedCashAccountId() }.getOrNull()?.takeIf { id -> choices.any { it.cashAccountId == id } }
-        val first = last ?: choices.filter { it.favorite }.minByOrNull { it.favoriteOrder }?.cashAccountId ?: choices.first().cashAccountId
-        if (form.value.cashAccountId == null) setForm(form.value.copy(cashAccountId = first))
     }
 
     private fun setForm(value: BillForm) {
@@ -326,10 +321,12 @@ class BillEditorViewModel(
             } }
             return
         }
+        if (state.value.preview.problem != null) { setMeta(meta.value.copy(attempted = true)); return }
         save(again)
     }
 
-    fun chooseAccount(cashAccountId: Long) = update { f ->
+    /** [cashAccountId] null keeps the bill on no account. */
+    fun chooseAccount(cashAccountId: Long?) = update { f ->
         val following = f.currencyCode == null
         f.copy(cashAccountId = cashAccountId, fromExternal = false, accountChosen = true,
             // A rate typed for the old pair no longer applies.
@@ -348,18 +345,23 @@ class BillEditorViewModel(
 
     fun chooseCurrency(code: String) = update { f ->
         val accountCurrency = accounts.value.firstOrNull { it.cashAccountId == f.cashAccountId }?.currency?.code
+            ?: settingsState.value?.baseCurrency?.code
         f.copy(currencyCode = code.takeIf { it != accountCurrency }, rate = null, accountAmount = null)
     }
 
-    /** A category tap: a top-level one opens its subcategories; a new bill also takes its remembered account. */
+    /**
+     * A category tap. Until the user picks the account themselves, a new bill takes the account the category was last
+     * used with: a top-level category's own (none when it has none), a subcategory's when it has one.
+     */
     fun chooseCategory(categoryId: Long, subCategoryId: Long?) = update { f ->
         val next = if (f.tab == BillTab.INCOME) f.copy(incomeCategoryId = categoryId, incomeSubId = subCategoryId)
             else f.copy(expenseCategoryId = categoryId, expenseSubId = subCategoryId)
         if (billId != null || f.accountChosen) next else {
             val all = categories.value
-            val remembered = listOfNotNull(subCategoryId, categoryId).firstNotNullOfOrNull { id -> all.firstOrNull { it.id == id }?.lastCashAccountId }
-                ?.takeIf { id -> accounts.value.any { it.cashAccountId == id } }
-            if (remembered == null) next else next.copy(cashAccountId = remembered,
+            fun remembered(id: Long) = all.firstOrNull { it.id == id }?.lastCashAccountId
+                ?.takeIf { account -> accounts.value.any { it.cashAccountId == account } }
+            val account = if (subCategoryId == null) remembered(categoryId) else remembered(subCategoryId) ?: next.cashAccountId
+            if (account == next.cashAccountId) next else next.copy(cashAccountId = account,
                 rate = if (next.currencyCode == null) null else next.rate, accountAmount = null)
         }
     }
@@ -425,6 +427,7 @@ class BillEditorViewModel(
                         saveAsManual = false))
                     setMeta(meta.value.copy(phase = BillSavePhase.IDLE, savedCount = meta.value.savedCount + 1))
                 } else setMeta(meta.value.copy(phase = BillSavePhase.SAVED))
+                setMeta(meta.value.copy(attempted = false))
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: DomainException) { setMeta(meta.value.copy(phase = BillSavePhase.IDLE, error = error.code)) }
             catch (_: Exception) { setMeta(meta.value.copy(phase = BillSavePhase.UNKNOWN)) }
@@ -477,8 +480,9 @@ class BillEditorViewModel(
             dayRates: Map<String, BigDecimal>): BillPreview {
             val own = accounts.firstOrNull { it.cashAccountId == f.cashAccountId }
             if (f.tab == BillTab.TRANSFER) return transferPreview(f, accounts, settings, fx, dayRates)
-            val accountCurrency = own?.currency
-            val currency = f.currencyCode?.let(Currency::of) ?: accountCurrency
+            // On no account the bill keeps its own currency (the base one unless chosen) and is not converted.
+            val currency = f.currencyCode?.let(Currency::of) ?: own?.currency ?: settings?.baseCurrency
+            val accountCurrency = own?.currency ?: currency
             val digits = currency?.fraction_digits ?: 2
             val amount = f.amount.minor(digits)
             val entered = f.discount.minor(digits)
@@ -520,7 +524,7 @@ class BillEditorViewModel(
                 f.amount.text.isNotEmpty() && f.amount.value(digits) == null -> BillProblem.DIVIDE
                 amount == null || amount <= 0 -> BillProblem.AMOUNT
                 discount < 0 || discount >= amount -> BillProblem.DISCOUNT
-                own == null -> BillProblem.ACCOUNT
+                f.cashAccountId != null && own == null -> BillProblem.ACCOUNT
                 f.categoryId == null -> BillProblem.CATEGORY
                 missingRate || converted == null || converted <= 0 -> BillProblem.RATE
                 else -> null
