@@ -37,4 +37,6 @@
     <string name="cash_limit_used">Used</string>
     <string name="cash_limit_available">Available</string>
     <string name="cash_limit_total">Total limit</string>
+    <string name="cash_count_in_stats">Count in income and expense</string>
+    <string name="cash_count_in_stats_hint">Saved as an expense or income under Other › Uncategorised and listed on the bills page; its category can be changed there.</string>
 </resources>

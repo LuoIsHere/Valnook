@@ -165,6 +165,48 @@ class CashViewModelTest {
         assertEquals(-2500L, request!!.balance_minor)
         assertEquals("Balance reconciliation", request!!.entryNote)
     }
+    /** Only the preset "other" categories, for a counted adjustment. */
+    private val bills = object : BillRepository {
+        private fun category(id: Long, kind: BillCategoryKind, parent: Long?, key: String) =
+            BillCategory(id, kind, parent, key, null, "shapes", "grey", 0, false, null, 1)
+        override fun observeCategories() = flowOf(listOf(category(10, BillCategoryKind.EXPENSE, null, "other"),
+            category(11, BillCategoryKind.EXPENSE, 10, "other.uncategorized"),
+            category(20, BillCategoryKind.INCOME, null, "income.other"),
+            category(21, BillCategoryKind.INCOME, 20, "income.other.uncategorized")))
+        override fun observeBill(billId: Long) = flowOf<Bill?>(null)
+        override fun observeMonth(month: java.time.YearMonth, zone: java.time.ZoneId) = flowOf(emptyList<Bill>())
+        override fun observeSearch(query: String, limit: Int) = flowOf(emptyList<Bill>())
+        override fun observeFirstBillAt() = flowOf<Long?>(null)
+        override fun observeAccountChoices() = flowOf(emptyList<BillAccountChoice>())
+        override fun observeRecentNotes(categoryId: Long, subCategoryId: Long?, limit: Int) = flowOf(emptyList<String>())
+        override suspend fun categoryUsage(categoryId: Long) = 0
+    }
+
+    @Test fun a_counted_adjustment_is_saved_as_an_expense_or_income_bill() = runTest(dispatcher) {
+        val requests = mutableListOf<FinancialCommand>()
+        val commands = object : FinancialCommands {
+            override suspend fun execute(command: FinancialCommand): OperationResult {
+                requests += command
+                return OperationResult("BILL", 3)
+            }
+        }
+        val clock = java.time.Clock.fixed(java.time.Instant.parse("2026-11-12T04:00:00Z"), java.time.ZoneOffset.UTC)
+        val vm = CashBalanceEditViewModel(1, 1, reads, commands, SavedStateHandle(), bills, clock)
+        runCurrent()
+        assertTrue(vm.state.value.billsAvailable)
+        val before = vm.state.value.account!!.balance_minor
+        vm.changeCountInStats(true)
+        vm.changeNote("Synthetic snack")
+        vm.changeBalance(dev.valnook.domain.money.DecimalRules.format_units(before - 1_250, 3))
+        vm.submit(); runCurrent()
+        val bill = (requests.single() as SaveBill).draft
+        assertEquals(listOf(BillType.EXPENSE, 1_250L, 1_250L, 1L, 10L, 11L), listOf(bill.type, bill.amountMinor,
+            bill.accountAmountMinor, bill.cashAccountId, bill.categoryId, bill.subCategoryId))
+        assertEquals("KWD", bill.currencyCode)
+        assertEquals("Synthetic snack", bill.note)
+        assertEquals(clock.millis(), bill.occurredAtMs)
+    }
+
     @Test fun restored_editor_waits_for_account_before_displaying_saved_draft() = runTest(dispatcher) {
         val commands = object : FinancialCommands {
             override suspend fun execute(command: FinancialCommand) = OperationResult("CASH_ENTRY", 2)

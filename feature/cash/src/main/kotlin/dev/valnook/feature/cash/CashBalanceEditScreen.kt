@@ -80,6 +80,14 @@ data class CashBalanceToolbarState(val busy:Boolean,val enabled:Boolean,val labe
         } }
         OutlinedTextField(state.entryNote,vm::changeNote,enabled=submission.editable,modifier=Modifier.fillMaxWidth().testTag("cash-balance-note"),
             label={Text(stringResource(R.string.cash_note))},minLines=2,maxLines=5,shape=MaterialTheme.shapes.medium)
+        // Counted, the change is kept as an expense or income and listed on the bills page.
+        if(state.billsAvailable) GlassCard {
+            FormSwitchRow(stringResource(R.string.cash_count_in_stats),state.countInStats,vm::changeCountInStats,
+                Modifier.testTag("cash-balance-count-in-stats"),enabled=submission.editable)
+            if(state.countInStats) Text(stringResource(R.string.cash_count_in_stats_hint),
+                Modifier.padding(start=16.dp,end=16.dp,bottom=12.dp),style=MaterialTheme.typography.bodySmall,
+                color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         ErrorMessage(submission.error?.name)
         if(retry)HintMessage(stringResource(R.string.cash_review_retry))
     }

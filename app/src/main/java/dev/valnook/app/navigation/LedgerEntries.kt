@@ -20,7 +20,7 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
     }
     entry<CashBalanceEditKey> { route ->
         val vm = pageViewModel { CashBalanceEditViewModel(route.accountId, route.cashAccountId,
-            graph.cash, graph.commands, createSavedStateHandle()) }
+            graph.cash, graph.commands, createSavedStateHandle(), graph.bills, graph.clock) }
         CashBalanceEditScreen(vm, back, onBalanceToolbar)
     }
     entry<CashEntryKey> { route ->

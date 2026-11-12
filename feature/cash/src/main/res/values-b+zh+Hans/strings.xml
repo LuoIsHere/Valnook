@@ -37,4 +37,6 @@
     <string name="cash_limit_used">已用</string>
     <string name="cash_limit_available">可用</string>
     <string name="cash_limit_total">总额度</string>
+    <string name="cash_count_in_stats">计入收支</string>
+    <string name="cash_count_in_stats_hint">保存为一笔支出或收入，分类为“其他 › 未分类”，显示在记账页，可在账单里改分类。</string>
 </resources>
