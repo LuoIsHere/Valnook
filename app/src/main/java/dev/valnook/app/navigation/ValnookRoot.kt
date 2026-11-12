@@ -498,7 +498,7 @@ private fun SessionRoot(
                                 dev.valnook.feature.bills.BillCategoriesScreen(pageViewModel {
                                     dev.valnook.feature.bills.BillCategoriesViewModel(requireNotNull(graph.bills), graph.commands,
                                         createSavedStateHandle())
-                                })
+                                }, toolbars.onBillCategories)
                             }
                             entry<HiddenWalletKey> { walletPage() }
                             val statisticsPage = @Composable {

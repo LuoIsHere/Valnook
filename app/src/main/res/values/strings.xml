@@ -48,4 +48,5 @@
     <string name="title_bill_categories">Bill categories</string>
     <string name="nav_bill_search">Search notes</string>
     <string name="nav_bill_search_close">Close search</string>
+    <string name="nav_add_bill_category">Add category</string>
 </resources>

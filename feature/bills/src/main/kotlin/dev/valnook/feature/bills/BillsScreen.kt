@@ -112,19 +112,26 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
     }
 }
 
-/** One bill: its category (or transfer) icon, title, details and the amount its own account moved. */
+/**
+ * One bill: its category (or transfer) icon, title, details and the amount its own account moved. The note leads
+ * when there is one, with the category ("food-lunch") or the transfer under it; otherwise the category is the title.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable internal fun BillRow(bill: Bill, state: BillsState, onOpen: () -> Unit, onCopy: () -> Unit, showDivider: Boolean) {
     val category = bill.categoryId?.let(state.categories::get)
     val sub = bill.subCategoryId?.let(state.categories::get)
     val shownCategory = sub ?: category
     val transfer = bill.type == BillType.TRANSFER
-    val title = if (transfer) transferTitle(bill, state.accounts) else categoryName(shownCategory)
+    val kind = if (transfer) transferTitle(bill, state.accounts)
+        else if (category != null && sub != null) categoryName(category) + "-" + categoryName(sub) else categoryName(shownCategory)
+    val note = bill.note.takeIf { it.isNotBlank() }
+    val title = note ?: kind
     val time = Instant.ofEpochMilli(bill.occurredAtMs).atZone(ZoneId.systemDefault())
+    // The time leads, so a long account name cannot push it out of the row.
     val details = listOfNotNull(
-        bill.note.takeIf { it.isNotBlank() },
-        if (transfer) null else sideName(bill.cashAccountId, state.accounts, false, "", bill.accountDeleted),
-        time.toLocalTime().format(rememberClockFormatter()))
+        time.toLocalTime().format(rememberClockFormatter()),
+        if (note != null) kind else null,
+        if (transfer) null else sideName(bill.cashAccountId, state.accounts, false, "", bill.accountDeleted))
     val colors = MaterialTheme.colorScheme
     val counted = transfer || bill.countInStats
     val future = time.toLocalDate().isAfter(LocalDate.now())

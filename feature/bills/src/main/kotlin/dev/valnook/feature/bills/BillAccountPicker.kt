@@ -24,6 +24,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -111,9 +112,15 @@ enum class PickerOption { NO_ACCOUNT, EXTERNAL }
                         }
                     }
                     when {
-                        arranging -> ReorderList(favorites.map { ReorderItem(it.cashAccountId.toString(), it.label(), it.currency.code) },
-                            { keys -> onFavorites(keys.map(String::toLong)) }, stringResource(R.string.bill_arrange),
-                            stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down), Modifier.weight(1f))
+                        arranging -> {
+                            val byKey = favorites.associateBy { it.cashAccountId.toString() }
+                            ReorderList(favorites.map { ReorderItem(it.cashAccountId.toString(), it.label(), it.currency.code) },
+                                { keys -> onFavorites(keys.map(String::toLong)) }, stringResource(R.string.bill_arrange),
+                                stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down), Modifier.weight(1f),
+                                leadingContent = { item -> byKey[item.key]?.let { AccountAvatar(it.iconSymbol, it.iconImageKey, size = 36.dp) } },
+                                rowColor = Color.Transparent, draggedColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                dividerInset = 56.dp)
+                        }
                         expanded -> {
                             GlassTextField(query, { query = it }, stringResource(R.string.bill_search_accounts),
                                 Modifier.fillMaxWidth().testTag("bill-account-search"))

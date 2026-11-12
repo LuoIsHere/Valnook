@@ -14,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -95,10 +97,28 @@ class BillCategoriesViewModel(private val bills: BillRepository, private val com
     fun clearError() { ui.value = ui.value.copy(error = null) }
 }
 
-@Composable fun BillCategoriesScreen(vm: BillCategoriesViewModel) {
+/** What the categories page puts in the title bar: adding a category. */
+data class BillCategoriesToolbarState(val add: () -> Unit)
+
+@Composable fun BillCategoriesScreen(vm: BillCategoriesViewModel, onToolbar: (BillCategoriesToolbarState?) -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
     val english = englishNames()
     var editing by remember { mutableStateOf<CategoryDraft?>(null) }
+    DisposableEffect(Unit) {
+        onToolbar(BillCategoriesToolbarState { editing = CategoryDraft(null, null, null, null, "", "shapes", "blue") })
+        onDispose { onToolbar(null) }
+    }
+    val byKey = state.categories.associateBy { it.id.toString() }
+    val sortIcon: @Composable (ReorderItem) -> Unit = { item ->
+        byKey[item.key]?.let { CategoryIcon(it.iconKey, it.colorKey, size = 30.dp) }
+    }
+    val sortRow = Color.Transparent
+    // A sort list is as tall as its rows (the grip, or the name with its padding, plus the divider): a capped height
+    // alone leaves the list at its cap with blank space under the last row. The last divider is left out: the card
+    // ends there, or draws its own line.
+    val lineHeight = with(LocalDensity.current) { MaterialTheme.typography.bodyLarge.lineHeight.toDp() }
+    val sortRowHeight = maxOf(48.dp, lineHeight + 20.dp) + 1.dp
+    val sortDragged = MaterialTheme.colorScheme.surfaceContainerHighest
     val scope = rememberCoroutineScope()
     val tops = state.categories.filter { it.parentId == null }
     fun open(category: BillCategory) {
@@ -126,9 +146,12 @@ class BillCategoriesViewModel(private val bills: BillRepository, private val com
         }
         state.error?.let { item { ErrorMessage(it.name) } }
         if (state.arrangingTop) item {
-            ReorderList(tops.map { ReorderItem(it.id.toString(), categoryName(it)) }, { keys -> vm.reorder(null, keys.map(String::toLong)) },
-                stringResource(R.string.bill_arrange), stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down),
-                Modifier.heightIn(max = 2000.dp))
+            GlassCard {
+                ReorderList(tops.map { ReorderItem(it.id.toString(), categoryName(it)) }, { keys -> vm.reorder(null, keys.map(String::toLong)) },
+                    stringResource(R.string.bill_arrange), stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down),
+                    Modifier.height(sortRowHeight * tops.size - 1.dp), leadingContent = sortIcon, rowColor = sortRow, draggedColor = sortDragged,
+                    dividerInset = 50.dp)
+            }
         } else tops.forEach { top ->
             val subs = state.categories.filter { it.parentId == top.id }
             item(key = "category-${top.id}") {
@@ -136,7 +159,9 @@ class BillCategoriesViewModel(private val bills: BillRepository, private val com
                     CategoryLine(top, { open(top) }, { vm.setHidden(top, !top.hidden) }, sub = false)
                     if (state.arranging == top.id) ReorderList(subs.map { ReorderItem(it.id.toString(), categoryName(it)) },
                         { keys -> vm.reorder(top.id, keys.map(String::toLong)) }, stringResource(R.string.bill_arrange),
-                        stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down), Modifier.heightIn(max = 1200.dp))
+                        stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down), Modifier.height(sortRowHeight * subs.size - 1.dp),
+                        contentPadding = PaddingValues(start = 28.dp), leadingContent = sortIcon, rowColor = sortRow,
+                        draggedColor = sortDragged, dividerInset = 50.dp)
                     else subs.forEach { sub -> FormDivider(); CategoryLine(sub, { open(sub) }, { vm.setHidden(sub, !sub.hidden) }, sub = true) }
                     FormDivider()
                     Row(Modifier.padding(horizontal = 8.dp)) {
@@ -149,10 +174,6 @@ class BillCategoriesViewModel(private val bills: BillRepository, private val com
                     }
                 }
             }
-        }
-        item {
-            ActionButton({ editing = CategoryDraft(null, null, null, null, "", "shapes", "blue") },
-                Modifier.fillMaxWidth().testTag("bill-add-category")) { Text(stringResource(R.string.bill_add_category)) }
         }
     }
     editing?.let { draft ->

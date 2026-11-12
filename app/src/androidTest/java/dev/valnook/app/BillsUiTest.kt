@@ -87,8 +87,8 @@ class BillsUiTest {
         androidx.test.espresso.Espresso.pressBack()
         waitTag("bills-list")
 
-        // Edit: the amount goes from 60 to 45, and the balance follows.
-        rule.onNodeWithText("午餐").performClick()
+        // Edit: the amount goes from 60 to 45, and the balance follows. With no note the row shows "category-subcategory".
+        rule.onNodeWithText("餐饮-午餐").performClick()
         waitTag("bill-edit")
         rule.onNodeWithTag("bill-edit").performClick()
         waitTag("bill-editor")
@@ -131,7 +131,6 @@ class BillsUiTest {
     @Test fun a_new_category_with_its_own_icon_appears_on_the_form() {
         rule.onNodeWithTag("bills-categories").performClick()
         waitTag("bill-categories")
-        rule.onNodeWithTag("bill-categories").performScrollToNode(hasTestTag("bill-add-category"))
         rule.onNodeWithTag("bill-add-category").performClick()
         waitTag("bill-category-editor")
         input("bill-category-name", "合成宠物")

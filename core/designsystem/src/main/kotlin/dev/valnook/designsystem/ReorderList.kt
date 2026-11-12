@@ -1,5 +1,10 @@
 package dev.valnook.designsystem
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.takeOrElse
+import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -52,7 +57,12 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
     modifier: Modifier = Modifier, enabled: Boolean = true,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     leadingContent: (@Composable (ReorderItem) -> Unit)? = null,
-    headerContent: (@Composable (ReorderItem) -> Unit)? = null) {
+    headerContent: (@Composable (ReorderItem) -> Unit)? = null,
+    /** Rows on a card or sheet pass [Color.Transparent] to take its colour; unspecified is the page surface. */
+    rowColor: Color = Color.Unspecified,
+    /** The row being dragged; it needs its own colour so it reads over its neighbours. */
+    draggedColor: Color = Color.Unspecified,
+    dividerInset: Dp = 0.dp) {
     val listState = rememberLazyListState()
     val latestItems by rememberUpdatedState(items)
     val latestReorder by rememberUpdatedState(onReorder)
@@ -143,7 +153,9 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                         val offset = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
                         translationY = if (dragging) startOffset + distance - offset else 0f
                     }.zIndex(if (dragging) 1f else 0f)) {
-                    Surface(color = if (dragging) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surface) {
+                    Surface(color = if (dragging) draggedColor.takeOrElse { MaterialTheme.colorScheme.surfaceContainerHigh }
+                        else rowColor.takeOrElse { MaterialTheme.colorScheme.surface },
+                        shape = if (dragging) RoundedCornerShape(12.dp) else RectangleShape) {
                         Row(Modifier.fillMaxWidth().testTag("sort-row-$key").padding(start = 12.dp),
                             verticalAlignment = Alignment.CenterVertically) {
                             if (leadingContent != null) { leadingContent(item); Spacer(Modifier.width(8.dp)) }
@@ -171,7 +183,7 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                             }.padding(14.dp), handleColor)
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(Modifier.padding(start = dividerInset), color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }

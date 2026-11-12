@@ -48,4 +48,5 @@
     <string name="title_bill_categories">账单分类</string>
     <string name="nav_bill_search">搜索备注</string>
     <string name="nav_bill_search_close">关闭搜索</string>
+    <string name="nav_add_bill_category">添加分类</string>
 </resources>

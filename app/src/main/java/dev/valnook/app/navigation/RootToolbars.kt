@@ -37,6 +37,8 @@ internal class RootToolbars {
     var accountGroups by mutableStateOf<AccountGroupsToolbarState?>(null); private set
     val onAccountGroups: (AccountGroupsToolbarState?) -> Unit = { accountGroups = it }
     var bills by mutableStateOf<dev.valnook.feature.bills.BillsToolbarState?>(null); private set
+    var billCategories by mutableStateOf<dev.valnook.feature.bills.BillCategoriesToolbarState?>(null); private set
+    val onBillCategories: (dev.valnook.feature.bills.BillCategoriesToolbarState?) -> Unit = { billCategories = it }
     val onBills: (dev.valnook.feature.bills.BillsToolbarState?) -> Unit = { bills = it }
     var walletFaces by mutableStateOf<WalletFaceLibraryToolbar?>(null); private set
     val onWalletFaces: (WalletFaceLibraryToolbar?) -> Unit = { walletFaces = it }

@@ -91,6 +91,11 @@ internal fun RootTopBarActions(current: NavKey, walletDetail: Boolean, wallet: W
                 dev.valnook.designsystem.FaIcon(dev.valnook.designsystem.FaIcons.tags, null, Modifier.size(20.dp))
             }
         }
+        BillCategoriesKey -> {
+            val addLabel = stringResource(R.string.nav_add_bill_category)
+            IconButton({ toolbars.billCategories?.add?.invoke() }, Modifier.testTag("bill-add-category")
+                .semantics { contentDescription = addLabel }) { dev.valnook.designsystem.AddIcon() }
+        }
         WalletKey, HiddenWalletKey -> if (!walletDetail) {
             val addCardDescription = dev.valnook.feature.wallet.walletAddLabel()
             IconButton({ wallet?.add?.invoke() }, Modifier.testTag("wallet-add").semantics {
