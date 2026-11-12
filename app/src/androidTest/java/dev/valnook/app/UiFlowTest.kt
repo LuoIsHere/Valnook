@@ -213,9 +213,26 @@ class UiFlowTest {
     private fun window_shot(name:String,bottom_action:String?=null) {
         val action=bottom_action?.let{rule.onNodeWithText(it).performScrollTo().assertIsDisplayed()}
         rule.waitForIdle()
-        rule.waitUntil(5000){rule.runOnUiThread {
+        val ime_hidden={rule.runOnUiThread {
             ViewCompat.getRootWindowInsets(rule.activity.window.decorView)?.isVisible(WindowInsetsCompat.Type.ime())!=true
         }}
+        // On Android 13 the window's insets can keep reporting the IME as shown after an IME action has closed it; the
+        // input method service's own state is then the one to trust.
+        val ime_service_hidden={
+            val out=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation
+                .executeShellCommand("dumpsys input_method")
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(out).bufferedReader().use { it.readText() }
+                .contains("mInputShown=false")
+        }
+        try { rule.waitUntil(5000,ime_hidden) } catch (_: androidx.compose.ui.test.ComposeTimeoutException) {
+            if (!ime_service_hidden()) {
+                rule.runOnUiThread {
+                    androidx.core.view.WindowCompat.getInsetsController(rule.activity.window,rule.activity.window.decorView)
+                        .hide(WindowInsetsCompat.Type.ime())
+                }
+                rule.waitUntil(5000){ ime_hidden() || ime_service_hidden() }
+            }
+        }
         // Platform IME/dialog animations are not driven by Compose's test clock.
         android.os.SystemClock.sleep(300)
         val nav_bottom=rule.runOnUiThread {
