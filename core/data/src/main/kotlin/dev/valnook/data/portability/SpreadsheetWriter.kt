@@ -311,7 +311,11 @@ internal class SpreadsheetWriter(
         return count
     }
 
-    /** Every bill, newest first: what was paid, what each account moved, and how it was converted. */
+    /**
+     * Every bill, newest first: what was paid, what each account moved, and how it was converted. A refund or
+     * reimbursement names its original bill; an expense says whether it is to be paid back and what came back for it.
+     * The columns added for these follow the bill ID, so the earlier ones keep their places.
+     */
     private fun writeBills(file: File, english: Boolean): Long {
         var count = 0L
         val deleted = label(english, "已删除的账户", "Deleted account")
@@ -325,13 +329,16 @@ internal class SpreadsheetWriter(
                 "优惠" to "Discount", "实付" to "Paid", "币种" to "Currency", "账户" to "Account", "账户币种" to "Account currency",
                 "账户金额" to "Account amount", "汇率" to "Rate", "汇率来源" to "Rate source", "转入账户" to "To account",
                 "转入币种" to "To currency", "转入金额" to "Amount received", "手续费" to "Fee", "对方" to "Counterparty",
-                "计入收支" to "Counted", "备注" to "Note", "账单 ID" to "Bill ID"
+                "计入收支" to "Counted", "备注" to "Note", "账单 ID" to "Bill ID", "原账单 ID" to "Original bill ID",
+                "需要报销" to "To be paid back", "报销状态" to "Reimbursement state", "已退款" to "Refunded", "已报销" to "Paid back"
             ).map { (zh, en) -> header(label(english, zh, en)) }.toTypedArray())
             db.openHelper.readableDatabase.query("""
                 SELECT b.occurred_at_ms,b.type,b.transfer_kind,c.builtin_key,c.custom_name,s.builtin_key,s.custom_name,
                     b.amount_minor,b.discount_minor,b.currency_code,a.name,ca.name,b.account_currency_code,b.account_amount_minor,
                     b.rate,b.rate_source,ta.name,tc.name,b.to_currency_code,b.to_amount_minor,b.fee_minor,b.counterparty,
-                    b.count_in_stats,b.note,b.id,b.account_deleted
+                    b.count_in_stats,b.note,b.id,b.account_deleted,b.parent_id,b.reimbursable,b.reimburse_state,
+                    (SELECT COALESCE(SUM(r.amount_minor),0) FROM bill_entries r WHERE r.parent_id=b.id AND r.is_deleted=0 AND r.type='REFUND'),
+                    (SELECT COALESCE(SUM(r.amount_minor),0) FROM bill_entries r WHERE r.parent_id=b.id AND r.is_deleted=0 AND r.type='REIMBURSEMENT')
                 FROM bill_entries b
                 LEFT JOIN bill_categories c ON c.id=b.category_id LEFT JOIN bill_categories s ON s.id=b.sub_category_id
                 LEFT JOIN cash_accounts ca ON ca.id=b.cash_account_id LEFT JOIN savings_accounts a ON a.id=ca.savings_account_id
@@ -368,6 +375,14 @@ internal class SpreadsheetWriter(
                         else -> ""
                     }
                     val transferred = type == "TRANSFER"
+                    val expense = type == "EXPENSE"
+                    val reimbursable = expense && cursor.getInt(27) != 0
+                    val state = if (!reimbursable) "" else when (cursor.getString(28)) {
+                        "PARTIAL" -> label(english, "部分回款", "Partly paid back")
+                        "DONE" -> label(english, "已回款", "Paid back")
+                        "WAIVED" -> label(english, "已放弃", "Given up")
+                        else -> label(english, "待回款", "Waiting")
+                    }
                     sheet.row(
                         text(instantText(cursor.getLong(0))), text(typeName),
                         text(if (transferred) "" else category(str(3), str(4))), text(category(str(5), str(6))),
@@ -382,7 +397,12 @@ internal class SpreadsheetWriter(
                         text(cursor.getString(21)),
                         text(if (transferred) "" else label(english, if (cursor.getInt(22) != 0) "是" else "否",
                             if (cursor.getInt(22) != 0) "Yes" else "No")),
-                        text(cursor.getString(23)), id(cursor.getLong(24)))
+                        text(cursor.getString(23)), id(cursor.getLong(24)),
+                        if (cursor.isNull(26)) text("") else id(cursor.getLong(26)),
+                        text(if (!expense) "" else label(english, if (reimbursable) "是" else "否", if (reimbursable) "Yes" else "No")),
+                        text(state),
+                        if (!expense || cursor.getLong(29) == 0L) text("") else minor(cursor.getLong(29), currency),
+                        if (!expense || cursor.getLong(30) == 0L) text("") else minor(cursor.getLong(30), currency))
                     count++
                 }
             }

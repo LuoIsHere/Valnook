@@ -318,4 +318,26 @@ class BillsUiTest {
         rule.waitUntil(8_000) { rule.onAllNodesWithTag("reimbursement-$trip").fetchSemanticsNodes().isEmpty() }
         rule.onNodeWithTag("reimbursement-$dinner").assertExists()
     }
+
+    /** What is left of an expense to be paid back can be given up, and waited for again. */
+    @Test fun what_is_left_can_be_given_up_and_waited_for_again() {
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        fun key(value: String) = categories.single { it.builtinKey == value }.id
+        val gift = runBlocking {
+            graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(BillType.EXPENSE,
+                graph.clock.millis() - 60_000, 2_000, "CNY", 0, cashId, 2_000, categoryId = key("social"),
+                subCategoryId = key("social.gifts"), countInStats = false, reimbursable = true))).id
+        }
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("bill-row-$gift").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("bill-row-$gift").performClick()
+        waitTag("bill-waive")
+        rule.onNodeWithTag("bill-waive").performScrollTo().performClick()
+        rule.waitUntil(8_000) { runBlocking { db.bills().bill(gift)!!.reimburse_state } == "WAIVED" }
+        waitTag("bill-unwaive")
+        // Given up, nothing more can be paid back until it is waited for again.
+        assertTrue(rule.onAllNodesWithTag("bill-reimburse").fetchSemanticsNodes().isEmpty())
+        rule.onNodeWithTag("bill-unwaive").performScrollTo().performClick()
+        rule.waitUntil(8_000) { runBlocking { db.bills().bill(gift)!!.reimburse_state } == "PENDING" }
+        waitTag("bill-reimburse")
+    }
 }

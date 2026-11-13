@@ -322,6 +322,10 @@ class BillDataTest {
         val (a, b, _) = accounts()
         save(expense(a, 3_500, discount = 500))
         save(transfer(a, null, 1_000, TransferKind.TO_EXTERNAL, counterparty = "Synthetic friend"))
+        // An expense to be paid back, with a refund and a reimbursement that name it.
+        val trip = save(expense(a, 8_800).copy(reimbursable = true, countInStats = false, counterparty = "Synthetic Employer"))
+        commands.execute(SettleBill(id(), trip, 1, BillType.REFUND, SettlementDraft(now, 800, a, 800)))
+        commands.execute(SettleBill(id(), trip, 2, BillType.REIMBURSEMENT, SettlementDraft(now, 3_000, b, 3_000)))
         val build = AppBuildInfo("valnook", "0.0.19", 1901, "20261112.1", "20261112.1", DATABASE_SCHEMA_VERSION)
         val output = ByteArrayOutputStream()
         RoomPortabilityEngine(context, db, clock, build).exportWorkbook(id(), AppLanguage.ENGLISH, false, output) {}
@@ -335,6 +339,8 @@ class BillDataTest {
             .maxBy { it.key.removePrefix("xl/worksheets/sheet").removeSuffix(".xml").toInt() }.value
         assertTrue(sheet.contains("Synthetic lunch"))
         listOf("Expense", "Lunch", "Transfer", "Synthetic friend", "35", "30").forEach { assertTrue(it, sheet.contains(it)) }
+        listOf("Original bill ID", "Reimbursement state", "Refund", "Reimbursement", "Synthetic Employer", "Partly paid back")
+            .forEach { assertTrue(it, sheet.contains(it)) }
         assertFalse(sheet.contains(b.toString() + " · "))
     }
 
