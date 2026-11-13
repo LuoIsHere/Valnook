@@ -161,4 +161,9 @@
     <string name="reimbursements_batch_amount">Amount (%1$s, at most %2$s)</string>
     <string name="reimbursements_batch_received">Received %1$s %2$s</string>
     <string name="reimbursements_batch_no_rate">No %1$s→%2$s rate: pay this one back on its own</string>
+    <string name="bills_scope_current">This month</string>
+    <string name="bills_scope_month">Month</string>
+    <string name="bills_scope_year">Year</string>
+    <string name="bills_scope_year_value">%1$d</string>
+    <string name="bills_scope_all">All</string>
 </resources>

@@ -340,4 +340,47 @@ class BillsUiTest {
         rule.waitUntil(8_000) { runBlocking { db.bills().bill(gift)!!.reimburse_state } == "PENDING" }
         waitTag("bill-reimburse")
     }
+
+    /** A note search looks in the month on screen unless told to look in another month, a year or everywhere. */
+    @Test fun a_search_looks_in_the_month_on_screen_unless_told_otherwise() {
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        fun key(value: String) = categories.single { it.builtinKey == value }.id
+        val now = java.time.Instant.ofEpochMilli(graph.clock.millis()).atZone(graph.clock.zone)
+        fun coffee(at: java.time.ZonedDateTime, note: String) = runBlocking {
+            graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(BillType.EXPENSE,
+                at.toInstant().toEpochMilli(), 1_000, "CNY", 0, cashId, 1_000, categoryId = key("food"),
+                subCategoryId = key("food.drinks"), note = note))).id
+        }
+        val lastMonth = now.minusMonths(1)
+        coffee(now.minusHours(1), "合成咖啡 本月")
+        coffee(lastMonth, "合成咖啡 上月")
+        coffee(now.minusYears(1), "合成咖啡 去年")
+        fun shown(note: String) = rule.onAllNodesWithText(note).fetchSemanticsNodes().isNotEmpty()
+        rule.onNodeWithTag("bills-search-toggle").performClick()
+        waitTag("bills-search")
+        input("bills-search", "合成咖啡")
+        rule.waitUntil(8_000) { shown("合成咖啡 本月") }
+        assertTrue(!shown("合成咖啡 上月") && !shown("合成咖啡 去年"))
+
+        rule.onNodeWithTag("bills-scope-all").performClick()
+        rule.waitUntil(8_000) { shown("合成咖啡 上月") && shown("合成咖啡 去年") }
+
+        rule.onNodeWithTag("bills-scope-year").performClick()
+        rule.onNodeWithTag("bills-scope-year-${now.year}").performClick()
+        rule.waitUntil(8_000) { !shown("合成咖啡 去年") }
+        // Last month may still be this year or, in January, the year before.
+        assertEquals(lastMonth.year == now.year, shown("合成咖啡 上月"))
+
+        rule.onNodeWithTag("bills-scope-month").performClick()
+        rule.onNodeWithTag("bills-scope-month-${java.time.YearMonth.from(lastMonth)}").performClick()
+        rule.waitUntil(8_000) { shown("合成咖啡 上月") && !shown("合成咖啡 本月") }
+
+        // Closing the search forgets its scope.
+        rule.onNodeWithTag("bills-search-toggle").performClick()
+        rule.onNodeWithTag("bills-search-toggle").performClick()
+        waitTag("bills-search")
+        input("bills-search", "合成咖啡")
+        rule.waitUntil(8_000) { shown("合成咖啡 本月") }
+        assertTrue(!shown("合成咖啡 上月"))
+    }
 }

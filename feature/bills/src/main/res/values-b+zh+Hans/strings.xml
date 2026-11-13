@@ -160,4 +160,9 @@
     <string name="reimbursements_batch_amount">回款金额（%1$s，最多 %2$s）</string>
     <string name="reimbursements_batch_received">到账 %1$s %2$s</string>
     <string name="reimbursements_batch_no_rate">没有 %1$s→%2$s 的汇率，请单独回款这一笔</string>
+    <string name="bills_scope_current">当月</string>
+    <string name="bills_scope_month">按月</string>
+    <string name="bills_scope_year">按年</string>
+    <string name="bills_scope_year_value">%1$d年</string>
+    <string name="bills_scope_all">全部</string>
 </resources>

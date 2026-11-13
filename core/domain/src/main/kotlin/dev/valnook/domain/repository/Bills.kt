@@ -104,6 +104,9 @@ interface BillRepository {
     fun observeMonth(month: YearMonth, zone: ZoneId): Flow<List<Bill>>
     /** Bills whose note contains [query], newest first. */
     fun observeSearch(query: String, limit: Int = 200): Flow<List<Bill>>
+    /** Bills whose note contains [query] dated from [startMs] up to before [endMs] (either open when null), newest first. */
+    fun observeSearch(query: String, startMs: Long?, endMs: Long?, limit: Int = 500): Flow<List<Bill>> =
+        observeSearch(query, limit)
     /** The earliest month that has a bill, if any. */
     fun observeFirstBillAt(): Flow<Long?>
     fun observeAccountChoices(): Flow<List<BillAccountChoice>>

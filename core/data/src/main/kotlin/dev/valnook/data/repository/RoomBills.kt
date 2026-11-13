@@ -34,9 +34,11 @@ class RoomBills(private val db: ValnookDatabase) : BillRepository {
         return dao.observeRange(start, end).map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
     }
 
-    override fun observeSearch(query: String, limit: Int): Flow<List<Bill>> {
+    override fun observeSearch(query: String, limit: Int): Flow<List<Bill>> = observeSearch(query, null, null, limit)
+
+    override fun observeSearch(query: String, startMs: Long?, endMs: Long?, limit: Int): Flow<List<Bill>> {
         val escaped = query.trim().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        return dao.observeSearch(escaped, limit).map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
+        return dao.observeSearch(escaped, startMs, endMs, limit).map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
     }
 
     override fun observeFirstBillAt(): Flow<Long?> = dao.observeFirstBillAt().distinctUntilChanged()

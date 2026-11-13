@@ -45,7 +45,8 @@ data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Uni
     val state by vm.state.collectAsStateWithLifecycle()
     var searching by rememberSaveable { mutableStateOf(state.query.isNotEmpty()) }
     val locale = LocalConfiguration.current.locales[0]
-    val toggle = remember(vm) { { searching = !searching; if (!searching) vm.setQuery("") } }
+    // Closing the search forgets it, its scope included, so the next one starts from the month on screen.
+    val toggle = remember(vm) { { searching = !searching; if (!searching) { vm.setQuery(""); vm.setScope(null) } } }
     DisposableEffect(searching) {
         onToolbar(BillsToolbarState(searching) { toggle() })
         onDispose { onToolbar(null) }
@@ -54,9 +55,11 @@ data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Uni
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item(key = "header") {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                if (searching) GlassTextField(state.query, vm::setQuery, stringResource(R.string.bill_search_notes),
-                    Modifier.fillMaxWidth().testTag("bills-search"))
-                else MonthHeader(state, vm)
+                if (searching) {
+                    GlassTextField(state.query, vm::setQuery, stringResource(R.string.bill_search_notes),
+                        Modifier.fillMaxWidth().testTag("bills-search"))
+                    SearchScopeRow(state, vm, locale)
+                } else MonthHeader(state, vm)
                 FilterRow(state, vm)
             }
         }
@@ -83,6 +86,42 @@ data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Uni
 }
 
 /** The month's expense large, its income and balance small under it, and the month switcher below. */
+/** Where the search looks: the month on screen, one chosen month or year, or everywhere. */
+@Composable private fun SearchScopeRow(state: BillsState, vm: BillsViewModel, locale: java.util.Locale) {
+    var menu by remember { mutableStateOf<String?>(null) }
+    val scope = state.scope
+    Row(Modifier.fillMaxWidth().bleedHorizontally(16.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp)
+        .testTag("bills-search-scope"), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+        FilterChip(scope == null, { vm.setScope(null) }, { Text(stringResource(R.string.bills_scope_current)) },
+            Modifier.testTag("bills-scope-current"))
+        Box {
+            FilterChip(scope is BillSearchScope.Month, { menu = "month" }, {
+                Text((scope as? BillSearchScope.Month)?.let { localMonthLabel(it.month, locale) } ?: stringResource(R.string.bills_scope_month))
+            }, Modifier.testTag("bills-scope-month"), trailingIcon = { FaIcon(FaIcons.chevronDown, null, Modifier.size(10.dp)) })
+            DropdownMenu(menu == "month", { menu = null }) {
+                state.months.forEach { month ->
+                    DropdownMenuItem({ Text(localMonthLabel(month, locale)) }, { vm.setScope(BillSearchScope.Month(month)); menu = null },
+                        Modifier.testTag("bills-scope-month-$month"))
+                }
+            }
+        }
+        Box {
+            FilterChip(scope is BillSearchScope.Year, { menu = "year" }, {
+                Text((scope as? BillSearchScope.Year)?.let { stringResource(R.string.bills_scope_year_value, it.year) }
+                    ?: stringResource(R.string.bills_scope_year))
+            }, Modifier.testTag("bills-scope-year"), trailingIcon = { FaIcon(FaIcons.chevronDown, null, Modifier.size(10.dp)) })
+            DropdownMenu(menu == "year", { menu = null }) {
+                state.months.map { it.year }.distinct().forEach { year ->
+                    DropdownMenuItem({ Text(stringResource(R.string.bills_scope_year_value, year)) },
+                        { vm.setScope(BillSearchScope.Year(year)); menu = null }, Modifier.testTag("bills-scope-year-$year"))
+                }
+            }
+        }
+        FilterChip(scope == BillSearchScope.All, { vm.setScope(BillSearchScope.All) }, { Text(stringResource(R.string.bills_scope_all)) },
+            Modifier.testTag("bills-scope-all"))
+    }
+}
+
 @Composable private fun MonthHeader(state: BillsState, vm: BillsViewModel) {
     val totals = state.monthTotals
     val base = state.base?.code
