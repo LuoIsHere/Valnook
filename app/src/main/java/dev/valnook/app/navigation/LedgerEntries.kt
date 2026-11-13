@@ -33,7 +33,7 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
                     CashSource.TRADE -> open(TradeFormKey(route.accountId, TradeFormMode.EDIT, tradeId = sourceId))
                     CashSource.TERM_OPEN, CashSource.TERM_CLOSE -> open(DepositFormKey(route.accountId, DepositFormMode.EDIT, sourceId))
                     CashSource.DIVIDEND -> open(TradeDetailKey(route.accountId, sourceId))
-                    CashSource.CASH_SET, CashSource.TRADE_REMOVED, CashSource.DIVIDEND_REMOVED -> Unit
+                    CashSource.CASH_SET, CashSource.TRADE_REMOVED, CashSource.DIVIDEND_REMOVED, CashSource.BILL_REMOVED -> Unit
                     CashSource.BILL, CashSource.BILL_TRANSFER_IN -> open(BillDetailKey(sourceId))
                 }
             }

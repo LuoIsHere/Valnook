@@ -56,6 +56,9 @@ class BillDataTest {
     private suspend fun expect(code: ErrorCode, block: suspend () -> Unit) {
         try { block(); fail("Expected $code") } catch (e: DomainException) { assertEquals(code, e.code) }
     }
+    /** Deletes an unused category at its current revision (deleting a sibling renumbers the rest). */
+    private suspend fun dropCategory(categoryId: Long) =
+        commands.execute(DeleteBillCategory(id(), categoryId, db.bills().category(categoryId)!!.revision, null))
     private suspend fun save(draft: BillDraft, billId: Long? = null, revision: Long? = null) =
         commands.execute(SaveBill(id(), billId, revision, draft)).id
     private fun expense(cash: Long, amount: Long, discount: Long = 0, key: String = "food", sub: String? = "food.lunch") =
@@ -173,13 +176,12 @@ class BillDataTest {
         val pets = commands.execute(SaveBillCategory(id(), null, null, BillCategoryKind.EXPENSE, null, "Synthetic pets", "paw", "brown")).id
         val food = commands.execute(SaveBillCategory(id(), null, null, BillCategoryKind.EXPENSE, pets, "Pet food", "bowl-food", "brown")).id
         save(expense(a, 300, key = "food", sub = null).copy(categoryId = pets, subCategoryId = food))
-        // A preset can be renamed and put back to the name that follows the language, but not deleted.
+        // A preset can be renamed and put back to the name that follows the language.
         val preset = db.bills().category(category("food"))!!
         commands.execute(SaveBillCategory(id(), preset.id, 1, BillCategoryKind.EXPENSE, null, "Meals", "utensils", "orange"))
         assertEquals("Meals", db.bills().category(preset.id)!!.custom_name)
         commands.execute(SaveBillCategory(id(), preset.id, 2, BillCategoryKind.EXPENSE, null, null, "utensils", "orange"))
         assertNull(db.bills().category(preset.id)!!.custom_name)
-        expect(ErrorCode.SOURCE_RECORD) { commands.execute(DeleteBillCategory(id(), preset.id, 3, null)) }
         commands.execute(SetBillCategoryHidden(id(), preset.id, 3, true))
         assertTrue(db.bills().category(preset.id)!!.hidden)
 
@@ -187,13 +189,68 @@ class BillDataTest {
         commands.execute(ReorderBillCategories(id(), BillCategoryKind.EXPENSE, null, tops.reversed()))
         assertEquals(tops.reversed(), db.bills().siblings("EXPENSE", null).map { it.id })
 
-        // A used category needs somewhere for its bills to go; its subcategories go with it.
-        val petsRevision = db.bills().category(pets)!!.revision
-        expect(ErrorCode.FORMAT) { commands.execute(DeleteBillCategory(id(), pets, petsRevision, null)) }
-        commands.execute(DeleteBillCategory(id(), pets, petsRevision, category("other.uncategorized")))
+        // The two catch-alls always stay; a top-level category goes only after its subcategories, hidden ones too.
+        for (key in listOf("other.uncategorized", "income.other")) {
+            val revision = db.bills().category(category(key))!!.revision
+            expect(ErrorCode.CATEGORY_PROTECTED) { commands.execute(DeleteBillCategory(id(), category(key), revision, null)) }
+        }
+        commands.execute(SetBillCategoryHidden(id(), food, 1, true))
+        expect(ErrorCode.CATEGORY_HAS_SUBCATEGORIES) {
+            commands.execute(DeleteBillCategory(id(), pets, db.bills().category(pets)!!.revision, null))
+        }
+        // A used category needs somewhere for its bills to go.
+        val foodRevision = db.bills().category(food)!!.revision
+        expect(ErrorCode.FORMAT) { commands.execute(DeleteBillCategory(id(), food, foodRevision, null)) }
+        expect(ErrorCode.FORMAT) { commands.execute(DeleteBillCategory(id(), food, foodRevision, category("income.other"))) }
+        commands.execute(DeleteBillCategory(id(), food, foodRevision, category("other.uncategorized")))
         assertNull(db.bills().category(food))
         val bill = RoomBills(db).observeMonth(YearMonth.of(2026, 11), clock.zone).first().single()
         assertEquals(category("other") to category("other.uncategorized"), bill.categoryId to bill.subCategoryId)
+        // An unused top-level category, a preset included, is simply deleted, and its siblings close the gap.
+        commands.execute(DeleteBillCategory(id(), pets, db.bills().category(pets)!!.revision, null))
+        val transport = db.bills().category(category("transport"))!!
+        db.bills().siblings("EXPENSE", transport.id).forEach { dropCategory(it.id) }
+        commands.execute(DeleteBillCategory(id(), transport.id, db.bills().category(transport.id)!!.revision, null))
+        assertNull(db.bills().category(transport.id))
+        assertEquals(db.bills().siblings("EXPENSE", null).indices.map(Int::toLong), db.bills().siblings("EXPENSE", null).map { it.sort_order })
+    }
+
+    @Test fun deleting_a_category_with_its_bills_leaves_balances_and_entries_in_place() = runBlocking {
+        val (a, b, _) = accounts()
+        val lunch = category("food.lunch")
+        val plain = save(expense(a, 2_000).copy(note = ""))
+        val noted = save(expense(b, 500))
+        val gone = save(expense(a, 700))
+        commands.execute(DeleteBill(id(), gone, 1))
+        val elsewhere = save(expense(a, 100, sub = "food.dinner"))
+        assertEquals(1_000_000L - 2_100, balance(a))
+        assertEquals(2, RoomBills(db).categoryUsage(lunch))
+        val revision = db.bills().category(lunch)!!.revision
+        // Moving and deleting are one or the other.
+        expect(ErrorCode.FORMAT) { commands.execute(DeleteBillCategory(id(), lunch, revision, category("food.dinner"), deleteBills = true)) }
+        val plainLeg = db.bills().legs(plain).single()
+        commands.execute(DeleteBillCategory(id(), lunch, revision, null, deleteBills = true, billTitle = "餐饮-午餐"))
+        assertNull(db.bills().category(lunch))
+        assertTrue(db.bills().bill(plain)!!.is_deleted && db.bills().bill(noted)!!.is_deleted)
+        // Only deleting a bill on its own moves its account back; these keep their money and their entries.
+        assertEquals(1_000_000L - 2_100, balance(a))
+        assertEquals(500_000L - 500, balance(b))
+        val entries = db.openHelper.readableDatabase.query("""SELECT cash_account_id,source_id IS NULL,note,delta_minor,is_deleted
+            FROM cash_entries WHERE source_kind='BILL_REMOVED' ORDER BY id""").use { c ->
+            generateSequence { if (c.moveToNext()) listOf(c.getLong(0), c.getInt(1), c.getString(2), c.getLong(3), c.getInt(4)) else null }.toList()
+        }
+        // A bill's own note names its entry; without one, the category's name does.
+        assertEquals(listOf(listOf(a, 1, "餐饮-午餐", -2_000L, 0), listOf(b, 1, "Synthetic lunch", -500L, 0)), entries)
+        assertEquals("BILL_REMOVED", db.cash().cash_entry(plainLeg.id)!!.source_kind)
+        assertTrue(db.bills().legs(gone).all { it.is_deleted })
+        val month = LedgerMonth(YearMonth.from(Instant.ofEpochMilli(now).atZone(clock.zone)), clock.zone)
+        val shown = RoomCash(db.cash()).cashAccountMonthPage(a, month, null, 50).single { it.delta_minor == -2_000L }
+        assertEquals(listOf(CashSource.BILL_REMOVED, "餐饮-午餐", null), listOf(shown.source, shown.note, shown.bill))
+        assertNotNull(RoomBills(db).observeBill(elsewhere).first())
+        // Bills deleted before stay deleted, filed under the catch-all instead.
+        val filed = db.bills().bill(gone)!!
+        assertEquals(listOf(true, category("other"), category("other.uncategorized")),
+            listOf(filed.is_deleted, filed.category_id, filed.sub_category_id))
     }
 
     @Test fun a_bill_on_no_account_moves_no_balance_and_each_category_remembers_its_own() = runBlocking {
@@ -289,6 +346,17 @@ class BillDataTest {
         save(BillDraft(BillType.TRANSFER, now, 7_100, "CNY", 0, a, 7_100, BigDecimal("0.140845"), BillRateSource.MANUAL,
             TransferKind.INTERNAL, usd, 1_000))
         commands.execute(SaveBillFavorites(id(), listOf(usd)))
+        // Deleted presets stay deleted: a restore writes back the categories as they were, not a fresh set.
+        listOf("food.fruit", "income.side.royalties").forEach { key ->
+            commands.execute(DeleteBillCategory(id(), category(key), db.bills().category(category(key))!!.revision, null))
+        }
+        val subscriptions = category("subscriptions")
+        db.bills().siblings("EXPENSE", subscriptions).forEach { dropCategory(it.id) }
+        commands.execute(DeleteBillCategory(id(), subscriptions, db.bills().category(subscriptions)!!.revision, null))
+        // A bill deleted with its category leaves its entry behind, and the entry travels too.
+        save(expense(b, 250, sub = "food.snacks").copy(note = ""))
+        commands.execute(DeleteBillCategory(id(), category("food.snacks"), db.bills().category(category("food.snacks"))!!.revision,
+            null, deleteBills = true, billTitle = "餐饮-零食"))
         val build = AppBuildInfo("valnook", "0.0.19", 1901, "20261112.1", "20261112.1", DATABASE_SCHEMA_VERSION)
         val backup = ByteArrayOutputStream()
         RoomPortabilityEngine(context, db, clock, build).createBackup(id(), backup) {}
@@ -300,6 +368,8 @@ class BillDataTest {
             val month = YearMonth.of(2026, 11)
             assertEquals(RoomBills(db).observeMonth(month, clock.zone).first(), RoomBills(target).observeMonth(month, clock.zone).first())
             assertEquals(RoomBills(db).observeCategories().first(), RoomBills(target).observeCategories().first())
+            val restoredKeys = RoomBills(target).observeCategories().first().mapNotNull { it.builtinKey }.toSet()
+            assertTrue(listOf("food.fruit", "income.side.royalties", "subscriptions", "subscriptions.cloud").none { it in restoredKeys })
             assertEquals(RoomBills(db).observeAccountChoices().first(), RoomBills(target).observeAccountChoices().first())
             assertEquals(RoomOverview(db).snapshot(), RoomOverview(target).snapshot())
         } finally { target.close() }

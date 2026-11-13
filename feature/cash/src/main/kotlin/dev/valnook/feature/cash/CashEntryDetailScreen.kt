@@ -38,15 +38,17 @@ import java.time.ZoneId
         stringResource(R.string.record_time) to time.format(rememberClockFormatter()),
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
-        // A deleted instrument's trade has nothing left to open.
-        if(entry.source!=CashSource.TRADE_REMOVED&&entry.source!=CashSource.DIVIDEND_REMOVED) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
+        // A deleted instrument's trade, or a bill deleted with its category, has nothing left to open.
+        if(entry.source!in REMOVED_SOURCES) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
             Text(stringResource(when(entry.source) {
                 CashSource.TRADE->R.string.view_source_trade
                 CashSource.DIVIDEND->R.string.view_source_dividend
                 CashSource.TERM_OPEN,CashSource.TERM_CLOSE->R.string.view_source_deposit
                 CashSource.BILL,CashSource.BILL_TRANSFER_IN->R.string.view_source_bill
-                CashSource.CASH_SET,CashSource.TRADE_REMOVED,CashSource.DIVIDEND_REMOVED->R.string.edit_cash_change
+                CashSource.CASH_SET,CashSource.TRADE_REMOVED,CashSource.DIVIDEND_REMOVED,CashSource.BILL_REMOVED->R.string.edit_cash_change
             }))
         }
     }
 }
+
+private val REMOVED_SOURCES = setOf(CashSource.TRADE_REMOVED, CashSource.DIVIDEND_REMOVED, CashSource.BILL_REMOVED)

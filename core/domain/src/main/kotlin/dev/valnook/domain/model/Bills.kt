@@ -277,6 +277,17 @@ object BillCategoryPresets {
 
     private val byKey = all.associateBy { it.key }
 
+    /**
+     * Presets that can be renamed and hidden but never deleted: a balance change counted in income and expense records
+     * its bill here, and deleting another category always has somewhere to move bills to. (The expense "other" stays
+     * with them, as a top-level category keeps while it has subcategories.)
+     */
+    val PROTECTED = setOf("other.uncategorized", "income.other")
+
+    /** Where bills already deleted are filed when their category goes, by kind; both always exist, being protected. */
+    fun fallback(kind: BillCategoryKind): Pair<String, String?> =
+        if (kind == BillCategoryKind.EXPENSE) "other" to "other.uncategorized" else "income.other" to null
+
     fun preset(key: String?): Preset? = key?.let(byKey::get)
 
     fun name(key: String?, english: Boolean): String? = preset(key)?.let { if (english) it.english else it.chinese }

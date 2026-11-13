@@ -80,7 +80,7 @@ internal object CommandFingerprint {
             is SetBillCategoryHidden -> listOf("BILL_CATEGORY_HIDE", command.categoryId, command.expectedRevision, command.hidden)
             is ReorderBillCategories -> listOf("BILL_CATEGORY_ORDER", command.kind.name, command.parentId) + command.orderedIds
             is DeleteBillCategory -> listOf("BILL_CATEGORY_DELETE", command.categoryId, command.expectedRevision,
-                command.moveToCategoryId)
+                command.moveToCategoryId, command.deleteBills, command.billTitle)
             is SaveBillFavorites -> listOf("BILL_FAVORITES") + command.orderedCashAccountIds
         }
         val canonical = fields.joinToString("") { field -> val s=field?.toString() ?: "<null>"

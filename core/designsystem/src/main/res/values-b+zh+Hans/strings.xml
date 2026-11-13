@@ -110,6 +110,7 @@
     <string name="source_trade_removed_sell">已删除标的的卖出</string>
     <string name="source_dividend">派息</string>
     <string name="source_dividend_removed">已删除标的的派息</string>
+    <string name="source_bill_removed">已删除的账单</string>
     <string name="view_source_dividend">查看派息记录</string>
     <string name="source_bill">账单</string>
     <string name="source_bill_transfer_in">转账转入</string>
@@ -119,6 +120,8 @@
     <string name="delete_dividend">删除派息</string>
     <string name="dividend_received">到账金额</string>
     <string name="error_default_type">「未分类」是默认资产类型，不能改名或删除。</string>
+    <string name="error_category_protected">这个分类要保留，账单总有地方可放。可以改名或隐藏。</string>
+    <string name="error_category_has_subcategories">请先删除它的子分类，隐藏的也要删除。</string>
     <string name="error_small">成交金额小于最小货币单位。</string>
     <string name="error_date">日期无效，到期日必须晚于开始日。</string>
     <string name="error_positive">输入必须非负，本金、成交价与成交份额须大于零。</string>

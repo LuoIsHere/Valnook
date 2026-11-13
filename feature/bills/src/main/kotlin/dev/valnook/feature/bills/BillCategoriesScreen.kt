@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -90,8 +91,13 @@ class BillCategoriesViewModel(private val bills: BillRepository, private val com
     fun reorder(parentId: Long?, orderedIds: List<Long>) =
         run(ReorderBillCategories(UUID.randomUUID().toString(), state.value.kind, parentId, orderedIds))
 
-    fun delete(draft: CategoryDraft, moveTo: Long?, after: () -> Unit) {
-        run(DeleteBillCategory(UUID.randomUUID().toString(), draft.id ?: return, draft.revision ?: return, moveTo), after)
+    /**
+     * Deletes the category, moving its bills to [moveTo] or, with [deleteBills], deleting them while their account
+     * entries stay, noted [billTitle] when a bill has no note of its own.
+     */
+    fun delete(draft: CategoryDraft, moveTo: Long?, deleteBills: Boolean, billTitle: String, after: () -> Unit) {
+        run(DeleteBillCategory(UUID.randomUUID().toString(), draft.id ?: return, draft.revision ?: return, moveTo,
+            deleteBills, billTitle), after)
     }
 
     fun clearError() { ui.value = ui.value.copy(error = null) }
@@ -178,7 +184,7 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
     }
     editing?.let { draft ->
         CategoryEditor(draft, state, tops, english, onSave = { vm.save(it, english) { editing = null } },
-            onDelete = { moveTo -> vm.delete(draft, moveTo) { editing = null } },
+            onDelete = { moveTo, deleteBills, title -> vm.delete(draft, moveTo, deleteBills, title) { editing = null } },
             onDismiss = { editing = null; vm.clearError() })
     }
 }
@@ -204,12 +210,14 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
     }
 }
 
-/** Name, icon and colour of a category; a category the user added can also be deleted, moving its bills first. */
+/**
+ * Name, icon and colour of a category. An existing one can be deleted after a confirmation that says what happens to
+ * its bills, except the two catch-alls and a top-level category that still has subcategories.
+ */
 @Composable private fun CategoryEditor(initial: CategoryDraft, state: BillCategoriesState, tops: List<BillCategory>, english: Boolean,
-    onSave: (CategoryDraft) -> Unit, onDelete: (Long?) -> Unit, onDismiss: () -> Unit) {
+    onSave: (CategoryDraft) -> Unit, onDelete: (Long?, Boolean, String) -> Unit, onDismiss: () -> Unit) {
     var draft by remember(initial) { mutableStateOf(initial) }
     var deleting by remember(initial) { mutableStateOf(false) }
-    var moveTo by remember(initial) { mutableStateOf<Long?>(null) }
     val presetName = BillCategoryPresets.name(draft.builtinKey, english)
     AnimatedGlassDialog(true, onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
         GlassSurface(Modifier.fillMaxWidth().fillMaxHeight(0.9f).padding(12.dp).testTag("bill-category-editor"),
@@ -258,37 +266,98 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
                             }
                         }
                     }
-                    if (deleting) {
-                        val targets = state.categories.filter { it.id != draft.id && it.parentId != draft.id }
-                        if (draft.usage > 0) {
-                            Text(stringResource(R.string.bill_category_move_to, draft.usage), style = MaterialTheme.typography.bodyMedium)
-                            targets.forEach { target ->
-                                val name = (target.parentId?.let { p -> tops.firstOrNull { it.id == p }?.let { categoryName(it) + " › " } } ?: "") +
-                                    categoryName(target)
-                                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { moveTo = target.id }
-                                    .padding(8.dp).testTag("bill-move-to-${target.builtinKey ?: target.id}"),
-                                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
-                                    RadioButton(moveTo == target.id, { moveTo = target.id })
-                                    Text(name)
-                                }
-                            }
-                        } else Text(stringResource(R.string.bill_category_delete_unused))
-                    }
                 }
-                state.error?.let { ErrorMessage(it.name) }
+                // Why the delete button is off: the catch-alls stay, and a top-level category goes after its subcategories.
+                val blocked = when {
+                    draft.id == null -> null
+                    draft.builtinKey in BillCategoryPresets.PROTECTED -> ErrorCode.CATEGORY_PROTECTED
+                    draft.parentId == null && state.categories.any { it.parentId == draft.id } -> ErrorCode.CATEGORY_HAS_SUBCATEGORIES
+                    else -> null
+                }
+                blocked?.let { Text(errorText(it.name), Modifier.testTag("bill-category-delete-blocked"),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (!deleting) state.error?.let { ErrorMessage(it.name) }
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    if (draft.id != null && draft.builtinKey == null) {
-                        if (!deleting) TextButton({ deleting = true }, Modifier.testTag("bill-category-delete")) {
-                            Text(stringResource(R.string.bill_delete), color = MaterialTheme.colorScheme.error) }
-                        else TextButton({ onDelete(moveTo) }, Modifier.testTag("bill-category-delete-confirm"),
-                            enabled = !state.busy && (draft.usage == 0 || moveTo != null)) {
-                            Text(stringResource(R.string.bill_delete_confirm), color = MaterialTheme.colorScheme.error) }
+                    if (draft.id != null) {
+                        val enabled = blocked == null && !state.busy
+                        TextButton({ deleting = true }, Modifier.testTag("bill-category-delete"), enabled = enabled) {
+                            Text(stringResource(R.string.bill_delete), color = if (enabled) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f))
+                        }
                     }
                     Spacer(Modifier.weight(1f))
-                    TextButton({ onSave(draft) }, Modifier.testTag("bill-category-save"), enabled = !state.busy && !deleting &&
+                    TextButton({ onSave(draft) }, Modifier.testTag("bill-category-save"), enabled = !state.busy &&
                         (draft.name.isNotBlank() || draft.builtinKey != null)) { Text(stringResource(R.string.bill_save)) }
                 }
             }
+        }
+    }
+    if (deleting) {
+        val targets = state.categories.filter { it.id != draft.id && it.parentId != draft.id }.map { target ->
+            target to ((target.parentId?.let { p -> tops.firstOrNull { it.id == p }?.let { categoryName(it) + " › " } } ?: "") +
+                categoryName(target))
+        }
+        // Bills deleted with the category keep their entries, named as the bills page names them: "category-subcategory".
+        val saved = state.categories.firstOrNull { it.id == draft.id }?.let { categoryName(it) } ?: draft.name
+        val billTitle = (draft.parentId?.let { p -> tops.firstOrNull { it.id == p }?.let { categoryName(it) + "-" } } ?: "") + saved
+        CategoryDeleteDialog(saved, draft.usage, targets, state.busy, state.error,
+            onConfirm = { moveTo, deleteBills -> onDelete(moveTo, deleteBills, billTitle) }, onDismiss = { deleting = false })
+    }
+}
+
+/**
+ * Confirms deleting a category, showing its name and how many bills use it. Bills either move to another category
+ * of the same kind, or are deleted with their refunds and reimbursements, moving their accounts back.
+ */
+@Composable private fun CategoryDeleteDialog(name: String, usage: Int, targets: List<Pair<BillCategory, String>>, busy: Boolean,
+    error: ErrorCode?, onConfirm: (Long?, Boolean) -> Unit, onDismiss: () -> Unit) {
+    var deleteBills by remember { mutableStateOf<Boolean?>(null) }
+    var moveTo by remember { mutableStateOf<Long?>(null) }
+    val ready = !busy && (usage == 0 || deleteBills == true || (deleteBills == false && moveTo != null))
+    AlertDialog(onDismissRequest = { if (!busy) onDismiss() },
+        title = { PopupBlurEffect(); Text(stringResource(R.string.bill_category_delete_title)) },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).testTag("bill-category-delete-dialog"),
+                verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Text(name, style = MaterialTheme.typography.titleMedium)
+                Text(if (usage == 0) stringResource(R.string.bill_category_delete_unused)
+                    else pluralStringResource(R.plurals.bill_category_delete_count, usage, usage))
+                if (usage > 0) {
+                    DeleteChoice(stringResource(R.string.bill_category_delete_move), null, deleteBills == false,
+                        Modifier.testTag("bill-category-delete-move")) { deleteBills = false }
+                    if (deleteBills == false) targets.forEach { (target, label) ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.RadioButton) { moveTo = target.id }
+                            .padding(start = 32.dp, top = 2.dp, bottom = 2.dp).testTag("bill-move-to-${target.builtinKey ?: target.id}"),
+                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                            RadioButton(moveTo == target.id, null)
+                            CategoryIcon(target.iconKey, target.colorKey, size = 24.dp)
+                            Text(label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    DeleteChoice(stringResource(R.string.bill_category_delete_bills), stringResource(R.string.bill_category_delete_bills_detail),
+                        deleteBills == true, Modifier.testTag("bill-category-delete-bills")) { deleteBills = true }
+                }
+                ErrorMessage(error?.name)
+            }
+        },
+        confirmButton = {
+            TextButton({ onConfirm(if (deleteBills == true) null else moveTo, deleteBills == true) },
+                Modifier.testTag("bill-category-delete-confirm"), enabled = ready) {
+                Text(stringResource(R.string.bill_delete), color = if (ready) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f))
+            }
+        },
+        dismissButton = { TextButton({ if (!busy) onDismiss() }, enabled = !busy) { Text(stringResource(R.string.bill_cancel)) } })
+}
+
+@Composable private fun DeleteChoice(label: String, detail: String?, selected: Boolean, modifier: Modifier, onSelect: () -> Unit) {
+    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.RadioButton, onClick = onSelect)
+        .semantics { this.selected = selected }.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+        RadioButton(selected, null)
+        Column(Modifier.weight(1f)) {
+            Text(label)
+            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
     }
 }

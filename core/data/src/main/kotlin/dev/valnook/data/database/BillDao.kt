@@ -53,13 +53,26 @@ interface BillDao {
     @Query("DELETE FROM bill_categories WHERE id=:id")
     suspend fun deleteCategory(id: Long): Int
 
-    /** Bills on [id] or its subcategories, deleted ones included (they still refer to it). */
-    @Query("""SELECT COUNT(*) FROM bill_entries WHERE category_id=:id OR sub_category_id=:id
-        OR category_id IN (SELECT id FROM bill_categories WHERE parent_id=:id)""")
+    /** Bills that name [id], deleted ones included (they still refer to it). */
+    @Query("SELECT COUNT(*) FROM bill_entries WHERE category_id=:id OR sub_category_id=:id")
     suspend fun categoryReferences(id: Long): Int
 
-    @Query("""SELECT COUNT(*) FROM bill_entries WHERE is_deleted=0 AND (category_id=:id OR sub_category_id=:id)""")
+    /** Bills on [id] or its subcategories; refunds and reimbursements go with their bill and are not counted. */
+    @Query("""SELECT COUNT(*) FROM bill_entries WHERE is_deleted=0 AND parent_id IS NULL
+        AND (category_id=:id OR sub_category_id=:id)""")
     suspend fun categoryUsage(id: Long): Int
+
+    /** The bills (not their refunds or reimbursements) that name [id]. */
+    @Query("""SELECT * FROM bill_entries WHERE is_deleted=0 AND parent_id IS NULL AND (category_id=:id OR sub_category_id=:id)
+        ORDER BY id""")
+    suspend fun billsOnCategory(id: Long): List<BillEntryEntity>
+
+    @Query("SELECT id FROM bill_categories WHERE builtin_key=:key")
+    suspend fun presetId(key: String): Long?
+
+    /** A bill's refunds and reimbursements still in place. */
+    @Query("SELECT * FROM bill_entries WHERE parent_id=:parentId AND is_deleted=0 ORDER BY occurred_at_ms,id")
+    suspend fun children(parentId: Long): List<BillEntryEntity>
 
     @Query("SELECT * FROM bill_entries WHERE id=:id")
     suspend fun bill(id: Long): BillEntryEntity?
@@ -97,6 +110,11 @@ interface BillDao {
     /** The cash entries a bill moves, deleted ones included. */
     @Query("SELECT * FROM cash_entries WHERE source_kind IN ('BILL','BILL_TRANSFER_IN') AND source_id=:billId ORDER BY id")
     suspend fun legs(billId: Long): List<CashEntryEntity>
+
+    /** Keeps a deleted bill's cash entry, and the balance it moved, as no longer pointing at the bill. */
+    @Query("""UPDATE cash_entries SET source_kind='BILL_REMOVED',source_id=NULL,note=:note,revision=revision+1,
+        updated_at_ms=:now WHERE id=:id AND revision=:revision""")
+    suspend fun retireLeg(id: Long, revision: Long, note: String, now: Long): Int
 
     @Query("DELETE FROM cash_entries WHERE id=:id")
     suspend fun deleteLeg(id: Long): Int

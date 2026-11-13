@@ -19,7 +19,6 @@
     <string name="bill_category_hidden">Hidden</string>
     <string name="bill_category_hide">Hide</string>
     <string name="bill_category_missing">No category</string>
-    <string name="bill_category_move_to">%1$d bills use this category. Move them to:</string>
     <string name="bill_category_name">Name</string>
     <string name="bill_category_show">Show</string>
     <string name="bill_choose_account">Choose account</string>
@@ -33,7 +32,6 @@
     <string name="bill_date">Date</string>
     <string name="bill_day_before">2 days ago</string>
     <string name="bill_delete">Delete</string>
-    <string name="bill_delete_confirm">Delete and move</string>
     <string name="bill_delete_message">Its accounts go back to the balances before this bill.</string>
     <string name="bill_delete_title">Delete this bill?</string>
     <string name="bill_deleted_account">Deleted account</string>
@@ -106,4 +104,12 @@
     <string name="bill_no_account_hint">Recorded only; no account balance changes</string>
     <string name="bill_counted_pill">Counted</string>
     <string name="bill_not_counted_pill">Not counted</string>
+    <string name="bill_category_delete_title">Delete category</string>
+    <plurals name="bill_category_delete_count">
+        <item quantity="one">%1$d bill uses this category.</item>
+        <item quantity="other">%1$d bills use this category.</item>
+    </plurals>
+    <string name="bill_category_delete_move">Move them to another category</string>
+    <string name="bill_category_delete_bills">Delete these bills</string>
+    <string name="bill_category_delete_bills_detail">Balances stay as they are: the account entries remain as “Deleted bill”. Their refunds and reimbursements are deleted too.</string>
 </resources>

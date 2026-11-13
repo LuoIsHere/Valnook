@@ -109,6 +109,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             // A class only groups what is shown now; no history depends on it.
             is SaveAssetType, is DeleteAssetType, is CreateInvestmentPosition, is AccountGroupCommand -> null
             // Categories and favourites change no balance.
+            // Bills deleted with their category leave their cash where it is.
             is SaveBillCategory, is SetBillCategoryHidden, is ReorderBillCategories, is DeleteBillCategory,
             is SaveBillFavorites -> null
             is SaveBill -> {

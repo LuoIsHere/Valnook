@@ -526,14 +526,14 @@ async function renderRecords(reset) {
   replacePage(root, !!oldControls);
 }
 function actionLabel(action) {
-  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE_REMOVED: t("deletedInstrumentTrade"), DIVIDEND: t("dividend"), DIVIDEND_REMOVED: t("deletedInstrumentDividend"), BILL: t("bill"), BILL_TRANSFER_IN: t("billTransferIn") })[action] || action;
+  return ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"), OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE_REMOVED: t("deletedInstrumentTrade"), DIVIDEND: t("dividend"), DIVIDEND_REMOVED: t("deletedInstrumentDividend"), BILL: t("bill"), BILL_TRANSFER_IN: t("billTransferIn"), BILL_REMOVED: t("deletedBill") })[action] || action;
 }
 async function openRecord(record) {
   state.viewEpoch++;
   try {
     if (record.kind === "CASH" && record.action === "CASH_SET") return cashRecordForm(record);
-    // A deleted instrument's trade has nothing left to open; its cash stays as it was.
-    if (record.kind === "CASH" && (record.action === "TRADE_REMOVED" || record.action === "DIVIDEND_REMOVED")) return;
+    // A deleted instrument's trade, or a bill deleted with its category, has nothing left to open; its cash stays as it was.
+    if (record.kind === "CASH" && (record.action === "TRADE_REMOVED" || record.action === "DIVIDEND_REMOVED" || record.action === "BILL_REMOVED")) return;
     // Dividends are shown here but kept on the phone.
     if (record.action === "DIVIDEND") return notify(t("dividendOnPhone"));
     // So are bills: their cash follows the bill.

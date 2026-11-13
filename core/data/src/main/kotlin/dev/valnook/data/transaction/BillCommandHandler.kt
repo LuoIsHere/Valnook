@@ -65,18 +65,47 @@ internal class BillCommandHandler(
 
     private suspend fun delete(command: DeleteBill, now: Long): OperationResult {
         val old = active(command.billId, command.expectedRevision)
-        if (dao.updateBill(old.copy(is_deleted = true, revision = R.add(old.revision, 1), updated_at_ms = now)) != 1) {
-            throw DomainException(ErrorCode.STALE_RECORD)
+        remove(old, command.operation_id, now)
+        return OperationResult("BILL", old.id)
+    }
+
+    /**
+     * Deletes [bill] with its refunds and reimbursements, and moves their accounts back by what they moved them.
+     * The caller has checked [bill] is the row it read.
+     */
+    private suspend fun remove(bill: BillEntryEntity, operation: String, now: Long) {
+        val rows = listOf(bill) + dao.children(bill.id)
+        rows.forEach { row ->
+            if (dao.updateBill(row.copy(is_deleted = true, revision = R.add(row.revision, 1), updated_at_ms = now)) != 1) {
+                throw DomainException(ErrorCode.STALE_RECORD)
+            }
         }
         fault(TransactionPoint.AFTER_BUSINESS)
-        val live = dao.legs(old.id).filter { !it.is_deleted }
+        val live = rows.flatMap { row -> dao.legs(row.id).filter { !it.is_deleted } }
         live.forEach { leg ->
             if (dao.updateLeg(leg.id, leg.revision, leg.delta_minor, leg.occurred_at_ms, true, now) != 1) {
                 throw DomainException(ErrorCode.STALE_RECORD)
             }
         }
-        cash.applyChanges(command.operation_id, live.map { it.cash_account_id to -it.delta_minor }, "BILL_DELETE", now)
-        return OperationResult("BILL", old.id)
+        cash.applyChanges(operation, live.map { it.cash_account_id to -it.delta_minor }, "BILL_DELETE", now)
+    }
+
+    /**
+     * Deletes [bill] with its refunds and reimbursements but leaves balances as they are: their cash entries stay,
+     * as BILL_REMOVED noted [note]. Only deleting a bill on its own moves its accounts back.
+     */
+    private suspend fun retire(bill: BillEntryEntity, note: String, now: Long) {
+        val rows = listOf(bill) + dao.children(bill.id)
+        rows.forEach { row ->
+            if (dao.updateBill(row.copy(is_deleted = true, revision = R.add(row.revision, 1), updated_at_ms = now)) != 1) {
+                throw DomainException(ErrorCode.STALE_RECORD)
+            }
+            dao.legs(row.id).forEach { leg ->
+                // An entry deleted before has no money in the balance; it simply goes.
+                if (leg.is_deleted) dao.deleteLeg(leg.id)
+                else if (dao.retireLeg(leg.id, leg.revision, note, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
+            }
+        }
     }
 
     private suspend fun active(id: Long, expectedRevision: Long): BillEntryEntity {
@@ -288,21 +317,38 @@ internal class BillCommandHandler(
     private suspend fun deleteCategory(command: DeleteBillCategory, now: Long): OperationResult {
         val old = dao.category(command.categoryId)?.takeIf { it.revision == command.expectedRevision }
             ?: throw DomainException(ErrorCode.STALE_RECORD)
-        // Presets stay so restores and language changes can always find them; they can be hidden instead.
-        if (old.builtin_key != null) throw DomainException(ErrorCode.SOURCE_RECORD)
-        val children = if (old.parent_id == null) dao.siblings(old.kind, old.id) else emptyList()
-        if (children.any { it.builtin_key != null }) throw DomainException(ErrorCode.SOURCE_RECORD)
+        if (old.builtin_key in BillCategoryPresets.PROTECTED) throw DomainException(ErrorCode.CATEGORY_PROTECTED)
+        // Hidden subcategories count: they still hold bills and would otherwise be left without a parent.
+        if (old.parent_id == null && dao.siblings(old.kind, old.id).isNotEmpty())
+            throw DomainException(ErrorCode.CATEGORY_HAS_SUBCATEGORIES)
+        val column = if (old.parent_id == null) "category_id" else "sub_category_id"
         val sql = db.openHelper.writableDatabase
+        val bills = dao.billsOnCategory(old.id)
+        when {
+            command.deleteBills -> {
+                if (command.moveToCategoryId != null) throw DomainException(ErrorCode.FORMAT)
+                val title = BillRules.note(command.billTitle)
+                bills.forEach { retire(it, it.note.ifBlank { title }, now) }
+            }
+            bills.isNotEmpty() -> {
+                val target = dao.category(command.moveToCategoryId ?: throw DomainException(ErrorCode.FORMAT))
+                    ?: throw DomainException(ErrorCode.NOT_FOUND)
+                if (target.kind != old.kind || target.id == old.id) throw DomainException(ErrorCode.FORMAT)
+                val (category, sub) = if (target.parent_id == null) target.id to null else target.parent_id to target.id
+                // Refunds and reimbursements carry their bill's category, so they move with it.
+                sql.execSQL("""UPDATE bill_entries SET category_id=?,sub_category_id=?,revision=revision+1,updated_at_ms=?
+                    WHERE is_deleted=0 AND $column=?""", arrayOf(category, sub, now, old.id))
+            }
+            command.moveToCategoryId != null -> throw DomainException(ErrorCode.FORMAT)
+        }
+        // Bills deleted before still name the category; they are filed under the kind's catch-all, which always stays.
         if (dao.categoryReferences(old.id) > 0) {
-            val target = dao.category(command.moveToCategoryId ?: throw DomainException(ErrorCode.FORMAT))
-                ?: throw DomainException(ErrorCode.NOT_FOUND)
-            if (target.kind != old.kind || target.id == old.id || target.parent_id == old.id) throw DomainException(ErrorCode.FORMAT)
-            val (category, sub) = if (target.parent_id == null) target.id to null else target.parent_id to target.id
-            val affected = if (old.parent_id == null) "category_id=?" else "sub_category_id=?"
-            sql.execSQL("""UPDATE bill_entries SET category_id=?,sub_category_id=?,revision=revision+1,updated_at_ms=?
-                WHERE $affected""", arrayOf(category, sub, now, old.id))
-        } else if (command.moveToCategoryId != null) throw DomainException(ErrorCode.FORMAT)
-        children.forEach { dao.deleteCategory(it.id) }
+            val (top, sub) = BillCategoryPresets.fallback(BillCategoryKind.valueOf(old.kind))
+            val topId = dao.presetId(top) ?: throw DomainException(ErrorCode.NOT_FOUND)
+            val subId = sub?.let { dao.presetId(it) ?: throw DomainException(ErrorCode.NOT_FOUND) }
+            sql.execSQL("UPDATE bill_entries SET category_id=?,sub_category_id=? WHERE is_deleted=1 AND $column=?",
+                arrayOf(topId, subId, old.id))
+        }
         if (dao.deleteCategory(old.id) != 1) throw DomainException(ErrorCode.STALE_RECORD)
         // Close the gap the category leaves among its siblings.
         dao.siblings(old.kind, old.parent_id).forEachIndexed { index, row ->

@@ -34,11 +34,17 @@ data class ReorderBillCategories(override val operation_id: String, val kind: Bi
     val orderedIds: List<Long>) : BillCommand
 
 /**
- * Deletes a category the user added. Its bills (and those of its subcategories) move to [moveToCategoryId], which
- * is required when it has any; a top-level category's subcategories go with it.
+ * Deletes a category, preset or not, except the two that always stay (BillCategoryPresets.PROTECTED). A top-level
+ * category must have no subcategories left, hidden ones included. Its bills either move to [moveToCategoryId] (of the
+ * same kind, top-level or not) or, with [deleteBills], are deleted with their refunds and reimbursements; one of the
+ * two is required when it has any.
+ *
+ * Deleted this way, bills leave balances as they are: their cash entries stay as CashSource.BILL_REMOVED, noted with
+ * the bill's note or, without one, [billTitle] (the category's name as the user reads it, e.g. "Food-Lunch").
+ * Only deleting a bill on its own moves its accounts back.
  */
 data class DeleteBillCategory(override val operation_id: String, val categoryId: Long, val expectedRevision: Long,
-    val moveToCategoryId: Long?) : BillCommand
+    val moveToCategoryId: Long?, val deleteBills: Boolean = false, val billTitle: String = "") : BillCommand
 
 /** The sub-accounts pinned at the top of the account picker, in order; every other one is unpinned. */
 data class SaveBillFavorites(override val operation_id: String, val orderedCashAccountIds: List<Long>) : BillCommand
@@ -79,7 +85,7 @@ interface BillRepository {
      * subcategory's, otherwise those on [categoryId] without a subcategory. Each category keeps its own.
      */
     fun observeRecentNotes(categoryId: Long, subCategoryId: Long?, limit: Int = 6): Flow<List<String>>
-    /** How many bills still use the category or its subcategories. */
+    /** How many bills (refunds and reimbursements aside) still use the category or its subcategories. */
     suspend fun categoryUsage(categoryId: Long): Int
     /** The automatic rates stored for [day] under [base]: 1 base = value of each quote currency. */
     suspend fun storedRatesOn(base: String, day: java.time.LocalDate): Map<String, java.math.BigDecimal> = emptyMap()

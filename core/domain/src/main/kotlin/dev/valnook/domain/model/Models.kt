@@ -76,7 +76,7 @@ enum class ErrorCode { CURRENCY, FORMAT, PRECISION, OVERFLOW, POSITIVE, DATE, IN
     INVALID_ACCOUNT_TYPE, INVALID_CREDIT_LIMIT, INVALID_STATEMENT_DAY, INVALID_DUE_RULE,
     CREDIT_SOURCE_INVALID, CREDIT_SOURCE_CURRENCY, CREDIT_SOURCE_PARENT, CREDIT_SOURCE_CHAIN, CREDIT_SOURCE_CYCLE,
     CREDIT_LIMIT_IN_USE, BALANCE_ACCOUNT_IN_USE, WALLET_FACE_IN_USE, WALLET_FACE_DUPLICATE, WALLET_FACE_LIBRARY_FULL,
-    DEFAULT_TYPE }
+    DEFAULT_TYPE, CATEGORY_PROTECTED, CATEGORY_HAS_SUBCATEGORIES }
 class DomainException(val code: ErrorCode) : IllegalArgumentException(code.name)
 data class SavingsAccount(val id: Long, val name: String, val note: String, val revision: Long = 1, val icon: AccountIcon = AccountIcon(),
     val showDepositSummary: Boolean = true, val showInvestmentSummary: Boolean = true,
@@ -132,9 +132,13 @@ sealed interface CashLinkSelection {
 /**
  * [TRADE_REMOVED] / [DIVIDEND_REMOVED]: cash a trade or dividend moved before its instrument was deleted; it no
  * longer points at the record.
+ *
+ * [BILL] is a bill's own side (an expense, income, refund or a transfer's source); [BILL_TRANSFER_IN] a transfer's
+ * receiving side. [BILL_REMOVED]: cash a bill moved before it was deleted along with its category; the balance keeps
+ * it, the entry's note names the bill, and it no longer points at the record.
  */
-/** [BILL] is a bill's own side (an expense, income, refund or a transfer's source); [BILL_TRANSFER_IN] a transfer's receiving side. */
-enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED, DIVIDEND, DIVIDEND_REMOVED, BILL, BILL_TRANSFER_IN }
+enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED, DIVIDEND, DIVIDEND_REMOVED, BILL, BILL_TRANSFER_IN,
+    BILL_REMOVED }
 
 /**
  * [balanceAfterMinor] is the sub-account's balance right after this entry, worked out from the current balance and the

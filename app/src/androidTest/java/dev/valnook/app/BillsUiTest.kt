@@ -6,9 +6,12 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.valnook.app.di.AppSessionManager
 import dev.valnook.data.database.ValnookDatabase
+import dev.valnook.domain.model.BillDraft
+import dev.valnook.domain.model.BillType
 import dev.valnook.domain.model.NavigationConfiguration
 import dev.valnook.domain.model.NavigationItemId
 import dev.valnook.domain.repository.CashBalanceChange
+import dev.valnook.domain.repository.SaveBill
 import dev.valnook.domain.repository.SaveAccount
 import dev.valnook.domain.repository.SaveNavigationConfiguration
 import kotlinx.coroutines.flow.first
@@ -142,5 +145,57 @@ class BillsUiTest {
         val created = runBlocking { graph.bills!!.observeCategories().first().single { it.customName == "合成宠物" } }
         assertEquals("paw" to "brown", created.iconKey to created.colorKey)
         assertTrue(created.parentId == null)
+    }
+
+    /** Deleting a category asks what happens to its bills: moved to another category, or deleted with the balance back. */
+    @Test fun a_category_with_bills_is_deleted_by_moving_or_deleting_them() {
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        fun key(value: String) = categories.single { it.builtinKey == value }.id
+        fun record(sub: String, amount: Long) = runBlocking {
+            graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(BillType.EXPENSE,
+                System.currentTimeMillis(), amount, "CNY", 0, cashId, amount, categoryId = key("food"), subCategoryId = key(sub))))
+        }
+        record("food.lunch", 1_000); record("food.lunch", 500); record("food.breakfast", 300)
+        assertEquals(100_000L - 1_800, balance())
+        rule.onNodeWithTag("bills-categories").performClick()
+        waitTag("bill-categories")
+        fun open(tag: String) {
+            rule.onNodeWithTag("bill-categories").performScrollToNode(hasTestTag("bill-category-line-$tag"))
+            rule.onNodeWithTag("bill-category-line-$tag").performClick()
+            waitTag("bill-category-editor")
+        }
+
+        // A top-level category with subcategories cannot go yet, and says why.
+        open("food")
+        rule.onNodeWithTag("bill-category-delete").assertIsNotEnabled()
+        rule.onNodeWithTag("bill-category-delete-blocked").assertTextEquals("请先删除它的子分类，隐藏的也要删除。")
+        androidx.test.espresso.Espresso.pressBack()
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("bill-category-editor").fetchSemanticsNodes().isEmpty() }
+
+        // Lunch's two bills are deleted; the balance keeps their money, as only deleting a bill on its own moves it back.
+        open("food.lunch")
+        rule.onNodeWithTag("bill-category-delete").performClick()
+        waitTag("bill-category-delete-dialog")
+        rule.onNodeWithText("这个分类下有 2 笔账单。").assertExists()
+        rule.onNodeWithTag("bill-category-delete-confirm").assertIsNotEnabled()
+        rule.onNodeWithTag("bill-category-delete-bills").performClick()
+        rule.onNodeWithTag("bill-category-delete-confirm").performClick()
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("bill-category-line-food.lunch").fetchSemanticsNodes().isEmpty() }
+        assertEquals(100_000L - 1_800, balance())
+        assertEquals(listOf("餐饮-午餐", "餐饮-午餐"), db.openHelper.readableDatabase.query("SELECT note FROM cash_entries WHERE source_kind='BILL_REMOVED' AND cash_account_id=?",
+            arrayOf(cashId)).use { c -> generateSequence { if (c.moveToNext()) c.getString(0) else null }.toList() })
+
+        // Breakfast's bill moves to dinner and keeps its money.
+        open("food.breakfast")
+        rule.onNodeWithTag("bill-category-delete").performClick()
+        waitTag("bill-category-delete-dialog")
+        rule.onNodeWithTag("bill-category-delete-move").performClick()
+        rule.onNodeWithTag("bill-category-delete-dialog").performScrollToNode(hasTestTag("bill-move-to-food.dinner"))
+        rule.onNodeWithTag("bill-move-to-food.dinner").performClick()
+        rule.onNodeWithTag("bill-category-delete-confirm").performClick()
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("bill-category-line-food.breakfast").fetchSemanticsNodes().isEmpty() }
+        val moved = runBlocking { db.bills().billsOnCategory(key("food.dinner")) }
+        assertEquals(listOf(300L), moved.map { it.amount_minor })
+        assertEquals(100_000L - 1_800, balance())
     }
 }
