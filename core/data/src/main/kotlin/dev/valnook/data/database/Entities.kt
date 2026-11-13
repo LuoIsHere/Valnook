@@ -133,7 +133,12 @@ data class CashEntryWithSource(@Embedded val entry: CashEntryEntity, val investm
 
 /** A month page row with the sub-account's balance right after it (see [CashDao.cashAccountMonthPage]). */
 data class CashEntryWithBalance(@Embedded val entry: CashEntryEntity, val investment_id: Long?,
-    val cash_account_name: String, val balance_after_minor: Long)
+    val cash_account_name: String, val balance_after_minor: Long,
+    // The bill behind a BILL or BILL_TRANSFER_IN entry; all null for other sources.
+    val bill_type: String? = null, val bill_note: String? = null, val bill_transfer_kind: String? = null,
+    val bill_counterparty: String? = null, val bill_category_key: String? = null, val bill_category_name: String? = null,
+    val bill_sub_key: String? = null, val bill_sub_name: String? = null, val bill_from_account: String? = null,
+    val bill_from_cash: String? = null, val bill_to_account: String? = null, val bill_to_cash: String? = null)
 
 @Entity(tableName = "cash_movements", foreignKeys = [ForeignKey(entity = OperationEntity::class, parentColumns = ["operation_id"], childColumns = ["operation_id"], onDelete = ForeignKey.RESTRICT),
     ForeignKey(entity = CashEntity::class, parentColumns = ["id"], childColumns = ["cash_account_id"], onDelete = ForeignKey.RESTRICT)],

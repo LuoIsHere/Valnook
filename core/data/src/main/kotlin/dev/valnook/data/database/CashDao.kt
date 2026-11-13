@@ -53,9 +53,21 @@ interface CashDao {
                 ELSE n.occurred_at_ms>:time OR (n.occurred_at_ms=:time AND n.id>=:id) END)),0)
         -COALESCE(SUM(p.delta_minor) OVER (ORDER BY p.occurred_at_ms DESC,p.id DESC
             ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING),0) AS balance_after_minor
-        FROM (SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
+        FROM (SELECT e.*,t.investment_id,c.name AS cash_account_name,
+            b.type AS bill_type,b.note AS bill_note,b.transfer_kind AS bill_transfer_kind,b.counterparty AS bill_counterparty,
+            bc.builtin_key AS bill_category_key,bc.custom_name AS bill_category_name,
+            bs.builtin_key AS bill_sub_key,bs.custom_name AS bill_sub_name,
+            fa.name AS bill_from_account,fc.name AS bill_from_cash,ta.name AS bill_to_account,tc.name AS bill_to_cash
+        FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
         LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
+        LEFT JOIN bill_entries b ON e.source_kind IN ('BILL','BILL_TRANSFER_IN') AND b.id=e.source_id
+        LEFT JOIN bill_categories bc ON bc.id=b.category_id
+        LEFT JOIN bill_categories bs ON bs.id=b.sub_category_id
+        LEFT JOIN cash_accounts fc ON fc.id=b.cash_account_id
+        LEFT JOIN savings_accounts fa ON fa.id=fc.savings_account_id
+        LEFT JOIN cash_accounts tc ON tc.id=b.to_cash_account_id
+        LEFT JOIN savings_accounts ta ON ta.id=tc.savings_account_id
         WHERE e.cash_account_id=:cashAccountId AND e.is_deleted=0
         AND e.occurred_at_ms>=:startMs AND e.occurred_at_ms<:endMs
         AND (:time IS NULL OR e.occurred_at_ms<:time OR (e.occurred_at_ms=:time AND e.id<:id))

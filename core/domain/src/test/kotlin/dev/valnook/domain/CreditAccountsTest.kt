@@ -18,12 +18,28 @@ class CreditAccountsTest {
         CashAccount(parentId, cny, balance, 1, id, "Card $id", creditProfile = CreditAccountProfile(
             limit, 12, CreditDueRule.AfterStatementDays(20), source))
 
-    @Test fun creditLimitSumsDebtsWithoutOffsettingOverpayments() {
+    @Test fun creditLimitSumsDebtsAndAddsOverpaymentsToWhatIsAvailable() {
         val accounts = listOf(credit(1, -12_000), credit(2, -3_000, null, 1), credit(3, 3_000, null, 1))
         val result = CreditLimitCalculator.calculate(3, accounts)
         assertEquals(BigDecimal("15000"), result.usedLimitMinor)
-        assertEquals(BigDecimal("5000"), result.availableLimitMinor)
+        assertEquals(BigDecimal("8000"), result.availableLimitMinor)
         assertEquals(BigDecimal("3000"), result.ownOverpaymentMinor)
+    }
+
+    @Test fun anOverpaymentIsAvailableOnAZeroLimit() {
+        val result = CreditLimitCalculator.calculate(1, listOf(credit(1, 4_500, limit = 0)))
+        assertEquals(BigDecimal("4500"), result.availableLimitMinor)
+        assertEquals(0, result.overLimitMinor.signum())
+    }
+
+    @Test fun anOverpaymentOnAnotherCardOffsetsTheExcess() {
+        val accounts = listOf(credit(1, -21_000), credit(2, 600, null, 1))
+        val covered = CreditLimitCalculator.calculate(1, accounts)
+        assertEquals(BigDecimal("-400"), covered.availableLimitMinor)
+        assertEquals(BigDecimal("400"), covered.overLimitMinor)
+        val cleared = CreditLimitCalculator.calculate(1, listOf(credit(1, -21_000), credit(2, 1_000, null, 1)))
+        assertEquals(0, cleared.availableLimitMinor.signum())
+        assertEquals(0, cleared.overLimitMinor.signum())
     }
 
     @Test fun overLimitAndSharedRootAreDerived() {

@@ -48,14 +48,19 @@ class RoomBills(private val db: ValnookDatabase) : BillRepository {
         db.fx().historyOn(base, day.toEpochDay()).associate { it.quote_currency to it.rate.toBigDecimal() }
 }
 
-/** A credit sub-account's limit is its own or, when shared, the source's; every member's debt uses it up. */
+/**
+ * A credit sub-account's limit is its own or, when shared, the source's; every member's debt uses it up and every
+ * member's overpayment adds to it, as in CreditLimitCalculator. Without a limit, only an overpayment is available.
+ */
 internal fun choices(rows: List<BillAccountRow>): List<BillAccountChoice> = rows.map { row ->
     val available = if (!row.is_credit) null else {
         val root = rows.firstOrNull { it.id == (row.limit_source_account_id ?: row.id) }
         val limit = root?.credit_limit_minor
-        if (root == null || limit == null) null else {
-            val members = rows.filter { it.id == root.id || it.limit_source_account_id == root.id }
-            members.fold(limit) { left, member -> left - maxOf(0L, -member.balance_minor) }
+        when {
+            root == null -> null
+            limit == null -> row.balance_minor.takeIf { it > 0 }
+            else -> rows.filter { it.id == root.id || it.limit_source_account_id == root.id }
+                .fold(limit) { left, member -> left - maxOf(0L, -member.balance_minor) + maxOf(0L, member.balance_minor) }
         }
     }
     BillAccountChoice(row.id, row.savings_account_id, row.account_name, row.name, Currency.of(row.currency_code),

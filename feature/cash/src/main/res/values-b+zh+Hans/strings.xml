@@ -39,4 +39,7 @@
     <string name="cash_limit_total">总额度</string>
     <string name="cash_count_in_stats">计入收支</string>
     <string name="cash_count_in_stats_hint">保存为一笔支出或收入，分类为“其他 › 未分类”，显示在记账页，可在账单里改分类。</string>
+    <string name="cash_balance_bill_note">手动修改余额</string>
+    <string name="cash_bill_external">外部账户</string>
+    <string name="cash_bill_deleted_account">已删除的账户</string>
 </resources>

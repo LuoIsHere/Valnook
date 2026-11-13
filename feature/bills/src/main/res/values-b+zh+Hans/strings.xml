@@ -70,7 +70,6 @@
     <string name="bill_rate_flip">切换方向</string>
     <string name="bill_rate_missing">未设置 %1$s→%2$s 汇率，请输入本次使用的汇率</string>
     <string name="bill_rate_reset">恢复默认汇率</string>
-    <string name="bill_rate_save_manual">同时保存为手动汇率</string>
     <string name="bill_refund">退款</string>
     <string name="bill_reimbursement">报销回款</string>
     <string name="bill_save">保存</string>

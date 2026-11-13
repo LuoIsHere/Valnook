@@ -65,6 +65,27 @@ class BillDataTest {
         BillDraft(BillType.TRANSFER, now, amount, "CNY", 0, from, amount, transferKind = kind, toCashAccountId = to,
             toAmountMinor = if (kind == TransferKind.TO_EXTERNAL) null else amount, feeMinor = fee, counterparty = counterparty)
 
+    @Test fun the_account_ledger_names_a_bill_by_its_note_category_or_sides() = runBlocking {
+        val (a, b, _) = accounts()
+        save(expense(a, 2_000).copy(note = ""))
+        save(expense(a, 1_000).copy(note = "Synthetic coffee"))
+        save(transfer(a, b, 3_000, TransferKind.INTERNAL))
+        save(transfer(null, b, 4_000, TransferKind.FROM_EXTERNAL, counterparty = "Synthetic Payer"))
+        val month = LedgerMonth(YearMonth.from(Instant.ofEpochMilli(now).atZone(clock.zone)), clock.zone)
+        val ledgerA = RoomCash(db.cash()).cashAccountMonthPage(a, month, null, 50).associateBy { it.delta_minor }
+        val plain = ledgerA.getValue(-2_000).bill!!
+        assertEquals("", plain.note)
+        assertEquals("餐饮-午餐", plain.categoryTitle(english = false))
+        assertEquals("Food & drink-Lunch", plain.categoryTitle(english = true))
+        assertEquals("Synthetic coffee", ledgerA.getValue(-1_000).bill!!.note)
+        val outward = ledgerA.getValue(-3_000).bill!!
+        assertTrue(outward.transfer)
+        assertEquals(listOf("Synthetic Bank · A", "Synthetic Bank · B"), listOf(outward.from, outward.to))
+        val inward = RoomCash(db.cash()).cashAccountMonthPage(b, month, null, 50).single { it.delta_minor == 4_000L }.bill!!
+        assertEquals(listOf(true, false, "Synthetic Payer"), listOf(inward.fromExternal, inward.toExternal, inward.counterparty))
+        assertNull(inward.from)
+    }
+
     @Test fun every_preset_is_there_once_under_its_parent() = runBlocking {
         val categories = RoomBills(db).observeCategories().first()
         assertEquals(BillCategoryPresets.all.map { it.key }.toSet(), categories.mapNotNull { it.builtinKey }.toSet())

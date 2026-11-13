@@ -19,8 +19,9 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
             { open(CashEntryKey(route.accountId, route.cashAccountId, it)) }, { onTitleReserve(route, it) })
     }
     entry<CashBalanceEditKey> { route ->
+        val billNote = androidx.compose.ui.res.stringResource(dev.valnook.feature.cash.R.string.cash_balance_bill_note)
         val vm = pageViewModel { CashBalanceEditViewModel(route.accountId, route.cashAccountId,
-            graph.cash, graph.commands, createSavedStateHandle(), graph.bills, graph.clock) }
+            graph.cash, graph.commands, createSavedStateHandle(), graph.bills, graph.clock, billNote) }
         CashBalanceEditScreen(vm, back, onBalanceToolbar)
     }
     entry<CashEntryKey> { route ->

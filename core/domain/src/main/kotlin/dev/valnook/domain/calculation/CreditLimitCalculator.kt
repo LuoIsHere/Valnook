@@ -30,13 +30,17 @@ object CreditLimitCalculator {
             throw DomainException(ErrorCode.CREDIT_SOURCE_CURRENCY)
         }
         val used = members.fold(BigDecimal.ZERO) { sum, member -> sum + debt(member.balance_minor) }
+        val overpaid = members.fold(BigDecimal.ZERO) { sum, member -> sum + overpayment(member.balance_minor) }
         val ownDebt = debt(account.balance_minor)
-        val ownOverpayment = BigDecimal.valueOf(account.balance_minor).max(BigDecimal.ZERO)
-        val available = total - used
+        val ownOverpayment = overpayment(account.balance_minor)
+        // Money overpaid onto any card of the group can be spent like limit, so it adds to what is available.
+        val available = total - used + overpaid
         return CreditLimitSummary(account.id, rootId, members.map { it.id }, ownDebt, ownOverpayment,
-            total, used, available, used.subtract(total).max(BigDecimal.ZERO))
+            total, used, available, available.negate().max(BigDecimal.ZERO))
     }
 
     private fun debt(balanceMinor: Long): BigDecimal = BigDecimal.valueOf(balanceMinor)
         .negate().max(BigDecimal.ZERO)
+
+    private fun overpayment(balanceMinor: Long): BigDecimal = BigDecimal.valueOf(balanceMinor).max(BigDecimal.ZERO)
 }

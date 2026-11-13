@@ -486,7 +486,7 @@ private fun SessionRoot(
                                     dev.valnook.feature.bills.BillEditorViewModel(route.billId, route.copyFromId,
                                         dev.valnook.feature.bills.BillTab.valueOf(route.tab), requireNotNull(graph.bills),
                                         graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(),
-                                        graph.settingsWriter, graph.clock, createSavedStateHandle())
+                                        graph.clock, createSavedStateHandle())
                                 }, onDone = pop, onManageCategories = { open(BillCategoriesKey) })
                             }
                             entry<BillDetailKey> { route ->

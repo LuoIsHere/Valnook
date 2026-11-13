@@ -15,7 +15,15 @@ private fun CashEntryWithSource.to_model():CashEntry {
 }
 
 private fun dev.valnook.data.database.CashEntryWithBalance.to_model():CashEntry =
-    CashEntryWithSource(entry,investment_id,cash_account_name).to_model().copy(balanceAfterMinor=balance_after_minor)
+    CashEntryWithSource(entry,investment_id,cash_account_name).to_model().copy(balanceAfterMinor=balance_after_minor,
+        bill=bill_type?.let { type ->
+            // As the bill picker labels a sub-account: the account alone when the sub-account carries its name.
+            fun side(account:String?,cash:String?)=account?.let { if (cash.isNullOrBlank() || cash==account) it else "$it · $cash" }
+            CashEntryBill(bill_note.orEmpty(),type==BillType.TRANSFER.name,bill_category_key,bill_category_name,
+                bill_sub_key,bill_sub_name,side(bill_from_account,bill_from_cash),side(bill_to_account,bill_to_cash),
+                bill_transfer_kind==TransferKind.FROM_EXTERNAL.name,bill_transfer_kind==TransferKind.TO_EXTERNAL.name,
+                bill_counterparty.orEmpty())
+        })
 
 class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
     override fun observeTrends(accountId:Long,now:java.time.Instant,zone:java.time.ZoneId) =

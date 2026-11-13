@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.BillCategory
@@ -59,8 +60,8 @@ import java.time.format.DateTimeFormatter
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
     val accounts = remember(state.accounts) { state.accounts.associateBy { it.cashAccountId } }
-    Column(Modifier.fillMaxSize().padding(bottom = if (keyboardOpen) 0.dp else LocalPageBottomSpace.current)
-        .testTag("bill-editor")) {
+    // No bottom padding here: the keypad paints under the navigation bar and keeps its room inside.
+    Column(Modifier.fillMaxSize().testTag("bill-editor")) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(Space.md)) {
             Spacer(Modifier.height(LocalPageTopSpace.current))
@@ -77,7 +78,8 @@ import java.time.format.DateTimeFormatter
             confirmLabel = if (currentField(f).hasOperator) "=" else stringResource(if (state.editing) R.string.bill_save else R.string.bill_confirm),
             confirmEnabled = state.phase != BillSavePhase.WORKING,
             againEnabled = !state.editing && state.phase == BillSavePhase.IDLE,
-            onKey = vm::press, onConfirm = { vm.confirm() }, onAgain = { vm.confirm(again = true) })
+            onKey = vm::press, onConfirm = { vm.confirm() }, onAgain = { vm.confirm(again = true) },
+            bottomSpace = LocalPageBottomSpace.current)
     }
     picking?.let { target ->
         BillAccountPicker(state.accounts,
@@ -201,11 +203,8 @@ private fun amountText(e: BillExpression, digits: Int): String =
             if (!transfer) FigureBox(stringResource(R.string.bill_account_amount, to.code),
                 f.accountAmount?.let { amountText(it, to.fraction_digits) } ?: p.convertedMinor?.let { plainAmount(it, to.fraction_digits) } ?: "",
                 f.target == BillField.ACCOUNT_AMOUNT, { vm.focus(BillField.ACCOUNT_AMOUNT) }, tag = "bill-account-amount")
-            if (f.rate != null || f.accountAmount != null) Row(verticalAlignment = Alignment.CenterVertically) {
-                if (p.canSaveAsManual) CheckboxRow(stringResource(R.string.bill_rate_save_manual), f.saveAsManual, vm::setSaveAsManual,
-                    Modifier.weight(1f)) else Spacer(Modifier.weight(1f))
-                TextButton(vm::resetRate, Modifier.testTag("bill-rate-reset")) { Text(stringResource(R.string.bill_rate_reset)) }
-            }
+            if (f.rate != null || f.accountAmount != null) TextButton(vm::resetRate,
+                Modifier.align(Alignment.End).testTag("bill-rate-reset")) { Text(stringResource(R.string.bill_rate_reset)) }
         }
     }
 }
@@ -221,30 +220,25 @@ private fun amountText(e: BillExpression, digits: Int): String =
     // A hidden category is offered only while the bill already uses it.
     val tops = state.categories.filter { it.kind == kind && it.parentId == null && (!it.hidden || it.id == f.categoryId) }
     val subs = state.categories.filter { it.parentId == f.categoryId && f.categoryId != null && (!it.hidden || it.id == f.subCategoryId) }
-    BoxWithConstraints {
-        val columns = (maxWidth / 72.dp).toInt().coerceIn(4, 6)
-        Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-            (tops.map<BillCategory, BillCategory?> { it } + null).chunked(columns).forEach { row ->
-                Row(Modifier.fillMaxWidth()) {
-                    row.forEach { category ->
-                        Box(Modifier.weight(1f)) {
-                            if (category == null) CategoryTile(stringResource(R.string.bill_manage_categories), "ellipsis", "grey",
-                                false, onManageCategories, "bill-manage-categories")
-                            else CategoryTile(categoryName(category), category.iconKey, category.colorKey, category.id == f.categoryId,
-                                { vm.chooseCategory(category.id, null) }, "bill-category-${category.builtinKey ?: category.id}")
-                        }
-                    }
-                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
-                }
-                if (subs.isNotEmpty() && row.any { it != null && it.id == f.categoryId }) {
-                    GlassSurface(Modifier.fillMaxWidth().testTag("bill-subcategories"), shape = RoundedCornerShape(18.dp)) {
-                        FlowRow(Modifier.padding(10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            subs.forEach { sub ->
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        (tops.map<BillCategory, BillCategory?> { it } + null).chunked(CATEGORY_COLUMNS).forEach { row ->
+            TileRow(row) { category ->
+                if (category == null) CategoryTile(stringResource(R.string.bill_manage_categories), "ellipsis", "grey",
+                    false, onManageCategories, "bill-manage-categories")
+                else CategoryTile(categoryName(category), category.iconKey, category.colorKey, category.id == f.categoryId,
+                    { vm.chooseCategory(category.id, null) }, "bill-category-${category.builtinKey ?: category.id}")
+            }
+            if (subs.isNotEmpty() && row.any { it != null && it.id == f.categoryId }) {
+                // The subcategories in the same grid as their parents, in a box right under the parent's row.
+                GlassSurface(Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("bill-subcategories"),
+                    shape = RoundedCornerShape(18.dp)) {
+                    Column(Modifier.padding(vertical = 4.dp)) {
+                        subs.chunked(CATEGORY_COLUMNS).forEach { line ->
+                            TileRow(line) { sub ->
                                 val selected = sub.id == f.subCategoryId
-                                FilterChip(selected, { vm.chooseCategory(f.categoryId!!, if (selected) null else sub.id) },
-                                    { Text(categoryName(sub)) }, Modifier.testTag("bill-sub-${sub.builtinKey ?: sub.id}"),
-                                    leadingIcon = { CategoryIcon(sub.iconKey, sub.colorKey, size = 22.dp, selected = selected) })
+                                CategoryTile(categoryName(sub), sub.iconKey, sub.colorKey, selected,
+                                    { vm.chooseCategory(f.categoryId!!, if (selected) null else sub.id) },
+                                    "bill-sub-${sub.builtinKey ?: sub.id}")
                             }
                         }
                     }
@@ -254,12 +248,22 @@ private fun amountText(e: BillExpression, digits: Int): String =
     }
 }
 
+private const val CATEGORY_COLUMNS = 5
+
+/** [CATEGORY_COLUMNS] equal cells; a short last row keeps its cells the same width. */
+@Composable private fun <T> TileRow(items: List<T>, tile: @Composable (T) -> Unit) {
+    Row(Modifier.fillMaxWidth()) {
+        items.forEach { item -> Box(Modifier.weight(1f)) { tile(item) } }
+        repeat(CATEGORY_COLUMNS - items.size) { Spacer(Modifier.weight(1f)) }
+    }
+}
+
 @Composable private fun CategoryTile(name: String, icon: String, color: String, selected: Boolean, onClick: () -> Unit, tag: String) {
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(role = Role.Button, onClick = onClick)
-        .semantics { this.selected = selected }.padding(vertical = 6.dp).testTag(tag),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        CategoryIcon(icon, color, size = 44.dp, selected = selected)
-        Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = onClick)
+        .semantics { this.selected = selected }.padding(horizontal = 2.dp, vertical = 4.dp).testTag(tag),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        CategoryIcon(icon, color, size = 36.dp, selected = selected)
+        Text(name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center, color = if (selected) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -312,19 +316,20 @@ private fun amountText(e: BillExpression, digits: Int): String =
 @Composable private fun BottomBlock(state: BillEditorState, accounts: Map<Long, BillAccountChoice>, vm: BillEditorViewModel,
     onAccount: () -> Unit, onTime: () -> Unit) {
     val f = state.form
-    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        ProblemLine(state)
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).testTag("bill-pills"),
-            horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+    // The side padding of the scrolling rows sits inside the scroll, so they scroll out to the screen edges.
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.padding(horizontal = 16.dp)) { ProblemLine(state) }
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp).testTag("bill-pills"),
+            horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = Alignment.CenterVertically) {
             if (f.tab != BillTab.TRANSFER) Pill(f.cashAccountId?.let { id -> accounts[id]?.label() }
                 ?: stringResource(R.string.bill_no_account), selected = f.cashAccountId != null, onClick = onAccount, tag = "bill-account")
             Pill(timeText(f.occurredAt), selected = false, onClick = onTime, tag = "bill-time")
             if (f.tab != BillTab.TRANSFER) Pill(stringResource(if (f.countInStats) R.string.bill_counted_pill else R.string.bill_not_counted_pill),
                 selected = f.countInStats, onClick = { vm.setCountInStats(!f.countInStats) }, tag = "bill-count-in-stats")
         }
-        NoteBox(f.note, vm::setNote)
+        Box(Modifier.padding(horizontal = 16.dp)) { NoteBox(f.note, vm::setNote) }
         // Room for the notes used before, so the box does not jump when they appear.
-        Row(Modifier.fillMaxWidth().height(22.dp).horizontalScroll(rememberScrollState()),
+        Row(Modifier.fillMaxWidth().height(22.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(Space.md), verticalAlignment = Alignment.CenterVertically) {
             state.recentNotes.filter { it != f.note }.forEach { note ->
                 Text(note, Modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(6.dp)).clickable { vm.setNote(note) }
@@ -347,13 +352,13 @@ private fun amountText(e: BillExpression, digits: Int): String =
     return "$day ${time.toLocalTime().format(rememberClockFormatter())}$future"
 }
 
-/** A capsule as wide as its text. */
+/** A capsule as wide as its text, one height whatever script the text is in (Latin and CJK lines differ). */
 @Composable private fun Pill(text: String, selected: Boolean, onClick: () -> Unit, tag: String) {
     val colors = MaterialTheme.colorScheme
-    Box(Modifier.clip(RoundedCornerShape(50)).background(if (selected) colors.surfaceContainerHighest else colors.surfaceContainerHigh)
+    Box(Modifier.height(30.dp).clip(RoundedCornerShape(50)).background(if (selected) colors.surfaceContainerHighest else colors.surfaceContainerHigh)
         .clickable(role = Role.Button, onClick = onClick).semantics { this.selected = selected }
-        .padding(horizontal = 14.dp, vertical = 8.dp).testTag(tag)) {
-        Text(text, style = MaterialTheme.typography.labelLarge, maxLines = 1,
+        .padding(horizontal = 12.dp).testTag(tag), contentAlignment = Alignment.Center) {
+        Text(text, style = MaterialTheme.typography.labelMedium, maxLines = 1,
             color = if (selected) colors.onSurface else colors.onSurfaceVariant)
     }
 }
@@ -362,13 +367,14 @@ private fun amountText(e: BillExpression, digits: Int): String =
 @Composable private fun NoteBox(value: String, onChange: (String) -> Unit) {
     val colors = MaterialTheme.colorScheme
     val hint = stringResource(R.string.bill_note)
-    BasicTextField(value, onChange, Modifier.fillMaxWidth().height(40.dp).testTag("bill-note")
+    val style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
+    BasicTextField(value, onChange, Modifier.fillMaxWidth().height(36.dp).testTag("bill-note")
         .semantics { contentDescription = hint }, singleLine = true,
-        textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface), cursorBrush = SolidColor(colors.primary),
+        textStyle = style.copy(color = colors.onSurface), cursorBrush = SolidColor(colors.primary),
         decorationBox = { field ->
             Box(Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(colors.surfaceContainerHigh)
                 .padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
-                if (value.isEmpty()) Text(hint, style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)
+                if (value.isEmpty()) Text(hint, style = style, color = colors.onSurfaceVariant)
                 field()
             }
         })
@@ -393,7 +399,7 @@ private fun amountText(e: BillExpression, digits: Int): String =
 
 /** The keypad: digits, the four operations, delete (hold to clear), record another, and confirm. */
 @Composable fun BillKeypad(confirmLabel: String, confirmEnabled: Boolean, againEnabled: Boolean,
-    onKey: (BillKey) -> Unit, onConfirm: () -> Unit, onAgain: () -> Unit) {
+    onKey: (BillKey) -> Unit, onConfirm: () -> Unit, onAgain: () -> Unit, bottomSpace: Dp = 0.dp) {
     val rows = listOf(
         listOf(BillKey.D1, BillKey.D2, BillKey.D3, BillKey.PLUS),
         listOf(BillKey.D4, BillKey.D5, BillKey.D6, BillKey.MINUS),
@@ -402,7 +408,7 @@ private fun amountText(e: BillExpression, digits: Int): String =
     val againLabel = stringResource(R.string.bill_again)
     val deleteLabel = stringResource(R.string.bill_key_delete)
     GlassSurface(Modifier.fillMaxWidth().testTag("bill-keypad"), shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
-        Row(Modifier.padding(8.dp)) {
+        Row(Modifier.padding(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + bottomSpace)) {
             Column(Modifier.weight(4f)) {
                 rows.forEach { row ->
                     Row { row.forEach { key -> KeyButton(key.symbol, Modifier.weight(1f), onClick = { onKey(key) }, tag = "bill-key-${key.name}") } }

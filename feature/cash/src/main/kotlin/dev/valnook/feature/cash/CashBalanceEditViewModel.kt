@@ -44,6 +44,8 @@ class CashBalanceEditViewModel(
     private val saved: SavedStateHandle,
     private val bills: BillRepository? = null,
     private val clock: Clock = Clock.systemDefaultZone(),
+    /** The note a counted adjustment's bill gets when none is typed, in the language of the day it is saved. */
+    private val billNote: String = "",
 ) : ViewModel() {
     /** "Other › uncategorised" on each side, where a counted adjustment goes; the bill can be moved later. */
     private var expenseCategory: Pair<Long, Long?>? = null
@@ -123,7 +125,8 @@ class CashBalanceEditViewModel(
             val amount = kotlin.math.abs(delta)
             return@submit SaveBill(operationId, null, null, BillDraft(if (delta < 0) BillType.EXPENSE else BillType.INCOME,
                 clock.millis(), amount, current.currency.code, 0, current.id, amount, categoryId = category.first,
-                subCategoryId = category.second, countInStats = true, note = state.value.entryNote))
+                subCategoryId = category.second, countInStats = true,
+                note = state.value.entryNote.takeIf { it.isNotBlank() } ?: billNote))
         }
         SetCashBalance(operationId, parentAccountId, current.currency.code,
             R.parse_signed_minor(state.value.balanceInput, current.currency), current.revision,

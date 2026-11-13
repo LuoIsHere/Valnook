@@ -1,9 +1,11 @@
 package dev.valnook.feature.cash
 
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import dev.valnook.core.designsystem.R
 import dev.valnook.domain.model.CashEntry
+import dev.valnook.domain.model.CashEntryBill
 import dev.valnook.domain.model.CashSource
 import dev.valnook.domain.money.DecimalRules
 
@@ -22,3 +24,18 @@ internal fun cash_change_text(entry:CashEntry)=
     CashSource.BILL->R.string.source_bill
     CashSource.BILL_TRANSFER_IN->R.string.source_bill_transfer_in
 })
+
+/**
+ * A bill's entry as the bills page titles the bill: its note, else "category-subcategory", or a transfer's
+ * "from → to". Null when nothing is left to name it by, so the caller falls back to the source.
+ */
+@Composable internal fun cash_bill_title(bill: CashEntryBill): String? {
+    bill.note.trim().takeIf { it.isNotEmpty() }?.let { return it.replace(WHITESPACE_RUN, " ") }
+    if (!bill.transfer) return bill.categoryTitle(LocalConfiguration.current.locales[0].language != "zh")
+    val external = stringResource(dev.valnook.feature.cash.R.string.cash_bill_external)
+    val deleted = stringResource(dev.valnook.feature.cash.R.string.cash_bill_deleted_account)
+    fun side(name: String?, outside: Boolean) = if (outside) bill.counterparty.ifBlank { external } else name ?: deleted
+    return side(bill.from, bill.fromExternal) + " → " + side(bill.to, bill.toExternal)
+}
+
+private val WHITESPACE_RUN = Regex("\\s+")

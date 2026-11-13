@@ -207,6 +207,26 @@ class CashViewModelTest {
         assertEquals(clock.millis(), bill.occurredAtMs)
     }
 
+    @Test fun a_counted_adjustment_without_a_note_says_it_was_edited_by_hand() = runTest(dispatcher) {
+        val requests = mutableListOf<FinancialCommand>()
+        val commands = object : FinancialCommands {
+            override suspend fun execute(command: FinancialCommand): OperationResult {
+                requests += command
+                return OperationResult("BILL", 3)
+            }
+        }
+        val vm = CashBalanceEditViewModel(1, 1, reads, commands, SavedStateHandle(), bills, billNote = "Synthetic default")
+        runCurrent()
+        val before = vm.state.value.account!!.balance_minor
+        vm.changeCountInStats(true)
+        vm.changeNote("  ")
+        vm.changeBalance(dev.valnook.domain.money.DecimalRules.format_units(before + 500, 3))
+        vm.submit(); runCurrent()
+        val bill = (requests.single() as SaveBill).draft
+        assertEquals(BillType.INCOME, bill.type)
+        assertEquals("Synthetic default", bill.note)
+    }
+
     @Test fun restored_editor_waits_for_account_before_displaying_saved_draft() = runTest(dispatcher) {
         val commands = object : FinancialCommands {
             override suspend fun execute(command: FinancialCommand) = OperationResult("CASH_ENTRY", 2)

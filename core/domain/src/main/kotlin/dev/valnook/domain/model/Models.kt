@@ -143,7 +143,9 @@ enum class CashSource { CASH_SET, TRADE, TERM_OPEN, TERM_CLOSE, TRADE_REMOVED, D
 data class CashEntry(val id: Long, val account_id: Long, val currency: Currency,
     val delta_minor: Long, val occurred_at_ms: Long, val source: CashSource,
     val source_id: Long?, val investment_id: Long?, val note: String, val revision: Long,
-    val cashAccountId: Long = 0, val cashAccountName: String = "", val balanceAfterMinor: Long? = null) {
+    val cashAccountId: Long = 0, val cashAccountName: String = "", val balanceAfterMinor: Long? = null,
+    /** The bill behind a BILL or BILL_TRANSFER_IN entry, where the ledger reads it; null elsewhere. */
+    val bill: CashEntryBill? = null) {
     val editable: Boolean get() = source == CashSource.CASH_SET
 }
 data class TradeCursor(val occurred_at_ms: Long, val id: Long)

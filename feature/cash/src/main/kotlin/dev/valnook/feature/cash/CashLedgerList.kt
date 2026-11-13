@@ -69,7 +69,7 @@ internal fun CashEntry.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at
 private val WHITESPACE = Regex("\\s+")
 
 /**
- * The note (or, without one, where the change came from) over its time; the change over the balance it left, both in
+ * The note (or, without one, where the change came from; a bill's entry is titled as the bill) over its time; the change over the balance it left, both in
  * the time's small type for the latter. An increase is green like the overpayment tag.
  */
 @Composable internal fun CashLedgerRow(entry: CashEntry, clock: DateTimeFormatter, onOpen: () -> Unit) {
@@ -82,7 +82,8 @@ private val WHITESPACE = Regex("\\s+")
         .testTag("cash-entry-${entry.id}").padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(note.ifEmpty { cash_source_label(entry) }, style = large, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(entry.bill?.let { cash_bill_title(it) } ?: note.ifEmpty { cash_source_label(entry) },
+                style = large, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(time, style = small, color = muted, maxLines = 1)
         }
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {

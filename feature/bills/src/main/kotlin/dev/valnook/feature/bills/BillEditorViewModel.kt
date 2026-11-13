@@ -57,7 +57,6 @@ data class BillForm(
     /** The amount the account actually moved, typed instead of a rate (expense and income). */
     val accountAmount: BillExpression? = null,
     val transferEdits: List<TransferFigure> = listOf(TransferFigure.IN, TransferFigure.RATE, TransferFigure.OUT),
-    val saveAsManual: Boolean = false,
     val expenseCategoryId: Long? = null,
     val expenseSubId: Long? = null,
     val incomeCategoryId: Long? = null,
@@ -85,7 +84,6 @@ data class BillPreview(
     val rateSource: BillRateSource?,
     val crossCurrency: Boolean,
     val missingRate: Boolean,
-    val canSaveAsManual: Boolean,
     val problem: BillProblem?,
 )
 
@@ -125,7 +123,6 @@ class BillEditorViewModel(
     private val commands: FinancialCommands,
     settings: Flow<AppSettings>,
     fx: Flow<FxContext>,
-    private val settingsWriter: SettingsWriter?,
     private val clock: Clock,
     private val saved: SavedStateHandle,
 ) : ViewModel() {
@@ -379,8 +376,6 @@ class BillEditorViewModel(
 
     fun setCountInStats(value: Boolean) = update { it.copy(countInStats = value) }
 
-    fun setSaveAsManual(value: Boolean) = update { it.copy(saveAsManual = value) }
-
     fun setDiscountMode(mode: DiscountMode) = update { f ->
         if (f.discountMode == mode) f else {
             // The same number stays meaningful: a discount of 15.70 on 68 becomes paid 52.30, and back.
@@ -419,12 +414,10 @@ class BillEditorViewModel(
             try {
                 if (reconcile) commands.operationResult(command.operation_id) ?: commands.execute(command)
                 else commands.execute(command)
-                if (current.form.saveAsManual && current.preview.canSaveAsManual) keepManualRate(current)
                 if (again && billId == null) {
                     operationId = newOperation()
                     setForm(current.form.copy(amount = BillExpression(), discount = BillExpression(), fee = BillExpression(),
-                        toAmount = BillExpression(), accountAmount = null, note = "", target = BillField.AMOUNT,
-                        saveAsManual = false))
+                        toAmount = BillExpression(), accountAmount = null, note = "", target = BillField.AMOUNT))
                     setMeta(meta.value.copy(phase = BillSavePhase.IDLE, savedCount = meta.value.savedCount + 1))
                 } else setMeta(meta.value.copy(phase = BillSavePhase.SAVED))
                 setMeta(meta.value.copy(attempted = false))
@@ -432,20 +425,6 @@ class BillEditorViewModel(
             catch (error: DomainException) { setMeta(meta.value.copy(phase = BillSavePhase.IDLE, error = error.code)) }
             catch (_: Exception) { setMeta(meta.value.copy(phase = BillSavePhase.UNKNOWN)) }
         }
-    }
-
-    /** Also keeps the rate as the manual rate against the base currency, which is the only kind there is. */
-    private suspend fun keepManualRate(current: BillEditorState) {
-        val writer = settingsWriter ?: return
-        val settingsValue = settingsState.value ?: return
-        val base = settingsValue.baseCurrency ?: return
-        val rate = current.preview.rate ?: return
-        val from = (if (current.form.tab == BillTab.TRANSFER) current.preview.accountCurrency else current.preview.currency) ?: return
-        val to = (if (current.form.tab == BillTab.TRANSFER) current.preview.toCurrency else current.preview.accountCurrency) ?: return
-        val (other, toBase) = if (to == base) from to rate
-            else to to BigDecimal.ONE.divide(rate, BillRules.RATE_SCALE, RoundingMode.HALF_UP).stripTrailingZeros()
-        val rates = settingsValue.rates.filterNot { it.sourceCurrency == other && it.targetCurrency == base } + FxRate(other, base, toBase)
-        runCatching { writer.applyChange(SaveFinancialSettings(settingsValue.revision, base, rates)) }
     }
 
     fun consumeSaved(): Boolean = meta.value.phase == BillSavePhase.SAVED
@@ -509,7 +488,7 @@ class BillEditorViewModel(
                         }
                         typedRate != null -> {
                             rate = typedRate.setScale(BillRules.RATE_SCALE, RoundingMode.HALF_UP).stripTrailingZeros()
-                            source = if (f.saveAsManual) BillRateSource.MANUAL else BillRateSource.ONE_TIME
+                            source = BillRateSource.ONE_TIME
                             converted = runCatching { BillRules.convert(paid, currency, accountCurrency, rate) }.getOrNull()
                         }
                         settings != null -> BillRates.suggest(currency, accountCurrency, settings, fx, dayRates)?.let {
@@ -530,8 +509,7 @@ class BillEditorViewModel(
                 else -> null
             }
             return BillPreview(currency, accountCurrency, null, amount, discount, paid, converted, rate, source, cross,
-                missingRate, cross && settings != null && !fx.autoEnabled &&
-                    BillRates.canSaveAsManual(currency!!, accountCurrency!!, settings.baseCurrency), problem)
+                missingRate, problem)
         }
 
         private fun transferPreview(f: BillForm, accounts: List<BillAccountChoice>, settings: AppSettings?, fx: FxContext,
@@ -550,7 +528,7 @@ class BillEditorViewModel(
                 val typedRate = f.rate?.toBigDecimalOrNull()?.takeIf { it.signum() > 0 }
                 val suggestion = settings?.let { BillRates.suggest(from!!.currency, to!!.currency, it, fx, dayRates) }
                 rate = typedRate?.setScale(BillRules.RATE_SCALE, RoundingMode.HALF_UP)?.stripTrailingZeros() ?: suggestion?.rate
-                source = if (typedRate != null) (if (f.saveAsManual) BillRateSource.MANUAL else BillRateSource.ONE_TIME) else suggestion?.source
+                source = if (typedRate != null) BillRateSource.ONE_TIME else suggestion?.source
                 received = f.toAmount.minor(to!!.currency.fraction_digits)
                 // Whatever was typed, the stored rate has to give the received amount back exactly: if rounding means
                 // it does not, the rate is worked out from the two amounts instead.
@@ -569,9 +547,7 @@ class BillEditorViewModel(
                 missingRate || received == null || received <= 0 -> BillProblem.RATE
                 else -> null
             }
-            return BillPreview(currency, currency, toCurrency, amount, 0, amount, received, rate, source, cross, missingRate,
-                cross && settings != null && !fx.autoEnabled &&
-                    BillRates.canSaveAsManual(from!!.currency, to!!.currency, settings.baseCurrency), problem)
+            return BillPreview(currency, currency, toCurrency, amount, 0, amount, received, rate, source, cross, missingRate, problem)
         }
 
         internal fun encode(f: BillForm): String = JSONObject().apply {
@@ -581,7 +557,7 @@ class BillEditorViewModel(
             put("toExternal", f.toExternal); put("counterparty", f.counterparty); put("fee", f.fee.text)
             put("toAmount", f.toAmount.text); putOpt("rate", f.rate); put("rateInverted", f.rateInverted)
             putOpt("accountAmount", f.accountAmount?.text); put("edits", JSONArray(f.transferEdits.map { it.name }))
-            put("saveAsManual", f.saveAsManual); putOpt("expense", f.expenseCategoryId); putOpt("expenseSub", f.expenseSubId)
+            putOpt("expense", f.expenseCategoryId); putOpt("expenseSub", f.expenseSubId)
             putOpt("income", f.incomeCategoryId); putOpt("incomeSub", f.incomeSubId); put("time", f.occurredAt.toString())
             put("count", f.countInStats); put("note", f.note); put("target", f.target.name)
         }.toString()
@@ -596,7 +572,7 @@ class BillEditorViewModel(
                 BillExpression(o.getString("fee")), BillExpression(o.getString("toAmount")), string("rate"),
                 o.getBoolean("rateInverted"), string("accountAmount")?.let(::BillExpression),
                 o.getJSONArray("edits").let { a -> (0 until a.length()).map { TransferFigure.valueOf(a.getString(it)) } },
-                o.getBoolean("saveAsManual"), long("expense"), long("expenseSub"), long("income"), long("incomeSub"),
+                long("expense"), long("expenseSub"), long("income"), long("incomeSub"),
                 LocalDateTime.parse(o.getString("time")), o.getBoolean("count"), o.getString("note"), BillField.valueOf(o.getString("target")))
         }.getOrNull()
     }

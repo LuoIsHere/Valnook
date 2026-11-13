@@ -5,6 +5,22 @@ import java.math.RoundingMode
 
 enum class BillType { EXPENSE, INCOME, TRANSFER, REFUND, REIMBURSEMENT }
 
+/**
+ * What an account's ledger needs to name a bill's cash entry as the bills page names the bill: its note, its
+ * category names, and for a transfer both sides ("Account · sub-account", null when external or deleted).
+ */
+data class CashEntryBill(val note: String, val transfer: Boolean,
+    val categoryKey: String?, val categoryName: String?, val subKey: String?, val subName: String?,
+    val from: String?, val to: String?, val fromExternal: Boolean, val toExternal: Boolean, val counterparty: String) {
+    /** "Food-Lunch", or the one category left; null when the bill has none. */
+    fun categoryTitle(english: Boolean): String? {
+        fun name(key: String?, custom: String?) = (custom ?: BillCategoryPresets.name(key, english))?.takeIf { it.isNotEmpty() }
+        val top = name(categoryKey, categoryName)
+        val sub = name(subKey, subName)
+        return if (top != null && sub != null) "$top-$sub" else sub ?: top
+    }
+}
+
 /** Which side of a transfer is one of the user's own sub-accounts. An external side has no account or currency. */
 enum class TransferKind { INTERNAL, TO_EXTERNAL, FROM_EXTERNAL }
 
@@ -174,13 +190,6 @@ object BillRates {
         if (rate.signum() <= 0) return null
         return Suggestion(rate, if (fx.autoEnabled) BillRateSource.AUTO else BillRateSource.MANUAL)
     }
-
-    /**
-     * Whether a rate between [from] and [to] can also be kept as a manual rate: manual rates are stored against the
-     * base currency only, so one side has to be it.
-     */
-    fun canSaveAsManual(from: Currency, to: Currency, base: Currency?): Boolean =
-        base != null && from != to && (from == base || to == base)
 }
 
 /** Category colours by key; the app picks the shade for light and dark. Keys are stored, so never rename one. */

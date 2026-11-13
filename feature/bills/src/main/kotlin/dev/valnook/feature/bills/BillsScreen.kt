@@ -16,7 +16,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -86,15 +91,40 @@ data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Uni
         Text(totals?.let { totalText(it.expense, base, it) } ?: "—", Modifier.testTag("bills-month-expense"),
             style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum"), maxLines = 1,
             overflow = TextOverflow.Ellipsis)
-        if (totals != null) Text(stringResource(R.string.bills_month_income_balance, totalText(totals.income, base, totals),
-            totalText(totals.income - totals.expense, base, totals)), style = MaterialTheme.typography.bodyMedium,
-            color = colors.onSurfaceVariant)
+        if (totals != null) {
+            val palette = LocalGainLossPalette.current
+            val balance = totals.income - totals.expense
+            // A zero stays plain, as a zero balance does.
+            Text(colouredText(R.string.bills_month_income_balance, totalText(totals.income, base, totals) to
+                if (totals.income.signum() > 0) palette.gain else Color.Unspecified,
+                totalText(balance, base, totals) to when (balance.signum()) {
+                    1 -> palette.gain; -1 -> palette.loss; else -> Color.Unspecified }),
+                Modifier.testTag("bills-month-income-balance"), style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant)
+        }
         if (totals?.partial == true) Text(stringResource(R.string.bills_totals_partial), style = MaterialTheme.typography.bodySmall,
             color = colors.error)
         MonthPager(state.month, vm::setMonth, horizontalArrangement = Arrangement.Start,
             label = { m, l -> localMonthLabel(m, l) })
     }
 }
+
+/** The string [id] with each argument in its own colour; the words around them keep the text's colour. */
+@Composable private fun colouredText(id: Int, vararg args: Pair<String, Color>): AnnotatedString {
+    val template = stringResource(id, *args.indices.map { "\u0000$it\u0000" }.toTypedArray())
+    return buildAnnotatedString {
+        var start = 0
+        PLACEHOLDER.findAll(template).forEach { match ->
+            append(template.substring(start, match.range.first))
+            val (text, color) = args[match.groupValues[1].toInt()]
+            withStyle(SpanStyle(color = color)) { append(text) }
+            start = match.range.last + 1
+        }
+        append(template.substring(start))
+    }
+}
+
+private val PLACEHOLDER = Regex("\u0000(\\d+)\u0000")
 
 private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTotals): String =
     (if (totals.converted) "≈ " else "") + DecimalRules.format_display(value, value.scale()) + (base?.let { " $it" } ?: "")
@@ -104,11 +134,15 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(day.date.format(DateTimeFormatter.ofPattern(pattern, locale)), Modifier.weight(1f),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        val palette = LocalGainLossPalette.current
         val parts = listOfNotNull(
-            day.totals.expense.takeIf { it.signum() != 0 }?.let { stringResource(R.string.bills_day_expense, totalText(it, base, day.totals)) },
-            day.totals.income.takeIf { it.signum() != 0 }?.let { stringResource(R.string.bills_day_income, totalText(it, base, day.totals)) })
-        if (parts.isNotEmpty()) Text(parts.joinToString("  "), style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            day.totals.expense.takeIf { it.signum() != 0 }?.let {
+                colouredText(R.string.bills_day_expense, totalText(it, base, day.totals) to palette.loss) },
+            day.totals.income.takeIf { it.signum() != 0 }?.let {
+                colouredText(R.string.bills_day_income, totalText(it, base, day.totals) to palette.gain) })
+        if (parts.isNotEmpty()) Text(buildAnnotatedString {
+            parts.forEachIndexed { index, part -> if (index > 0) append("  "); append(part) }
+        }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -149,8 +183,15 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 val amount = if (transfer && bill.transferKind == TransferKind.INTERNAL) plainAmount(bill.shownMinor, bill.shownFractionDigits)
                     else signedAmount(bill.shownMinor, bill.shownFractionDigits, bill.isOutflow)
+                val palette = LocalGainLossPalette.current
+                // Income in the gain colour and expense in the loss colour; transfers and uncounted bills stay plain.
                 Text("$amount ${bill.shownCurrencyCode}", style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                    color = if (counted) colors.onSurface else colors.onSurfaceVariant)
+                    color = when {
+                        !counted -> colors.onSurfaceVariant
+                        transfer -> colors.onSurface
+                        bill.isOutflow -> palette.loss
+                        else -> palette.gain
+                    })
                 val tags = listOfNotNull(
                     if (!counted) stringResource(R.string.bill_not_counted) else null,
                     if (future) stringResource(R.string.bill_future) else null)
@@ -163,7 +204,9 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
 
 @Composable private fun FilterRow(state: BillsState, vm: BillsViewModel) {
     val filter = state.filter
-    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+    // Out to the screen edges, so a chip scrolls off the edge instead of being cut at the page padding.
+    Row(Modifier.fillMaxWidth().bleedHorizontally(16.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
         FilterMenu(stringResource(R.string.bills_filter_type), filter.type?.let { stringResource(typeLabel(it)) },
             listOf<BillType?>(null, BillType.EXPENSE, BillType.INCOME, BillType.TRANSFER),
             { it?.let { type -> stringResource(typeLabel(type)) } ?: stringResource(R.string.bills_filter_all) },

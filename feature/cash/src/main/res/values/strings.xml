@@ -39,4 +39,7 @@
     <string name="cash_limit_total">Total limit</string>
     <string name="cash_count_in_stats">Count in income and expense</string>
     <string name="cash_count_in_stats_hint">Saved as an expense or income under Other › Uncategorised and listed on the bills page; its category can be changed there.</string>
+    <string name="cash_balance_bill_note">Manual balance edit</string>
+    <string name="cash_bill_external">External account</string>
+    <string name="cash_bill_deleted_account">Deleted account</string>
 </resources>
