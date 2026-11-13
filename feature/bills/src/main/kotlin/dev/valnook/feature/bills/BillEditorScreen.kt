@@ -120,7 +120,7 @@ private fun currentField(f: BillForm): BillExpression = when (f.target) {
 }
 
 /** A figure the keypad can type into; outlined while it has the keypad. */
-@Composable private fun FigureBox(label: String, text: String, focused: Boolean, onFocus: () -> Unit, modifier: Modifier = Modifier,
+@Composable internal fun FigureBox(label: String, text: String, focused: Boolean, onFocus: () -> Unit, modifier: Modifier = Modifier,
     large: Boolean = false, tag: String, leading: (@Composable () -> Unit)? = null, expression: String? = null) {
     val colors = MaterialTheme.colorScheme
     // Leaving a text field for a figure puts the system keyboard away, so the bill keypad comes back.
@@ -146,7 +146,7 @@ private fun currentField(f: BillForm): BillExpression = when (f.target) {
     }
 }
 
-private fun amountText(e: BillExpression, digits: Int): String =
+internal fun amountText(e: BillExpression, digits: Int): String =
     e.value(digits)?.let { DecimalRules.format_display(it, digits) } ?: if (e.isEmpty) "" else e.text
 
 @Composable private fun SpendingFields(state: BillEditorState, vm: BillEditorViewModel, onManageCategories: () -> Unit) {
@@ -326,8 +326,15 @@ private const val CATEGORY_COLUMNS = 5
             Pill(timeText(f.occurredAt), selected = false, onClick = onTime, tag = "bill-time")
             if (f.tab != BillTab.TRANSFER) Pill(stringResource(if (f.countInStats) R.string.bill_counted_pill else R.string.bill_not_counted_pill),
                 selected = f.countInStats, onClick = { vm.setCountInStats(!f.countInStats) }, tag = "bill-count-in-stats")
+            if (f.tab == BillTab.EXPENSE) Pill(stringResource(if (f.reimbursable) R.string.bill_reimbursable_pill else R.string.bill_not_reimbursable_pill),
+                selected = f.reimbursable, onClick = { vm.setReimbursable(!f.reimbursable) }, tag = "bill-reimbursable")
         }
-        Box(Modifier.padding(horizontal = 16.dp)) { NoteBox(f.note, vm::setNote) }
+        // Who pays an expense back sits beside the note, so the block keeps its height.
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            NoteBox(f.note, vm::setNote, stringResource(R.string.bill_note), "bill-note", Modifier.weight(1f))
+            if (f.tab == BillTab.EXPENSE && f.reimbursable)
+                NoteBox(f.payer, vm::setPayer, stringResource(R.string.bill_payer), "bill-payer", Modifier.width(120.dp))
+        }
         // Room for the notes used before, so the box does not jump when they appear.
         Row(Modifier.fillMaxWidth().height(22.dp).horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(Space.md), verticalAlignment = Alignment.CenterVertically) {
@@ -340,7 +347,7 @@ private const val CATEGORY_COLUMNS = 5
     }
 }
 
-@Composable private fun timeText(time: java.time.LocalDateTime): String {
+@Composable internal fun timeText(time: java.time.LocalDateTime): String {
     val today = LocalDate.now()
     val day = when (time.toLocalDate()) {
         today -> stringResource(R.string.bill_today)
@@ -353,7 +360,7 @@ private const val CATEGORY_COLUMNS = 5
 }
 
 /** A capsule as wide as its text, one height whatever script the text is in (Latin and CJK lines differ). */
-@Composable private fun Pill(text: String, selected: Boolean, onClick: () -> Unit, tag: String) {
+@Composable internal fun Pill(text: String, selected: Boolean, onClick: () -> Unit, tag: String) {
     val colors = MaterialTheme.colorScheme
     Box(Modifier.height(30.dp).clip(RoundedCornerShape(50)).background(if (selected) colors.surfaceContainerHighest else colors.surfaceContainerHigh)
         .clickable(role = Role.Button, onClick = onClick).semantics { this.selected = selected }
@@ -363,12 +370,11 @@ private const val CATEGORY_COLUMNS = 5
     }
 }
 
-/** A low, single-line note box. */
-@Composable private fun NoteBox(value: String, onChange: (String) -> Unit) {
+/** A low, single-line text box: the note, or who pays an expense back. */
+@Composable internal fun NoteBox(value: String, onChange: (String) -> Unit, hint: String, tag: String, modifier: Modifier) {
     val colors = MaterialTheme.colorScheme
-    val hint = stringResource(R.string.bill_note)
     val style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
-    BasicTextField(value, onChange, Modifier.fillMaxWidth().height(36.dp).testTag("bill-note")
+    BasicTextField(value, onChange, modifier.height(36.dp).testTag(tag)
         .semantics { contentDescription = hint }, singleLine = true,
         textStyle = style.copy(color = colors.onSurface), cursorBrush = SolidColor(colors.primary),
         decorationBox = { field ->
@@ -442,7 +448,7 @@ private const val CATEGORY_COLUMNS = 5
 }
 
 /** Today, yesterday and the day before at a tap, or any date and time. */
-@Composable private fun TimeDialog(value: java.time.LocalDateTime, onDaysAgo: (Long) -> Unit,
+@Composable internal fun TimeDialog(value: java.time.LocalDateTime, onDaysAgo: (Long) -> Unit,
     onChange: (java.time.LocalDateTime) -> Unit, onDismiss: () -> Unit) {
     AnimatedGlassDialog(true, onDismiss) {
         GlassSurface(Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(24.dp)) {

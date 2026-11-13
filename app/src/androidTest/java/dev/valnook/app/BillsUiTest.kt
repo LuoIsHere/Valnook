@@ -153,7 +153,7 @@ class BillsUiTest {
         fun key(value: String) = categories.single { it.builtinKey == value }.id
         fun record(sub: String, amount: Long) = runBlocking {
             graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(BillType.EXPENSE,
-                System.currentTimeMillis(), amount, "CNY", 0, cashId, amount, categoryId = key("food"), subCategoryId = key(sub))))
+                graph.clock.millis(), amount, "CNY", 0, cashId, amount, categoryId = key("food"), subCategoryId = key(sub))))
         }
         record("food.lunch", 1_000); record("food.lunch", 500); record("food.breakfast", 300)
         assertEquals(100_000L - 1_800, balance())
@@ -197,5 +197,82 @@ class BillsUiTest {
         val moved = runBlocking { db.bills().billsOnCategory(key("food.dinner")) }
         assertEquals(listOf(300L), moved.map { it.amount_minor })
         assertEquals(100_000L - 1_800, balance())
+    }
+
+    private fun recordLunch(amount: Long): Long = runBlocking {
+        val categories = graph.bills!!.observeCategories().first()
+        fun key(value: String) = categories.single { it.builtinKey == value }.id
+        graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(BillType.EXPENSE,
+            graph.clock.millis() - 60_000, amount, "CNY", 0, cashId, amount, categoryId = key("food"),
+            subCategoryId = key("food.lunch")))).id
+    }
+
+    /** Part of an expense comes back as its own row, shows on the expense, and can be undone. */
+    @Test fun a_partial_refund_comes_back_and_can_be_undone() {
+        val lunch = recordLunch(10_000)
+        rule.waitUntil(8_000) { rule.onAllNodesWithText("餐饮-午餐").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("餐饮-午餐").performClick()
+        waitTag("bill-refund")
+        rule.onNodeWithTag("bill-refund").performScrollTo().performClick()
+        waitTag("bill-settle")
+        // It starts from everything that is left, back to the account it was paid from.
+        rule.onNodeWithTag("bill-settle-amount").assertTextContains("100.00", substring = true)
+        rule.onNodeWithTag("bill-settle-account").assertTextEquals("合成银行 · 合成储蓄卡")
+        rule.onNodeWithTag("bill-key-BACKSPACE").performTouchInput { longClick() }
+        keys("30")
+        rule.onNodeWithTag("bill-confirm").performClick()
+        rule.waitUntil(8_000) { balance() == 100_000L - 10_000 + 3_000 }
+        waitTag("bill-settlements")
+        val refund = runBlocking { db.bills().children(lunch).single() }
+        androidx.test.espresso.Espresso.pressBack()
+        waitTag("bills-list")
+        rule.waitUntil(8_000) { rule.onAllNodesWithText("退款 · 餐饮-午餐").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("已退 30.00", substring = true).assertExists()
+
+        rule.onNodeWithText("餐饮-午餐").performClick()
+        waitTag("bill-undo-${refund.id}")
+        rule.onNodeWithTag("bill-undo-${refund.id}").performScrollTo().performClick()
+        rule.onNodeWithTag("bill-undo-confirm").performClick()
+        rule.waitUntil(8_000) { balance() == 100_000L - 10_000 }
+    }
+
+    /** An expense to be paid back starts out of income and expense, names who pays, and is paid back in full. */
+    @Test fun an_expense_to_be_paid_back_is_paid_back_and_goes_with_its_bill() {
+        rule.onNodeWithTag("add-bill").performClick()
+        waitTag("bill-editor")
+        keys("80")
+        rule.onNodeWithTag("bill-category-food").performClick()
+        rule.onNodeWithTag("bill-sub-food.dinner").performClick()
+        rule.onNodeWithTag("bill-account").performClick()
+        waitTag("bill-account-picker")
+        rule.onNodeWithTag("bill-account-$cashId").performClick()
+        rule.onNodeWithTag("bill-reimbursable").performClick()
+        rule.onNodeWithTag("bill-count-in-stats").assertTextEquals("不计入收支")
+        rule.onNodeWithTag("bill-payer").performTextInput("合成公司")
+        rule.onNodeWithTag("bill-amount").performClick()
+        waitTag("bill-keypad")
+        rule.onNodeWithTag("bill-confirm").performClick()
+        waitTag("bills-list")
+        rule.waitUntil(8_000) { rule.onAllNodesWithText("待回款 80.00", substring = true).fetchSemanticsNodes().isNotEmpty() }
+        assertEquals(100_000L - 8_000, balance())
+
+        rule.onNodeWithText("餐饮-晚餐").performClick()
+        waitTag("bill-reimburse")
+        rule.onNodeWithText("合成公司").assertExists()
+        rule.onNodeWithTag("bill-reimburse").performScrollTo().performClick()
+        waitTag("bill-settle")
+        rule.onNodeWithTag("bill-settle-amount").assertTextContains("80.00", substring = true)
+        rule.onNodeWithTag("bill-confirm").performClick()
+        rule.waitUntil(8_000) { balance() == 100_000L }
+        rule.waitUntil(8_000) { rule.onAllNodesWithText("已回款").fetchSemanticsNodes().isNotEmpty() }
+
+        // Deleting the bill takes its reimbursement along; the account ends where it started.
+        rule.onNodeWithTag("bill-delete").performScrollTo().performClick()
+        rule.onNodeWithText("将同时删除 1 条退款和报销回款记录，所有账户的余额一起回退。").assertExists()
+        rule.onNodeWithTag("bill-delete-confirm").performClick()
+        waitTag("bills-list")
+        rule.waitUntil(8_000) { runBlocking { db.openHelper.readableDatabase.query(
+            "SELECT COUNT(*) FROM bill_entries WHERE is_deleted=0").use { it.moveToFirst(); it.getInt(0) } } == 0 }
+        assertEquals(100_000L, balance())
     }
 }

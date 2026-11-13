@@ -11,6 +11,8 @@ import dev.valnook.feature.deposits.DepositFormMode
 /** A new bill on [tab], an edit of [billId], or a new bill copied from [copyFromId]. */
 @Serializable data class BillEditorKey(val billId: Long? = null, val copyFromId: Long? = null, val tab: String = "EXPENSE") : NavKey
 @Serializable data class BillDetailKey(val id: Long) : NavKey
+/** A refund or reimbursement ([type]) of the expense [parentId]. */
+@Serializable data class BillSettleKey(val parentId: Long, val type: String) : NavKey
 @Serializable data object BillCategoriesKey : NavKey
 @Serializable data object AccountsKey : NavKey
 @Serializable data object AccountGroupsKey : NavKey

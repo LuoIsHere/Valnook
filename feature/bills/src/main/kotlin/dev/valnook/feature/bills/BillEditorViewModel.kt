@@ -65,6 +65,9 @@ data class BillForm(
     val countInStats: Boolean = true,
     val note: String = "",
     val target: BillField = BillField.AMOUNT,
+    /** An expense someone is to pay back, and who ([payer], optional); kept apart from a transfer's other side. */
+    val reimbursable: Boolean = false,
+    val payer: String = "",
 ) {
     val categoryId: Long? get() = if (tab == BillTab.INCOME) incomeCategoryId else expenseCategoryId
     val subCategoryId: Long? get() = if (tab == BillTab.INCOME) incomeSubId else expenseSubId
@@ -219,6 +222,8 @@ class BillEditorViewModel(
             occurredAt = time,
             countInStats = bill.countInStats,
             note = bill.note,
+            reimbursable = bill.reimbursable,
+            payer = if (bill.reimbursable) bill.counterparty else "",
         )
     }
 
@@ -376,6 +381,11 @@ class BillEditorViewModel(
 
     fun setCountInStats(value: Boolean) = update { it.copy(countInStats = value) }
 
+    /** Marking an expense to be paid back leaves it out of income and expense at first; it can be counted again. */
+    fun setReimbursable(value: Boolean) = update { it.copy(reimbursable = value, countInStats = if (value) false else it.countInStats) }
+
+    fun setPayer(value: String) = update { it.copy(payer = value.take(BillRules.MAX_COUNTERPARTY_LENGTH)) }
+
     fun setDiscountMode(mode: DiscountMode) = update { f ->
         if (f.discountMode == mode) f else {
             // The same number stays meaningful: a discount of 15.70 on 68 becomes paid 52.30, and back.
@@ -450,7 +460,9 @@ class BillEditorViewModel(
         }
         return BillDraft(if (f.tab == BillTab.INCOME) BillType.INCOME else BillType.EXPENSE, time, amount, p.currency!!.code,
             p.discountMinor, f.cashAccountId, p.convertedMinor!!, p.rate ?: BigDecimal.ONE, p.rateSource ?: BillRateSource.SAME,
-            categoryId = f.categoryId, subCategoryId = f.subCategoryId, countInStats = f.countInStats, note = f.note)
+            categoryId = f.categoryId, subCategoryId = f.subCategoryId, countInStats = f.countInStats, note = f.note,
+            reimbursable = f.tab == BillTab.EXPENSE && f.reimbursable,
+            counterparty = if (f.tab == BillTab.EXPENSE && f.reimbursable) f.payer else "")
     }
 
     companion object {
@@ -560,6 +572,7 @@ class BillEditorViewModel(
             putOpt("expense", f.expenseCategoryId); putOpt("expenseSub", f.expenseSubId)
             putOpt("income", f.incomeCategoryId); putOpt("incomeSub", f.incomeSubId); put("time", f.occurredAt.toString())
             put("count", f.countInStats); put("note", f.note); put("target", f.target.name)
+            put("reimbursable", f.reimbursable); put("payer", f.payer)
         }.toString()
 
         internal fun decode(text: String): BillForm? = runCatching {
@@ -573,7 +586,8 @@ class BillEditorViewModel(
                 o.getBoolean("rateInverted"), string("accountAmount")?.let(::BillExpression),
                 o.getJSONArray("edits").let { a -> (0 until a.length()).map { TransferFigure.valueOf(a.getString(it)) } },
                 long("expense"), long("expenseSub"), long("income"), long("incomeSub"),
-                LocalDateTime.parse(o.getString("time")), o.getBoolean("count"), o.getString("note"), BillField.valueOf(o.getString("target")))
+                LocalDateTime.parse(o.getString("time")), o.getBoolean("count"), o.getString("note"), BillField.valueOf(o.getString("target")),
+                o.optBoolean("reimbursable", false), o.optString("payer", ""))
         }.getOrNull()
     }
 }

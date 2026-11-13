@@ -42,4 +42,6 @@
     <string name="cash_balance_bill_note">Manual balance edit</string>
     <string name="cash_bill_external">External account</string>
     <string name="cash_bill_deleted_account">Deleted account</string>
+    <string name="cash_bill_refund">Refund</string>
+    <string name="cash_bill_reimbursement">Reimbursement</string>
 </resources>

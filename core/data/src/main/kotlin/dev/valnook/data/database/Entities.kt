@@ -138,7 +138,8 @@ data class CashEntryWithBalance(@Embedded val entry: CashEntryEntity, val invest
     val bill_type: String? = null, val bill_note: String? = null, val bill_transfer_kind: String? = null,
     val bill_counterparty: String? = null, val bill_category_key: String? = null, val bill_category_name: String? = null,
     val bill_sub_key: String? = null, val bill_sub_name: String? = null, val bill_from_account: String? = null,
-    val bill_from_cash: String? = null, val bill_to_account: String? = null, val bill_to_cash: String? = null)
+    val bill_from_cash: String? = null, val bill_to_account: String? = null, val bill_to_cash: String? = null,
+    val bill_parent_note: String? = null)
 
 @Entity(tableName = "cash_movements", foreignKeys = [ForeignKey(entity = OperationEntity::class, parentColumns = ["operation_id"], childColumns = ["operation_id"], onDelete = ForeignKey.RESTRICT),
     ForeignKey(entity = CashEntity::class, parentColumns = ["id"], childColumns = ["cash_account_id"], onDelete = ForeignKey.RESTRICT)],

@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -27,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.Bill
 import dev.valnook.domain.model.BillType
+import dev.valnook.domain.model.ReimburseState
 import dev.valnook.domain.model.TransferKind
 import dev.valnook.domain.money.DecimalRules
 import java.time.Instant
@@ -159,17 +161,24 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
     val kind = if (transfer) transferTitle(bill, state.accounts)
         else if (category != null && sub != null) categoryName(category) + "-" + categoryName(sub) else categoryName(shownCategory)
     val note = bill.note.takeIf { it.isNotBlank() }
-    val title = note ?: kind
+    // A refund or reimbursement is named after its bill: "Refund · that bill's note", or its category without one.
+    val title = if (bill.isSettlement) stringResource(R.string.bill_settlement_title, stringResource(typeLabel(bill.type)),
+        bill.parentNote?.takeIf { it.isNotBlank() } ?: kind) else note ?: kind
     val time = Instant.ofEpochMilli(bill.occurredAtMs).atZone(ZoneId.systemDefault())
     // The time leads, so a long account name cannot push it out of the row.
     val details = listOfNotNull(
         time.toLocalTime().format(rememberClockFormatter()),
-        if (note != null) kind else null,
+        if (note != null && !bill.isSettlement) kind else null,
         if (transfer) null else sideName(bill.cashAccountId, state.accounts, false, "", bill.accountDeleted))
     val colors = MaterialTheme.colorScheme
-    val counted = transfer || bill.countInStats
+    // Refunds and reimbursements are neither income nor expense; what they take off their bill shows on it.
+    val counted = transfer || bill.isSettlement || bill.countInStats
     val future = time.toLocalDate().isAfter(LocalDate.now())
-    Column(Modifier.fillMaxWidth().combinedClickable(role = Role.Button, onClick = onOpen, onLongClick = onCopy)
+    val settled = bill.refundedMinor + bill.reimbursedMinor
+    // Everything came back: the bill no longer costs anything, so it greys out.
+    val spent = bill.type == BillType.EXPENSE && settled > 0 && bill.remainingMinor <= 0
+    Column(Modifier.fillMaxWidth().combinedClickable(role = Role.Button, onClick = onOpen,
+        onLongClick = if (bill.isSettlement) null else onCopy).alpha(if (spent) 0.5f else 1f)
         .testTag("bill-row-${bill.id}")) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Space.md)) {
@@ -188,12 +197,21 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
                 Text("$amount ${bill.shownCurrencyCode}", style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
                     color = when {
                         !counted -> colors.onSurfaceVariant
-                        transfer -> colors.onSurface
+                        transfer || bill.isSettlement -> colors.onSurface
                         bill.isOutflow -> palette.loss
                         else -> palette.gain
                     })
+                val digits = bill.currency.fraction_digits
                 val tags = listOfNotNull(
                     if (!counted) stringResource(R.string.bill_not_counted) else null,
+                    if (bill.refundedMinor > 0) stringResource(R.string.bill_refunded_tag, plainAmount(bill.refundedMinor, digits)) else null,
+                    if (bill.reimbursedMinor > 0) stringResource(R.string.bill_reimbursed_tag, plainAmount(bill.reimbursedMinor, digits)) else null,
+                    when (bill.reimburseState) {
+                        ReimburseState.PENDING, ReimburseState.PARTIAL ->
+                            stringResource(R.string.bill_pending_tag, plainAmount(bill.remainingMinor, digits))
+                        ReimburseState.WAIVED -> stringResource(R.string.bill_waived_tag)
+                        else -> null
+                    },
                     if (future) stringResource(R.string.bill_future) else null)
                 if (tags.isNotEmpty()) Text(tags.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
             }

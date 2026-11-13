@@ -42,4 +42,6 @@
     <string name="cash_balance_bill_note">手动修改余额</string>
     <string name="cash_bill_external">外部账户</string>
     <string name="cash_bill_deleted_account">已删除的账户</string>
+    <string name="cash_bill_refund">退款</string>
+    <string name="cash_bill_reimbursement">报销回款</string>
 </resources>

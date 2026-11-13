@@ -7,11 +7,13 @@ enum class BillType { EXPENSE, INCOME, TRANSFER, REFUND, REIMBURSEMENT }
 
 /**
  * What an account's ledger needs to name a bill's cash entry as the bills page names the bill: its note, its
- * category names, and for a transfer both sides ("Account · sub-account", null when external or deleted).
+ * category names, and for a transfer both sides ("Account · sub-account", null when external or deleted). A refund
+ * or reimbursement ([settlement]) is named after its bill: [parentNote], or the category it carries.
  */
 data class CashEntryBill(val note: String, val transfer: Boolean,
     val categoryKey: String?, val categoryName: String?, val subKey: String?, val subName: String?,
-    val from: String?, val to: String?, val fromExternal: Boolean, val toExternal: Boolean, val counterparty: String) {
+    val from: String?, val to: String?, val fromExternal: Boolean, val toExternal: Boolean, val counterparty: String,
+    val settlement: BillType? = null, val parentNote: String = "") {
     /** "Food-Lunch", or the one category left; null when the bill has none. */
     fun categoryTitle(english: Boolean): String? {
         fun name(key: String?, custom: String?) = (custom ?: BillCategoryPresets.name(key, english))?.takeIf { it.isNotEmpty() }

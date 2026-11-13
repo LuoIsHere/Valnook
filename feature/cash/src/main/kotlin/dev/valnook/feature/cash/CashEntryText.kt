@@ -28,9 +28,17 @@ internal fun cash_change_text(entry:CashEntry)=
 
 /**
  * A bill's entry as the bills page titles the bill: its note, else "category-subcategory", or a transfer's
- * "from → to". Null when nothing is left to name it by, so the caller falls back to the source.
+ * "from → to"; a refund or reimbursement as "Refund · its bill's name". Null when nothing is left to name it by, so
+ * the caller falls back to the source.
  */
 @Composable internal fun cash_bill_title(bill: CashEntryBill): String? {
+    bill.settlement?.let { type ->
+        val label = stringResource(if (type == dev.valnook.domain.model.BillType.REFUND) dev.valnook.feature.cash.R.string.cash_bill_refund
+            else dev.valnook.feature.cash.R.string.cash_bill_reimbursement)
+        val name = bill.parentNote.trim().takeIf { it.isNotEmpty() }?.replace(WHITESPACE_RUN, " ")
+            ?: bill.categoryTitle(LocalConfiguration.current.locales[0].language != "zh") ?: return label
+        return "$label · $name"
+    }
     bill.note.trim().takeIf { it.isNotEmpty() }?.let { return it.replace(WHITESPACE_RUN, " ") }
     if (!bill.transfer) return bill.categoryTitle(LocalConfiguration.current.locales[0].language != "zh")
     val external = stringResource(dev.valnook.feature.cash.R.string.cash_bill_external)

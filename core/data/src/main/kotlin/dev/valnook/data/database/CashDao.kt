@@ -57,11 +57,13 @@ interface CashDao {
             b.type AS bill_type,b.note AS bill_note,b.transfer_kind AS bill_transfer_kind,b.counterparty AS bill_counterparty,
             bc.builtin_key AS bill_category_key,bc.custom_name AS bill_category_name,
             bs.builtin_key AS bill_sub_key,bs.custom_name AS bill_sub_name,
-            fa.name AS bill_from_account,fc.name AS bill_from_cash,ta.name AS bill_to_account,tc.name AS bill_to_cash
+            fa.name AS bill_from_account,fc.name AS bill_from_cash,ta.name AS bill_to_account,tc.name AS bill_to_cash,
+            pb.note AS bill_parent_note
         FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
         LEFT JOIN investment_trades t ON e.source_kind IN ('TRADE','DIVIDEND') AND t.id=e.source_id
         LEFT JOIN bill_entries b ON e.source_kind IN ('BILL','BILL_TRANSFER_IN') AND b.id=e.source_id
+        LEFT JOIN bill_entries pb ON pb.id=b.parent_id
         LEFT JOIN bill_categories bc ON bc.id=b.category_id
         LEFT JOIN bill_categories bs ON bs.id=b.sub_category_id
         LEFT JOIN cash_accounts fc ON fc.id=b.cash_account_id

@@ -96,9 +96,16 @@ class BillsViewModel(
     }
 
     companion object {
+        /** [value] of what [bill] paid, scaled to what is left of it after refunds and reimbursements. */
+        internal fun net(bill: Bill, value: BigDecimal): BigDecimal =
+            if (bill.paidMinor <= 0 || bill.remainingMinor == bill.paidMinor) value
+            else value.multiply(BigDecimal.valueOf(bill.remainingMinor.coerceAtLeast(0)))
+                .divide(BigDecimal.valueOf(bill.paidMinor), 12, RoundingMode.HALF_UP)
+
         /**
-         * Expense and income counted in income and expense, at today's rate into the base currency. Refunds and
-         * reimbursements arrive in a later build and are left out here.
+         * Expense and income counted in income and expense, at today's rate into the base currency. An expense counts
+         * net of its refunds and reimbursements, wherever they arrived ([Bill.remainingMinor] of what it paid); the
+         * refunds and reimbursements themselves are neither expense nor income.
          */
         fun totals(list: List<Bill>, resolver: FxRateResolver): BillTotals {
             val base = resolver.base
@@ -112,7 +119,7 @@ class BillsViewModel(
                 if (rate == null) { partial = true; return@forEach }
                 if (currency != base) converted = true
                 val value = BigDecimal.valueOf(bill.accountAmountMinor, currency.fraction_digits).multiply(rate)
-                if (bill.type == BillType.EXPENSE) expense += value else income += value
+                if (bill.type == BillType.EXPENSE) expense += net(bill, value) else income += value
             }
             val digits = base?.fraction_digits ?: 2
             return BillTotals(expense.setScale(digits, RoundingMode.HALF_UP), income.setScale(digits, RoundingMode.HALF_UP), partial, converted)

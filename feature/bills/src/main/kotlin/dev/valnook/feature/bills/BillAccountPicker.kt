@@ -49,9 +49,9 @@ enum class PickerOption { NO_ACCOUNT, EXTERNAL }
  * Picks a bill's sub-account in a sheet over the lower half of the screen: the pinned sub-accounts (or, with none
  * pinned, all of them). "All accounts" at its top right pulls it up to nearly the whole screen with every account,
  * a search and a star on each to pin it. [option] is "no account" for expense and income, "outside account" for a
- * transfer's side.
+ * transfer's side, or none (refunds and reimbursements only go to the user's own sub-accounts).
  */
-@Composable fun BillAccountPicker(accounts: List<BillAccountChoice>, selected: Long?, option: PickerOption,
+@Composable fun BillAccountPicker(accounts: List<BillAccountChoice>, selected: Long?, option: PickerOption?,
     optionSelected: Boolean, onPick: (Long?) -> Unit, onFavorites: (List<Long>) -> Unit, onDismiss: () -> Unit) {
     val favorites = accounts.filter { it.favorite }.sortedBy { it.favoriteOrder }
     var expanded by rememberSaveable { mutableStateOf(false) }
@@ -125,13 +125,13 @@ enum class PickerOption { NO_ACCOUNT, EXTERNAL }
                             GlassTextField(query, { query = it }, stringResource(R.string.bill_search_accounts),
                                 Modifier.fillMaxWidth().testTag("bill-account-search"))
                             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                if (query.isBlank()) item { OptionRow(option, optionSelected) { onPick(null) } }
+                                if (query.isBlank() && option != null) item { OptionRow(option, optionSelected) { onPick(null) } }
                                 allAccounts(accounts.filter { query.isBlank() || it.label().contains(query.trim(), ignoreCase = true) },
                                     selected.takeIf { !optionSelected }, favorites, onPick, onFavorites, stars = true)
                             }
                         }
                         else -> LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                            item { OptionRow(option, optionSelected) { onPick(null) } }
+                            if (option != null) item { OptionRow(option, optionSelected) { onPick(null) } }
                             if (favorites.isEmpty()) {
                                 item { HintMessage(stringResource(R.string.bill_favorites_hint)) }
                                 allAccounts(accounts, selected.takeIf { !optionSelected }, favorites, onPick, onFavorites, stars = true)

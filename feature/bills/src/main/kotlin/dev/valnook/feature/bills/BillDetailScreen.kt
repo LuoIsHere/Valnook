@@ -12,10 +12,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.*
-import dev.valnook.domain.repository.BillAccountChoice
-import dev.valnook.domain.repository.BillRepository
-import dev.valnook.domain.repository.DeleteBill
-import dev.valnook.domain.repository.FinancialCommands
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.Alignment
+import dev.valnook.domain.repository.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -27,6 +26,9 @@ import java.util.UUID
 data class BillDetailState(
     val loaded: Boolean = false,
     val bill: Bill? = null,
+    /** An expense's refunds and reimbursements; a refund's or reimbursement's own bill in [parent]. */
+    val children: List<Bill> = emptyList(),
+    val parent: Bill? = null,
     val categories: Map<Long, BillCategory> = emptyMap(),
     val accounts: Map<Long, BillAccountChoice> = emptyMap(),
     val deleting: Boolean = false,
@@ -34,53 +36,148 @@ data class BillDetailState(
     val error: ErrorCode? = null,
 )
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class BillDetailViewModel(billId: Long, bills: BillRepository, private val commands: FinancialCommands) : ViewModel() {
     private val action = MutableStateFlow(Triple(false, false, null as ErrorCode?))
-    val state: StateFlow<BillDetailState> = combine(bills.observeBill(billId), bills.observeCategories(),
-        bills.observeAccountChoices(), action) { bill, categories, accounts, (deleting, deleted, error) ->
-        BillDetailState(true, bill, categories.associateBy { it.id }, accounts.associateBy { it.cashAccountId }, deleting, deleted, error)
+    private val bill = bills.observeBill(billId)
+    private val related = bill.flatMapLatest { b ->
+        when {
+            b == null -> flowOf(emptyList<Bill>() to null)
+            b.parentId != null -> bills.observeBill(b.parentId!!).map { emptyList<Bill>() to it }
+            b.type == BillType.EXPENSE -> bills.observeChildren(b.id).map { it to null }
+            else -> flowOf(emptyList<Bill>() to null)
+        }
+    }
+    val state: StateFlow<BillDetailState> = combine(bill, related, bills.observeCategories(),
+        bills.observeAccountChoices(), action) { b, (children, parent), categories, accounts, (deleting, deleted, error) ->
+        BillDetailState(true, b, children, parent, categories.associateBy { it.id }, accounts.associateBy { it.cashAccountId },
+            deleting, deleted, error)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BillDetailState())
 
-    /** Deletes the bill; its accounts move back by what it moved them. */
-    fun delete() {
-        val bill = state.value.bill ?: return
+    private fun run(command: FinancialCommand, leaves: Boolean) {
         if (action.value.first) return
         action.value = Triple(true, false, null)
         viewModelScope.launch {
             try {
-                commands.execute(DeleteBill(UUID.randomUUID().toString(), bill.id, bill.revision))
-                action.value = Triple(false, true, null)
+                commands.execute(command)
+                action.value = Triple(false, leaves, null)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: DomainException) { action.value = Triple(false, false, error.code) }
             catch (_: Exception) { action.value = Triple(false, false, ErrorCode.FORMAT) }
         }
     }
+
+    /** Deletes the bill, with its refunds and reimbursements; its accounts move back by what it moved them. */
+    fun delete() { val b = state.value.bill ?: return; run(DeleteBill(UUID.randomUUID().toString(), b.id, b.revision), leaves = true) }
+
+    /** Undoes one refund or reimbursement of this bill; the money it brought goes back out. */
+    fun undo(child: Bill) = run(DeleteBill(UUID.randomUUID().toString(), child.id, child.revision), leaves = false)
+
+    /** Gives up on what is left to be paid back, or takes that back. */
+    fun waive(waived: Boolean) {
+        val b = state.value.bill ?: return
+        run(WaiveReimbursement(UUID.randomUUID().toString(), b.id, b.revision, waived), leaves = false)
+    }
 }
 
-@Composable fun BillDetailScreen(vm: BillDetailViewModel, onEdit: (Long) -> Unit, onCopy: (Long) -> Unit, onDeleted: () -> Unit) {
+@Composable fun BillDetailScreen(vm: BillDetailViewModel, onEdit: (Long) -> Unit, onCopy: (Long) -> Unit, onDeleted: () -> Unit,
+    onOpen: (Long) -> Unit = {}, onSettle: (Long, BillType) -> Unit = { _, _ -> }) {
     val state by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(state.deleted) { if (state.deleted) onDeleted() }
     if (!state.loaded) { PageLoading(); return }
     val bill = state.bill
     if (bill == null) { if (!state.deleted) EmptyState(stringResource(R.string.bill_unavailable)); return }
     var confirming by remember { mutableStateOf(false) }
+    var undoing by remember { mutableStateOf<Bill?>(null) }
     val rows = detailRows(bill, state)
-    val title = if (bill.type == BillType.TRANSFER) transferTitle(bill, state.accounts)
-        else categoryName((bill.subCategoryId ?: bill.categoryId)?.let(state.categories::get))
+    val title = when {
+        bill.type == BillType.TRANSFER -> transferTitle(bill, state.accounts)
+        bill.isSettlement -> stringResource(R.string.bill_settlement_title, stringResource(typeLabel(bill.type)),
+            state.parent?.let { billName(it, state.categories) } ?: bill.parentNote.orEmpty())
+        else -> categoryName((bill.subCategoryId ?: bill.categoryId)?.let(state.categories::get))
+    }
+    val owed = bill.reimburseState == ReimburseState.PENDING || bill.reimburseState == ReimburseState.PARTIAL
     RecordDetailLayout(title, rows) {
+        if (state.children.isNotEmpty()) SettlementList(state.children, state, onOpen) { undoing = it }
         ErrorMessage(state.error?.name)
-        ActionButton({ onEdit(bill.id) }, Modifier.fillMaxWidth().testTag("bill-edit")) { Text(stringResource(R.string.bill_edit)) }
-        ActionButton({ onCopy(bill.id) }, Modifier.fillMaxWidth().testTag("bill-copy")) { Text(stringResource(R.string.bill_copy)) }
-        ActionButton({ confirming = true }, Modifier.fillMaxWidth().testTag("bill-delete"), enabled = !state.deleting, destructive = true) {
-            Text(stringResource(R.string.bill_delete))
+        if (bill.isSettlement) {
+            bill.parentId?.let { parentId ->
+                ActionButton({ onOpen(parentId) }, Modifier.fillMaxWidth().testTag("bill-open-parent")) {
+                    Text(stringResource(R.string.bill_open_parent)) }
+            }
+            ActionButton({ confirming = true }, Modifier.fillMaxWidth().testTag("bill-delete"), enabled = !state.deleting, destructive = true) {
+                Text(stringResource(R.string.bill_undo)) }
+        } else {
+            ActionButton({ onEdit(bill.id) }, Modifier.fillMaxWidth().testTag("bill-edit")) { Text(stringResource(R.string.bill_edit)) }
+            if (bill.type == BillType.EXPENSE && bill.remainingMinor > 0) {
+                ActionButton({ onSettle(bill.id, BillType.REFUND) }, Modifier.fillMaxWidth().testTag("bill-refund")) {
+                    Text(stringResource(R.string.bill_refund)) }
+                if (owed) ActionButton({ onSettle(bill.id, BillType.REIMBURSEMENT) }, Modifier.fillMaxWidth().testTag("bill-reimburse")) {
+                    Text(stringResource(R.string.bill_reimbursement)) }
+            }
+            if (owed) ActionButton({ vm.waive(true) }, Modifier.fillMaxWidth().testTag("bill-waive"), enabled = !state.deleting) {
+                Text(stringResource(R.string.bill_waive)) }
+            if (bill.reimburseState == ReimburseState.WAIVED) ActionButton({ vm.waive(false) }, Modifier.fillMaxWidth().testTag("bill-unwaive"),
+                enabled = !state.deleting) { Text(stringResource(R.string.bill_unwaive)) }
+            ActionButton({ onCopy(bill.id) }, Modifier.fillMaxWidth().testTag("bill-copy")) { Text(stringResource(R.string.bill_copy)) }
+            ActionButton({ confirming = true }, Modifier.fillMaxWidth().testTag("bill-delete"), enabled = !state.deleting, destructive = true) {
+                Text(stringResource(R.string.bill_delete))
+            }
         }
     }
     if (confirming) AlertDialog({ confirming = false },
         confirmButton = { TextButton({ confirming = false; vm.delete() }, Modifier.testTag("bill-delete-confirm")) {
-            Text(stringResource(R.string.bill_delete)) } },
+            Text(stringResource(if (bill.isSettlement) R.string.bill_undo else R.string.bill_delete)) } },
         dismissButton = { TextButton({ confirming = false }) { Text(stringResource(R.string.bill_cancel)) } },
-        title = { Text(stringResource(R.string.bill_delete_title)) },
-        text = { Text(stringResource(R.string.bill_delete_message)) })
+        title = { Text(stringResource(if (bill.isSettlement) R.string.bill_undo_title else R.string.bill_delete_title)) },
+        text = { Text(when {
+            bill.isSettlement -> stringResource(R.string.bill_undo_message)
+            state.children.isNotEmpty() -> stringResource(R.string.bill_delete_with_children, state.children.size)
+            else -> stringResource(R.string.bill_delete_message)
+        }) })
+    undoing?.let { child ->
+        AlertDialog({ undoing = null },
+            confirmButton = { TextButton({ undoing = null; vm.undo(child) }, Modifier.testTag("bill-undo-confirm")) {
+                Text(stringResource(R.string.bill_undo)) } },
+            dismissButton = { TextButton({ undoing = null }) { Text(stringResource(R.string.bill_cancel)) } },
+            title = { Text(stringResource(R.string.bill_undo_title)) },
+            text = { Text(stringResource(R.string.bill_undo_message)) })
+    }
+}
+
+/** A bill's own name as the bills page shows it: its note, else "category-subcategory". */
+@Composable internal fun billName(bill: Bill, categories: Map<Long, BillCategory>): String {
+    bill.note.takeIf { it.isNotBlank() }?.let { return it }
+    val category = bill.categoryId?.let(categories::get)
+    val sub = bill.subCategoryId?.let(categories::get)
+    return if (category != null && sub != null) categoryName(category) + "-" + categoryName(sub) else categoryName(sub ?: category)
+}
+
+/** The refunds and reimbursements of an expense: each opens on a tap and can be undone. */
+@Composable private fun SettlementList(children: List<Bill>, state: BillDetailState, onOpen: (Long) -> Unit, onUndo: (Bill) -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    GlassCard(Modifier.testTag("bill-settlements")) {
+        Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Text(stringResource(R.string.bill_settlements), Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                style = MaterialTheme.typography.titleSmall)
+            children.forEachIndexed { index, child ->
+                val time = Instant.ofEpochMilli(child.occurredAtMs).atZone(ZoneId.systemDefault())
+                Row(Modifier.fillMaxWidth().clickable { onOpen(child.id) }.padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 6.dp)
+                    .testTag("bill-settlement-${child.id}"), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(typeLabel(child.type)) + " " + plainAmount(child.amountMinor, child.currency.fraction_digits) +
+                            " " + child.currency.code)
+                        Text(listOf(time.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE) + " " + time.toLocalTime().format(rememberClockFormatter()),
+                            sideName(child.cashAccountId, state.accounts, false, "", child.accountDeleted)).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+                    }
+                    TextButton({ onUndo(child) }, Modifier.testTag("bill-undo-${child.id}"), enabled = !state.deleting) {
+                        Text(stringResource(R.string.bill_undo), color = colors.error) }
+                }
+                if (index < children.lastIndex) FormDivider()
+            }
+        }
+    }
 }
 
 @Composable private fun detailRows(bill: Bill, state: BillDetailState): List<Pair<String, String>> {
@@ -88,7 +185,11 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
     val time = Instant.ofEpochMilli(bill.occurredAtMs).atZone(ZoneId.systemDefault())
     val money = { minor: Long, currency: Currency -> "${plainAmount(minor, currency.fraction_digits)} ${currency.code}" }
     rows += stringResource(R.string.bill_type) to stringResource(typeLabel(bill.type))
-    if (bill.type == BillType.TRANSFER) {
+    if (bill.isSettlement) {
+        state.parent?.let { rows += stringResource(R.string.bill_parent) to billName(it, state.categories) }
+        rows += stringResource(R.string.bill_amount) to money(bill.amountMinor, bill.currency)
+        rows += stringResource(R.string.bill_settle_account) to sideName(bill.cashAccountId, state.accounts, false, "", bill.accountDeleted)
+    } else if (bill.type == BillType.TRANSFER) {
         val from = sideName(bill.cashAccountId, state.accounts, bill.transferKind == TransferKind.FROM_EXTERNAL, bill.counterparty)
         val to = sideName(bill.toCashAccountId, state.accounts, bill.transferKind == TransferKind.TO_EXTERNAL, bill.counterparty)
         rows += stringResource(R.string.bill_transfer_from) to from
@@ -113,6 +214,20 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
         val sub = bill.subCategoryId?.let(state.categories::get)
         rows += stringResource(R.string.bill_category) to (categoryName(category) + (sub?.let { " › " + categoryName(it) } ?: ""))
         rows += stringResource(R.string.bill_count_in_stats) to stringResource(if (bill.countInStats) R.string.bill_yes else R.string.bill_no)
+        if (bill.type == BillType.EXPENSE) {
+            if (bill.refundedMinor > 0) rows += stringResource(R.string.bill_refunded) to money(bill.refundedMinor, bill.currency)
+            if (bill.reimbursable) {
+                rows += stringResource(R.string.bill_reimbursable) to stringResource(when (bill.reimburseState) {
+                    ReimburseState.PARTIAL -> R.string.bill_state_partial
+                    ReimburseState.DONE -> R.string.bill_state_done
+                    ReimburseState.WAIVED -> R.string.bill_state_waived
+                    else -> R.string.bill_state_pending
+                })
+                if (bill.counterparty.isNotBlank()) rows += stringResource(R.string.bill_payer) to bill.counterparty
+                rows += stringResource(R.string.bill_reimbursed) to money(bill.reimbursedMinor, bill.currency)
+            }
+            if (bill.refundedMinor + bill.reimbursedMinor > 0) rows += stringResource(R.string.bill_left) to money(bill.remainingMinor, bill.currency)
+        }
     }
     val crossed = bill.rateSource != BillRateSource.SAME
     if (crossed) {

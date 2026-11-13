@@ -22,7 +22,9 @@ private fun dev.valnook.data.database.CashEntryWithBalance.to_model():CashEntry 
             CashEntryBill(bill_note.orEmpty(),type==BillType.TRANSFER.name,bill_category_key,bill_category_name,
                 bill_sub_key,bill_sub_name,side(bill_from_account,bill_from_cash),side(bill_to_account,bill_to_cash),
                 bill_transfer_kind==TransferKind.FROM_EXTERNAL.name,bill_transfer_kind==TransferKind.TO_EXTERNAL.name,
-                bill_counterparty.orEmpty())
+                bill_counterparty.orEmpty(),
+                BillType.valueOf(type).takeIf { it == BillType.REFUND || it == BillType.REIMBURSEMENT },
+                bill_parent_note.orEmpty())
         })
 
 class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {

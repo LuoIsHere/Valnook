@@ -492,7 +492,16 @@ private fun SessionRoot(
                             entry<BillDetailKey> { route ->
                                 dev.valnook.feature.bills.BillDetailScreen(pageViewModel {
                                     dev.valnook.feature.bills.BillDetailViewModel(route.id, requireNotNull(graph.bills), graph.commands)
-                                }, { open(BillEditorKey(billId = it)) }, { open(BillEditorKey(copyFromId = it)) }, onDeleted = pop)
+                                }, { open(BillEditorKey(billId = it)) }, { open(BillEditorKey(copyFromId = it)) }, onDeleted = pop,
+                                    onOpen = { open(BillDetailKey(it)) }, onSettle = { id, type -> open(BillSettleKey(id, type.name)) })
+                            }
+                            entry<BillSettleKey> { route ->
+                                dev.valnook.feature.bills.BillSettleScreen(pageViewModel {
+                                    dev.valnook.feature.bills.BillSettleViewModel(route.parentId,
+                                        dev.valnook.domain.model.BillType.valueOf(route.type), requireNotNull(graph.bills),
+                                        graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(),
+                                        graph.clock, createSavedStateHandle())
+                                }, onDone = pop)
                             }
                             entry<BillCategoriesKey> {
                                 dev.valnook.feature.bills.BillCategoriesScreen(pageViewModel {
