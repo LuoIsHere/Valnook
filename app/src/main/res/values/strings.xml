@@ -45,6 +45,7 @@
     <string name="title_new_bill">New bill</string>
     <string name="title_edit_bill">Edit bill</string>
     <string name="title_bill_detail">Bill</string>
+    <string name="title_reimbursements">Reimbursements</string>
     <string name="title_bill_refund">Refund</string>
     <string name="title_bill_reimbursement">Reimbursement</string>
     <string name="title_bill_categories">Bill categories</string>

@@ -130,4 +130,5 @@
     <string name="settings_fx_summary_unset">主币种未设置 · %1$s</string>
     <string name="settings_third_party">第三方声明</string>
     <string name="settings_third_party_summary">开源库、图标与商标</string>
+    <string name="settings_reimbursements">报销 / 待回款</string>
 </resources>

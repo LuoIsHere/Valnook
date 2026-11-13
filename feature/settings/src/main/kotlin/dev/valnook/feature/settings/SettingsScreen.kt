@@ -101,7 +101,10 @@ fun SettingsHome(
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     onThemeChange: suspend (AppThemeMode) -> Boolean = { false },
     onAbout: () -> Unit = {},
-    onCardFaces: () -> Unit = {}
+    onCardFaces: () -> Unit = {},
+    /** Expenses to be paid back; null hides the entry (no bills in this data). */
+    onReimbursements: (() -> Unit)? = null,
+    reimbursementSummary: String = "",
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var appearancePicker by rememberSaveable { mutableStateOf<String?>(null) }
@@ -137,6 +140,12 @@ fun SettingsHome(
             HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
             SettingEntry(stringResource(R.string.settings_navigation),
                 stringResource(R.string.settings_navigation_summary), onNavigation)
+            }
+        }
+        if (onReimbursements != null) item {
+            GlassCard {
+                SettingEntry(stringResource(R.string.settings_reimbursements), reimbursementSummary, onReimbursements,
+                    Modifier.testTag("settings-reimbursements"))
             }
         }
         item {

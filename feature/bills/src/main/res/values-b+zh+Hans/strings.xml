@@ -144,4 +144,20 @@
     <string name="bill_state_partial">部分回款</string>
     <string name="bill_state_done">已回款</string>
     <string name="bill_state_waived">已放弃</string>
+    <string name="reimbursements_none">没有待回款</string>
+    <string name="reimbursements_summary">%1$d 笔 · %2$s</string>
+    <string name="reimbursements_pending_total">待回款合计</string>
+    <string name="reimbursements_tab_pending">待回款</string>
+    <string name="reimbursements_tab_done">已回款</string>
+    <string name="reimbursements_tab_all">全部</string>
+    <string name="reimbursements_all_payers">全部回款方</string>
+    <string name="reimbursements_batch">批量回款</string>
+    <string name="reimbursements_empty">这里没有账单。</string>
+    <string name="reimbursements_month">%1$d年%2$d月</string>
+    <string name="reimbursements_day">%1$d月%2$d日</string>
+    <string name="reimbursements_batch_next">下一步（%1$d 笔）</string>
+    <string name="reimbursements_batch_title">批量回款 · %1$d 笔</string>
+    <string name="reimbursements_batch_amount">回款金额（%1$s，最多 %2$s）</string>
+    <string name="reimbursements_batch_received">到账 %1$s %2$s</string>
+    <string name="reimbursements_batch_no_rate">没有 %1$s→%2$s 的汇率，请单独回款这一笔</string>
 </resources>

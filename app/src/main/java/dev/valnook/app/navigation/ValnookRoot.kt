@@ -495,6 +495,14 @@ private fun SessionRoot(
                                 }, { open(BillEditorKey(billId = it)) }, { open(BillEditorKey(copyFromId = it)) }, onDeleted = pop,
                                     onOpen = { open(BillDetailKey(it)) }, onSettle = { id, type -> open(BillSettleKey(id, type.name)) })
                             }
+                            entry<ReimbursementsKey> {
+                                dev.valnook.feature.bills.ReimbursementsScreen(pageViewModel {
+                                    dev.valnook.feature.bills.ReimbursementsViewModel(requireNotNull(graph.bills), graph.commands,
+                                        graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
+                                        createSavedStateHandle())
+                                }, onOpen = { open(BillDetailKey(it)) },
+                                    onReimburse = { open(BillSettleKey(it, dev.valnook.domain.model.BillType.REIMBURSEMENT.name)) })
+                            }
                             entry<BillSettleKey> { route ->
                                 dev.valnook.feature.bills.BillSettleScreen(pageViewModel {
                                     dev.valnook.feature.bills.BillSettleViewModel(route.parentId,
@@ -525,6 +533,13 @@ private fun SessionRoot(
                                 val vm = pageViewModel {
                                     SettingsViewModel(graph.settings, graph.settingsWriter, createSavedStateHandle(), graph.fxSync)
                                 }
+                                val bills = graph.bills
+                                val reimbursements by remember(bills) {
+                                    bills?.let { dev.valnook.feature.bills.ReimbursementsViewModel.observeSummary(it,
+                                        graph.settings.observeSettings(), graph.overview.observeFxContext()) }
+                                        ?: kotlinx.coroutines.flow.flowOf(null)
+                                }.collectAsStateWithLifecycle(null)
+                                val reimbursementText = dev.valnook.feature.bills.reimbursementSummaryText(reimbursements)
                                 SettingsHome(vm, active.mode == DataMode.DEMO, switching, switchFailed,
                                     { open(FxSettingsKey) }, { enable ->
                                         if (!switching) scope.launch {
@@ -540,7 +555,9 @@ private fun SessionRoot(
                                     { open(WebAdminKey) },
                                     { open(it.hiddenKey()) }, BuildConfig.VERSION_NAME, BuildConfig.INTERNAL_BUILD_ID,
                                     BuildConfig.VERSION_CODE, themeMode, onThemeChange, onAbout = { open(AboutKey) },
-                                    onCardFaces = { open(WalletFaceLibraryKey) })
+                                    onCardFaces = { open(WalletFaceLibraryKey) },
+                                    onReimbursements = if (bills != null) ({ open(ReimbursementsKey) }) else null,
+                                    reimbursementSummary = reimbursementText)
                             }
                             entry<WalletFaceLibraryKey> {
                                 dev.valnook.feature.wallet.WalletFaceLibraryScreen(pageViewModel {

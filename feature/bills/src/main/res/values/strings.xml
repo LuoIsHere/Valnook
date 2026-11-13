@@ -145,4 +145,20 @@
     <string name="bill_state_partial">Partly paid back</string>
     <string name="bill_state_done">Paid back</string>
     <string name="bill_state_waived">Given up</string>
+    <string name="reimbursements_none">Nothing owed</string>
+    <string name="reimbursements_summary">%1$d owed · %2$s</string>
+    <string name="reimbursements_pending_total">Still owed</string>
+    <string name="reimbursements_tab_pending">Owed</string>
+    <string name="reimbursements_tab_done">Paid back</string>
+    <string name="reimbursements_tab_all">All</string>
+    <string name="reimbursements_all_payers">Everyone</string>
+    <string name="reimbursements_batch">Several at once</string>
+    <string name="reimbursements_empty">Nothing here.</string>
+    <string name="reimbursements_month">%2$d/%1$d</string>
+    <string name="reimbursements_day">%1$d/%2$d</string>
+    <string name="reimbursements_batch_next">Next (%1$d)</string>
+    <string name="reimbursements_batch_title">Paying back %1$d</string>
+    <string name="reimbursements_batch_amount">Amount (%1$s, at most %2$s)</string>
+    <string name="reimbursements_batch_received">Received %1$s %2$s</string>
+    <string name="reimbursements_batch_no_rate">No %1$s→%2$s rate: pay this one back on its own</string>
 </resources>

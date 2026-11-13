@@ -275,4 +275,47 @@ class BillsUiTest {
             "SELECT COUNT(*) FROM bill_entries WHERE is_deleted=0").use { it.moveToFirst(); it.getInt(0) } } == 0 }
         assertEquals(100_000L, balance())
     }
+
+    /** Settings sums up what is owed; several expenses are paid back at once, one of them in part. */
+    @Test fun several_expenses_are_paid_back_at_once_from_settings() {
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        fun key(value: String) = categories.single { it.builtinKey == value }.id
+        fun owed(amount: Long, payer: String) = runBlocking {
+            graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(BillType.EXPENSE,
+                graph.clock.millis() - 60_000, amount, "CNY", 0, cashId, amount, categoryId = key("business"),
+                subCategoryId = key("business.travel"), countInStats = false, reimbursable = true, counterparty = payer))).id
+        }
+        val trip = owed(5_000, "合成公司")
+        val dinner = owed(3_000, "合成朋友")
+        recordLunch(1_000)
+        assertEquals(100_000L - 9_000, balance())
+        rule.onNodeWithTag("nav-settings").performClick()
+        waitTag("settings-reimbursements")
+        rule.onNodeWithTag("settings-reimbursements").assertTextContains("2 笔", substring = true)
+        rule.onNodeWithTag("settings-reimbursements").performClick()
+        waitTag("reimbursements")
+        waitTag("reimbursement-$trip")
+        rule.onNodeWithTag("reimbursement-$dinner").assertExists()
+        // Only one payer's.
+        rule.onNodeWithTag("reimbursements-payer-合成朋友").performClick()
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("reimbursement-$trip").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("reimbursements-payer-合成朋友").performClick()
+        waitTag("reimbursement-$trip")
+
+        rule.onNodeWithTag("reimbursements-select").performClick()
+        rule.onNodeWithTag("reimbursement-$trip").performClick()
+        rule.onNodeWithTag("reimbursement-$dinner").performClick()
+        rule.onNodeWithTag("reimbursements-batch-next").performClick()
+        waitTag("reimbursements-batch")
+        rule.onNodeWithTag("reimbursements-batch-account").assertTextEquals("合成银行 · 合成储蓄卡")
+        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("reimbursements-batch-amount-$dinner"))).performTextReplacement("10")
+        rule.onNodeWithTag("reimbursements-batch-confirm").performClick()
+        rule.waitUntil(8_000) { balance() == 100_000L - 9_000 + 5_000 + 1_000 }
+        val states = runBlocking { listOf(trip, dinner).map { db.bills().bill(it)!!.reimburse_state } }
+        assertEquals(listOf("DONE", "PARTIAL"), states)
+        // Back on the list, only what is still owed is left.
+        waitTag("reimbursements")
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("reimbursement-$trip").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("reimbursement-$dinner").assertExists()
+    }
 }

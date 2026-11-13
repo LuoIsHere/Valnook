@@ -30,4 +30,13 @@ class BillNetTest {
     @Test fun all_back_costs_nothing() {
         assertEquals(BigDecimal("0.00"), net(expense(5_000, refunded = 5_000), "50"))
     }
+
+    @Test fun what_is_owed_shows_in_the_base_currency_or_else_in_each_currency() {
+        val cny = Currency.of("CNY")
+        val usd = Currency.of("USD")
+        assertEquals("428.00 CNY", pendingText(ReimbursementSummary(3, BigDecimal("428.00"), cny, partial = false)))
+        // A currency without a rate leaves the sum incomplete, so each currency shows what is left in it.
+        assertEquals("780.00 CNY + 20.00 USD", pendingText(ReimbursementSummary(2, BigDecimal("780.00"), cny, partial = true,
+            byCurrency = listOf(cny to 78_000L, usd to 2_000L))))
+    }
 }

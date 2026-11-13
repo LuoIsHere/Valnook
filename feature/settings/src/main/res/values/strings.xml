@@ -137,4 +137,5 @@
     <string name="settings_fx_summary_unset">No base currency · %1$s</string>
     <string name="settings_third_party">Third-party notices</string>
     <string name="settings_third_party_summary">Open-source libraries, icons and trademarks</string>
+    <string name="settings_reimbursements">Reimbursements</string>
 </resources>

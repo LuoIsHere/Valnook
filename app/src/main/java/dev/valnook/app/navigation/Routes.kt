@@ -14,6 +14,7 @@ import dev.valnook.feature.deposits.DepositFormMode
 /** A refund or reimbursement ([type]) of the expense [parentId]. */
 @Serializable data class BillSettleKey(val parentId: Long, val type: String) : NavKey
 @Serializable data object BillCategoriesKey : NavKey
+@Serializable data object ReimbursementsKey : NavKey
 @Serializable data object AccountsKey : NavKey
 @Serializable data object AccountGroupsKey : NavKey
 @Serializable data object WalletKey : NavKey
