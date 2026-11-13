@@ -30,6 +30,9 @@ internal class BillCommandHandler(
         is ReorderBillCategories -> reorder(command, now)
         is DeleteBillCategory -> deleteCategory(command, now)
         is SaveBillFavorites -> saveFavorites(command)
+        is SettleBill -> settle(command, now)
+        is SettleBills -> settleBatch(command, now)
+        is WaiveReimbursement -> waive(command, now)
     }
 
     /** One cash entry the bill should have. */
@@ -41,9 +44,21 @@ internal class BillCommandHandler(
         val old = command.billId?.let { active(it, command.expectedRevision ?: throw DomainException(ErrorCode.FORMAT)) }
         if (old == null && (command.billId != null || command.expectedRevision != null)) throw DomainException(ErrorCode.FORMAT)
         val resolved = resolve(command.draft)
+        val settled = old?.let { dao.children(it.id) }.orEmpty()
+        val refunded = settled.filter { it.type == BillType.REFUND.name }.sumOf { it.amount_minor }
+        val reimbursed = settled.filter { it.type == BillType.REIMBURSEMENT.name }.sumOf { it.amount_minor }
+        resolved.entity.let { next ->
+            // What came back was counted in this expense's currency against what it paid, so those stay put.
+            if (settled.isNotEmpty() && (next.type != BillType.EXPENSE.name || next.currency_code != old?.currency_code ||
+                    next.amount_minor - next.discount_minor < refunded + reimbursed || (!next.reimbursable && reimbursed > 0)))
+                throw DomainException(ErrorCode.BILL_SETTLED)
+        }
         val entity = resolved.entity.copy(
             id = old?.id ?: 0,
             operation_id = old?.operation_id ?: command.operation_id,
+            reimburse_state = BillSettlement.state(resolved.entity.reimbursable,
+                old?.reimburse_state == ReimburseState.WAIVED.name, resolved.entity.amount_minor - resolved.entity.discount_minor,
+                refunded, reimbursed).name,
             revision = old?.let { R.add(it.revision, 1) } ?: 1,
             created_at_ms = old?.created_at_ms ?: now,
             updated_at_ms = now,
@@ -55,6 +70,13 @@ internal class BillCommandHandler(
         fault(TransactionPoint.AFTER_BUSINESS)
         syncLegs(id, entity.operation_id, command.operation_id, resolved.legs, entity.occurred_at_ms, now,
             if (old == null) "BILL" else "BILL_EDIT")
+        // Refunds and reimbursements carry their bill's category, so they follow it.
+        settled.filter { it.category_id != entity.category_id || it.sub_category_id != entity.sub_category_id ||
+            it.count_in_stats != entity.count_in_stats }.forEach { child ->
+            if (dao.updateBill(child.copy(category_id = entity.category_id, sub_category_id = entity.sub_category_id,
+                    count_in_stats = entity.count_in_stats, revision = R.add(child.revision, 1), updated_at_ms = now)) != 1)
+                throw DomainException(ErrorCode.STALE_RECORD)
+        }
         // The account a category was last used with (none included) only follows new bills.
         if (old == null && entity.category_id != null) {
             dao.rememberAccount(entity.category_id, entity.cash_account_id)
@@ -64,10 +86,107 @@ internal class BillCommandHandler(
     }
 
     private suspend fun delete(command: DeleteBill, now: Long): OperationResult {
-        val old = active(command.billId, command.expectedRevision)
+        val old = current(command.billId, command.expectedRevision)
         remove(old, command.operation_id, now)
+        // Undoing a refund or reimbursement puts it back among what is left of its bill.
+        old.parent_id?.let { refresh(it, now) }
         return OperationResult("BILL", old.id)
     }
+
+    // Refunds and reimbursements
+
+    private suspend fun settle(command: SettleBill, now: Long): OperationResult {
+        if (command.type != BillType.REFUND && command.type != BillType.REIMBURSEMENT) throw DomainException(ErrorCode.FORMAT)
+        val parent = expense(command.parentId, command.parentRevision)
+        val id = addSettlement(parent, command.type, command.draft, command.operation_id, null, now)
+        fault(TransactionPoint.AFTER_BUSINESS)
+        cash.applyChanges(command.operation_id, listOf(command.draft.cashAccountId to command.draft.accountAmountMinor),
+            "BILL_SETTLE", now)
+        refresh(parent.id, now)
+        return OperationResult("BILL", id)
+    }
+
+    /**
+     * Each reimbursement is a bill of its own, so each gets its own operation (derived from the command's, recorded
+     * as done); the account moves once by their sum under the command's operation.
+     */
+    private suspend fun settleBatch(command: SettleBills, now: Long): OperationResult {
+        val items = command.items
+        if (items.isEmpty() || items.map { it.parentId }.toSet().size != items.size) throw DomainException(ErrorCode.FORMAT)
+        val account = account(command.cashAccountId)
+        val operations = db.operations()
+        val ids = items.mapIndexed { index, item ->
+            val parent = expense(item.parentId, item.parentRevision)
+            val operation = java.util.UUID.nameUUIDFromBytes("${command.operation_id}/$index".toByteArray()).toString()
+            operations.insert_operation(dev.valnook.data.database.OperationEntity(operation, "BILL_SETTLE_ITEM",
+                command.operation_id, null, null, now))
+            val id = addSettlement(parent, BillType.REIMBURSEMENT, SettlementDraft(command.occurredAtMs, item.amountMinor,
+                account.id, item.accountAmountMinor, item.rate, item.rateSource), operation, command.operation_id, now)
+            operations.complete_operation(operation, "BILL", id)
+            refresh(parent.id, now)
+            id
+        }
+        fault(TransactionPoint.AFTER_BUSINESS)
+        cash.applyChanges(command.operation_id, listOf(account.id to items.fold(0L) { sum, item -> R.add(sum, item.accountAmountMinor) }),
+            "BILL_SETTLE", now)
+        return OperationResult("BILL", ids.first())
+    }
+
+    /** Writes a refund or reimbursement of [parent] and its cash entry; the caller moves the balance. */
+    private suspend fun addSettlement(parent: BillEntryEntity, type: BillType, draft: SettlementDraft, operation: String,
+        batch: String?, now: Long): Long {
+        if (type == BillType.REIMBURSEMENT && (!parent.reimbursable || parent.reimburse_state == ReimburseState.WAIVED.name))
+            throw DomainException(ErrorCode.FORMAT)
+        R.check_nonnegative(draft.amountMinor, positive = true)
+        val left = parent.amount_minor - parent.discount_minor - dao.children(parent.id).sumOf { it.amount_minor }
+        if (draft.amountMinor > left) throw DomainException(ErrorCode.SETTLEMENT_LIMIT)
+        val account = account(draft.cashAccountId)
+        val currency = cash.currency(parent.currency_code)
+        val accountCurrency = cash.currency(account.currency_code)
+        val (rate, source) = checkedRate(draft.amountMinor, currency, draft.accountAmountMinor, accountCurrency, draft.rate, draft.rateSource)
+        val id = dao.insertBill(BillEntryEntity(operation_id = operation, type = type.name, occurred_at_ms = draft.occurredAtMs,
+            amount_minor = draft.amountMinor, currency_code = currency.code, discount_minor = 0, cash_account_id = account.id,
+            account_currency_code = accountCurrency.code, account_amount_minor = draft.accountAmountMinor, rate = rate,
+            rate_source = source.name, transfer_kind = null, to_cash_account_id = null, to_currency_code = null,
+            to_amount_minor = null, fee_minor = 0, counterparty = "", category_id = parent.category_id,
+            sub_category_id = parent.sub_category_id, count_in_stats = parent.count_in_stats, reimbursable = false,
+            reimburse_state = ReimburseState.NONE.name, parent_id = parent.id, batch_id = batch, note = BillRules.note(draft.note),
+            revision = 1, is_deleted = false, created_at_ms = now, updated_at_ms = now))
+        cash.entry(operation, account.id, CashSource.BILL.name, id, draft.accountAmountMinor, draft.occurredAtMs, now)
+        return id
+    }
+
+    private suspend fun waive(command: WaiveReimbursement, now: Long): OperationResult {
+        val bill = expense(command.billId, command.expectedRevision)
+        val children = dao.children(bill.id)
+        val refunded = children.filter { it.type == BillType.REFUND.name }.sumOf { it.amount_minor }
+        val reimbursed = children.filter { it.type == BillType.REIMBURSEMENT.name }.sumOf { it.amount_minor }
+        val before = ReimburseState.valueOf(bill.reimburse_state)
+        // Only something still owed can be given up, and only a waiver taken back.
+        if (!bill.reimbursable || (command.waived && before !in setOf(ReimburseState.PENDING, ReimburseState.PARTIAL)) ||
+            (!command.waived && before != ReimburseState.WAIVED)) throw DomainException(ErrorCode.FORMAT)
+        val state = BillSettlement.state(true, command.waived, bill.amount_minor - bill.discount_minor, refunded, reimbursed)
+        if (dao.updateBill(bill.copy(reimburse_state = state.name, revision = R.add(bill.revision, 1), updated_at_ms = now)) != 1)
+            throw DomainException(ErrorCode.STALE_RECORD)
+        return OperationResult("BILL", bill.id)
+    }
+
+    /** Works [parentId]'s state out again from what came back for it, as one more revision of it. */
+    private suspend fun refresh(parentId: Long, now: Long) {
+        val parent = dao.bill(parentId) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        if (parent.is_deleted) return
+        val children = dao.children(parentId)
+        val state = BillSettlement.state(parent.reimbursable, parent.reimburse_state == ReimburseState.WAIVED.name,
+            parent.amount_minor - parent.discount_minor,
+            children.filter { it.type == BillType.REFUND.name }.sumOf { it.amount_minor },
+            children.filter { it.type == BillType.REIMBURSEMENT.name }.sumOf { it.amount_minor })
+        if (dao.updateBill(parent.copy(reimburse_state = state.name, revision = R.add(parent.revision, 1), updated_at_ms = now)) != 1)
+            throw DomainException(ErrorCode.STALE_RECORD)
+    }
+
+    /** An expense still in place, as last read at [revision]. */
+    private suspend fun expense(id: Long, revision: Long): BillEntryEntity =
+        current(id, revision).also { if (it.type != BillType.EXPENSE.name) throw DomainException(ErrorCode.FORMAT) }
 
     /**
      * Deletes [bill] with its refunds and reimbursements, and moves their accounts back by what they moved them.
@@ -108,11 +227,13 @@ internal class BillCommandHandler(
         }
     }
 
-    private suspend fun active(id: Long, expectedRevision: Long): BillEntryEntity {
+    /** A bill that can be edited: refunds and reimbursements are only added and undone, never edited. */
+    private suspend fun active(id: Long, expectedRevision: Long): BillEntryEntity =
+        current(id, expectedRevision).also { if (it.type !in EDITABLE) throw DomainException(ErrorCode.SOURCE_RECORD) }
+
+    private suspend fun current(id: Long, expectedRevision: Long): BillEntryEntity {
         val bill = dao.bill(id) ?: throw DomainException(ErrorCode.NOT_FOUND)
         if (bill.is_deleted || bill.revision != expectedRevision) throw DomainException(ErrorCode.STALE_RECORD)
-        // Refunds and reimbursements are edited from their own pages, which arrive in a later build.
-        if (bill.type !in EDITABLE) throw DomainException(ErrorCode.SOURCE_RECORD)
         return bill
     }
 
@@ -152,7 +273,11 @@ internal class BillCommandHandler(
 
     private suspend fun resolveSpending(draft: BillDraft, note: String): Resolved {
         if (draft.transferKind != null || draft.toCashAccountId != null || draft.toAmountMinor != null ||
-            draft.feeMinor != 0L || draft.counterparty.isNotBlank()) throw DomainException(ErrorCode.FORMAT)
+            draft.feeMinor != 0L) throw DomainException(ErrorCode.FORMAT)
+        // Only an expense someone is to pay back has someone to name.
+        if (draft.reimbursable && draft.type != BillType.EXPENSE) throw DomainException(ErrorCode.FORMAT)
+        if (!draft.reimbursable && draft.counterparty.isNotBlank()) throw DomainException(ErrorCode.FORMAT)
+        val counterparty = BillRules.counterparty(draft.counterparty)
         // No account: the bill is kept on its own and moves no balance.
         val account = draft.cashAccountId?.let { account(it) }
         val currency = cash.currency(draft.currencyCode)
@@ -173,11 +298,12 @@ internal class BillCommandHandler(
         return Resolved(entity(draft, note).copy(
             currency_code = currency.code, cash_account_id = account?.id, account_currency_code = accountCurrency.code,
             rate = rate, rate_source = source.name, category_id = category.id, sub_category_id = draft.subCategoryId,
-            count_in_stats = draft.countInStats,
+            count_in_stats = draft.countInStats, reimbursable = draft.reimbursable, counterparty = counterparty,
         ), listOfNotNull(account?.let { Leg(CashSource.BILL, it.id, delta) }))
     }
 
     private suspend fun resolveTransfer(draft: BillDraft, note: String): Resolved {
+        if (draft.reimbursable) throw DomainException(ErrorCode.FORMAT)
         if (draft.categoryId != null || draft.subCategoryId != null || draft.discountMinor != 0L)
             throw DomainException(ErrorCode.FORMAT)
         R.check_nonnegative(draft.amountMinor, positive = true)

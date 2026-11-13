@@ -23,6 +23,14 @@ data class BillAccountRow(
     val limit_source_account_id: Long?,
 )
 
+/** A bill with what came back for it so far (in its own currency) and, for a refund or reimbursement, its bill's note. */
+data class BillRow(
+    @Embedded val bill: BillEntryEntity,
+    val refunded_minor: Long,
+    val reimbursed_minor: Long,
+    val parent_note: String?,
+)
+
 @Dao
 interface BillDao {
     @Query("SELECT * FROM bill_categories ORDER BY kind,parent_id IS NOT NULL,sort_order,id")
@@ -77,8 +85,29 @@ interface BillDao {
     @Query("SELECT * FROM bill_entries WHERE id=:id")
     suspend fun bill(id: Long): BillEntryEntity?
 
-    @Query("SELECT * FROM bill_entries WHERE id=:id AND is_deleted=0")
-    fun observeBill(id: Long): Flow<BillEntryEntity?>
+    @Query("""SELECT b.*,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
+        p.note AS parent_note
+        FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.id=:id AND b.is_deleted=0""")
+    fun observeBill(id: Long): Flow<BillRow?>
+
+    /** An expense's refunds and reimbursements still in place, oldest first. */
+    @Query("""SELECT b.*,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
+        p.note AS parent_note
+        FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.parent_id=:parentId AND b.is_deleted=0 ORDER BY b.occurred_at_ms,b.id""")
+    fun observeChildren(parentId: Long): Flow<List<BillRow>>
+
+    /** Every expense marked to be paid back, newest first. */
+    @Query("""SELECT b.*,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
+        p.note AS parent_note
+        FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.is_deleted=0 AND b.type='EXPENSE' AND b.reimbursable<>0
+        ORDER BY b.occurred_at_ms DESC,b.id DESC""")
+    fun observeReimbursable(): Flow<List<BillRow>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertBill(value: BillEntryEntity): Long
@@ -86,13 +115,21 @@ interface BillDao {
     @Update
     suspend fun updateBill(value: BillEntryEntity): Int
 
-    @Query("""SELECT * FROM bill_entries WHERE is_deleted=0 AND occurred_at_ms>=:startMs AND occurred_at_ms<:endMs
-        ORDER BY occurred_at_ms DESC,id DESC""")
-    fun observeRange(startMs: Long, endMs: Long): Flow<List<BillEntryEntity>>
+    @Query("""SELECT b.*,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
+        p.note AS parent_note
+        FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.is_deleted=0 AND b.occurred_at_ms>=:startMs AND b.occurred_at_ms<:endMs
+        ORDER BY b.occurred_at_ms DESC,b.id DESC""")
+    fun observeRange(startMs: Long, endMs: Long): Flow<List<BillRow>>
 
-    @Query("""SELECT * FROM bill_entries WHERE is_deleted=0 AND note LIKE '%' || :escaped || '%' ESCAPE '\'
-        ORDER BY occurred_at_ms DESC,id DESC LIMIT :limit""")
-    fun observeSearch(escaped: String, limit: Int): Flow<List<BillEntryEntity>>
+    @Query("""SELECT b.*,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
+        (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
+        p.note AS parent_note
+        FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.is_deleted=0 AND b.note LIKE '%' || :escaped || '%' ESCAPE '\'
+        ORDER BY b.occurred_at_ms DESC,b.id DESC LIMIT :limit""")
+    fun observeSearch(escaped: String, limit: Int): Flow<List<BillRow>>
 
     @Query("""SELECT cash_account_id FROM bill_entries WHERE is_deleted=0 AND cash_account_id IS NOT NULL
         AND type IN ('EXPENSE','INCOME') ORDER BY created_at_ms DESC,id DESC LIMIT 1""")

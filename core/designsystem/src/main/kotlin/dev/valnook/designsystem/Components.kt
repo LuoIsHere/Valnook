@@ -60,6 +60,8 @@ import java.util.Locale
         "DEFAULT_TYPE"->R.string.error_default_type
         "CATEGORY_PROTECTED"->R.string.error_category_protected
         "CATEGORY_HAS_SUBCATEGORIES"->R.string.error_category_has_subcategories
+        "SETTLEMENT_LIMIT"->R.string.error_settlement_limit
+        "BILL_SETTLED"->R.string.error_bill_settled
         "AMOUNT_TOO_SMALL"->R.string.error_small
         "DATE"->R.string.error_date
         "POSITIVE"->R.string.error_positive

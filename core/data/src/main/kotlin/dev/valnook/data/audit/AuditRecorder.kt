@@ -39,7 +39,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is DeleteBalanceAccount, is DeleteAccount, is DeleteAssetType, is DeleteInstrument, is DeleteBillCategory -> null
             is AccountGroupCommand -> groupLayoutJson()
             // Order and favourites touch several rows; the command itself says what changed.
-            is ReorderBillCategories, is SaveBillFavorites -> null
+            is ReorderBillCategories, is SaveBillFavorites, is SettleBills -> null
             else -> rowJson(tableForResult(result.kind), result.id)
         }
         val context = contextSnapshot(result)
@@ -150,7 +150,8 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is SaveBillCategory -> command.categoryId?.let { "bill_categories" to it }
         is SetBillCategoryHidden -> "bill_categories" to command.categoryId
         is DeleteBillCategory -> "bill_categories" to command.categoryId
-        is ReorderBillCategories, is SaveBillFavorites -> null
+        is ReorderBillCategories, is SaveBillFavorites, is SettleBill, is SettleBills -> null
+        is WaiveReimbursement -> "bill_entries" to command.billId
     }
 
     private fun tableForResult(kind: String): String = when (kind) {
@@ -177,6 +178,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade, is RecordDividend -> "CREATE"
         is DeleteInvestmentTrade, is DeleteBill, is DeleteBillCategory -> "DELETE"
         is SaveBill -> if (command.billId == null) "CREATE" else "UPDATE"
+        is SettleBill, is SettleBills -> "CREATE"
         is SaveBillCategory -> if (command.categoryId == null) "CREATE" else "UPDATE"
         else -> "UPDATE"
     }
@@ -188,6 +190,8 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is EditDividend -> command.occurred_at_ms
         is EditCashEntry -> command.occurred_at_ms
         is SaveBill -> command.draft.occurredAtMs
+        is SettleBill -> command.draft.occurredAtMs
+        is SettleBills -> command.occurredAtMs
         else -> null
     }
 

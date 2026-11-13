@@ -15,8 +15,31 @@ sealed interface BillCommand : FinancialCommand
 data class SaveBill(override val operation_id: String, val billId: Long?, val expectedRevision: Long?,
     val draft: BillDraft) : BillCommand
 
-/** Removes the bill and moves its sub-accounts back by what it moved them. */
+/**
+ * Removes the bill and moves its sub-accounts back by what it moved them; an expense's refunds and reimbursements go
+ * with it. Removing a refund or reimbursement undoes it.
+ */
 data class DeleteBill(override val operation_id: String, val billId: Long, val expectedRevision: Long) : BillCommand
+
+/**
+ * A refund ([type] REFUND) or reimbursement (REIMBURSEMENT) of the expense [parentId], read at [parentRevision]. It
+ * can be at most what is left of the expense; a reimbursement needs the expense marked as to be paid back and not
+ * waived.
+ */
+data class SettleBill(override val operation_id: String, val parentId: Long, val parentRevision: Long,
+    val type: dev.valnook.domain.model.BillType, val draft: dev.valnook.domain.model.SettlementDraft) : BillCommand
+
+/** One expense in [SettleBills]: its revision when read and what comes back for it. */
+data class SettlementItem(val parentId: Long, val parentRevision: Long, val amountMinor: Long,
+    val accountAmountMinor: Long, val rate: java.math.BigDecimal, val rateSource: dev.valnook.domain.model.BillRateSource)
+
+/** Reimbursements for several expenses at once, all into [cashAccountId] at [occurredAtMs], sharing one batch. */
+data class SettleBills(override val operation_id: String, val cashAccountId: Long, val occurredAtMs: Long,
+    val items: List<SettlementItem>) : BillCommand
+
+/** Gives up on what is left to be paid back for an expense ([waived]), or takes that back. */
+data class WaiveReimbursement(override val operation_id: String, val billId: Long, val expectedRevision: Long,
+    val waived: Boolean) : BillCommand
 
 /**
  * A new category when [categoryId] is null; [parentId] makes it a subcategory of a top-level category of the same
@@ -73,6 +96,10 @@ data class BillAccountChoice(
 interface BillRepository {
     fun observeCategories(): Flow<List<BillCategory>>
     fun observeBill(billId: Long): Flow<Bill?>
+    /** An expense's refunds and reimbursements still in place, oldest first. */
+    fun observeChildren(parentId: Long): Flow<List<Bill>> = kotlinx.coroutines.flow.flowOf(emptyList())
+    /** Every expense marked to be paid back, newest first, whatever its state. */
+    fun observeReimbursable(): Flow<List<Bill>> = kotlinx.coroutines.flow.flowOf(emptyList())
     /** Every bill dated in [month] in [zone], newest first. */
     fun observeMonth(month: YearMonth, zone: ZoneId): Flow<List<Bill>>
     /** Bills whose note contains [query], newest first. */

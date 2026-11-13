@@ -76,7 +76,11 @@ enum class ErrorCode { CURRENCY, FORMAT, PRECISION, OVERFLOW, POSITIVE, DATE, IN
     INVALID_ACCOUNT_TYPE, INVALID_CREDIT_LIMIT, INVALID_STATEMENT_DAY, INVALID_DUE_RULE,
     CREDIT_SOURCE_INVALID, CREDIT_SOURCE_CURRENCY, CREDIT_SOURCE_PARENT, CREDIT_SOURCE_CHAIN, CREDIT_SOURCE_CYCLE,
     CREDIT_LIMIT_IN_USE, BALANCE_ACCOUNT_IN_USE, WALLET_FACE_IN_USE, WALLET_FACE_DUPLICATE, WALLET_FACE_LIBRARY_FULL,
-    DEFAULT_TYPE, CATEGORY_PROTECTED, CATEGORY_HAS_SUBCATEGORIES }
+    DEFAULT_TYPE, CATEGORY_PROTECTED, CATEGORY_HAS_SUBCATEGORIES,
+    /** More than is left of an expense would come back. */
+    SETTLEMENT_LIMIT,
+    /** An edit would undo what refunds and reimbursements rely on: the amount below them, or the type or currency. */
+    BILL_SETTLED }
 class DomainException(val code: ErrorCode) : IllegalArgumentException(code.name)
 data class SavingsAccount(val id: Long, val name: String, val note: String, val revision: Long = 1, val icon: AccountIcon = AccountIcon(),
     val showDepositSummary: Boolean = true, val showInvestmentSummary: Boolean = true,

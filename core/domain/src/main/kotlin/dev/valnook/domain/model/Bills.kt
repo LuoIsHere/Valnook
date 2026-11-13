@@ -78,6 +78,8 @@ data class BillDraft(
     val subCategoryId: Long? = null,
     val countInStats: Boolean = true,
     val note: String = "",
+    /** An expense someone is to pay back; [counterparty] then names who, if anyone. */
+    val reimbursable: Boolean = false,
 ) {
     val paidMinor: Long get() = amountMinor - discountMinor
 }
@@ -113,12 +115,53 @@ data class Bill(
     val updatedAtMs: Long,
     /** Its account was deleted; an expense or income with no account and this false was kept on no account. */
     val accountDeleted: Boolean = false,
+    /** An expense's refunds and reimbursements so far, in its own currency ([currency]). */
+    val refundedMinor: Long = 0,
+    val reimbursedMinor: Long = 0,
+    /** A refund's or reimbursement's original bill note, to name it by; null for other bills. */
+    val parentNote: String? = null,
 ) {
     val paidMinor: Long get() = amountMinor - discountMinor
 
+    /** What can still be refunded or paid back: paid less what already was. */
+    val remainingMinor: Long get() = paidMinor - refundedMinor - reimbursedMinor
+
+    /** Refunds and reimbursements come back to [parentId]; they are created and undone from it, never edited. */
+    val isSettlement: Boolean get() = type == BillType.REFUND || type == BillType.REIMBURSEMENT
+
     fun toDraft(): BillDraft = BillDraft(type, occurredAtMs, amountMinor, currency.code, discountMinor, cashAccountId,
         accountAmountMinor, rate, rateSource, transferKind, toCashAccountId, toAmountMinor, feeMinor, counterparty,
-        categoryId, subCategoryId, countInStats, note)
+        categoryId, subCategoryId, countInStats, note, reimbursable)
+}
+
+/**
+ * Money coming back for an expense: a refund, or a reimbursement when the expense was marked to be paid back.
+ * [amountMinor] is in the expense's own currency; [cashAccountId] receives [accountAmountMinor] in its currency,
+ * which is [amountMinor] at [rate] (or, for [BillRateSource.DERIVED], what [rate] was worked out from).
+ */
+data class SettlementDraft(
+    val occurredAtMs: Long,
+    val amountMinor: Long,
+    val cashAccountId: Long,
+    val accountAmountMinor: Long,
+    val rate: BigDecimal = BigDecimal.ONE,
+    val rateSource: BillRateSource = BillRateSource.SAME,
+    val note: String = "",
+)
+
+object BillSettlement {
+    /**
+     * The state a reimbursable expense is in: [ReimburseState.WAIVED] stays until taken back; otherwise DONE when
+     * nothing is left to pay back, PARTIAL once something came back, PENDING before. NONE when not reimbursable.
+     */
+    fun state(reimbursable: Boolean, waived: Boolean, paidMinor: Long, refundedMinor: Long, reimbursedMinor: Long): ReimburseState =
+        when {
+            !reimbursable -> ReimburseState.NONE
+            waived -> ReimburseState.WAIVED
+            paidMinor - refundedMinor - reimbursedMinor <= 0 -> ReimburseState.DONE
+            reimbursedMinor > 0 -> ReimburseState.PARTIAL
+            else -> ReimburseState.PENDING
+        }
 }
 
 object BillRules {

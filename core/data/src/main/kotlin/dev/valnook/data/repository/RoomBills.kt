@@ -3,6 +3,7 @@ package dev.valnook.data.repository
 import dev.valnook.data.database.BillAccountRow
 import dev.valnook.data.database.BillCategoryEntity
 import dev.valnook.data.database.BillEntryEntity
+import dev.valnook.data.database.BillRow
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.BillAccountChoice
@@ -20,6 +21,12 @@ class RoomBills(private val db: ValnookDatabase) : BillRepository {
         dao.observeCategories().map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
 
     override fun observeBill(billId: Long): Flow<Bill?> = dao.observeBill(billId).map { it?.toModel() }.distinctUntilChanged()
+
+    override fun observeChildren(parentId: Long): Flow<List<Bill>> =
+        dao.observeChildren(parentId).map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
+
+    override fun observeReimbursable(): Flow<List<Bill>> =
+        dao.observeReimbursable().map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
 
     override fun observeMonth(month: YearMonth, zone: ZoneId): Flow<List<Bill>> {
         val start = month.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -72,6 +79,9 @@ internal fun choices(rows: List<BillAccountRow>): List<BillAccountChoice> = rows
 
 internal fun BillCategoryEntity.toModel() = BillCategory(id, BillCategoryKind.valueOf(kind), parent_id, builtin_key,
     custom_name, icon_key, color_key, sort_order, hidden, last_cash_account_id, revision)
+
+internal fun BillRow.toModel() = bill.toModel().copy(refundedMinor = refunded_minor, reimbursedMinor = reimbursed_minor,
+    parentNote = parent_note)
 
 internal fun BillEntryEntity.toModel() = Bill(
     id = id, type = BillType.valueOf(type), occurredAtMs = occurred_at_ms, amountMinor = amount_minor,

@@ -116,7 +116,14 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 val old = command.billId?.let { db.bills().bill(it) }?.occurred_at_ms?.let(::day)
                 listOfNotNull(old, day(command.draft.occurredAtMs)).min().coerceAtLeast(baseline)
             }
-            is DeleteBill -> (db.bills().bill(command.billId)?.occurred_at_ms?.let(::day) ?: baseline).coerceAtLeast(baseline)
+            // An expense goes with its refunds and reimbursements, which may have arrived on other days.
+            is DeleteBill -> (listOfNotNull(db.bills().bill(command.billId)?.occurred_at_ms) +
+                db.bills().children(command.billId).map { it.occurred_at_ms }).minOrNull()?.let(::day)
+                ?.coerceAtLeast(baseline) ?: baseline
+            is SettleBill -> day(command.draft.occurredAtMs).coerceAtLeast(baseline)
+            is SettleBills -> day(command.occurredAtMs).coerceAtLeast(baseline)
+            // Giving up on a reimbursement moves no money.
+            is WaiveReimbursement -> null
             is SaveInstrument -> {
                 val old = command.instrumentId?.let { db.instruments().instrument(it) }
                 if (old == null || old.current_price_e5 != command.currentPriceE5 ||

@@ -534,6 +534,14 @@ internal class ArchiveReader(
         }
         db.query("SELECT 1 FROM bill_entries WHERE account_deleted<>0 AND (cash_account_id IS NOT NULL OR type='TRANSFER') LIMIT 1")
             .use { if (it.moveToFirst()) invalid() }
+        // Refunds and reimbursements hang off an expense, in its currency (a reimbursement off one to be paid back);
+        // no other bill has a parent, and only an expense is to be paid back.
+        db.query("""SELECT 1 FROM bill_entries c LEFT JOIN bill_entries p ON p.id=c.parent_id
+            WHERE (c.type IN ('REFUND','REIMBURSEMENT') AND (p.id IS NULL OR p.type<>'EXPENSE' OR
+                p.currency_code<>c.currency_code OR c.discount_minor<>0 OR c.reimbursable<>0 OR
+                (c.type='REIMBURSEMENT' AND c.is_deleted=0 AND p.reimbursable=0)))
+               OR (c.type NOT IN ('REFUND','REIMBURSEMENT') AND c.parent_id IS NOT NULL)
+               OR (c.reimbursable<>0 AND c.type<>'EXPENSE') LIMIT 1""").use { if (it.moveToFirst()) relationship() }
         // A bill's cash entries point at a bill that exists.
         db.query("""SELECT 1 FROM cash_entries e WHERE e.source_kind IN ('BILL','BILL_TRANSFER_IN')
             AND (e.source_id IS NULL OR NOT EXISTS (SELECT 1 FROM bill_entries b WHERE b.id=e.source_id)) LIMIT 1""")

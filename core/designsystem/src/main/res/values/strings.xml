@@ -122,6 +122,8 @@
     <string name="error_default_type">Uncategorized is the default class and cannot be renamed or deleted.</string>
     <string name="error_category_protected">This category always stays so bills always have somewhere to go. You can rename or hide it.</string>
     <string name="error_category_has_subcategories">Delete its subcategories first, hidden ones included.</string>
+    <string name="error_settlement_limit">That is more than is left of this expense to refund or pay back.</string>
+    <string name="error_bill_settled">This bill has refunds or reimbursements: the amount cannot go below them, and its type and currency cannot change. Undo them first.</string>
     <string name="error_small">The trade amount is below the smallest currency unit.</string>
     <string name="error_date">Invalid date. The maturity date must be after the start date.</string>
     <string name="error_positive">Values must be nonnegative; principal, price, and quantity must be positive.</string>

@@ -73,7 +73,7 @@ internal object CommandFingerprint {
                 d.type.name, d.occurredAtMs, d.amountMinor, d.currencyCode, d.discountMinor, d.cashAccountId,
                 d.accountAmountMinor, d.rate.stripTrailingZeros().toPlainString(), d.rateSource.name, d.transferKind?.name,
                 d.toCashAccountId, d.toAmountMinor, d.feeMinor, d.counterparty.trim(), d.categoryId, d.subCategoryId,
-                d.countInStats, d.note.trim()) }
+                d.countInStats, d.note.trim(), d.reimbursable) }
             is DeleteBill -> listOf("BILL_DELETE", command.billId, command.expectedRevision)
             is SaveBillCategory -> listOf("BILL_CATEGORY_SAVE", command.categoryId, command.expectedRevision,
                 command.kind.name, command.parentId, command.name?.trim(), command.iconKey, command.colorKey)
@@ -82,6 +82,13 @@ internal object CommandFingerprint {
             is DeleteBillCategory -> listOf("BILL_CATEGORY_DELETE", command.categoryId, command.expectedRevision,
                 command.moveToCategoryId, command.deleteBills, command.billTitle)
             is SaveBillFavorites -> listOf("BILL_FAVORITES") + command.orderedCashAccountIds
+            is SettleBill -> command.draft.let { d -> listOf("BILL_SETTLE", command.parentId, command.parentRevision,
+                command.type.name, d.occurredAtMs, d.amountMinor, d.cashAccountId, d.accountAmountMinor,
+                d.rate.stripTrailingZeros().toPlainString(), d.rateSource.name, d.note.trim()) }
+            is SettleBills -> listOf("BILL_SETTLE_BATCH", command.cashAccountId, command.occurredAtMs) + command.items.flatMap {
+                listOf(it.parentId, it.parentRevision, it.amountMinor, it.accountAmountMinor,
+                    it.rate.stripTrailingZeros().toPlainString(), it.rateSource.name) }
+            is WaiveReimbursement -> listOf("BILL_WAIVE", command.billId, command.expectedRevision, command.waived)
         }
         val canonical = fields.joinToString("") { field -> val s=field?.toString() ?: "<null>"
             "${s.length}:$s" }
