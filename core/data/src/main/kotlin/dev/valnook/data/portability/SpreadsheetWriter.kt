@@ -330,7 +330,8 @@ internal class SpreadsheetWriter(
                 "账户金额" to "Account amount", "汇率" to "Rate", "汇率来源" to "Rate source", "转入账户" to "To account",
                 "转入币种" to "To currency", "转入金额" to "Amount received", "手续费" to "Fee", "对方" to "Counterparty",
                 "计入收支" to "Counted", "备注" to "Note", "账单 ID" to "Bill ID", "原账单 ID" to "Original bill ID",
-                "需要报销" to "To be paid back", "报销状态" to "Reimbursement state", "已退款" to "Refunded", "已报销" to "Paid back"
+                "需要报销" to "To be paid back", "报销状态" to "Reimbursement state", "已退款" to "Refunded", "已报销" to "Paid back",
+                "图片数" to "Pictures"
             ).map { (zh, en) -> header(label(english, zh, en)) }.toTypedArray())
             db.openHelper.readableDatabase.query("""
                 SELECT b.occurred_at_ms,b.type,b.transfer_kind,c.builtin_key,c.custom_name,s.builtin_key,s.custom_name,
@@ -338,7 +339,8 @@ internal class SpreadsheetWriter(
                     b.rate,b.rate_source,ta.name,tc.name,b.to_currency_code,b.to_amount_minor,b.fee_minor,b.counterparty,
                     b.count_in_stats,b.note,b.id,b.account_deleted,b.parent_id,b.reimbursable,b.reimburse_state,
                     (SELECT COALESCE(SUM(r.amount_minor),0) FROM bill_entries r WHERE r.parent_id=b.id AND r.is_deleted=0 AND r.type='REFUND'),
-                    (SELECT COALESCE(SUM(r.amount_minor),0) FROM bill_entries r WHERE r.parent_id=b.id AND r.is_deleted=0 AND r.type='REIMBURSEMENT')
+                    (SELECT COALESCE(SUM(r.amount_minor),0) FROM bill_entries r WHERE r.parent_id=b.id AND r.is_deleted=0 AND r.type='REIMBURSEMENT'),
+                    (SELECT COUNT(*) FROM bill_attachments g WHERE g.bill_id=b.id)
                 FROM bill_entries b
                 LEFT JOIN bill_categories c ON c.id=b.category_id LEFT JOIN bill_categories s ON s.id=b.sub_category_id
                 LEFT JOIN cash_accounts ca ON ca.id=b.cash_account_id LEFT JOIN savings_accounts a ON a.id=ca.savings_account_id
@@ -402,7 +404,8 @@ internal class SpreadsheetWriter(
                         text(if (!expense) "" else label(english, if (reimbursable) "是" else "否", if (reimbursable) "Yes" else "No")),
                         text(state),
                         if (!expense || cursor.getLong(29) == 0L) text("") else minor(cursor.getLong(29), currency),
-                        if (!expense || cursor.getLong(30) == 0L) text("") else minor(cursor.getLong(30), currency))
+                        if (!expense || cursor.getLong(30) == 0L) text("") else minor(cursor.getLong(30), currency),
+                        if (cursor.getLong(31) == 0L) text("") else number(cursor.getLong(31).toString()))
                     count++
                 }
             }

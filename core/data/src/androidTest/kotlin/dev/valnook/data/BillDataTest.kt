@@ -320,7 +320,7 @@ class BillDataTest {
 
     @Test fun the_workbook_lists_bills_on_their_own_sheet() = runBlocking {
         val (a, b, _) = accounts()
-        save(expense(a, 3_500, discount = 500))
+        save(expense(a, 3_500, discount = 500).copy(images = listOf(BillImage("a".repeat(64), 1_000, 100, 100))))
         save(transfer(a, null, 1_000, TransferKind.TO_EXTERNAL, counterparty = "Synthetic friend"))
         // An expense to be paid back, with a refund and a reimbursement that name it.
         val trip = save(expense(a, 8_800).copy(reimbursable = true, countInStats = false, counterparty = "Synthetic Employer"))
@@ -339,7 +339,7 @@ class BillDataTest {
             .maxBy { it.key.removePrefix("xl/worksheets/sheet").removeSuffix(".xml").toInt() }.value
         assertTrue(sheet.contains("Synthetic lunch"))
         listOf("Expense", "Lunch", "Transfer", "Synthetic friend", "35", "30").forEach { assertTrue(it, sheet.contains(it)) }
-        listOf("Original bill ID", "Reimbursement state", "Refund", "Reimbursement", "Synthetic Employer", "Partly paid back")
+        listOf("Original bill ID", "Reimbursement state", "Refund", "Reimbursement", "Synthetic Employer", "Partly paid back", "Pictures")
             .forEach { assertTrue(it, sheet.contains(it)) }
         assertFalse(sheet.contains(b.toString() + " · "))
     }
