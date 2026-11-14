@@ -490,7 +490,7 @@ class MigrationTest {
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
-            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27).build()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28).build()
             try {
                 val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
                 assertEquals(listOf("shared", "orphan"), faces.map { it.key })
@@ -512,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
@@ -710,12 +710,39 @@ class MigrationTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    @Test fun v27_to_v28_adds_ai_settings_with_no_row_so_the_defaults_apply(): Unit = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-ai-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 27).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 28, true, MIGRATION_27_28).apply {
+                query("SELECT COUNT(*) FROM ai_settings").use { assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0)) }
+                // A row written with only its id takes the defaults the design gives.
+                execSQL("INSERT INTO ai_settings(id) VALUES (1)")
+                query("SELECT bill_chat,share_text,share_image,query_enabled,enabled,default_time_minutes,base_url FROM ai_settings").use {
+                    assertTrue(it.moveToFirst())
+                    assertEquals(listOf(1L, 1L, 0L, 0L, 0L, 720L), (0..5).map(it::getLong))
+                    assertEquals("", it.getString(6))
+                }
+                close()
+            }
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
+            try {
+                db.ai().clear()
+                assertNull(db.ai().settings())
+            } finally { db.close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
     /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach the current schema with their manual rates unchanged. */
     @Test fun released_installs_reach_the_current_schema_with_manual_rates_unchanged(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val chains = mapOf(
-            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27),
-            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27))
+            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28),
+            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28))
         chains.forEach { (version, migrations) ->
             val name = "migration-fx-v$version-${UUID.randomUUID()}.db"
             try {

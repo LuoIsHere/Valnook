@@ -114,7 +114,7 @@ class LocalWalletPrivateRepository(
     } finally { bytes.fill(0) }
 }
 
-private interface PrivateRecords {
+internal interface PrivateRecords {
     fun read(name: String): ByteArray?
     fun write(name: String, bytes: ByteArray)
     fun names(): Set<String>
@@ -131,7 +131,12 @@ private class MemoryPrivateRecords : PrivateRecords {
     override fun destroyKey() = Unit
 }
 
-private class EncryptedPrivateRecords(private val directory: File, private val alias: String) : PrivateRecords {
+/**
+ * Encrypted records in [directory] under the Keystore key [alias]. [allowedName] limits the file names; the wallet's
+ * are "preferences" and card ids. The AI key reuses it with its own directory and alias.
+ */
+internal class EncryptedPrivateRecords(private val directory: File, private val alias: String,
+    private val allowedName: (String) -> Boolean = ::walletRecordName) : PrivateRecords {
     // SECURITY: Keep the key in Android Keystore, ciphertext in noBackupFilesDir, and fresh GCM IVs per write.
     // 安全边界：密钥不得导出，文件不得搬到共享/备份目录，nonce 不得复用。不得增加明文兼容或失败降级。
     private fun key(create: Boolean): SecretKey {
@@ -146,7 +151,7 @@ private class EncryptedPrivateRecords(private val directory: File, private val a
         }.generateKey()
     }
     private fun file(name: String): AtomicFile {
-        require(name == "preferences" || runCatching { UUID.fromString(name).toString() == name }.getOrDefault(false))
+        require(allowedName(name))
         return AtomicFile(File(directory, "$name.bin"))
     }
     override fun read(name: String): ByteArray? {
@@ -184,3 +189,6 @@ private class EncryptedPrivateRecords(private val directory: File, private val a
     override fun delete(name: String) { file(name).delete() }
     override fun destroyKey() { KeyStore.getInstance("AndroidKeyStore").apply { load(null); deleteEntry(alias) } }
 }
+
+private fun walletRecordName(name: String): Boolean =
+    name == "preferences" || runCatching { UUID.fromString(name).toString() == name }.getOrDefault(false)

@@ -11,19 +11,20 @@ class BackupContractTest {
         BackupContract.tablesFor(version).single { it.table == table }.columns.map { it.name }.toSet()
 
     @Test fun each_version_reads_only_what_it_wrote() {
-        val versionOneExtras = setOf("credit_account_profiles", "account_icon_images", "wallet_cards", "wallet_card_images", "account_groups", "fx_rate_history", "bill_categories", "bill_entries", "bill_attachments")
+        val versionOneExtras = setOf("credit_account_profiles", "account_icon_images", "wallet_cards", "wallet_card_images", "account_groups", "fx_rate_history", "bill_categories", "bill_entries", "bill_attachments", "ai_settings")
         assertEquals(BackupContract.tables.map { it.table }.toSet() - versionOneExtras, tables(1))
         assertTrue("credit_account_profiles" in tables(2) && "account_icon_images" !in tables(3))
         assertTrue("account_icon_images" in tables(4) && "wallet_cards" !in tables(5))
         assertEquals(tables(6), tables(7))
         assertTrue("wallet_cards" in tables(7) && "account_groups" !in tables(7))
         assertEquals(tables(8), tables(9))
-        val bills = setOf("bill_categories", "bill_entries", "bill_attachments")
+        val bills = setOf("bill_categories", "bill_entries", "bill_attachments", "ai_settings")
         assertEquals(BackupContract.tables.map { it.table }.toSet() - "fx_rate_history" - bills, tables(9))
         assertEquals(BackupContract.tables.map { it.table }.toSet() - bills, tables(10))
-        assertEquals(BackupContract.tables.map { it.table }.toSet() - "bill_attachments", tables(11))
+        assertEquals(BackupContract.tables.map { it.table }.toSet() - "bill_attachments" - "ai_settings", tables(11))
         assertEquals(tables(11), tables(12))
-        assertEquals(BackupContract.tables.map { it.table }.toSet(), tables(13))
+        assertEquals(BackupContract.tables.map { it.table }.toSet() - "ai_settings", tables(13))
+        assertEquals(BackupContract.tables.map { it.table }.toSet(), tables(14))
     }
 
     @Test fun bill_pictures_back_up_as_references_from_version_thirteen() {
@@ -70,6 +71,15 @@ class BackupContractTest {
         assertTrue(order.indexOf("cash_accounts") < order.indexOf("bill_categories"))
         assertTrue("bills-v1" in BackupContract.requiredFeatures)
         assertTrue("account_deleted" !in columns(11, "bill_entries") && "account_deleted" in columns(12, "bill_entries"))
+    }
+
+    @Test fun ai_settings_back_up_from_version_fourteen_without_the_key() {
+        assertTrue("data/ai_settings.jsonl" !in BackupContract.payloadPathsFor(13))
+        assertTrue("data/ai_settings.jsonl" in BackupContract.payloadPathsFor(14))
+        assertTrue("ai-settings-v1" in BackupContract.requiredFeatures)
+        // The key and check results stay on the device: no column could hold them.
+        assertTrue(columns(14, "ai_settings").none { it.contains("key") || it.contains("check") })
+        assertTrue(setOf("base_url", "model", "my_rules", "user_nickname", "default_time_minutes").all { it in columns(14, "ai_settings") })
     }
 
     @Test fun unknown_versions_have_no_tables() {

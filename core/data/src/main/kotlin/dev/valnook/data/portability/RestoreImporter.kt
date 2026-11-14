@@ -95,7 +95,7 @@ internal class RestoreImporter(
             "statistics_baseline_items", "statistics_state", "instrument_price_history", "demo_labels",
             "bill_attachments", "bill_entries", "bill_categories", "cash_entries", "cash_movements", "investment_trades", "term_deposits", "investments",
             "instruments", "asset_types", "credit_account_profiles", "cash_accounts", "savings_accounts", "account_groups", "account_icon_images", "operations", "fx_rates", "fx_rate_history",
-            "app_settings", "currencies"
+            "ai_settings", "app_settings", "currencies"
         ).forEach { table -> db.execSQL("DELETE FROM $table") }
     }
 

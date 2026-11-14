@@ -21,6 +21,8 @@ class RoomDataMaintenance(private val db: ValnookDatabase, private val clock: ja
             maintenance.clearStatisticsState()
             maintenance.clearPriceHistory()
             maintenance.clearDemoLabels()
+            // The AI settings go back to the defaults; the key and checks on the device are cleared by the caller.
+            db.ai().clear()
             maintenance.clearBillAttachments()
             maintenance.clearBillImageFiles()
             maintenance.clearChildBills()

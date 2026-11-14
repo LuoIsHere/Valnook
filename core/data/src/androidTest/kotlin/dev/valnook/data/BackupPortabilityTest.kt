@@ -793,6 +793,49 @@ class BackupPortabilityTest {
         assertEquals(FxLocalStateEntity(auto_enabled = false, notice_dismissed = true), target.fx().localState())
     }
 
+    @Test fun ai_settings_round_trip_and_an_older_backup_restores_the_defaults() = runBlocking {
+        val source = database("ai-source")
+        val keys = dev.valnook.data.ai.MemoryAiKeyStore()
+        val service = dev.valnook.data.ai.RoomAiService(source, keys, dev.valnook.data.ai.MemoryAiCheckStore(), clock, { true })
+        service.saveConnection(dev.valnook.domain.ai.AiConnection(null, "http://192.0.2.10:11434/v1/", "local-model",
+            "{\"temperature\": 0.1}"), "synthetic-key")
+        service.saveDefaults(9 * 60 + 30, null, null, null)
+        service.savePersonal("Synthetic rule.", "Sam", "Penny")
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        // The settings travel; the key never does.
+        val payload = zipPayload(output.toByteArray()).values.joinToString("") { it.toString(Charsets.UTF_8) }
+        assertTrue(payload.contains("local-model") && payload.contains("Synthetic rule."))
+        assertFalse(payload.contains("synthetic-key"))
+
+        val target = database("ai-target")
+        restore(target, output.toByteArray())
+        val restored = target.ai().settings()!!
+        assertEquals("http://192.0.2.10:11434/v1", restored.base_url)
+        assertEquals("local-model", restored.model)
+        assertEquals(570, restored.default_time_minutes)
+        assertEquals(listOf("Synthetic rule.", "Sam", "Penny"), listOf(restored.my_rules, restored.user_nickname, restored.ai_nickname))
+
+        // A backup from before AI settings existed leaves the defaults.
+        restore(target, downgradeToLegacySchema(output.toByteArray(), 13))
+        assertNull(target.ai().settings())
+    }
+
+    @Test fun ai_settings_a_form_could_not_hold_are_rejected() = runBlocking {
+        val source = database("ai-bad-source")
+        dev.valnook.data.ai.RoomAiService(source, dev.valnook.data.ai.MemoryAiKeyStore(), dev.valnook.data.ai.MemoryAiCheckStore(),
+            clock, { true }).savePersonal("rule", "", "")
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        val target = database("ai-bad-target")
+        listOf<(JSONObject) -> Unit>({ it.put("id", 2) }, { it.put("base_url", "ftp://x.test") }, { it.put("extra_params", "[1]") },
+            { it.put("default_time_minutes", 1440) }, { it.put("my_rules", "x".repeat(2001)) }, { it.put("user_nickname", "x".repeat(21)) })
+            .forEach { change ->
+                val tampered = rewriteRows(output.toByteArray(), "data/ai_settings.jsonl") { lines -> lines.map { JSONObject(it).also(change).toString() } }
+                expect(PortabilityErrorCode.INVALID_DATA) { runBlocking { engine(target).prepareRestore(ByteArrayInputStream(tampered), "bad.val_backup") {} } }
+            }
+    }
+
     @Test fun schema9_backup_restores_with_an_empty_history_and_its_rates() = runBlocking {
         val source = fxSource("fx-schema9-source")
         val output = ByteArrayOutputStream()
@@ -841,8 +884,10 @@ class BackupPortabilityTest {
     }
 
     /** Rewrites the history file and keeps sizes, hashes and record counts consistent, so only the content is wrong. */
-    private fun rewriteFxRows(bytes: ByteArray, change: (List<String>) -> List<String>): ByteArray {
-        val path = "data/fx_rate_history.jsonl"
+    private fun rewriteFxRows(bytes: ByteArray, change: (List<String>) -> List<String>): ByteArray =
+        rewriteRows(bytes, "data/fx_rate_history.jsonl", change)
+
+    private fun rewriteRows(bytes: ByteArray, path: String, change: (List<String>) -> List<String>): ByteArray {
         val files = linkedMapOf<String, ByteArray>()
         ZipInputStream(ByteArrayInputStream(bytes)).use { zip -> while (true) {
             val entry = zip.nextEntry ?: break
@@ -882,6 +927,7 @@ class BackupPortabilityTest {
         if (version < 10) files.remove("data/fx_rate_history.jsonl")
         if (version < 11) { files.remove("data/bill_categories.jsonl"); files.remove("data/bill_entries.jsonl") }
         if (version < 13) files.remove("data/bill_attachments.jsonl")
+        if (version < 14) files.remove("data/ai_settings.jsonl")
         if (version == 11) files["data/bill_entries.jsonl"] = files.getValue("data/bill_entries.jsonl").toString(Charsets.UTF_8)
             .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
                 JSONObject(line).apply { remove("account_deleted") }.toString() + "\n" }.toByteArray()
@@ -903,6 +949,7 @@ class BackupPortabilityTest {
         if (version < 10) totals.getJSONObject("recordCounts").remove("data/fx_rate_history.jsonl")
         if (version < 11) listOf("data/bill_categories.jsonl", "data/bill_entries.jsonl").forEach { totals.getJSONObject("recordCounts").remove(it) }
         if (version < 13) totals.getJSONObject("recordCounts").remove("data/bill_attachments.jsonl")
+        if (version < 14) totals.getJSONObject("recordCounts").remove("data/ai_settings.jsonl")
         if(version < 4) totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")
         if (version == 1) totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
         files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
@@ -919,7 +966,8 @@ class BackupPortabilityTest {
             (if (version >= 9) listOf("wallet-face-library-v1") else emptyList()) +
             (if (version >= 10) listOf("fx-rate-history-v1") else emptyList()) +
             (if (version >= 11) listOf("bills-v1") else emptyList()) +
-            (if (version >= 13) listOf("bill-images-v1") else emptyList())))
+            (if (version >= 13) listOf("bill-images-v1") else emptyList()) +
+            (if (version >= 14) listOf("ai-settings-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->

@@ -4,9 +4,12 @@ import android.content.ContentValues
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.withTransaction
+import dev.valnook.data.ai.AiJson
 import dev.valnook.data.database.AccountGroupEntity
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.data.database.insertDefaultAccountGroup
+import dev.valnook.domain.ai.AiConnection
+import dev.valnook.domain.ai.AiRules
 import dev.valnook.domain.model.AccountGroupRules
 import dev.valnook.domain.model.BillCategoryKind
 import dev.valnook.domain.model.BillCategoryPresets
@@ -553,6 +556,17 @@ internal class ArchiveReader(
         }
         db.query("""SELECT 1 FROM bill_attachments a LEFT JOIN bill_entries b ON b.id=a.bill_id
             WHERE b.id IS NULL OR b.type IN ('REFUND','REIMBURSEMENT') LIMIT 1""").use { if (it.moveToFirst()) relationship() }
+        // AI settings: only row 1, with text a saved form could hold. Default ids may point at nothing; they fall back.
+        db.query("""SELECT id,base_url,model,extra_params,thinking_off_params,thinking_on_params,default_time_minutes,
+            my_rules,user_nickname,ai_nickname FROM ai_settings""").use { cursor ->
+            while (cursor.moveToNext()) {
+                val url = cursor.getString(1)
+                if (cursor.getLong(0) != 1L || (url.isNotEmpty() && !AiConnection.validBaseUrl(url)) ||
+                    cursor.getString(2).length > AiRules.MODEL_MAX || (3..5).any { !AiJson.validParams(cursor.getString(it)) } ||
+                    cursor.getLong(6) !in 0 until 24 * 60 || cursor.getString(7).length > AiRules.MY_RULES_MAX ||
+                    (8..9).any { cursor.getString(it).length > AiRules.NICKNAME_MAX }) invalid()
+            }
+        }
         // A bill's cash entries point at a bill that exists.
         db.query("""SELECT 1 FROM cash_entries e WHERE e.source_kind IN ('BILL','BILL_TRANSFER_IN')
             AND (e.source_id IS NULL OR NOT EXISTS (SELECT 1 FROM bill_entries b WHERE b.id=e.source_id)) LIMIT 1""")
