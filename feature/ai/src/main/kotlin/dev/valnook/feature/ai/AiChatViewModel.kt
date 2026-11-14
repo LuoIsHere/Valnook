@@ -156,7 +156,8 @@ class AiChatViewModel(
         val pictures = current.pictures
         updateLocal { it.copy(sending = true, input = "", pictures = emptyList(), cardError = null, cardFailed = false) }
         sendJob = viewModelScope.launch {
-            try { setConversation(assistant.send(conversation.value, text, pictures)) }
+            // The message shows as soon as it is stored; the reply follows.
+            try { setConversation(assistant.send(conversation.value, text, pictures) { setConversation(it) }) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
                 // Nothing was stored (the features went off meanwhile): the words come back to the box.

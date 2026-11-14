@@ -134,6 +134,25 @@ class AiChatUiTest {
         rule.onNodeWithTag("ai-chat-entry-dot").assertDoesNotExist()
     }
 
+    @Test fun the_first_message_shows_at_once_and_the_reply_is_awaited_in_the_ai_bubble() {
+        openChat()
+        val release = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val arguments = """{"message":"","bills":[{"type":"EXPENSE","amount":"25","category_id":${category("food")}}]}"""
+        ScriptedAiTransport.reply {
+            release.await()
+            AiHttpResponse(200, """{"choices":[{"message":{"role":"assistant","content":"","tool_calls":[{"id":"w1",
+                "type":"function","function":{"name":"create_bill_drafts","arguments":${JsonPrimitive(arguments)}}}]}}]}""")
+        }
+        send("合成午饭 25")
+        // A new conversation: the words are there before any reply, and the reply is awaited in the AI's bubble.
+        waitTag("ai-chat-working")
+        rule.waitUntil(8_000) { rule.onAllNodesWithText("合成午饭 25").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("ai-draft-d1-pending").assertDoesNotExist()
+        release.complete(Unit)
+        waitTag("ai-draft-d1-pending")
+        gone("ai-chat-working")
+    }
+
     @Test fun a_draft_without_an_amount_is_completed_in_the_bill_page() {
         openChat()
         drafts("要补充金额", """{"type":"EXPENSE","category_id":${category("food")},"note":"合成咖啡"}""")

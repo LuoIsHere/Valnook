@@ -126,9 +126,10 @@ interface AiAssistant {
     suspend fun conversationToContinue(): Long?
     /**
      * Sends [text] and [pictures] (pictures already in the bill picture library) in [conversationId], or in a new
-     * conversation when null, and stores the reply or the error. Returns the conversation's id.
+     * conversation when null, and stores the reply or the error. Returns the conversation's id. [onStored] gets the id
+     * as soon as the message itself is stored, before the model is asked, so the page shows it at once.
      */
-    suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>): Long
+    suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit = {}): Long
     /** Sends the last message of [conversationId] again after an error. */
     suspend fun retry(conversationId: Long)
     /** Reads a shared text or pictures once: no conversation, no thinking, the draft tool required. */

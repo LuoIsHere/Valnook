@@ -112,7 +112,8 @@ private fun EnableCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
 fun AiEnableNotice(onCancel: () -> Unit, onAccept: (dontShowAgain: Boolean) -> Unit) {
     PolicyNoticeDialog(stringResource(R.string.ai_enable_notice_title),
         listOf(R.string.ai_notice_provider, R.string.ai_notice_when, R.string.ai_notice_sent, R.string.ai_notice_not_sent,
-            R.string.ai_notice_storage, R.string.ai_notice_cost, R.string.ai_notice_local).map { stringResource(it) },
+            R.string.ai_notice_storage, R.string.ai_notice_records, R.string.ai_notice_limit, R.string.ai_notice_cost,
+            R.string.ai_notice_local).map { stringResource(it) },
         stringResource(R.string.ai_notice_disclaimer), stringResource(R.string.ai_chat_cancel), stringResource(R.string.ai_notice_skip),
         stringResource(R.string.ai_notice_enable), onCancel, onAccept,
         PolicyNoticeTags("ai-enable-notice", "ai-enable-notice-text", "ai-enable-notice-cancel", "ai-enable-notice-skip",

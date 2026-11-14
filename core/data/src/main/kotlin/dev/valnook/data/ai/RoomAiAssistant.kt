@@ -79,7 +79,7 @@ class RoomAiAssistant(
         return latest.id.takeIf { clock.millis() - latest.last_at_ms < AiRules.CONVERSATION_IDLE_MS }
     }
 
-    override suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>): Long {
+    override suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit): Long {
         val context = context()
         check(context.features.chatEntry)
         val now = clock.millis()
@@ -95,6 +95,7 @@ class RoomAiAssistant(
             dao.touch(id, now, 0)
             id
         }
+        onStored(id)
         answer(id, context)
         return id
     }

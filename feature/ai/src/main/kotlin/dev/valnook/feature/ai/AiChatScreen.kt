@@ -6,6 +6,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -71,22 +74,27 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
             val count = list.layoutInfo.totalItemsCount
             if (count > 0) list.animateScrollToItem(count - 1)
         }
+        // Messages that arrive while the page is open come in once; those already there when it opened (or in a
+        // conversation opened from the history) are simply shown, and nothing comes in again on scrolling back.
+        val openedAt = remember { System.currentTimeMillis() }
+        val arrived = remember { mutableSetOf<Long>() }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("ai-chat-messages"), list,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = Space.md), verticalArrangement = Arrangement.spacedBy(Space.md)) {
             if (ui.messages.isEmpty() && !ui.sending) item { Examples(vm) }
             items(ui.messages, key = { it.id }) { message ->
-                when (message.kind) {
-                    AiMessageKind.USER -> UserMessage(message, ui, avatars.user)
-                    AiMessageKind.ASSISTANT -> AssistantMessage(message, ui, avatars.ai, actions, vm, onOpenBill, onManual)
-                    AiMessageKind.ERROR -> ErrorMessage(message, ui, avatars.ai, vm, onManual)
+                val animate = message.createdAtMs >= openedAt && arrived.add(message.id)
+                Arrive(animate, fromRight = message.kind == AiMessageKind.USER) {
+                    when (message.kind) {
+                        AiMessageKind.USER -> UserMessage(message, ui, avatars.user)
+                        AiMessageKind.ASSISTANT -> AssistantMessage(message, ui, avatars.ai, actions, vm, onOpenBill, onManual)
+                        AiMessageKind.ERROR -> ErrorMessage(message, ui, avatars.ai, vm, onManual)
+                    }
                 }
             }
-            if (ui.sending) item {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm),
-                    modifier = Modifier.testTag("ai-chat-working")) {
-                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    Text(stringResource(R.string.ai_chat_working), style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // The reply on its way, as the AI's own bubble.
+            if (ui.sending) item(key = "typing") {
+                Arrive(true, fromRight = false) {
+                    Speaker(ui.aiNickname.ifBlank { "AI" }, avatars.ai, right = false) { Typing() }
                 }
             }
         }
@@ -99,6 +107,49 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
 }
 
 private class Avatars(val user: ImageBitmap?, val ai: ImageBitmap?)
+
+/** A message coming in from its speaker's side: fading in, rising a little and growing to size, once. */
+@Composable
+private fun Arrive(animate: Boolean, fromRight: Boolean, content: @Composable () -> Unit) {
+    val progress = remember { androidx.compose.animation.core.Animatable(if (animate) 0f else 1f) }
+    LaunchedEffect(Unit) {
+        if (animate) progress.animateTo(1f, androidx.compose.animation.core.tween(280,
+            easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    Box(Modifier.graphicsLayer {
+        val p = progress.value
+        alpha = p
+        translationY = (1f - p) * 16.dp.toPx()
+        scaleX = 0.94f + 0.06f * p
+        scaleY = scaleX
+        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (fromRight) 1f else 0f, 1f)
+    }) { content() }
+}
+
+/** Three dots rising in turn inside the AI's bubble while the reply is on its way. */
+@Composable
+private fun Typing() {
+    val label = stringResource(R.string.ai_chat_working)
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "typing")
+    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.semantics { contentDescription = label }.testTag("ai-chat-working")) {
+        Row(Modifier.padding(horizontal = Space.md, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            repeat(3) { index ->
+                val lift by transition.animateFloat(0f, 1f, androidx.compose.animation.core.infiniteRepeatable(
+                    androidx.compose.animation.core.keyframes {
+                        durationMillis = 1200
+                        0f at 0 + index * 150
+                        1f at 200 + index * 150
+                        0f at 400 + index * 150
+                        0f at 1200
+                    }), label = "dot$index")
+                Box(Modifier.size(7.dp).graphicsLayer { translationY = -lift * 4.dp.toPx(); alpha = 0.45f + 0.55f * lift }
+                    .clip(CircleShape).background(MaterialTheme.colorScheme.onSurfaceVariant))
+            }
+        }
+    }
+}
 
 @Composable
 private fun rememberAvatars(): Avatars {
