@@ -27,7 +27,8 @@ internal object AiConversations {
         return messages.drop(from).flatMap { message ->
             when (message.kind) {
                 AiMessageKind.USER.name -> listOf(AiPrompt.message("user",
-                    userText(message.text, pictureCounts[message.id] ?: 0, earlier = true)))
+                    (if (message.shared) AiPrompt.SHARE_INTRO + "\n\n" else "") +
+                        userText(message.text, pictureCounts[message.id] ?: 0, earlier = true)))
                 AiMessageKind.ASSISTANT.name -> {
                     val raw = message.raw?.let { runCatching { AiJson.format.parseToJsonElement(it).jsonObject }.getOrNull() }
                         ?: return@flatMap emptyList()

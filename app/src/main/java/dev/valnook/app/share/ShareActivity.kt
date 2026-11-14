@@ -17,11 +17,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.viewModelFactory
 import dagger.hilt.android.AndroidEntryPoint
 import dev.valnook.app.appearance.ThemePreferences
@@ -30,23 +29,29 @@ import dev.valnook.app.di.AppSessionManager
 import dev.valnook.designsystem.BackButton
 import dev.valnook.designsystem.LocalPageBottomSpace
 import dev.valnook.designsystem.ValnookTheme
+import dev.valnook.domain.ai.AiBillDraft
 import dev.valnook.domain.ai.AiFeatures
+import dev.valnook.domain.model.BillImage
+import dev.valnook.domain.model.BillImageRules
+import dev.valnook.domain.model.BillType
 import dev.valnook.domain.model.GainLossColorScheme
-import dev.valnook.feature.ai.AiShareScreen
-import dev.valnook.feature.ai.AiShareViewModel
+import dev.valnook.feature.ai.AiChatScreen
+import dev.valnook.feature.ai.AiChatToolbarState
+import dev.valnook.feature.ai.AiChatViewModel
+import dev.valnook.feature.ai.AiDraftSaver
 import dev.valnook.feature.bills.BillEditorScreen
 import dev.valnook.feature.bills.BillEditorViewModel
 import dev.valnook.feature.bills.BillImageCodec
 import dev.valnook.feature.bills.BillTab
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.launch
+import java.time.LocalDateTime
 import javax.inject.Inject
 
 /**
  * "Valnook bill" in the system share sheet: text, or up to four pictures. It runs in the sharing app's task, so
- * closing it goes back there. With AI on for what was shared it reads it into drafts; otherwise the bill page opens
- * with the text in the note and the pictures on the bill.
+ * leaving it goes back there. With AI on for what was shared it opens the AI chat and sends the share there as the
+ * user's message; otherwise the bill page opens with the text in the note and the pictures on the bill.
  */
 @AndroidEntryPoint
 class ShareActivity : ComponentActivity() {
@@ -70,9 +75,8 @@ class ShareActivity : ComponentActivity() {
         setContent { ShareRoot(sessions, shared) { saved -> close(saved) } }
     }
 
-    private fun close(saved: Int) {
-        if (saved > 0) Toast.makeText(this, resources.getQuantityString(dev.valnook.feature.ai.R.plurals.ai_share_saved, saved, saved),
-            Toast.LENGTH_SHORT).show()
+    private fun close(saved: Boolean) {
+        if (saved) Toast.makeText(this, dev.valnook.feature.ai.R.string.ai_share_saved, Toast.LENGTH_SHORT).show()
         finish()
     }
 }
@@ -96,47 +100,54 @@ internal data class SharedContent(val text: String, val pictures: List<Uri>) {
 }
 
 /** A bill page opened from the share: a draft's form under its operation, or the share as it came. */
-private data class EditorRequest(val key: Int, val prefill: String, val operation: String?, val manual: Boolean)
+private data class EditorRequest(val key: Int, val prefill: String, val operation: String?, val closesShare: Boolean)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClose: (saved: Int) -> Unit) {
+internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClose: (saved: Boolean) -> Unit) {
     val active by sessions.session.collectAsStateWithLifecycle()
     val graph = active.graph
     val settings by graph.settings.observeSettings().collectAsStateWithLifecycle(null)
     val features by remember(graph.ai) { graph.ai?.observeFeatures() ?: flowOf(AiFeatures()) }.collectAsStateWithLifecycle(null)
-    val connection by remember(graph.ai) { graph.ai?.observeSettings() ?: flowOf(null) }.collectAsStateWithLifecycle(null)
     val bills = graph.bills
     ValnookTheme(redGain = settings?.gainLossColors == GainLossColorScheme.RED_GAIN) {
         val loaded = features
         if (bills == null || loaded == null) { Surface(Modifier.fillMaxSize()) {}; return@ValnookTheme }
-        val context = LocalContext.current
-        val resolver = context.contentResolver
+        val resolver = LocalContext.current.contentResolver
+        val sources = remember(shared) { shared.pictures.map { uri -> suspend { BillImageCodec.prepare(resolver, uri) } } }
         val saver = remember(graph.sessionId) {
-            dev.valnook.feature.ai.AiDraftSaver(bills, graph.commands, graph.settings.observeSettings(),
-                graph.overview.observeFxContext(), graph.clock, graph.billImages)
+            AiDraftSaver(bills, graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
+                graph.billImages)
         }
-        // Decided once, when the page opens: AI for this kind of share, or straight to the bill page.
-        val useAi = if (shared.pictures.isNotEmpty()) loaded.enabled && loaded.shareImage else loaded.enabled && loaded.shareText
-        val vm: AiShareViewModel = viewModel(key = "share", factory = viewModelFactory { initializer {
-            AiShareViewModel(graph.assistant, useAi, connection?.connection?.host.orEmpty(), shared.text,
-                shared.pictures.map { uri -> suspend { BillImageCodec.prepare(resolver, uri) } }, bills, saver,
-                graph.billImages, graph.clock)
-        } })
+        // Decided once, when the page opens: the AI chat for this kind of share, or straight to the bill page.
+        val ai = graph.ai
+        val assistant = graph.assistant
+        val useAi = rememberSaveable { ai != null && assistant != null &&
+            loaded.enabled && (if (shared.pictures.isNotEmpty()) loaded.shareImage else loaded.shareText) }
         var editor by remember { mutableStateOf<EditorRequest?>(null) }
         var nextKey by rememberSaveable { mutableIntStateOf(0) }
-        val scope = rememberCoroutineScope()
-        fun openManual() {
-            scope.launch { editor = EditorRequest(++nextKey, vm.manualPrefill(), null, manual = true) }
+        var chatToolbar by remember { mutableStateOf<AiChatToolbarState?>(null) }
+
+        val chat: AiChatViewModel? = if (useAi && ai != null && assistant != null) viewModel(key = "share-chat",
+            factory = viewModelFactory { initializer {
+                AiChatViewModel(assistant, ai, bills, saver, graph.billImages, createSavedStateHandle())
+            } }) else null
+        if (chat != null) LaunchedEffect(chat) { chat.sendShared(shared.text, sources) }
+        else LaunchedEffect(Unit) {
+            // Without AI the share is a bill to write: its pictures are stored, the page opens with them.
+            if (editor == null) editor = EditorRequest(++nextKey, manualPrefill(shared.text, sources, graph.billImages, saver),
+                null, closesShare = true)
         }
+
         val request = editor
-        BackHandler { if (request != null && !request.manual) { editor = null; vm.refresh() } else onClose(vm.state.value.saved) }
+        val back: () -> Unit = {
+            if (request != null && !request.closesShare) { editor = null; chat?.refresh() } else onClose(false)
+        }
+        BackHandler(onBack = back)
         Scaffold(topBar = {
-            TopAppBar(title = { Text(stringResource(if (request != null) dev.valnook.feature.ai.R.string.ai_share_new_bill
-                else dev.valnook.feature.ai.R.string.ai_share_title)) }, navigationIcon = {
-                BackButton(stringResource(dev.valnook.feature.ai.R.string.ai_share_back)) {
-                    if (request != null && !request.manual) { editor = null; vm.refresh() } else onClose(vm.state.value.saved)
-                }
+            TopAppBar(title = { Text(if (request != null) stringResource(dev.valnook.feature.ai.R.string.ai_share_new_bill)
+                else chatToolbar?.title ?: stringResource(dev.valnook.feature.ai.R.string.ai_chat_title)) }, navigationIcon = {
+                BackButton(stringResource(dev.valnook.feature.ai.R.string.ai_share_back), back)
             })
         }) { padding ->
             val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -151,12 +162,31 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
                                 request.prefill, request.operation)
                         } })
                         BillEditorScreen(editorVm, onDone = {
-                            if (request.manual) onClose(maxOf(1, vm.state.value.saved)) else { editor = null; vm.refresh() }
+                            if (request.closesShare) onClose(true) else { editor = null; chat?.refresh() }
                         }, onManageCategories = {})
-                    } else AiShareScreen(vm, onEdit = { prefill, operation -> editor = EditorRequest(++nextKey, prefill, operation, manual = false) },
-                        onManual = ::openManual, onFinished = onClose)
+                    } else if (chat != null) AiChatScreen(chat,
+                        onEdit = { prefill, operation -> editor = EditorRequest(++nextKey, prefill, operation, closesShare = false) },
+                        // The bill details live in the app itself; here a saved draft only says so.
+                        onOpenBill = null,
+                        onManual = { prefill -> editor = EditorRequest(++nextKey, prefill, null, closesShare = false) },
+                        onToolbar = { chatToolbar = it }) else Surface(Modifier.fillMaxSize()) {}
                 }
             }
         }
+    }
+}
+
+/** The bill page's form for a share as it came: the words in the note, the pictures (stored first) on the bill. */
+private suspend fun manualPrefill(text: String, sources: List<suspend () -> ByteArray>,
+    library: dev.valnook.domain.repository.BillImageLibrary?, saver: AiDraftSaver): String {
+    val stored = mutableListOf<BillImage>()
+    if (library != null) sources.take(BillImageRules.MAX_PER_BILL).forEach { source ->
+        try { library.store(source()).let { image -> if (stored.none { it.key == image.key }) stored += image } }
+        catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) {}
+    }
+    val draft = AiBillDraft(BillType.EXPENSE, null, "", occurredAt = LocalDateTime.now().withSecond(0).withNano(0), note = text)
+    return saver.prefill(draft, stored).also {
+        // The bill page holds them from here; storing held them only until then.
+        library?.saved(stored.map { it.key })
     }
 }

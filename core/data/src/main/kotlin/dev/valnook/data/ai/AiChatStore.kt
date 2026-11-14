@@ -6,10 +6,12 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Conversations live in a database of their own: the main database's version and backups never see them, and losing
- * them loses nothing that was saved. Its schema can start over on any change ([open] drops old tables).
+ * them loses nothing that was saved. Versions move on by automatic migrations; one that cannot starts over ([open]
+ * drops old tables). Version 2: messages remember whether they were shared from another app.
  */
 @Database(entities = [AiConversationEntity::class, AiMessageEntity::class, AiPictureEntity::class,
-    AiDraftEntity::class, AiUsageEntity::class], version = 1, exportSchema = true)
+    AiDraftEntity::class, AiUsageEntity::class], version = 2, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2)])
 abstract class AiChatDatabase : RoomDatabase() {
     abstract fun chat(): AiChatDao
 
@@ -55,6 +57,8 @@ data class AiMessageEntity(
     /** JSON array of ids of saved bills a reply tried to change. */
     val confirmed_bills: String,
     val created_at_ms: Long,
+    /** A user message shared from another app: read with the draft tool required and thinking off. */
+    @ColumnInfo(defaultValue = "0") val shared: Boolean = false,
 )
 
 /** A picture the user sent: its key in the bill picture library and a small copy that outlives it. */

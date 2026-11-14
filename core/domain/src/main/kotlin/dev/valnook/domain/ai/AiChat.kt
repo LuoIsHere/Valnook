@@ -100,20 +100,16 @@ data class AiChatMessage(
     val drafts: List<AiDraftCard> = emptyList(),
     val confirmedBills: List<Long> = emptyList(),
     val createdAtMs: Long,
+    /** A user message shared from another app. */
+    val shared: Boolean = false,
+    /** A user message's pictures in the picture library (they may have been let go since). */
+    val images: List<BillImage> = emptyList(),
 )
 
 data class AiConversation(val id: Long, val title: String, val createdAtMs: Long, val lastAtMs: Long, val tokens: Long)
 
 /** This month's requests and tokens, chat and shares together. */
 data class AiUsageSummary(val requests: Int = 0, val tokens: Long = 0, val input: Long = 0, val output: Long = 0)
-
-/** What a shared text or picture was read as. [toolCalled] is false when the model did not answer with drafts. */
-data class AiRecognition(
-    val message: String,
-    val drafts: List<AiBillDraft>,
-    val usage: AiTurnUsage?,
-    val toolCalled: Boolean,
-)
 
 /** Bookkeeping by conversation and by sharing. Real data only; nothing here saves a bill. */
 interface AiAssistant {
@@ -132,8 +128,12 @@ interface AiAssistant {
     suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit = {}): Long
     /** Sends the last message of [conversationId] again after an error. */
     suspend fun retry(conversationId: Long)
-    /** Reads a shared text or pictures once: no conversation, no thinking, the draft tool required. */
-    suspend fun recognize(text: String, pictures: List<BillImage>): AiRecognition
+    /**
+     * Sends what another app shared as the user's message in [conversationId] (a new one when null), as if sent in
+     * the chat: it is read with the draft tool required, thinking off and its currency read off it. [onStored] as for
+     * [send].
+     */
+    suspend fun sendShared(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit = {}): Long
     suspend fun confirmed(cardId: Long, billId: Long)
     suspend fun discard(cardId: Long)
     /** The saved bill was deleted again: the card waits once more. */

@@ -170,6 +170,37 @@ class AiChatViewModel(
         }
     }
 
+    /**
+     * Sends what another app shared, once, as the user's message: its pictures go into the library first, then it is
+     * read in the conversation the page opened with (or a new one).
+     */
+    fun sendShared(text: String, sources: List<suspend () -> ByteArray>) {
+        if (saved.get<Boolean>("sharedSent") == true || local.value.sending) return
+        saved["sharedSent"] = true
+        updateLocal { it.copy(sending = true) }
+        sendJob = viewModelScope.launch {
+            val stored = mutableListOf<BillImage>()
+            try {
+                sources.take(AiRules.MAX_IMAGES).forEach { source ->
+                    try {
+                        val image = images?.store(source()) ?: return@forEach
+                        if (stored.none { it.key == image.key }) stored += image
+                    } catch (cancelled: CancellationException) { throw cancelled }
+                    catch (_: Exception) { updateLocal { it.copy(pictureFailed = true) } }
+                }
+                // The page may still be choosing its conversation; a share joins the one it shows.
+                local.first { it.loaded }
+                if (text.isBlank() && stored.isEmpty()) return@launch
+                setConversation(assistant.sendShared(conversation.value, text.trim(), stored) { setConversation(it) })
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (_: Exception) {}
+            finally {
+                images?.saved(stored.map { it.key })
+                updateLocal { it.copy(sending = false) }
+            }
+        }
+    }
+
     fun cancel() { sendJob?.cancel() }
 
     fun retry() {

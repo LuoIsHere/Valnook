@@ -89,7 +89,7 @@
     <string name="ai_prompt_view_summary">Everything that is sent, including tool definitions</string>
     <string name="ai_prompt_note">This is what a bookkeeping request sends. What you type or share comes last; the API key is sent in a request header and is not shown here.</string>
 
-    <string name="ai_disclaimer">AI-generated content may be wrong, does not represent this app\'s position and is not investment or financial advice. Check it carefully</string>
+    <string name="ai_disclaimer">AI-generated content may be wrong; check it before confirming. It does not represent Valnook and is not investment or financial advice.</string>
 
     <string name="ai_problem_unreadable_drafts">The drafts could not be read; try again or record the bill manually</string>
 
@@ -101,7 +101,7 @@
     <string name="ai_chat_history_empty">No conversations</string>
     <string name="ai_chat_delete">Delete conversation</string>
     <string name="ai_chat_tokens">%1$s tokens</string>
-    <string name="ai_chat_input_hint">Say a bill</string>
+    <string name="ai_chat_input_hint">Describe a bill or send a screenshot</string>
     <string name="ai_chat_send">Send</string>
     <string name="ai_chat_cancel">Cancel</string>
     <string name="ai_chat_pictures">Add pictures</string>
@@ -110,7 +110,7 @@
     <string name="ai_chat_working">Reading…</string>
     <string name="ai_chat_examples">Try saying</string>
     <string name="ai_chat_example_1">Lunch 25</string>
-    <string name="ai_chat_example_2">Taxi 32 yesterday, to be paid back</string>
+    <string name="ai_chat_example_2">Taxi 32 yesterday, to be reimbursed</string>
     <string name="ai_chat_me">Me</string>
     <string name="ai_chat_thinking">Thinking</string>
     <string name="ai_chat_thinking_time">Thinking (%1$s s)</string>
@@ -181,15 +181,9 @@
     <string name="ai_draft_rate_settings">Exchange rates</string>
     <string name="ai_draft_add_rate">Enter rate</string>
     <string name="ai_share_label">Valnook bill</string>
-    <string name="ai_share_title">Shared bill</string>
     <string name="ai_share_new_bill">New bill</string>
     <string name="ai_share_back">Back</string>
-    <string name="ai_share_sent_to">Sends to %1$s</string>
     <string name="ai_share_nothing">Nothing to record was found</string>
-    <plurals name="ai_share_saved">
-        <item quantity="one">%1$d bill saved</item>
-        <item quantity="other">%1$d bills saved</item>
-    </plurals>
     <string name="ai_draft_flag_currency">Currency not recognised; the account currency is used</string>
     <string name="ai_base_url_hint">For example https://api.example.com/v1</string>
     <string name="ai_model_hint">Enter a model name or choose one from the list</string>
@@ -205,4 +199,7 @@
     <string name="ai_notice_enable">Turn on</string>
     <string name="ai_notice_records">Conversations: conversations and usage records are stored on this device only for 30 days and are not included in backups. How the provider keeps and uses the data it receives is governed by its own policy, which Valnook cannot control.</string>
     <string name="ai_notice_limit">Recommendation: set a usage or spending limit for this API key with the provider (for example a daily or monthly cap) and grant it only the permissions needed; if you suspect the key has leaked, revoke or replace it with the provider at once.</string>
+    <string name="ai_chat_example_3">Salary 8000 received</string>
+    <string name="ai_chat_shared">Shared</string>
+    <string name="ai_share_saved">Bill saved</string>
 </resources>

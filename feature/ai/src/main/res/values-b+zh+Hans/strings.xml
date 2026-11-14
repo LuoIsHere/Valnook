@@ -89,7 +89,7 @@
     <string name="ai_prompt_view_summary">实际发送的全部内容，含工具定义</string>
     <string name="ai_prompt_note">以下为一次记账请求实际发送的内容。您输入或分享的内容位于末尾；API Key 通过请求头发送，不在此处显示。</string>
 
-    <string name="ai_disclaimer">AI 生成的内容可能存在错误，不代表本平台的立场，不构成投资理财建议，请仔细检查</string>
+    <string name="ai_disclaimer">AI 生成的内容可能有误，请核对后确认；不代表 Valnook 立场，不构成投资或理财建议。</string>
 
     <string name="ai_problem_unreadable_drafts">无法识别生成的草稿，请重试或手动记账</string>
 
@@ -101,7 +101,7 @@
     <string name="ai_chat_history_empty">暂无对话</string>
     <string name="ai_chat_delete">删除对话</string>
     <string name="ai_chat_tokens">%1$s tokens</string>
-    <string name="ai_chat_input_hint">说一笔账</string>
+    <string name="ai_chat_input_hint">描述一笔账，或发送截图</string>
     <string name="ai_chat_send">发送</string>
     <string name="ai_chat_cancel">取消</string>
     <string name="ai_chat_pictures">添加图片</string>
@@ -110,7 +110,7 @@
     <string name="ai_chat_working">正在识别…</string>
     <string name="ai_chat_examples">可以这样说</string>
     <string name="ai_chat_example_1">午饭 25</string>
-    <string name="ai_chat_example_2">昨天打车 32 要报销</string>
+    <string name="ai_chat_example_2">昨天打车 32，需要报销</string>
     <string name="ai_chat_me">我</string>
     <string name="ai_chat_thinking">思考过程</string>
     <string name="ai_chat_thinking_time">思考过程（用时 %1$s 秒）</string>
@@ -181,14 +181,9 @@
     <string name="ai_draft_rate_settings">汇率设置</string>
     <string name="ai_draft_add_rate">填写汇率</string>
     <string name="ai_share_label">Valnook 记账</string>
-    <string name="ai_share_title">分享记账</string>
     <string name="ai_share_new_bill">记一笔</string>
     <string name="ai_share_back">返回</string>
-    <string name="ai_share_sent_to">将发送到 %1$s</string>
     <string name="ai_share_nothing">未找到可记账的内容</string>
-    <plurals name="ai_share_saved">
-        <item quantity="other">已记 %1$d 笔</item>
-    </plurals>
     <string name="ai_draft_flag_currency">未能识别币种，已使用账户币种</string>
     <string name="ai_base_url_hint">例如 https://api.example.com/v1</string>
     <string name="ai_model_hint">填写模型名，或从列表中选择</string>
@@ -204,4 +199,7 @@
     <string name="ai_notice_enable">开启</string>
     <string name="ai_notice_records">对话记录保存：对话记录与用量统计仅保存在本设备，保留 30 天，不纳入备份。服务提供方如何保存和使用其收到的数据，以其自身政策为准，Valnook 无法控制。</string>
     <string name="ai_notice_limit">使用建议：建议在服务提供方处为该 API Key 设置用量或消费上限（如每日或每月限额），并仅授予所需权限；如怀疑 Key 已泄露，请立即在服务提供方处停用或更换。</string>
+    <string name="ai_chat_example_3">工资到账 8000</string>
+    <string name="ai_chat_shared">来自分享</string>
+    <string name="ai_share_saved">已记一笔</string>
 </resources>

@@ -64,15 +64,6 @@ object AiPrompt {
     internal fun habitList(habits: List<AiHabit>): String = "Recent bills (note -> category id), as hints:\n" +
         habits.take(AiRules.HABITS).joinToString("\n") { "${it.note.replace('\n', ' ').take(HABIT_NOTE)} -> ${it.categoryId}" }
 
-    /** A share is read once: the tool is required, unless [forceTool] is off for a service that refuses that. */
-    fun shareRequest(system: String, user: JsonObject, forceTool: Boolean): JsonObject = JsonObject(buildMap {
-        put("messages", JsonArray(listOf(message("system", system), user)))
-        put("tools", JsonArray(listOf(billTool)))
-        put("max_tokens", JsonPrimitive(AiRules.MAX_TOKENS_BILLS))
-        if (forceTool) put("tool_choice", JsonObject(mapOf("type" to JsonPrimitive("function"),
-            "function" to JsonObject(mapOf("name" to JsonPrimitive(BILL_TOOL))))))
-    })
-
     /** What comes before shared content, so the model reads it as bills to find rather than words to answer. */
     const val SHARE_INTRO = "Shared from another app. Make drafts of the bills in it, each with the currency it shows; if there are none, send an empty bills list and say so in message."
 
@@ -80,11 +71,15 @@ object AiPrompt {
     private const val HABIT_NOTE = 40
 
     /** The request body of a bill request before the model and connection parameters. */
-    fun billRequest(system: String, conversation: List<JsonObject>, thinking: Boolean): JsonObject = JsonObject(mapOf(
-        "messages" to JsonArray(listOf(message("system", system)) + conversation),
-        "tools" to JsonArray(listOf(billTool)),
-        "max_tokens" to JsonPrimitive(if (thinking) AiRules.MAX_TOKENS_THINKING else AiRules.MAX_TOKENS_BILLS),
-    ))
+    fun billRequest(system: String, conversation: List<JsonObject>, thinking: Boolean, forceTool: Boolean = false): JsonObject =
+        JsonObject(buildMap {
+            put("messages", JsonArray(listOf(message("system", system)) + conversation))
+            put("tools", JsonArray(listOf(billTool)))
+            put("max_tokens", JsonPrimitive(if (thinking) AiRules.MAX_TOKENS_THINKING else AiRules.MAX_TOKENS_BILLS))
+            // A share is always bookkeeping: the tool is required, unless a service refuses that.
+            if (forceTool) put("tool_choice", JsonObject(mapOf("type" to JsonPrimitive("function"),
+                "function" to JsonObject(mapOf("name" to JsonPrimitive(BILL_TOOL))))))
+        })
 
     fun message(role: String, content: String) = JsonObject(mapOf("role" to JsonPrimitive(role), "content" to JsonPrimitive(content)))
 

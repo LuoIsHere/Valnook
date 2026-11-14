@@ -51,7 +51,7 @@ data class AiChatToolbarState(val title: String?, val onNew: () -> Unit, val onH
  * [onManual] opens it with words and pictures the model could not turn into drafts.
  */
 @Composable
-fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: String) -> Unit, onOpenBill: (Long) -> Unit,
+fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: String) -> Unit, onOpenBill: ((Long) -> Unit)?,
     onManual: (prefill: String) -> Unit, onToolbar: (AiChatToolbarState?) -> Unit = {}, onRates: (() -> Unit)? = null) {
     val ui by vm.state.collectAsStateWithLifecycle()
     var history by remember { mutableStateOf(false) }
@@ -169,7 +169,7 @@ private fun Examples(vm: AiChatViewModel) {
         Text(stringResource(R.string.ai_chat_examples), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm, Alignment.CenterHorizontally)) {
-            listOf(R.string.ai_chat_example_1, R.string.ai_chat_example_2).forEach { id ->
+            listOf(R.string.ai_chat_example_1, R.string.ai_chat_example_2, R.string.ai_chat_example_3).forEach { id ->
                 val text = stringResource(id)
                 SuggestionChip({ vm.setInput(text) }, { Text(text) })
             }
@@ -205,6 +205,8 @@ private fun Bubble(text: String, mine: Boolean, modifier: Modifier = Modifier) {
 @Composable
 private fun UserMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitmap?) {
     Speaker(ui.userNickname.ifBlank { stringResource(R.string.ai_chat_me) }, avatar, right = true) {
+        if (message.shared) Text(stringResource(R.string.ai_chat_shared), style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("ai-chat-shared-${message.id}"))
         if (message.pictures.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
             message.pictures.forEach { picture ->
                 val image = remember(picture) { BitmapFactory.decodeByteArray(picture.bytes, 0, picture.bytes.size)?.asImageBitmap() }
@@ -217,7 +219,7 @@ private fun UserMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitma
 
 @Composable
 private fun AssistantMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitmap?, actions: AiDraftActions,
-    vm: AiChatViewModel, onOpenBill: (Long) -> Unit, onManual: (String) -> Unit) {
+    vm: AiChatViewModel, onOpenBill: ((Long) -> Unit)?, onManual: (String) -> Unit) {
     Speaker(ui.aiNickname.ifBlank { "AI" }, avatar, right = false) {
         message.reasoning?.let { Thinking(it, message.thinkingMs) }
         if (message.text.isNotBlank()) Bubble(message.text, mine = false, Modifier.testTag("ai-chat-reply-${message.id}"))
@@ -232,7 +234,7 @@ private fun AssistantMessage(message: AiChatMessage, ui: AiChatUi, avatar: Image
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.ai_chat_already_saved), Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton({ onOpenBill(billId) }) { Text(stringResource(R.string.ai_chat_view_bill)) }
+                if (onOpenBill != null) TextButton({ onOpenBill(billId) }) { Text(stringResource(R.string.ai_chat_view_bill)) }
             }
         }
         if (message.noDrafts) ManualButton(ui, vm, message, onManual)
@@ -261,7 +263,8 @@ private fun ErrorMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitm
 @Composable
 private fun ManualButton(ui: AiChatUi, vm: AiChatViewModel, message: AiChatMessage, onManual: (String) -> Unit) {
     val asked = ui.messages.lastOrNull { it.kind == AiMessageKind.USER && it.id < message.id }
-    TextButton({ vm.manual(asked?.text.orEmpty(), emptyList(), onManual) }, Modifier.testTag("ai-chat-manual-${message.id}")) {
+    // Its pictures go along too, as long as they are still on this device.
+    TextButton({ vm.manual(asked?.text.orEmpty(), asked?.images.orEmpty(), onManual) }, Modifier.testTag("ai-chat-manual-${message.id}")) {
         Text(stringResource(R.string.ai_chat_manual))
     }
 }

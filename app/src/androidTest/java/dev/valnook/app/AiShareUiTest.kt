@@ -4,6 +4,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.core.content.FileProvider
 import androidx.lifecycle.Lifecycle
@@ -119,26 +120,36 @@ class AiShareUiTest {
         }
     }
 
-    @Test fun shared_text_is_read_once_and_the_page_closes_when_done() {
+    private fun tagStarting(prefix: String) = SemanticsMatcher("tag starts with $prefix") {
+        it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.TestTag)?.startsWith(prefix) == true
+    }
+
+    @Test fun shared_text_is_sent_in_the_chat_and_back_returns_to_the_sharing_app() {
         enableAi(pictures = false)
         drafts("""{"type":"EXPENSE","amount":"38.5","currency":"CNY","category_id":${category("food")},"account_id":$cashId,"note":"合成外卖"}""")
         share("合成外卖 实付 38.50 元")
+        // The chat, with the share as the user's own message, marked as shared, and the reply under it.
+        waitTag("ai-chat")
         waitTag("ai-draft-d1-pending")
+        // (The same words are also the conversation's title in the bar.)
+        rule.onNode(hasText("合成外卖 实付 38.50 元") and hasAnyAncestor(tagStarting("ai-chat-user-"))).assertExists()
+        rule.onAllNodes(tagStarting("ai-chat-shared-")).assertCountEquals(1)
         // The currency read off the share is shown by name and code, and not flagged.
         rule.onNodeWithTag("ai-draft-details").assertTextContains("人民币 CNY", substring = true)
         rule.onNodeWithTag("ai-draft-flag-currency").assertDoesNotExist()
-        rule.onNodeWithTag("ai-share-host").assertTextEquals("将发送到 ai.example.test")
         val request = ScriptedAiTransport.requests.single()!!
         assertEquals("create_bill_drafts", request["tool_choice"]!!.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
         assertTrue(request["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonPrimitive.content.endsWith("合成外卖 实付 38.50 元"))
         rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
-        rule.waitUntil(8_000) { closed() }
+        waitTag("ai-draft-d1-confirmed")
         assertEquals(100_000L - 3_850L, runBlocking { db.cash().cashAccount(cashId)!!.balance_minor })
-        // A share is not a conversation; its tokens still count.
+        // It joined a conversation, which the app's chat page shows too; its tokens count.
         runBlocking {
-            assertTrue(graph.assistant!!.observeConversations().first().isEmpty())
+            assertEquals(1, graph.assistant!!.observeConversations().first().size)
             assertEquals(840L, graph.assistant!!.observeUsage().first().tokens)
         }
+        scenario!!.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        rule.waitUntil(8_000) { closed() }
     }
 
     @Test fun without_ai_for_text_the_bill_page_opens_with_it_in_the_note() {
@@ -168,13 +179,15 @@ class AiShareUiTest {
         drafts("""{"type":"EXPENSE","amount":"20","category_id":${category("food")},"note":"合成小票"}""")
         share(pictures = listOf(picture(Color.GREEN)))
         waitTag("ai-draft-d1-pending")
+        // Sent as a picture in the chat: the user's message carries it.
+        rule.onAllNodes(tagStarting("ai-chat-shared-")).assertCountEquals(1)
         val parts = ScriptedAiTransport.requests.single()!!["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonArray
         assertEquals(listOf("text", "image_url"), parts.map { it.jsonObject["type"]!!.jsonPrimitive.content })
         rule.onNodeWithTag("ai-draft-d1-keep-images").assertIsOn()
         // No currency read off the picture: the account's is used and the card says so.
         rule.onNodeWithTag("ai-draft-flag-currency").assertExists()
         rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
-        rule.waitUntil(8_000) { closed() }
+        waitTag("ai-draft-d1-confirmed")
         val bill = runBlocking { graph.bills!!.observeSearch("合成小票").first().single() }
         assertEquals(1, runBlocking { graph.bills!!.observeImages(bill.id).first().size })
     }

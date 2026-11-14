@@ -155,27 +155,53 @@ class AiAssistantTest {
         assertEquals(2, requests.size)
     }
 
-    @Test fun a_share_is_read_once_without_a_conversation() = runBlocking {
+    @Test fun a_share_joins_the_conversation_and_is_read_as_a_share() = runBlocking {
+        service.saveFeatures(billChat = true, shareText = true, shareImage = true, thinking = false, chat = true, sendHabits = false)
+        replies += textReply("Hello")
+        val id = assistant.send(null, "Hi", emptyList())
+        // The service refuses a required tool at first: asked again without requiring it.
         replies += { AiHttpResponse(400, """{"error":"tool_choice is not supported"}""") }
         replies += toolReply("""{"message":"One bill","bills":[{"type":"EXPENSE","amount":"12.5"}]}""")
-        val result = assistant.recognize("Paid 12.50 at a shop", emptyList())
-        assertEquals("One bill", result.message)
-        assertEquals(1250L, result.drafts.single().amountMinor)
-        // A share's currency is to be read off it; none given is flagged.
-        assertTrue(AiDraftFlag.CURRENCY in result.drafts.single().flags)
-        assertTrue(result.toolCalled)
-        // First with the tool required and thinking off, then without requiring it.
-        assertEquals("create_bill_drafts", requests[0]["tool_choice"]!!.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
-        assertNull(requests[1]["tool_choice"])
-        val user = requests[1]["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonPrimitive.content
+        var stored: Long? = null
+        assertEquals(id, assistant.sendShared(id, "Paid 12.50 at a shop", emptyList()) { stored = it })
+        assertEquals(id, stored)
+        assertEquals("create_bill_drafts", requests[1]["tool_choice"]!!.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
+        assertNull(requests[2]["tool_choice"])
+        val sent = requests[2]["messages"]!!.jsonArray.map { it.jsonObject }
+        // As a message in the conversation: the earlier round goes along; the share is introduced as one.
+        assertEquals(listOf("system", "user", "assistant", "user"), sent.map { it["role"]!!.jsonPrimitive.content })
+        val user = sent.last()["content"]!!.jsonPrimitive.content
         assertTrue(user, user.startsWith(AiPrompt.SHARE_INTRO) && user.endsWith("Paid 12.50 at a shop"))
-        assertTrue(assistant.observeConversations().first().isEmpty())
-        assertEquals(2, assistant.observeUsage().first().requests)
+        val shown = messages(id)
+        val share = shown.first { it.kind == AiMessageKind.USER && it.text.startsWith("Paid") }
+        assertTrue(share.shared)
+        assertFalse(shown.first().shared)
+        val draft = shown.last().drafts.single().draft
+        assertEquals(1250L, draft.amountMinor)
+        // A share's currency is to be read off it; none given is flagged.
+        assertTrue(AiDraftFlag.CURRENCY in draft.flags)
+        assertEquals(3, assistant.observeUsage().first().requests)
 
-        replies += { AiHttpResponse(200, """{"choices":[{"message":{"role":"assistant","content":"No bill here"}}]}""") }
-        val none = assistant.recognize("Hello", emptyList())
-        assertFalse(none.toolCalled)
-        assertEquals("No bill here", none.message)
+        // Later rounds still say it was shared.
+        replies += textReply("OK")
+        assistant.send(id, "Thanks", emptyList())
+        val again = requests.last()["messages"]!!.jsonArray.map { it.jsonObject }
+        assertTrue(again.any { it["role"]!!.jsonPrimitive.content == "user" &&
+            (it["content"] as? JsonPrimitive)?.content?.startsWith(AiPrompt.SHARE_INTRO) == true })
+    }
+
+    @Test fun a_shared_message_is_never_read_with_thinking() = runBlocking {
+        service.saveConnection(AiConnection(null, "https://api.example.test", "model-a", "", """{"thinking":"off"}""",
+            """{"thinking":"on"}"""), null)
+        val connection = service.observeSettings().first().connection
+        checks.save(AiCheckReport(connection.fingerprint, nowMs, AiCheckItem.entries.associateWith { AiCheck(AiCheckState.PASSED) }))
+        service.saveFeatures(billChat = true, shareText = true, shareImage = true, thinking = true, chat = false, sendHabits = false)
+        replies += toolReply("""{"bills":[]}""")
+        assistant.sendShared(null, "Receipt", emptyList())
+        assertEquals("off", requests.last()["thinking"]!!.jsonPrimitive.content)
+        replies += textReply("Hi")
+        assistant.send(assistant.conversationToContinue(), "Hello", emptyList())
+        assertEquals("on", requests.last()["thinking"]!!.jsonPrimitive.content)
     }
 
     @Test fun pictures_of_waiting_drafts_stay_held_until_settled_or_expired() = runBlocking {
@@ -217,7 +243,7 @@ class AiAssistantTest {
         service.saveConnection(AiConnection(null, "https://api.example.test", "model-b"), null)
         assertEquals(AiFeatures(), service.observeFeatures().first())
         assertThrows(IllegalStateException::class.java) { runBlocking { assistant.send(null, "Lunch", emptyList()) } }
-        assertThrows(IllegalStateException::class.java) { runBlocking { assistant.recognize("Lunch", emptyList()) } }
+        assertThrows(IllegalStateException::class.java) { runBlocking { assistant.sendShared(null, "Lunch", emptyList()) } }
         assertTrue(requests.isEmpty())
     }
 }

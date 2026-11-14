@@ -64,7 +64,11 @@ class RoomAiAssistant(
                 else AiTurnUsage(m.input_tokens, m.output_tokens, m.total_tokens, m.cached_tokens, m.calls),
                 m.problem?.let { name -> AiProblem.entries.firstOrNull { it.name == name } },
                 m.no_drafts, draftsBy[m.id].orEmpty().mapNotNull { it.card() },
-                AiConversations.decodeIds(m.confirmed_bills), m.created_at_ms)
+                AiConversations.decodeIds(m.confirmed_bills), m.created_at_ms, m.shared,
+                pictureBy[m.id].orEmpty().sortedBy { it.position }.mapNotNull { row ->
+                    (runCatching { AiJson.format.parseToJsonElement(row.image) }.getOrNull() as? JsonObject)
+                        ?.let(AiConversations::decodeImage)
+                })
         }
     }
 
@@ -82,13 +86,27 @@ class RoomAiAssistant(
     override suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit): Long {
         val context = context()
         check(context.features.chatEntry)
+        return sendMessage(conversationId, text, pictures, shared = false, context, onStored)
+    }
+
+    override suspend fun sendShared(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit): Long {
+        val context = context()
+        check(context.features.shareAllows(pictures.isNotEmpty()))
+        return sendMessage(conversationId, text, pictures, shared = true, context, onStored)
+    }
+
+    /** Whether AI reads this kind of share: text by one switch, pictures by the other. */
+    private fun AiFeatures.shareAllows(pictures: Boolean) = enabled && (if (pictures) shareImage else shareText)
+
+    private suspend fun sendMessage(conversationId: Long?, text: String, pictures: List<BillImage>, shared: Boolean,
+        context: Context, onStored: (Long) -> Unit): Long {
         val now = clock.millis()
         val thumbs = pictures.map { this.pictures.thumbnail(it.key) ?: ByteArray(0) }
         val id = chatDb.withTransaction {
             val id = conversationId?.takeIf { dao.conversation(it) != null }
                 ?: dao.insertConversation(AiConversationEntity(title = AiConversations.title(text, pictures.size, english()),
                     created_at_ms = now, last_at_ms = now, tokens = 0))
-            val messageId = dao.insertMessage(message(id, AiMessageKind.USER, text.trim(), now))
+            val messageId = dao.insertMessage(message(id, AiMessageKind.USER, text.trim(), now).copy(shared = shared))
             if (pictures.isNotEmpty()) dao.insertPictures(pictures.mapIndexed { index, image ->
                 AiPictureEntity(messageId, index, image.key, AiConversations.encodeImage(image).toString(), thumbs[index])
             })
@@ -106,8 +124,10 @@ class RoomAiAssistant(
         // Only an unanswered message is sent again: everything after it is an error or a cancel.
         val after = messages.filter { it.id > last.id }
         if (after.any { it.kind == AiMessageKind.ASSISTANT.name }) return
+        val context = context()
+        check(if (last.shared) context.features.shareAllows(dao.pictures(last.id).isNotEmpty()) else context.features.chatEntry)
         dao.deleteMessages(after.map { it.id })
-        answer(conversationId, context().also { check(it.features.chatEntry) })
+        answer(conversationId, context)
     }
 
     /** Asks about the conversation's last message and stores what came back. */
@@ -122,51 +142,34 @@ class RoomAiAssistant(
         }
         val jpegs = images.mapNotNull { pictures.forModel(it.key) }
         val history = AiConversations.history(messages.filter { it.id < user.id }, drafts, counts)
-        val thinking = context.features.thinking
-        val body = AiPrompt.billRequest(context.system(english()),
-            history + AiConversations.userMessage(AiConversations.userText(user.text, jpegs.size, earlier = false), jpegs), thinking)
-        val timeout = when { thinking -> AiRules.TIMEOUT_THINKING_MS; jpegs.isNotEmpty() -> AiRules.TIMEOUT_IMAGE_MS; else -> AiRules.TIMEOUT_TEXT_MS }
-        val round = Round()
-        try {
-            // Pictures are read like a share: their currency is expected on them.
-            val (reply, calls) = askForDrafts(context, round, currencyExpected = jpegs.isNotEmpty()) {
-                client.chat(context.settings.connection, it, body, thinking, timeout)
-            }
-            store(conversationId, reply, calls, round, images, drafts)
-        } catch (cancelled: CancellationException) {
-            withContext(NonCancellable) { storeError(conversationId, null, round) }
-            throw cancelled
-        } catch (error: AiException) {
-            storeError(conversationId, error.problem, round)
-        }
-    }
-
-    override suspend fun recognize(text: String, pictures: List<BillImage>): AiRecognition {
-        val context = context()
-        val features = context.features
-        check(features.enabled && (if (pictures.isEmpty()) features.shareText else features.shareImage))
-        val jpegs = pictures.mapNotNull { this.pictures.forModel(it.key) }
-        val user = AiConversations.userMessage(AiPrompt.SHARE_INTRO + "\n\n" + text.trim(), jpegs)
+        // A share is always bookkeeping: thinking off and the draft tool required, as before it joined the chat.
+        val shared = user.shared
+        val thinking = !shared && context.features.thinking
+        val words = (if (shared) AiPrompt.SHARE_INTRO + "\n\n" else "") + AiConversations.userText(user.text, jpegs.size, earlier = false)
+        val conversation = history + AiConversations.userMessage(words, jpegs)
         val system = context.system(english())
-        val timeout = if (jpegs.isNotEmpty()) AiRules.TIMEOUT_IMAGE_MS else AiRules.TIMEOUT_TEXT_MS
+        val timeout = when { thinking -> AiRules.TIMEOUT_THINKING_MS; jpegs.isNotEmpty() -> AiRules.TIMEOUT_IMAGE_MS; else -> AiRules.TIMEOUT_TEXT_MS }
+        val source = if (shared) "SHARE" else "CHAT"
         val round = Round()
-        var force = true
+        var force = shared
         try {
-            val (reply, calls) = askForDrafts(context, round, currencyExpected = true) { key ->
-                try { client.chat(context.settings.connection, key, AiPrompt.shareRequest(system, user, force), false, timeout) }
+            // Pictures and shares are read for the currency they show.
+            val (reply, calls) = askForDrafts(context, round, currencyExpected = shared || jpegs.isNotEmpty()) { key ->
+                try { client.chat(context.settings.connection, key, AiPrompt.billRequest(system, conversation, thinking, force), thinking, timeout) }
                 catch (error: AiException) {
                     // Some services refuse a required tool; asking without that is the next best thing.
                     if (!force || error.problem != AiProblem.REJECTED) throw error
                     round.calls++
                     force = false
-                    client.chat(context.settings.connection, key, AiPrompt.shareRequest(system, user, false), false, timeout)
+                    client.chat(context.settings.connection, key, AiPrompt.billRequest(system, conversation, thinking, false), thinking, timeout)
                 }
             }
-            val drafts = calls.flatMap { it.drafts.map { (_, draft) -> draft } }
-            return AiRecognition(AiConversations.replyText(reply.content, calls.map { it.message }), drafts,
-                round.usage(), calls.isNotEmpty())
-        } finally {
-            withContext(NonCancellable) { recordUsage("SHARE", round) }
+            store(conversationId, reply, calls, round, images, drafts, source)
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable) { storeError(conversationId, null, round, source) }
+            throw cancelled
+        } catch (error: AiException) {
+            storeError(conversationId, error.problem, round, source)
         }
     }
 
@@ -192,7 +195,7 @@ class RoomAiAssistant(
     }
 
     private suspend fun store(conversationId: Long, reply: AiReply, calls: List<AiDraftCall>, round: Round,
-        images: List<BillImage>, before: List<AiDraftEntity>) {
+        images: List<BillImage>, before: List<AiDraftEntity>, source: String) {
         val now = clock.millis()
         val latest = before.groupBy { it.label }.mapValues { (_, rows) -> rows.maxBy { it.id } }
         val proposed = calls.flatMap { it.drafts }
@@ -231,16 +234,16 @@ class RoomAiAssistant(
         // Pinned before letting go, so a picture moving from a replaced card to its successor is never unheld.
         pins.pin(pinned)
         pins.release(released)
-        recordUsage("CHAT", round)
+        recordUsage(source, round)
     }
 
-    private suspend fun storeError(conversationId: Long, problem: AiProblem?, round: Round) {
+    private suspend fun storeError(conversationId: Long, problem: AiProblem?, round: Round, source: String) {
         val now = clock.millis()
         dao.insertMessage(message(conversationId, AiMessageKind.ERROR, "", now).copy(problem = problem?.name,
             input_tokens = round.input, output_tokens = round.output, total_tokens = round.total,
             cached_tokens = round.cached, calls = round.calls))
         dao.touch(conversationId, now, round.total ?: 0)
-        recordUsage("CHAT", round)
+        recordUsage(source, round)
     }
 
     private suspend fun recordUsage(source: String, round: Round) {
