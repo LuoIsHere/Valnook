@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_title">AI</string>
+    <string name="ai_prompt_title">Full prompt</string>
+    <string name="ai_summary_unchecked">Not checked</string>
+    <string name="ai_summary_ready">Checks passed · %1$s</string>
+    <string name="ai_summary_failed">Checks not passed</string>
+
+    <string name="ai_section_connection">Connection</string>
+    <string name="ai_preset_custom">Custom</string>
+    <string name="ai_base_url">Address</string>
+    <string name="ai_base_url_invalid">Enter an address starting with http:// or https://</string>
+    <string name="ai_cleartext">This address is not encrypted; use it only on a network you trust</string>
+    <string name="ai_api_key">API key</string>
+    <string name="ai_api_key_saved">Saved. Leave empty to keep it</string>
+    <string name="ai_api_key_none">Local models usually need none</string>
+    <string name="ai_api_key_remove">Delete the saved key</string>
+    <string name="ai_api_key_removing">The saved key is deleted when you save</string>
+    <string name="ai_model">Model</string>
+    <string name="ai_model_required">Enter a model name</string>
+    <string name="ai_models_fetch">Get the model list</string>
+    <string name="ai_models_loading">Getting…</string>
+    <string name="ai_models_failed">Could not get the list: %1$s. You can type the model name</string>
+    <string name="ai_models_empty">No models came back; you can type the model name</string>
+    <string name="ai_advanced">Advanced parameters</string>
+    <string name="ai_extra_params">Extra request parameters (JSON)</string>
+    <string name="ai_thinking_off_params">Thinking off parameters (JSON)</string>
+    <string name="ai_thinking_on_params">Thinking on parameters (JSON)</string>
+    <string name="ai_params_hint">Merged into every request as they are; the thinking ones follow the deep thinking switch</string>
+    <string name="ai_params_invalid">Must be one JSON object, or empty</string>
+    <string name="ai_save">Save</string>
+    <string name="ai_save_failed">Could not save; check what you entered</string>
+
+    <string name="ai_section_checks">Checks</string>
+    <string name="ai_checks_note">The AI features need the connection and tool calls to pass. The checks send a few very small requests, which cost very little.</string>
+    <string name="ai_check_connect">Connection</string>
+    <string name="ai_check_tools">Tool calls</string>
+    <string name="ai_check_image">Pictures</string>
+    <string name="ai_check_thinking">Deep thinking</string>
+    <string name="ai_check_required">Required</string>
+    <string name="ai_check_optional">Optional</string>
+    <string name="ai_check_run">Check</string>
+    <string name="ai_check_rerun">Check again</string>
+    <string name="ai_check_save_and_run">Save and check</string>
+    <string name="ai_checked_at">Checked %1$s</string>
+    <string name="ai_state_not_checked">Not checked</string>
+    <string name="ai_state_running">Checking…</string>
+    <string name="ai_state_passed">Passed</string>
+    <string name="ai_state_failed">Not supported</string>
+    <string name="ai_state_connect_failed">Failed</string>
+    <string name="ai_state_unknown">Undecided</string>
+    <string name="ai_state_not_configured">No thinking on parameters</string>
+    <string name="ai_problem_offline">Cannot reach %1$s; check the network and the address</string>
+    <string name="ai_problem_timeout">Timed out; you can try again</string>
+    <string name="ai_problem_unauthorized">The API key is wrong or not allowed</string>
+    <string name="ai_problem_payment">The service says the balance is too low</string>
+    <string name="ai_problem_not_found">The address or model name is wrong</string>
+    <string name="ai_problem_rate_limited">Too many requests; try again later</string>
+    <string name="ai_problem_server">The service had an error; try again later</string>
+    <string name="ai_problem_rejected">The service refused the request</string>
+    <string name="ai_problem_bad_response">The reply could not be read</string>
+    <string name="ai_problem_no_tool_call">This model does not call tools; choose another model</string>
+    <string name="ai_problem_wrong_answer">Wrong answer</string>
+    <string name="ai_problem_no_thinking">No thinking came back</string>
+    <string name="ai_problem_no_key_storage">The saved key cannot be read; enter it again</string>
+
+    <string name="ai_section_defaults">Defaults</string>
+    <string name="ai_defaults_note">Used when the AI leaves something out or gets it wrong</string>
+    <string name="ai_default_time">Default time (when only a day is said)</string>
+    <string name="ai_default_account">Default account</string>
+    <string name="ai_default_account_none">None (moves no account)</string>
+    <string name="ai_default_expense">Default expense category</string>
+    <string name="ai_default_income">Default income category</string>
+
+    <string name="ai_section_personal">Personal</string>
+    <string name="ai_my_rules">My rules</string>
+    <string name="ai_my_rules_hint">For example: coffee shops are drinks; without an account, use the savings card</string>
+    <string name="ai_my_rules_count">%1$d/%2$d</string>
+    <string name="ai_my_rules_reset">Back to default (empty)</string>
+    <string name="ai_user_nickname">Your nickname</string>
+    <string name="ai_ai_nickname">The AI\'s nickname</string>
+    <string name="ai_avatar_user">Your picture</string>
+    <string name="ai_avatar_ai">The AI\'s picture</string>
+    <string name="ai_avatar_reset">Back to default</string>
+    <string name="ai_avatar_failed">This picture cannot be read</string>
+    <string name="ai_personal_note">Nicknames and your rules are sent to the model; pictures stay on this device and are neither sent nor backed up.</string>
+
+    <string name="ai_prompt_view">View the full prompt</string>
+    <string name="ai_prompt_view_summary">Everything that is sent, tools included</string>
+    <string name="ai_prompt_note">This is what a bill request sends. What you type or share goes last; the key is in a request header, not here.</string>
+
+    <string name="ai_disclaimer">AI-generated content may be wrong, does not represent this app\'s position and is not investment or financial advice. Check it carefully</string>
+</resources>

@@ -107,6 +107,9 @@ fun SettingsHome(
     reimbursementSummary: String = "",
     onBillImages: (() -> Unit)? = null,
     billImagesSummary: String = "",
+    /** Settings → AI; null hides the entry (demo mode). */
+    onAi: (() -> Unit)? = null,
+    aiSummary: String = "",
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var appearancePicker by rememberSaveable { mutableStateOf<String?>(null) }
@@ -153,6 +156,11 @@ fun SettingsHome(
                     SettingEntry(stringResource(R.string.settings_bill_images), billImagesSummary, onBillImages,
                         Modifier.testTag("settings-bill-images"))
                 }
+            }
+        }
+        if (onAi != null) item {
+            GlassCard {
+                SettingEntry(stringResource(R.string.settings_ai), aiSummary, onAi, Modifier.testTag("settings-ai"))
             }
         }
         item {

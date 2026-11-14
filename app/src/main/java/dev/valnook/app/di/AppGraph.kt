@@ -44,7 +44,9 @@ class AppGraph(
     /** Reads only; bills are written through [commands]. */
     val bills: BillRepository? = null,
     val billImages: dev.valnook.domain.repository.BillImageLibrary? = null,
-    val billImageStorage: dev.valnook.domain.repository.BillImageStorage? = null
+    val billImageStorage: dev.valnook.domain.repository.BillImageStorage? = null,
+    /** Real data only: demo mode shows no AI. */
+    val ai: dev.valnook.domain.ai.AiService? = null
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -69,7 +71,11 @@ internal data class DatabaseGraph(
     val bills: dev.valnook.domain.repository.BillRepository,
     val images: dev.valnook.data.image.BillImageStore,
     val billImages: dev.valnook.domain.repository.BillImageLibrary,
-    val imageStorage: dev.valnook.domain.repository.BillImageStorage
+    val imageStorage: dev.valnook.domain.repository.BillImageStorage,
+    val ai: dev.valnook.domain.ai.AiService,
+    /** On this device only, cleared with all data. */
+    val aiKeys: dev.valnook.data.ai.AiKeyStore,
+    val aiChecks: dev.valnook.data.ai.AiCheckStore
 )
 
 internal fun createDatabaseGraph(
@@ -87,6 +93,9 @@ internal fun createDatabaseGraph(
         localeManager.systemLocales.get(0)?.language ?: java.util.Locale.getDefault().language
     }
     val images = dev.valnook.data.image.BillImageStore(billImagesDir(context, database), database, clock)
+    // The key and check report belong to the device; a demo or test database gets throwaway ones.
+    val aiKeys = if (persistentPrivateCards) dev.valnook.data.ai.EncryptedAiKeyStore(context) else dev.valnook.data.ai.MemoryAiKeyStore()
+    val aiChecks = if (persistentPrivateCards) dev.valnook.data.ai.PreferencesAiCheckStore(context) else dev.valnook.data.ai.MemoryAiCheckStore()
     return DatabaseGraph(
         database = database,
         accounts = RoomAccounts(database),
@@ -112,7 +121,10 @@ internal fun createDatabaseGraph(
         billImages = dev.valnook.data.image.LocalBillImageLibrary(images,
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)),
         imageStorage = dev.valnook.data.image.LocalBillImageStorage(images, database,
-            dev.valnook.data.image.BillImagePreferences.of(context))
+            dev.valnook.data.image.BillImagePreferences.of(context)),
+        ai = dev.valnook.data.ai.RoomAiService(database, aiKeys, aiChecks, clock, { !appLanguageIsChinese(context) }),
+        aiKeys = aiKeys,
+        aiChecks = aiChecks
     )
 }
 
@@ -126,6 +138,13 @@ internal fun billImagesDir(context: Context, database: ValnookDatabase): java.io
         "valnook.db" -> java.io.File(context.filesDir, "bill_images")
         else -> java.io.File(context.filesDir, "bill_images_${name.removeSuffix(".db")}")
     }
+
+/** The language the app shows: the one chosen in the app, else the device's. */
+internal fun appLanguageIsChinese(context: Context): Boolean {
+    val manager = context.getSystemService(android.app.LocaleManager::class.java)
+    val locale = manager.applicationLocales.get(0) ?: manager.systemLocales.get(0) ?: java.util.Locale.getDefault()
+    return locale.language == "zh"
+}
 
 internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
     applicationFamily = "valnook",

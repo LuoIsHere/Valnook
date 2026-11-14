@@ -30,6 +30,8 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     BillCategoriesKey -> stringResource(R.string.title_bill_categories)
     ReimbursementsKey -> stringResource(R.string.title_reimbursements)
     BillImagesKey -> stringResource(R.string.title_bill_images)
+    AiSettingsKey -> stringResource(dev.valnook.feature.ai.R.string.ai_title)
+    AiPromptKey -> stringResource(dev.valnook.feature.ai.R.string.ai_prompt_title)
     AccountsKey, HiddenAccountsKey -> stringResource(R.string.nav_accounts)
     InvestmentsKey, HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
     StatisticsKey, HiddenStatisticsKey -> stringResource(R.string.nav_statistics)

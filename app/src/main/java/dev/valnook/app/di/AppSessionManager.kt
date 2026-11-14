@@ -200,6 +200,12 @@ class AppSessionManager @Inject internal constructor(
                 realDatabaseGraph.maintenance.clearBusinessData()
                 realDatabaseGraph.images.clearAll()
                 realDatabaseGraph.walletPrivate.cleanup(clearPreferences = true)
+                // The AI key, its check report and the chat pictures belong to the device and go too.
+                withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    realDatabaseGraph.aiKeys.destroy()
+                    realDatabaseGraph.aiChecks.clear()
+                    dev.valnook.feature.ai.AiAvatars.directory(context).deleteRecursively()
+                }
                 withContext(kotlinx.coroutines.Dispatchers.IO) {
                     onboarding.save(dev.valnook.app.onboarding.OnboardingDraft())
                 }
@@ -329,6 +335,7 @@ class AppSessionManager @Inject internal constructor(
         fxSync = SessionFxSync(sessionId, mode),
         bills = source.bills,
         billImageStorage = source.imageStorage,
+        ai = if (mode == DataMode.REAL) source.ai else null,
         billImages = object : dev.valnook.domain.repository.BillImageLibrary by source.billImages {
             // Pictures come back from OneDrive only for the real data, through this session's checks.
             override suspend fun fetch(keys: Collection<String>): Int = if (mode != DataMode.REAL) 0 else

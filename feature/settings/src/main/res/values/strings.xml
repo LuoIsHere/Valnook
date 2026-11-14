@@ -138,5 +138,6 @@
     <string name="settings_third_party">Third-party notices</string>
     <string name="settings_third_party_summary">Open-source libraries, icons and trademarks</string>
     <string name="settings_reimbursements">Reimbursements</string>
+    <string name="settings_ai">AI</string>
     <string name="settings_bill_images">Bill pictures</string>
 </resources>

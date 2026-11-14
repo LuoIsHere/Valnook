@@ -296,6 +296,8 @@ private fun SessionRoot(
         { value: dev.valnook.feature.settings.FxToolbarState? -> fxToolbar = value }
     }
     var leavePrompt by remember(graph.sessionId) { mutableStateOf(false) }
+    // The AI settings page keeps drafts saved with its buttons; leaving with changes asks first.
+    var aiDirty by remember(graph.sessionId) { mutableStateOf(false) }
     val pop: () -> Unit = {
         if (stack.last() == BackupKey) scope.launch { sessions.cancelPendingRestore(active.id) }
         if (!stack.last().isRoot()) stack.removeAt(stack.lastIndex)
@@ -310,6 +312,7 @@ private fun SessionRoot(
         val unsaved = when (stack.last()) {
             NavigationSettingsKey -> navigationToolbar?.dirty == true
             FxSettingsKey -> fxToolbar?.dirty == true
+            AiSettingsKey -> aiDirty
             else -> false
         }
         if (unsaved) leavePrompt = true else pop()
@@ -546,6 +549,10 @@ private fun SessionRoot(
                                         ?: kotlinx.coroutines.flow.flowOf(null)
                                 }.collectAsStateWithLifecycle(null)
                                 val reimbursementText = dev.valnook.feature.bills.reimbursementSummaryText(reimbursements)
+                                val ai = graph.ai
+                                val aiSummary by remember(ai) {
+                                    ai?.let { dev.valnook.feature.ai.aiSummary(it) } ?: kotlinx.coroutines.flow.flowOf(null)
+                                }.collectAsStateWithLifecycle(null)
                                 val imageUsage by remember(graph.billImageStorage) {
                                     graph.billImageStorage?.observeUsage() ?: kotlinx.coroutines.flow.flowOf(null)
                                 }.collectAsStateWithLifecycle(null)
@@ -568,7 +575,9 @@ private fun SessionRoot(
                                     onReimbursements = if (bills != null) ({ open(ReimbursementsKey) }) else null,
                                     reimbursementSummary = reimbursementText,
                                     onBillImages = if (graph.billImageStorage != null) ({ open(BillImagesKey) }) else null,
-                                    billImagesSummary = dev.valnook.feature.backup.billImagesSummaryText(imageUsage))
+                                    billImagesSummary = dev.valnook.feature.backup.billImagesSummaryText(imageUsage),
+                                    onAi = if (ai != null) ({ open(AiSettingsKey) }) else null,
+                                    aiSummary = aiSummary?.let { (report, host) -> dev.valnook.feature.ai.aiSummaryText(report, host) }.orEmpty())
                             }
                             entry<WalletFaceLibraryKey> {
                                 dev.valnook.feature.wallet.WalletFaceLibraryScreen(pageViewModel {
@@ -592,6 +601,16 @@ private fun SessionRoot(
                                         graph.cloudBackup, sessions.cloudAuthorization)
                                 }, active.mode == DataMode.DEMO,
                                     onBillImages = if (graph.billImageStorage != null) ({ open(BillImagesKey) }) else null)
+                            }
+                            entry<AiSettingsKey> {
+                                val ai = graph.ai
+                                if (ai != null) dev.valnook.feature.ai.AiSettingsScreen(pageViewModel {
+                                    dev.valnook.feature.ai.AiSettingsViewModel(ai,
+                                        dev.valnook.feature.ai.AiAvatars(dev.valnook.feature.ai.AiAvatars.directory(appContext)))
+                                }, onPrompt = { open(AiPromptKey) }, onDirtyChange = { aiDirty = it })
+                            }
+                            entry<AiPromptKey> {
+                                graph.ai?.let { dev.valnook.feature.ai.AiPromptScreen(it) }
                             }
                             entry<BillImagesKey> {
                                 dev.valnook.feature.backup.BillImagesScreen(pageViewModel {

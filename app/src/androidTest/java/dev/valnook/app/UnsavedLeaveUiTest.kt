@@ -79,6 +79,26 @@ class UnsavedLeaveUiTest {
         rule.onNodeWithTag("navigation-save").assertIsNotEnabled()
     }
 
+    @Test fun ai_page_asks_on_leaving_with_changes_and_not_after_saving() {
+        openSettings()
+        rule.onNodeWithTag("settings-ai").performScrollTo().assertTextContains("未检测", substring = true).performClick()
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("ai-base-url").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("ai-model").performTextReplacement("synthetic-model")
+        rule.waitForIdle()
+        systemBack()
+        rule.waitUntil(5_000) { prompt() }
+        rule.onNodeWithTag("leave-keep").performClick()
+        rule.onNodeWithTag("ai-connection-save").performScrollTo().performClick()
+        rule.waitUntil(5_000) { runBlocking { graph.ai!!.observeSettings().first().connection.model } == "synthetic-model" }
+        // The save button goes once nothing is left unsaved, as the user sees it.
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("ai-connection-save").fetchSemanticsNodes().isEmpty() }
+        // Saved: leaving asks nothing.
+        systemBack()
+        rule.waitUntil(10_000) { onSettingsPage() || prompt() }
+        assertTrue("asked again", !prompt())
+        assertTrue("left", onSettingsPage())
+    }
+
     @Test fun navigation_page_without_changes_leaves_at_once() {
         openNavigationPage()
         toolbarBack()

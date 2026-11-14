@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ai_title">AI</string>
+    <string name="ai_prompt_title">完整提示词</string>
+    <string name="ai_summary_unchecked">未检测</string>
+    <string name="ai_summary_ready">已通过检测 · %1$s</string>
+    <string name="ai_summary_failed">未通过检测</string>
+
+    <string name="ai_section_connection">连接</string>
+    <string name="ai_preset_custom">自定义</string>
+    <string name="ai_base_url">接口地址</string>
+    <string name="ai_base_url_invalid">请填写以 http:// 或 https:// 开头的地址</string>
+    <string name="ai_cleartext">该地址使用未加密连接，仅在可信网络中使用</string>
+    <string name="ai_api_key">API Key</string>
+    <string name="ai_api_key_saved">已保存。留空则保持不变</string>
+    <string name="ai_api_key_none">本地模型通常不需要</string>
+    <string name="ai_api_key_remove">删除已保存的 Key</string>
+    <string name="ai_api_key_removing">保存后删除已保存的 Key</string>
+    <string name="ai_model">模型</string>
+    <string name="ai_model_required">请填写模型名</string>
+    <string name="ai_models_fetch">获取模型列表</string>
+    <string name="ai_models_loading">正在获取…</string>
+    <string name="ai_models_failed">获取失败：%1$s。可以直接填写模型名</string>
+    <string name="ai_models_empty">没有获取到模型，可以直接填写模型名</string>
+    <string name="ai_advanced">高级参数</string>
+    <string name="ai_extra_params">附加请求参数（JSON）</string>
+    <string name="ai_thinking_off_params">思考关参数（JSON）</string>
+    <string name="ai_thinking_on_params">思考开参数（JSON）</string>
+    <string name="ai_params_hint">原样合并进每次请求；思考开/关参数按深度思考开关合并</string>
+    <string name="ai_params_invalid">需要是一个 JSON 对象，或者留空</string>
+    <string name="ai_save">保存</string>
+    <string name="ai_save_failed">保存失败，请检查填写的内容</string>
+
+    <string name="ai_section_checks">能力检测</string>
+    <string name="ai_checks_note">连通和工具调用都通过后才能使用 AI 功能。检测会发出几次很小的请求，产生极少量费用。</string>
+    <string name="ai_check_connect">连通</string>
+    <string name="ai_check_tools">工具调用</string>
+    <string name="ai_check_image">图像</string>
+    <string name="ai_check_thinking">深度思考</string>
+    <string name="ai_check_required">必须</string>
+    <string name="ai_check_optional">可选</string>
+    <string name="ai_check_run">检测</string>
+    <string name="ai_check_rerun">重新检测</string>
+    <string name="ai_check_save_and_run">保存并检测</string>
+    <string name="ai_checked_at">检测于 %1$s</string>
+    <string name="ai_state_not_checked">未检测</string>
+    <string name="ai_state_running">检测中…</string>
+    <string name="ai_state_passed">通过</string>
+    <string name="ai_state_failed">不支持</string>
+    <string name="ai_state_connect_failed">失败</string>
+    <string name="ai_state_unknown">无法判断</string>
+    <string name="ai_state_not_configured">未配置思考开参数</string>
+    <string name="ai_problem_offline">连接不上 %1$s，请检查网络和接口地址</string>
+    <string name="ai_problem_timeout">等待超时，可以重试</string>
+    <string name="ai_problem_unauthorized">API Key 无效或没有权限</string>
+    <string name="ai_problem_payment">服务方提示余额不足</string>
+    <string name="ai_problem_not_found">接口地址或模型名不正确</string>
+    <string name="ai_problem_rate_limited">请求太频繁，请稍后再试</string>
+    <string name="ai_problem_server">服务方出错，请稍后再试</string>
+    <string name="ai_problem_rejected">服务方拒绝了这个请求</string>
+    <string name="ai_problem_bad_response">返回的内容无法识别</string>
+    <string name="ai_problem_no_tool_call">该模型不支持工具调用，请更换模型</string>
+    <string name="ai_problem_wrong_answer">回答不正确</string>
+    <string name="ai_problem_no_thinking">没有返回思考内容</string>
+    <string name="ai_problem_no_key_storage">读不出保存的 Key，请重新填写</string>
+
+    <string name="ai_section_defaults">默认值</string>
+    <string name="ai_defaults_note">AI 没有给出或给错时使用</string>
+    <string name="ai_default_time">默认时间（只说了日期时）</string>
+    <string name="ai_default_account">默认账户</string>
+    <string name="ai_default_account_none">无（不计入账户）</string>
+    <string name="ai_default_expense">默认支出分类</string>
+    <string name="ai_default_income">默认收入分类</string>
+
+    <string name="ai_section_personal">个性化</string>
+    <string name="ai_my_rules">我的规则</string>
+    <string name="ai_my_rules_hint">例如：咖啡店都算饮料；没说账户就用储蓄卡</string>
+    <string name="ai_my_rules_count">%1$d/%2$d</string>
+    <string name="ai_my_rules_reset">恢复默认（清空）</string>
+    <string name="ai_user_nickname">你的昵称</string>
+    <string name="ai_ai_nickname">AI 的昵称</string>
+    <string name="ai_avatar_user">你的头像</string>
+    <string name="ai_avatar_ai">AI 的头像</string>
+    <string name="ai_avatar_reset">恢复默认</string>
+    <string name="ai_avatar_failed">读不了这张图片</string>
+    <string name="ai_personal_note">昵称和我的规则会发送给模型；头像只在本机显示，不发送，也不进备份。</string>
+
+    <string name="ai_prompt_view">查看完整提示词</string>
+    <string name="ai_prompt_view_summary">实际发送的全部内容，包括工具定义</string>
+    <string name="ai_prompt_note">这是一次记账请求实际发送的内容。你输入或分享的内容放在最后；Key 在请求头里，不在这里。</string>
+
+    <string name="ai_disclaimer">AI 生成的内容可能存在错误，不代表本平台的立场，不构成投资理财建议，请仔细检查</string>
+</resources>

@@ -131,5 +131,6 @@
     <string name="settings_third_party">第三方声明</string>
     <string name="settings_third_party_summary">开源库、图标与商标</string>
     <string name="settings_reimbursements">报销 / 待回款</string>
+    <string name="settings_ai">AI</string>
     <string name="settings_bill_images">账单图片</string>
 </resources>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Plain http is allowed only because a model on the user's own network rarely has https, and Android cannot allow it
+  for "addresses on my network" alone. The AI client is the only code that accepts an http:// address, and only the
+  one the user typed; every other connection (OneDrive, exchange rates) refuses anything but https in its own code.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
