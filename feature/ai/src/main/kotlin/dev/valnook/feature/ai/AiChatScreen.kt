@@ -244,14 +244,13 @@ private fun AssistantMessage(message: AiChatMessage, ui: AiChatUi, avatar: Image
             AiDraftCardView(card, ui.categories, ui.accounts, card.id in ui.busyCards, actions, money = ui.money[card.id])
         }
         val waiting = message.drafts.filter { it.state == AiDraftState.PENDING && it.draft.hasAmount && ui.money[it.id]?.missingRate != true }
-        if (waiting.size >= 2) FilledTonalButton({ vm.confirmAll(message.drafts) }, Modifier.testTag("ai-chat-confirm-all")) {
-            Text(stringResource(R.string.ai_chat_confirm_all))
-        }
+        if (waiting.size >= 2) AiPrimaryButton(stringResource(R.string.ai_chat_confirm_all), { vm.confirmAll(message.drafts) },
+            Modifier.testTag("ai-chat-confirm-all"))
         message.confirmedBills.forEach { billId ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.ai_chat_already_saved), Modifier.weight(1f, fill = false),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                if (onOpenBill != null) TextButton({ onOpenBill(billId) }) { Text(stringResource(R.string.ai_chat_view_bill)) }
+                if (onOpenBill != null) AiTonalButton(stringResource(R.string.ai_chat_view_bill), { onOpenBill(billId) })
             }
         }
         if (message.noDrafts) ManualButton(ui, vm, message, onManual)
@@ -269,7 +268,7 @@ private fun ErrorMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitm
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
             if (ui.canRetry && ui.messages.lastOrNull()?.id == message.id)
-                TextButton(vm::retry, Modifier.testTag("ai-chat-retry")) { Text(stringResource(R.string.ai_chat_retry)) }
+                AiTonalButton(stringResource(R.string.ai_chat_retry), vm::retry, Modifier.testTag("ai-chat-retry"))
             ManualButton(ui, vm, message, onManual)
         }
         if (message.usage?.calls ?: 0 > 0) Usage(message.usage)
@@ -281,9 +280,8 @@ private fun ErrorMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitm
 private fun ManualButton(ui: AiChatUi, vm: AiChatViewModel, message: AiChatMessage, onManual: (String) -> Unit) {
     val asked = ui.messages.lastOrNull { it.kind == AiMessageKind.USER && it.id < message.id }
     // Its pictures go along too, as long as they are still on this device.
-    TextButton({ vm.manual(asked?.text.orEmpty(), asked?.images.orEmpty(), onManual) }, Modifier.testTag("ai-chat-manual-${message.id}")) {
-        Text(stringResource(R.string.ai_chat_manual))
-    }
+    AiTonalButton(stringResource(R.string.ai_chat_manual), { vm.manual(asked?.text.orEmpty(), asked?.images.orEmpty(), onManual) },
+        Modifier.testTag("ai-chat-manual-${message.id}"))
 }
 
 @Composable
@@ -362,9 +360,9 @@ private fun InputBar(ui: AiChatUi, vm: AiChatViewModel) {
             }
             OutlinedTextField(ui.input, vm::setInput, Modifier.weight(1f).testTag("ai-chat-input"),
                 placeholder = { Text(stringResource(R.string.ai_chat_input_hint)) }, shape = RoundedCornerShape(20.dp), maxLines = 5)
-            if (ui.sending) TextButton(vm::cancel, Modifier.testTag("ai-chat-cancel")) { Text(stringResource(R.string.ai_chat_cancel)) }
-            else FilledTonalButton(vm::send, enabled = (ui.input.isNotBlank() || ui.pictures.isNotEmpty()) && ui.picturesWorking == 0,
-                modifier = Modifier.testTag("ai-chat-send")) { Text(stringResource(R.string.ai_chat_send)) }
+            if (ui.sending) AiTonalButton(stringResource(R.string.ai_chat_cancel), vm::cancel, Modifier.testTag("ai-chat-cancel"))
+            else AiPrimaryButton(stringResource(R.string.ai_chat_send), vm::send, Modifier.testTag("ai-chat-send"),
+                enabled = (ui.input.isNotBlank() || ui.pictures.isNotEmpty()) && ui.picturesWorking == 0)
         }
         // At the very bottom, under the box, as small print.
         Text(stringResource(R.string.ai_disclaimer), Modifier.fillMaxWidth().testTag("ai-disclaimer"),

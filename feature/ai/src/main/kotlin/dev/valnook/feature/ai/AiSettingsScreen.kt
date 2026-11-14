@@ -377,8 +377,8 @@ private fun PersonalCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
         TextBox(stringResource(R.string.ai_my_rules), personal.myRules, { text -> vm.editPersonal { it.copy(myRules = text.take(AiRules.MY_RULES_MAX)) } },
             "ai-my-rules", enabled, singleLine = false, placeholder = stringResource(R.string.ai_my_rules_hint),
             supporting = stringResource(R.string.ai_my_rules_count, personal.myRules.length, AiRules.MY_RULES_MAX))
-        if (personal.myRules.isNotEmpty()) TextButton({ vm.editPersonal { it.copy(myRules = "") } }, enabled = enabled,
-            modifier = Modifier.testTag("ai-my-rules-reset")) { Text(stringResource(R.string.ai_my_rules_reset)) }
+        if (personal.myRules.isNotEmpty()) AiTonalButton(stringResource(R.string.ai_my_rules_reset),
+            { vm.editPersonal { it.copy(myRules = "") } }, Modifier.testTag("ai-my-rules-reset"), enabled = enabled)
         Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             Box(Modifier.weight(1f)) {
                 TextBox(stringResource(R.string.ai_user_nickname), personal.userNickname,
@@ -420,9 +420,8 @@ private fun AvatarPicker(vm: AiSettingsViewModel, who: AiAvatar, name: String, m
         }.testTag("ai-avatar-${who.name}"))
         Text(stringResource(if (who == AiAvatar.USER) R.string.ai_avatar_user else R.string.ai_avatar_ai),
             style = MaterialTheme.typography.bodySmall)
-        if (image != null) TextButton({ vm.clearAvatar(who) }, Modifier.testTag("ai-avatar-reset-${who.name}")) {
-            Text(stringResource(R.string.ai_avatar_reset))
-        }
+        if (image != null) AiTonalButton(stringResource(R.string.ai_avatar_reset), { vm.clearAvatar(who) },
+            Modifier.testTag("ai-avatar-reset-${who.name}"))
         if (failed) Text(stringResource(R.string.ai_avatar_failed), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error)
     }
