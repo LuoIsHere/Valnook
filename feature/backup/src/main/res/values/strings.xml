@@ -128,8 +128,8 @@
     <string name="backup_local_no_pictures">This backup does not include bill pictures (%1$d on this device). After changing phones or uninstalling, pictures can only come back from OneDrive.</string>
     <string name="backup_preview_pictures">The backup holds no bill picture files: pictures already on this device show as before, those in OneDrive can be fetched, and the rest show as missing.</string>
     <string name="bill_images_title">Bill pictures</string>
-    <string name="bill_images_summary">%1$d on this device · %2$s MB</string>
-    <string name="bill_images_on_device">%1$d on this device, %2$s MB</string>
+    <string name="bill_images_summary">%1$d on this device · %2$s</string>
+    <string name="bill_images_on_device">%1$d on this device, %2$s</string>
     <string name="bill_images_only_cloud">Only in OneDrive: %1$d</string>
     <string name="bill_images_not_uploaded">Not in OneDrive yet: %1$d</string>
     <string name="bill_images_auto_clean">Clear pictures from this device automatically</string>

@@ -128,8 +128,8 @@
     <string name="backup_local_no_pictures">这份备份不包含账单图片（本机 %1$d 张）。换机或卸载后，图片只能从 OneDrive 找回。</string>
     <string name="backup_preview_pictures">备份不包含账单图片文件：本机已有的图片照常显示，OneDrive 里有的可以取回，其余显示为图片缺失。</string>
     <string name="bill_images_title">账单图片</string>
-    <string name="bill_images_summary">本机 %1$d 张 · %2$s MB</string>
-    <string name="bill_images_on_device">本机 %1$d 张，共 %2$s MB</string>
+    <string name="bill_images_summary">本机 %1$d 张 · %2$s</string>
+    <string name="bill_images_on_device">本机 %1$d 张，共 %2$s</string>
     <string name="bill_images_only_cloud">只在 OneDrive：%1$d 张</string>
     <string name="bill_images_not_uploaded">还没上传到 OneDrive：%1$d 张</string>
     <string name="bill_images_auto_clean">自动清理本机图片</string>

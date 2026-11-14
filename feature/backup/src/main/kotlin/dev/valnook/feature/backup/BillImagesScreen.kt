@@ -74,10 +74,11 @@ class BillImagesViewModel(private val storage: BillImageStorage, private val clo
 
 /** "n pictures · x MB", for the settings entry. */
 @Composable fun billImagesSummaryText(usage: BillImageUsage?): String =
-    if (usage == null) "" else stringResource(R.string.bill_images_summary, usage.onDevice, megabytes(usage.onDeviceBytes))
+    if (usage == null) "" else stringResource(R.string.bill_images_summary, usage.onDevice, sizeText(usage.onDeviceBytes))
 
-private fun megabytes(bytes: Long): String = java.math.BigDecimal(bytes).divide(java.math.BigDecimal(1024 * 1024), 1,
-    java.math.RoundingMode.HALF_UP).toPlainString()
+/** "3.3 MB", or "48 KB" below one megabyte, where a tenth of a megabyte would read as nothing. */
+internal fun sizeText(bytes: Long): String = if ((bytes + 1023) / 1024 < 1000) "${(bytes + 1023) / 1024} KB"
+    else java.math.BigDecimal(bytes).divide(java.math.BigDecimal(1024 * 1024), 1, java.math.RoundingMode.HALF_UP).toPlainString() + " MB"
 
 @Composable fun BillImagesScreen(vm: BillImagesViewModel) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -92,7 +93,7 @@ private fun megabytes(bytes: Long): String = java.math.BigDecimal(bytes).divide(
         item {
             GlassCard {
                 Column(Modifier.fillMaxWidth().padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(stringResource(R.string.bill_images_on_device, usage.onDevice, megabytes(usage.onDeviceBytes)),
+                    Text(stringResource(R.string.bill_images_on_device, usage.onDevice, sizeText(usage.onDeviceBytes)),
                         Modifier.testTag("bill-images-on-device"), style = MaterialTheme.typography.titleMedium)
                     if (usage.onlyInCloud > 0) Text(stringResource(R.string.bill_images_only_cloud, usage.onlyInCloud),
                         style = MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant)

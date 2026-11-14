@@ -338,17 +338,17 @@ private const val CATEGORY_COLUMNS = 5
             if (f.tab != BillTab.TRANSFER) Pill(f.cashAccountId?.let { id -> accounts[id]?.label() }
                 ?: stringResource(R.string.bill_no_account), selected = f.cashAccountId != null, onClick = onAccount, tag = "bill-account")
             Pill(timeText(f.occurredAt), selected = false, onClick = onTime, tag = "bill-time")
-            // Pictures come right after the time, so a receipt can be added without scrolling the row.
+            if (f.tab != BillTab.TRANSFER) Pill(stringResource(if (f.countInStats) R.string.bill_counted_pill else R.string.bill_not_counted_pill),
+                selected = f.countInStats, onClick = { vm.setCountInStats(!f.countInStats) }, tag = "bill-count-in-stats")
+            if (f.tab == BillTab.EXPENSE) Pill(stringResource(if (f.reimbursable) R.string.bill_reimbursable_pill else R.string.bill_not_reimbursable_pill),
+                selected = f.reimbursable, onClick = { vm.setReimbursable(!f.reimbursable) }, tag = "bill-reimbursable")
+            // Pictures are used less often than the rest, so they come last.
             if (pictures.available) Box {
                 Pill(if (f.images.isEmpty()) stringResource(R.string.bill_images_pill)
                     else stringResource(R.string.bill_images_count, f.images.size, BillImageRules.MAX_PER_BILL),
                     selected = f.images.isNotEmpty(), onClick = { pictures.menu = true }, tag = "bill-images-pill")
                 PictureMenu(pictures)
             }
-            if (f.tab != BillTab.TRANSFER) Pill(stringResource(if (f.countInStats) R.string.bill_counted_pill else R.string.bill_not_counted_pill),
-                selected = f.countInStats, onClick = { vm.setCountInStats(!f.countInStats) }, tag = "bill-count-in-stats")
-            if (f.tab == BillTab.EXPENSE) Pill(stringResource(if (f.reimbursable) R.string.bill_reimbursable_pill else R.string.bill_not_reimbursable_pill),
-                selected = f.reimbursable, onClick = { vm.setReimbursable(!f.reimbursable) }, tag = "bill-reimbursable")
         }
         // Who pays an expense back sits beside the note, so the block keeps its height.
         Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {

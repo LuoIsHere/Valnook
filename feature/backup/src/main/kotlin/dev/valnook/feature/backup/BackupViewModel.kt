@@ -56,11 +56,11 @@ class BackupViewModel(
     val state = mutable.asStateFlow()
 
     init {
-        viewModelScope.launch { cloudBackup.observeImages().collect { mutable.value = state.value.copy(images = it) } }
         viewModelScope.launch {
-            cloudBackup.observeState().collect { cloud ->
+            kotlinx.coroutines.flow.combine(cloudBackup.observeState(), cloudBackup.observeImages()) { cloud, images -> cloud to images }
+                .collect { (cloud, images) ->
                 val current = state.value
-                mutable.value = current.copy(cloud = cloud,
+                mutable.value = current.copy(cloud = cloud, images = images,
                     intervalDraft = if (current.cloud.intervalHours != cloud.intervalHours)
                         cloud.intervalHours.toString() else current.intervalDraft,
                     selectedCloudBackupId = current.selectedCloudBackupId?.takeIf { selectedId ->
