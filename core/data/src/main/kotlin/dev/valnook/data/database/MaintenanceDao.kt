@@ -16,6 +16,8 @@ interface MaintenanceDao {
     @Query("DELETE FROM instrument_price_history") suspend fun clearPriceHistory()
     @Query("DELETE FROM demo_labels") suspend fun clearDemoLabels()
     @Query("DELETE FROM cash_entries") suspend fun clearCashEntries()
+    @Query("DELETE FROM bill_attachments") suspend fun clearBillAttachments()
+    @Query("DELETE FROM bill_image_files") suspend fun clearBillImageFiles()
     // Rows that point at another row of their own table go first, as each deletion is checked on its own.
     @Query("DELETE FROM bill_entries WHERE parent_id IS NOT NULL") suspend fun clearChildBills()
     @Query("DELETE FROM bill_entries") suspend fun clearBills()

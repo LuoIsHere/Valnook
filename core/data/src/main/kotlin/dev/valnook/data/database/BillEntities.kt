@@ -85,3 +85,38 @@ data class BillEntryEntity(
      */
     @ColumnInfo(defaultValue = "0") val account_deleted: Boolean = false,
 )
+
+/**
+ * A picture on a bill, in its place [sort_order] (0 first). The file is named by [image_key], the SHA-256 of its bytes,
+ * so bills holding the same picture share one file. Backed up with the bill; the file itself is not in the archive.
+ */
+@Entity(tableName = "bill_attachments",
+    foreignKeys = [ForeignKey(entity = BillEntryEntity::class, parentColumns = ["id"], childColumns = ["bill_id"],
+        onDelete = ForeignKey.RESTRICT)],
+    indices = [Index(value = ["bill_id", "sort_order"], unique = true), Index(value = ["bill_id", "image_key"], unique = true),
+        Index("image_key")])
+data class BillAttachmentEntity(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val bill_id: Long,
+    val image_key: String,
+    val byte_size: Long,
+    val width: Long,
+    val height: Long,
+    val sort_order: Long,
+    val created_at_ms: Long,
+)
+
+/**
+ * What this device knows about one picture file; never backed up or restored. [local_saved_at_ms] is when the file
+ * was saved here or fetched back (null while it is not on the device); the cloud columns are what OneDrive last showed
+ * for it; [cloud_delete_requested_at_ms] asks the next backup to delete it there.
+ */
+@Entity(tableName = "bill_image_files")
+data class BillImageFileEntity(
+    @PrimaryKey val image_key: String,
+    val local_saved_at_ms: Long?,
+    val cloud_size: Long?,
+    val cloud_quick_xor: String?,
+    val cloud_seen_at_ms: Long?,
+    val cloud_delete_requested_at_ms: Long?,
+)

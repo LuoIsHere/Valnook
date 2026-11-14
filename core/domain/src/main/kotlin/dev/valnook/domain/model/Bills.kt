@@ -82,6 +82,11 @@ data class BillDraft(
     val note: String = "",
     /** An expense someone is to pay back; [counterparty] then names who, if anyone. */
     val reimbursable: Boolean = false,
+    /**
+     * The bill's pictures in order, at most [BillImageRules.MAX_PER_BILL]; null leaves them as they are, so a save
+     * that does not deal with pictures never drops them.
+     */
+    val images: List<BillImage>? = null,
 ) {
     val paidMinor: Long get() = amountMinor - discountMinor
 }
@@ -122,6 +127,8 @@ data class Bill(
     val reimbursedMinor: Long = 0,
     /** A refund's or reimbursement's original bill note, to name it by; null for other bills. */
     val parentNote: String? = null,
+    /** How many pictures the bill has. */
+    val imageCount: Int = 0,
 ) {
     val paidMinor: Long get() = amountMinor - discountMinor
 
@@ -164,6 +171,24 @@ object BillSettlement {
             reimbursedMinor > 0 -> ReimburseState.PARTIAL
             else -> ReimburseState.PENDING
         }
+}
+
+/** A picture on a bill. The file is stored once, named by the SHA-256 of its bytes ([key]). */
+data class BillImage(val key: String, val byteSize: Long, val width: Int, val height: Int)
+
+object BillImageRules {
+    const val MAX_PER_BILL = 4
+    /** A stored picture, after compression. */
+    const val MAX_BYTES = 600 * 1024
+    const val MAX_PIXELS = 2_000_000
+    const val MAX_EDGE = 3000
+    private val KEY = Regex("[0-9a-f]{64}")
+
+    fun validKey(key: String): Boolean = KEY.matches(key)
+
+    /** Whether [image] is one a bill can hold: a valid key, a stored size and bounds within the limits. */
+    fun valid(image: BillImage): Boolean = validKey(image.key) && image.byteSize in 1..MAX_BYTES &&
+        image.width in 1..MAX_EDGE && image.height in 1..MAX_EDGE && image.width.toLong() * image.height <= MAX_PIXELS
 }
 
 object BillRules {

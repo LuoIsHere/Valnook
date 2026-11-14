@@ -21,6 +21,8 @@ class RoomDataMaintenance(private val db: ValnookDatabase, private val clock: ja
             maintenance.clearStatisticsState()
             maintenance.clearPriceHistory()
             maintenance.clearDemoLabels()
+            maintenance.clearBillAttachments()
+            maintenance.clearBillImageFiles()
             maintenance.clearChildBills()
             maintenance.clearBills()
             maintenance.clearSubcategories()

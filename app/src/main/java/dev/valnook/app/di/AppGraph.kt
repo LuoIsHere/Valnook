@@ -64,7 +64,8 @@ internal data class DatabaseGraph(
     val portability: RoomPortabilityEngine,
     val webAdminReads: dev.valnook.domain.webadmin.WebAdminReadRepository,
     val walletPrivate: LocalWalletPrivateRepository,
-    val bills: dev.valnook.domain.repository.BillRepository
+    val bills: dev.valnook.domain.repository.BillRepository,
+    val images: dev.valnook.data.image.BillImageStore
 )
 
 internal fun createDatabaseGraph(
@@ -81,13 +82,14 @@ internal fun createDatabaseGraph(
     val settings = RoomSettings(database, clock) {
         localeManager.systemLocales.get(0)?.language ?: java.util.Locale.getDefault().language
     }
+    val images = dev.valnook.data.image.BillImageStore(billImagesDir(context, database), database, clock)
     return DatabaseGraph(
         database = database,
         accounts = RoomAccounts(database),
         cash = cash,
         deposits = deposits,
         investments = RoomInvestments(database),
-        commands = RoomFinancialCommands(database, clock),
+        commands = RoomFinancialCommands(database, clock, images),
         clock = clock,
         overview = RoomOverview(database),
         settings = settings,
@@ -101,9 +103,21 @@ internal fun createDatabaseGraph(
             database, RoomOverview(database), RoomStatistics(database, clock),
             deposits, RoomInvestments(database)),
         walletPrivate = LocalWalletPrivateRepository(context, database, persistentPrivateCards),
-        bills = dev.valnook.data.repository.RoomBills(database)
+        bills = dev.valnook.data.repository.RoomBills(database),
+        images = images
     )
 }
+
+/**
+ * Where a database's bill pictures live: the real database's in files/bill_images, a demo database's beside it under
+ * its own name, an in-memory one's (tests) in a folder of its own in the cache, so none can touch another's files.
+ */
+internal fun billImagesDir(context: Context, database: ValnookDatabase): java.io.File =
+    when (val name = database.openHelper.databaseName) {
+        null -> java.io.File(context.cacheDir, "bill_images_memory/${System.identityHashCode(database)}")
+        "valnook.db" -> java.io.File(context.filesDir, "bill_images")
+        else -> java.io.File(context.filesDir, "bill_images_${name.removeSuffix(".db")}")
+    }
 
 internal fun currentBuildInfo(): AppBuildInfo = AppBuildInfo(
     applicationFamily = "valnook",

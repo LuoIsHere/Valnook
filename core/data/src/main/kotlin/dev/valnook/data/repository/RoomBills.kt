@@ -25,6 +25,9 @@ class RoomBills(private val db: ValnookDatabase) : BillRepository {
     override fun observeChildren(parentId: Long): Flow<List<Bill>> =
         dao.observeChildren(parentId).map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
 
+    override fun observeImages(billId: Long): Flow<List<BillImage>> =
+        dao.observeAttachments(billId).map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
+
     override fun observeReimbursable(): Flow<List<Bill>> =
         dao.observeReimbursable().map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
 
@@ -83,7 +86,10 @@ internal fun BillCategoryEntity.toModel() = BillCategory(id, BillCategoryKind.va
     custom_name, icon_key, color_key, sort_order, hidden, last_cash_account_id, revision)
 
 internal fun BillRow.toModel() = bill.toModel().copy(refundedMinor = refunded_minor, reimbursedMinor = reimbursed_minor,
-    parentNote = parent_note)
+    parentNote = parent_note, imageCount = image_count.toInt())
+
+internal fun dev.valnook.data.database.BillAttachmentEntity.toModel() =
+    BillImage(image_key, byte_size, width.toInt(), height.toInt())
 
 internal fun BillEntryEntity.toModel() = Bill(
     id = id, type = BillType.valueOf(type), occurredAtMs = occurred_at_ms, amountMinor = amount_minor,

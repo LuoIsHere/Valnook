@@ -73,7 +73,9 @@ internal object CommandFingerprint {
                 d.type.name, d.occurredAtMs, d.amountMinor, d.currencyCode, d.discountMinor, d.cashAccountId,
                 d.accountAmountMinor, d.rate.stripTrailingZeros().toPlainString(), d.rateSource.name, d.transferKind?.name,
                 d.toCashAccountId, d.toAmountMinor, d.feeMinor, d.counterparty.trim(), d.categoryId, d.subCategoryId,
-                d.countInStats, d.note.trim(), d.reimbursable) }
+                d.countInStats, d.note.trim(), d.reimbursable) +
+                // Left out when the save keeps the pictures, so earlier saves keep their fingerprints.
+                (d.images?.let { images -> listOf("IMAGES") + images.map { it.key } } ?: emptyList()) }
             is DeleteBill -> listOf("BILL_DELETE", command.billId, command.expectedRevision)
             is SaveBillCategory -> listOf("BILL_CATEGORY_SAVE", command.categoryId, command.expectedRevision,
                 command.kind.name, command.parentId, command.name?.trim(), command.iconKey, command.colorKey)

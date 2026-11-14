@@ -11,6 +11,8 @@ import dev.valnook.domain.model.AccountGroupRules
 import dev.valnook.domain.model.BillCategoryKind
 import dev.valnook.domain.model.BillCategoryPresets
 import dev.valnook.domain.model.BillColors
+import dev.valnook.domain.model.BillImage
+import dev.valnook.domain.model.BillImageRules
 import dev.valnook.domain.model.BillRateSource
 import dev.valnook.domain.model.BillRules
 import dev.valnook.domain.model.BillType
@@ -542,6 +544,15 @@ internal class ArchiveReader(
                 (c.type='REIMBURSEMENT' AND c.is_deleted=0 AND p.reimbursable=0)))
                OR (c.type NOT IN ('REFUND','REIMBURSEMENT') AND c.parent_id IS NOT NULL)
                OR (c.reimbursable<>0 AND c.type<>'EXPENSE') LIMIT 1""").use { if (it.moveToFirst()) relationship() }
+        // Pictures sit on a bill other than a refund or reimbursement, at most four each, with figures a stored picture has.
+        db.query("SELECT image_key,byte_size,width,height,sort_order FROM bill_attachments").use { cursor ->
+            while (cursor.moveToNext()) {
+                val image = BillImage(cursor.getString(0), cursor.getLong(1), cursor.getLong(2).toIntOrMax(), cursor.getLong(3).toIntOrMax())
+                if (!BillImageRules.valid(image) || cursor.getLong(4) !in 0 until BillImageRules.MAX_PER_BILL) invalid()
+            }
+        }
+        db.query("""SELECT 1 FROM bill_attachments a LEFT JOIN bill_entries b ON b.id=a.bill_id
+            WHERE b.id IS NULL OR b.type IN ('REFUND','REIMBURSEMENT') LIMIT 1""").use { if (it.moveToFirst()) relationship() }
         // A bill's cash entries point at a bill that exists.
         db.query("""SELECT 1 FROM cash_entries e WHERE e.source_kind IN ('BILL','BILL_TRANSFER_IN')
             AND (e.source_id IS NULL OR NOT EXISTS (SELECT 1 FROM bill_entries b WHERE b.id=e.source_id)) LIMIT 1""")
@@ -762,6 +773,8 @@ internal class ArchiveReader(
         else -> PortabilityException(PortabilityErrorCode.INVALID_DATA, error)
     }
     private fun invalid(): Nothing = throw PortabilityException(PortabilityErrorCode.INVALID_DATA)
+    /** Out-of-range values become one no picture can have, so they fail the check. */
+    private fun Long.toIntOrMax(): Int = if (this in 0..Int.MAX_VALUE) toInt() else Int.MAX_VALUE
     private fun relationship(): Nothing = throw PortabilityException(PortabilityErrorCode.RELATIONSHIP_ERROR)
     private fun mismatch(): Nothing = throw PortabilityException(PortabilityErrorCode.HASH_MISMATCH)
     private fun summaryMismatch(): Nothing = throw PortabilityException(PortabilityErrorCode.SUMMARY_MISMATCH)

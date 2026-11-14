@@ -29,6 +29,7 @@ data class BillRow(
     val refunded_minor: Long,
     val reimbursed_minor: Long,
     val parent_note: String?,
+    val image_count: Long,
 )
 
 @Dao
@@ -88,7 +89,8 @@ interface BillDao {
     @Query("""SELECT b.*,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
-        p.note AS parent_note
+        p.note AS parent_note,
+        (SELECT COUNT(*) FROM bill_attachments a WHERE a.bill_id=b.id) AS image_count
         FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.id=:id AND b.is_deleted=0""")
     fun observeBill(id: Long): Flow<BillRow?>
 
@@ -96,7 +98,8 @@ interface BillDao {
     @Query("""SELECT b.*,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
-        p.note AS parent_note
+        p.note AS parent_note,
+        (SELECT COUNT(*) FROM bill_attachments a WHERE a.bill_id=b.id) AS image_count
         FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.parent_id=:parentId AND b.is_deleted=0 ORDER BY b.occurred_at_ms,b.id""")
     fun observeChildren(parentId: Long): Flow<List<BillRow>>
 
@@ -104,7 +107,8 @@ interface BillDao {
     @Query("""SELECT b.*,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
-        p.note AS parent_note
+        p.note AS parent_note,
+        (SELECT COUNT(*) FROM bill_attachments a WHERE a.bill_id=b.id) AS image_count
         FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.is_deleted=0 AND b.type='EXPENSE' AND b.reimbursable<>0
         ORDER BY b.occurred_at_ms DESC,b.id DESC""")
     fun observeReimbursable(): Flow<List<BillRow>>
@@ -118,7 +122,8 @@ interface BillDao {
     @Query("""SELECT b.*,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
-        p.note AS parent_note
+        p.note AS parent_note,
+        (SELECT COUNT(*) FROM bill_attachments a WHERE a.bill_id=b.id) AS image_count
         FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.is_deleted=0 AND b.occurred_at_ms>=:startMs AND b.occurred_at_ms<:endMs
         ORDER BY b.occurred_at_ms DESC,b.id DESC""")
     fun observeRange(startMs: Long, endMs: Long): Flow<List<BillRow>>
@@ -126,11 +131,45 @@ interface BillDao {
     @Query("""SELECT b.*,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REFUND') AS refunded_minor,
         (SELECT COALESCE(SUM(c.amount_minor),0) FROM bill_entries c WHERE c.parent_id=b.id AND c.is_deleted=0 AND c.type='REIMBURSEMENT') AS reimbursed_minor,
-        p.note AS parent_note
+        p.note AS parent_note,
+        (SELECT COUNT(*) FROM bill_attachments a WHERE a.bill_id=b.id) AS image_count
         FROM bill_entries b LEFT JOIN bill_entries p ON p.id=b.parent_id WHERE b.is_deleted=0 AND b.note LIKE '%' || :escaped || '%' ESCAPE '\'
         AND (:startMs IS NULL OR b.occurred_at_ms>=:startMs) AND (:endMs IS NULL OR b.occurred_at_ms<:endMs)
         ORDER BY b.occurred_at_ms DESC,b.id DESC LIMIT :limit""")
     fun observeSearch(escaped: String, startMs: Long?, endMs: Long?, limit: Int): Flow<List<BillRow>>
+
+    // Pictures
+
+    @Query("SELECT * FROM bill_attachments WHERE bill_id=:billId ORDER BY sort_order")
+    suspend fun attachments(billId: Long): List<BillAttachmentEntity>
+
+    @Query("SELECT * FROM bill_attachments WHERE bill_id=:billId ORDER BY sort_order")
+    fun observeAttachments(billId: Long): Flow<List<BillAttachmentEntity>>
+
+    @Query("DELETE FROM bill_attachments WHERE bill_id=:billId")
+    suspend fun deleteAttachments(billId: Long): Int
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insertAttachments(values: List<BillAttachmentEntity>)
+
+    /** Whether any bill holds the picture [key]. */
+    @Query("SELECT EXISTS(SELECT 1 FROM bill_attachments WHERE image_key=:key)")
+    suspend fun imageInUse(key: String): Boolean
+
+    @Query("SELECT DISTINCT image_key FROM bill_attachments")
+    suspend fun imageKeysInUse(): List<String>
+
+    @Query("SELECT * FROM bill_image_files WHERE image_key=:key")
+    suspend fun imageFile(key: String): BillImageFileEntity?
+
+    @Query("SELECT * FROM bill_image_files")
+    suspend fun imageFiles(): List<BillImageFileEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun putImageFile(value: BillImageFileEntity)
+
+    @Query("DELETE FROM bill_image_files WHERE image_key=:key")
+    suspend fun deleteImageFile(key: String): Int
 
     @Query("""SELECT cash_account_id FROM bill_entries WHERE is_deleted=0 AND cash_account_id IS NOT NULL
         AND type IN ('EXPENSE','INCOME') ORDER BY created_at_ms DESC,id DESC LIMIT 1""")

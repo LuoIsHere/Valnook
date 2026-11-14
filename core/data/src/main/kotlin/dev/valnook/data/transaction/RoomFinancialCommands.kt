@@ -12,6 +12,8 @@ enum class TransactionPoint { AFTER_BUSINESS, AFTER_COST, AFTER_CASH, BEFORE_REC
 
 /** All handlers run inside this single transaction. Fault hooks are no-op in production. */
 class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: Clock,
+    /** The bill picture files; pictures bills stop holding are deleted from it once a command is in. */
+    private val images: dev.valnook.data.image.BillImageStore? = null,
     private val fault: (TransactionPoint) -> Unit = {}) : FinancialCommands {
     private val cash = CashWriter(db, fault)
     private val accounts = AccountCommandHandler(db, cash, fault)
@@ -23,7 +25,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
     private val groups = AccountGroupCommandHandler(db)
     private val audit = AuditRecorder(db, clock)
     private val deletion = AccountDeletionHandler(db, clock, fault)
-    private val bills = BillCommandHandler(db, cash, fault)
+    private val bills = BillCommandHandler(db, cash, fault, images?.let { store -> store::describe })
     override suspend fun previewAccountDeletion(accountId: Long, balanceAccountId: Long?) =
         db.withTransaction { deletion.preview(accountId, balanceAccountId) }
     override suspend fun cancelAccountDeletion(ticket: String) = db.withTransaction { deletion.cancel(ticket) }
@@ -46,7 +48,8 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             if (change.icon.type == dev.valnook.domain.model.AccountIconType.IMAGE && image != null &&
                 !AccountIconImages.valid(change.icon.value, image)) throw DomainException(ErrorCode.FORMAT)
         }
-        return db.withTransaction {
+        val released = mutableSetOf<String>()
+        val outcome = db.withTransaction {
             val dao = db.operations()
             val old = dao.operation(command.operation_id)
             if (old != null) {
@@ -88,7 +91,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is EditDividend -> positions.editDividend(command, now)
                 is DeleteInvestmentTrade -> positions.delete(command, now)
                 is AccountGroupCommand -> groups.execute(command, now)
-                is BillCommand -> bills.execute(command, now)
+                is BillCommand -> bills.execute(command, now, released)
             }
             fault(TransactionPoint.BEFORE_RECEIPT)
             invalidatedDay?.let { db.statistics().invalidate(it) }
@@ -96,6 +99,8 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
             audit.recordCommand(command, result, auditBefore, now, source)
             result
         }
+        images?.release(released)
+        return outcome
     }
 
     private suspend fun earliestAffectedDay(command: FinancialCommand, now: Long): Long? {

@@ -98,6 +98,8 @@ interface BillRepository {
     fun observeBill(billId: Long): Flow<Bill?>
     /** An expense's refunds and reimbursements still in place, oldest first. */
     fun observeChildren(parentId: Long): Flow<List<Bill>> = kotlinx.coroutines.flow.flowOf(emptyList())
+    /** A bill's pictures in order. */
+    fun observeImages(billId: Long): Flow<List<dev.valnook.domain.model.BillImage>> = kotlinx.coroutines.flow.flowOf(emptyList())
     /** Every expense marked to be paid back, newest first, whatever its state. */
     fun observeReimbursable(): Flow<List<Bill>> = kotlinx.coroutines.flow.flowOf(emptyList())
     /** Every bill dated in [month] in [zone], newest first. */

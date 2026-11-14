@@ -1,5 +1,6 @@
 package dev.valnook.data.transaction
 
+import dev.valnook.data.database.BillAttachmentEntity
 import dev.valnook.data.database.BillCategoryEntity
 import dev.valnook.data.database.BillEntryEntity
 import dev.valnook.data.database.CashEntryEntity
@@ -18,17 +19,20 @@ import java.math.BigDecimal
 internal class BillCommandHandler(
     private val db: ValnookDatabase,
     private val cash: CashWriter,
-    private val fault: (TransactionPoint) -> Unit
+    private val fault: (TransactionPoint) -> Unit,
+    /** Checks a picture newly put on a bill is stored here; without it (tests) the draft's figures are taken as given. */
+    private val describeImage: (suspend (String) -> BillImage?)? = null,
 ) {
     private val dao = db.bills()
 
-    suspend fun execute(command: BillCommand, now: Long): OperationResult = when (command) {
-        is SaveBill -> save(command, now)
-        is DeleteBill -> delete(command, now)
+    /** [released] collects the pictures bills stopped holding, to delete once the transaction is in. */
+    suspend fun execute(command: BillCommand, now: Long, released: MutableSet<String>): OperationResult = when (command) {
+        is SaveBill -> save(command, now, released)
+        is DeleteBill -> delete(command, now, released)
         is SaveBillCategory -> saveCategory(command, now)
         is SetBillCategoryHidden -> setHidden(command, now)
         is ReorderBillCategories -> reorder(command, now)
-        is DeleteBillCategory -> deleteCategory(command, now)
+        is DeleteBillCategory -> deleteCategory(command, now, released)
         is SaveBillFavorites -> saveFavorites(command)
         is SettleBill -> settle(command, now)
         is SettleBills -> settleBatch(command, now)
@@ -40,7 +44,7 @@ internal class BillCommandHandler(
 
     private data class Resolved(val entity: BillEntryEntity, val legs: List<Leg>)
 
-    private suspend fun save(command: SaveBill, now: Long): OperationResult {
+    private suspend fun save(command: SaveBill, now: Long, released: MutableSet<String>): OperationResult {
         val old = command.billId?.let { active(it, command.expectedRevision ?: throw DomainException(ErrorCode.FORMAT)) }
         if (old == null && (command.billId != null || command.expectedRevision != null)) throw DomainException(ErrorCode.FORMAT)
         val resolved = resolve(command.draft)
@@ -67,6 +71,7 @@ internal class BillCommandHandler(
             if (dao.updateBill(entity) != 1) throw DomainException(ErrorCode.STALE_RECORD)
             old.id
         }
+        command.draft.images?.let { writeImages(id, it, now, released) }
         fault(TransactionPoint.AFTER_BUSINESS)
         syncLegs(id, entity.operation_id, command.operation_id, resolved.legs, entity.occurred_at_ms, now,
             if (old == null) "BILL" else "BILL_EDIT")
@@ -85,9 +90,9 @@ internal class BillCommandHandler(
         return OperationResult("BILL", id)
     }
 
-    private suspend fun delete(command: DeleteBill, now: Long): OperationResult {
+    private suspend fun delete(command: DeleteBill, now: Long, released: MutableSet<String>): OperationResult {
         val old = current(command.billId, command.expectedRevision)
-        remove(old, command.operation_id, now)
+        remove(old, command.operation_id, now, released)
         // Undoing a refund or reimbursement puts it back among what is left of its bill.
         old.parent_id?.let { refresh(it, now) }
         return OperationResult("BILL", old.id)
@@ -192,8 +197,9 @@ internal class BillCommandHandler(
      * Deletes [bill] with its refunds and reimbursements, and moves their accounts back by what they moved them.
      * The caller has checked [bill] is the row it read.
      */
-    private suspend fun remove(bill: BillEntryEntity, operation: String, now: Long) {
+    private suspend fun remove(bill: BillEntryEntity, operation: String, now: Long, released: MutableSet<String>) {
         val rows = listOf(bill) + dao.children(bill.id)
+        dropImages(bill.id, released)
         rows.forEach { row ->
             if (dao.updateBill(row.copy(is_deleted = true, revision = R.add(row.revision, 1), updated_at_ms = now)) != 1) {
                 throw DomainException(ErrorCode.STALE_RECORD)
@@ -213,8 +219,9 @@ internal class BillCommandHandler(
      * Deletes [bill] with its refunds and reimbursements but leaves balances as they are: their cash entries stay,
      * as BILL_REMOVED noted [note]. Only deleting a bill on its own moves its accounts back.
      */
-    private suspend fun retire(bill: BillEntryEntity, note: String, now: Long) {
+    private suspend fun retire(bill: BillEntryEntity, note: String, now: Long, released: MutableSet<String>) {
         val rows = listOf(bill) + dao.children(bill.id)
+        dropImages(bill.id, released)
         rows.forEach { row ->
             if (dao.updateBill(row.copy(is_deleted = true, revision = R.add(row.revision, 1), updated_at_ms = now)) != 1) {
                 throw DomainException(ErrorCode.STALE_RECORD)
@@ -225,6 +232,36 @@ internal class BillCommandHandler(
                 else if (dao.retireLeg(leg.id, leg.revision, note, now) != 1) throw DomainException(ErrorCode.STALE_RECORD)
             }
         }
+    }
+
+    /**
+     * Puts [wanted] on bill [billId] in that order. A picture the bill already holds keeps its figures; a new one must
+     * be stored here, and its figures are read from the file. Pictures the bill no longer holds go to [released].
+     */
+    private suspend fun writeImages(billId: Long, wanted: List<BillImage>, now: Long, released: MutableSet<String>) {
+        if (wanted.size > BillImageRules.MAX_PER_BILL || wanted.map { it.key }.toSet().size != wanted.size ||
+            wanted.any { !BillImageRules.validKey(it.key) }) throw DomainException(ErrorCode.FORMAT)
+        val existing = dao.attachments(billId)
+        if (existing.map { it.image_key } == wanted.map { it.key }) return
+        val held = existing.associateBy { it.image_key }
+        val rows = wanted.mapIndexed { index, image ->
+            held[image.key]?.let { return@mapIndexed it.copy(id = 0, sort_order = index.toLong()) }
+            val stored = describeImage?.let { describe -> describe(image.key) ?: throw DomainException(ErrorCode.FORMAT) }
+                ?: image.takeIf(BillImageRules::valid) ?: throw DomainException(ErrorCode.FORMAT)
+            BillAttachmentEntity(bill_id = billId, image_key = stored.key, byte_size = stored.byteSize,
+                width = stored.width.toLong(), height = stored.height.toLong(), sort_order = index.toLong(), created_at_ms = now)
+        }
+        dao.deleteAttachments(billId)
+        if (rows.isNotEmpty()) dao.insertAttachments(rows)
+        released += existing.map { it.image_key }.filter { key -> wanted.none { it.key == key } }
+    }
+
+    /** A deleted bill holds no pictures; refunds and reimbursements never have any. */
+    private suspend fun dropImages(billId: Long, released: MutableSet<String>) {
+        val held = dao.attachments(billId)
+        if (held.isEmpty()) return
+        dao.deleteAttachments(billId)
+        released += held.map { it.image_key }
     }
 
     /** A bill that can be edited: refunds and reimbursements are only added and undone, never edited. */
@@ -440,7 +477,7 @@ internal class BillCommandHandler(
         return OperationResult("BILL_CATEGORY", command.parentId ?: command.orderedIds.firstOrNull() ?: 0)
     }
 
-    private suspend fun deleteCategory(command: DeleteBillCategory, now: Long): OperationResult {
+    private suspend fun deleteCategory(command: DeleteBillCategory, now: Long, released: MutableSet<String>): OperationResult {
         val old = dao.category(command.categoryId)?.takeIf { it.revision == command.expectedRevision }
             ?: throw DomainException(ErrorCode.STALE_RECORD)
         if (old.builtin_key in BillCategoryPresets.PROTECTED) throw DomainException(ErrorCode.CATEGORY_PROTECTED)
@@ -454,7 +491,7 @@ internal class BillCommandHandler(
             command.deleteBills -> {
                 if (command.moveToCategoryId != null) throw DomainException(ErrorCode.FORMAT)
                 val title = BillRules.note(command.billTitle)
-                bills.forEach { retire(it, it.note.ifBlank { title }, now) }
+                bills.forEach { retire(it, it.note.ifBlank { title }, now, released) }
             }
             bills.isNotEmpty() -> {
                 val target = dao.category(command.moveToCategoryId ?: throw DomainException(ErrorCode.FORMAT))

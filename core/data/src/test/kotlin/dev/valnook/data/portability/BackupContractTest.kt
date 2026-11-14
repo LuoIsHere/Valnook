@@ -11,18 +11,27 @@ class BackupContractTest {
         BackupContract.tablesFor(version).single { it.table == table }.columns.map { it.name }.toSet()
 
     @Test fun each_version_reads_only_what_it_wrote() {
-        val versionOneExtras = setOf("credit_account_profiles", "account_icon_images", "wallet_cards", "wallet_card_images", "account_groups", "fx_rate_history", "bill_categories", "bill_entries")
+        val versionOneExtras = setOf("credit_account_profiles", "account_icon_images", "wallet_cards", "wallet_card_images", "account_groups", "fx_rate_history", "bill_categories", "bill_entries", "bill_attachments")
         assertEquals(BackupContract.tables.map { it.table }.toSet() - versionOneExtras, tables(1))
         assertTrue("credit_account_profiles" in tables(2) && "account_icon_images" !in tables(3))
         assertTrue("account_icon_images" in tables(4) && "wallet_cards" !in tables(5))
         assertEquals(tables(6), tables(7))
         assertTrue("wallet_cards" in tables(7) && "account_groups" !in tables(7))
         assertEquals(tables(8), tables(9))
-        val bills = setOf("bill_categories", "bill_entries")
+        val bills = setOf("bill_categories", "bill_entries", "bill_attachments")
         assertEquals(BackupContract.tables.map { it.table }.toSet() - "fx_rate_history" - bills, tables(9))
         assertEquals(BackupContract.tables.map { it.table }.toSet() - bills, tables(10))
-        assertEquals(BackupContract.tables.map { it.table }.toSet(), tables(11))
+        assertEquals(BackupContract.tables.map { it.table }.toSet() - "bill_attachments", tables(11))
         assertEquals(tables(11), tables(12))
+        assertEquals(BackupContract.tables.map { it.table }.toSet(), tables(13))
+    }
+
+    @Test fun bill_pictures_back_up_as_references_from_version_thirteen() {
+        assertTrue("data/bill_attachments.jsonl" !in BackupContract.payloadPathsFor(12))
+        assertTrue("data/bill_attachments.jsonl" in BackupContract.payloadPathsFor(13))
+        // What this device knows about each file never leaves it.
+        assertTrue(BackupContract.tables.none { it.table == "bill_image_files" })
+        assertTrue(BackupContract.importOrder.indexOf("bill_attachments") > BackupContract.importOrder.indexOf("bill_entries"))
     }
 
     @Test fun rate_history_starts_at_version_ten_and_keeps_device_state_out() {

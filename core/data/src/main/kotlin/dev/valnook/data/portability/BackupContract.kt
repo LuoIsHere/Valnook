@@ -60,7 +60,7 @@ internal object BackupContract {
     /** Older rules only differ in derived statistics, which restore always rebuilds. */
     val RESTORABLE_HISTORICAL_VALUATION_RULES = dev.valnook.data.database.MIN_RESTORABLE_STATISTICS_RULE_VERSION..STATISTICS_RULE_VERSION
 
-    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1", "wallet-face-library-v1", "fx-rate-history-v1", "bills-v1")
+    val requiredFeatures = listOf("audit-v1", "overwrite-restore-v1", "portable-model-v1", "credit-accounts-v1", "account-order-v1", "account-icons-v1", "account-presentation-v1", "wallet-cards-v1", "wallet-face-style-v1", "account-groups-v1", "wallet-face-library-v1", "fx-rate-history-v1", "bills-v1", "bill-images-v1")
 
     private fun long(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.LONG, nullable)
     private fun text(name: String, nullable: Boolean = false) = PortableColumn(name, PortableKind.TEXT, nullable)
@@ -123,6 +123,11 @@ internal object BackupContract {
             text("batch_id", true), text("note"), long("revision"), bool("is_deleted"), long("created_at_ms"),
             long("updated_at_ms"), bool("account_deleted")
         ), "id"),
+        // Which bill holds which picture; the picture files themselves are never in an archive.
+        PortableTable("data/bill_attachments.jsonl", "bill_attachments", listOf(
+            long("id"), long("bill_id"), text("image_key"), long("byte_size"), long("width"), long("height"),
+            long("sort_order"), long("created_at_ms")
+        ), "bill_id,sort_order"),
         PortableTable("data/term_deposits.jsonl", "term_deposits", listOf(
             long("id"), long("savings_account_id"), text("currency_code"), long("principal_minor"),
             long("annual_rate_percent_e8"), localDate("start_date", "start_epoch_day"),
@@ -193,7 +198,8 @@ internal object BackupContract {
         "wallet_cards" to 6, "wallet_card_images" to 6,
         "account_groups" to 8,
         "fx_rate_history" to 10,
-        "bill_categories" to 11, "bill_entries" to 11
+        "bill_categories" to 11, "bill_entries" to 11,
+        "bill_attachments" to 13
     )
 
     /** Data schema version that introduced each column name; columns not listed exist since version 1. */
@@ -224,7 +230,7 @@ internal object BackupContract {
 
     val importOrder = listOf(
         "account_icon_images", "account_groups", "savings_accounts", "operations", "asset_types", "instruments", "cash_accounts", "credit_account_profiles", "wallet_card_images", "wallet_cards", "investments",
-        "term_deposits", "investment_trades", "cash_entries", "cash_movements", "bill_categories", "bill_entries", "instrument_price_history",
+        "term_deposits", "investment_trades", "cash_entries", "cash_movements", "bill_categories", "bill_entries", "bill_attachments", "instrument_price_history",
         "statistics_state", "statistics_baseline_items", "app_settings", "fx_rates", "fx_rate_history", "audit_metadata",
         "audit_events", "audit_event_accounts"
     )

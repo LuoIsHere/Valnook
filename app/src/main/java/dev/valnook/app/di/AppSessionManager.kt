@@ -71,6 +71,8 @@ class AppSessionManager @Inject internal constructor(
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
             // Reconcile unreferenced ciphertext after interrupted deletion/restore; no values are decoded.
             runCatching { writeMutex.withLock { realDatabaseGraph.walletPrivate.cleanup() } }
+            // Bill pictures left by a form a crash closed, and records of files that are gone.
+            runCatching { realDatabaseGraph.images.sweep() }
             // Staging left by a process that died during a restore or an export: plain copies of the data, never
             // used again. Not while a preview waits for confirmation or a file job runs.
             runCatching { writeMutex.withLock {
@@ -117,6 +119,7 @@ class AppSessionManager @Inject internal constructor(
         } catch (error: Exception) {
             database.close()
             context.deleteDatabase(databaseName)
+            deleteDemoImages(databaseName)
             throw error
         }
     }
@@ -131,6 +134,7 @@ class AppSessionManager @Inject internal constructor(
         publishRealSession()
         demoDatabase?.close()
         demoDatabaseName?.let(context::deleteDatabase)
+        demoDatabaseName?.let(::deleteDemoImages)
         demoDatabaseGraph = null
         demoDatabase = null
         demoDatabaseName = null
@@ -186,6 +190,7 @@ class AppSessionManager @Inject internal constructor(
         try {
             withContext(NonCancellable) {
                 realDatabaseGraph.maintenance.clearBusinessData()
+                realDatabaseGraph.images.clearAll()
                 realDatabaseGraph.walletPrivate.cleanup(clearPreferences = true)
                 withContext(kotlinx.coroutines.Dispatchers.IO) {
                     onboarding.save(dev.valnook.app.onboarding.OnboardingDraft())
@@ -402,6 +407,13 @@ class AppSessionManager @Inject internal constructor(
 
     private fun clearAbandonedDemoDatabases() {
         context.databaseList().filter { it.startsWith(DEMO_DATABASE_PREFIX) }.forEach(context::deleteDatabase)
+        context.filesDir.listFiles { file -> file.name.startsWith("bill_images_$DEMO_DATABASE_PREFIX") }
+            ?.forEach { it.deleteRecursively() }
+    }
+
+    /** A demo database's pictures go with it. */
+    private fun deleteDemoImages(databaseName: String) {
+        java.io.File(context.filesDir, "bill_images_${databaseName.removeSuffix(".db")}").deleteRecursively()
     }
 
     private inner class SessionCommands(

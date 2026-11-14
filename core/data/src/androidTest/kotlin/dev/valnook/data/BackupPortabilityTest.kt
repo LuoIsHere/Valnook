@@ -881,6 +881,7 @@ class BackupPortabilityTest {
         if (version < 8) files.remove("data/account_groups.jsonl")
         if (version < 10) files.remove("data/fx_rate_history.jsonl")
         if (version < 11) { files.remove("data/bill_categories.jsonl"); files.remove("data/bill_entries.jsonl") }
+        if (version < 13) files.remove("data/bill_attachments.jsonl")
         if (version == 11) files["data/bill_entries.jsonl"] = files.getValue("data/bill_entries.jsonl").toString(Charsets.UTF_8)
             .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
                 JSONObject(line).apply { remove("account_deleted") }.toString() + "\n" }.toByteArray()
@@ -901,6 +902,7 @@ class BackupPortabilityTest {
         if (version < 8) totals.getJSONObject("recordCounts").remove("data/account_groups.jsonl")
         if (version < 10) totals.getJSONObject("recordCounts").remove("data/fx_rate_history.jsonl")
         if (version < 11) listOf("data/bill_categories.jsonl", "data/bill_entries.jsonl").forEach { totals.getJSONObject("recordCounts").remove(it) }
+        if (version < 13) totals.getJSONObject("recordCounts").remove("data/bill_attachments.jsonl")
         if(version < 4) totals.getJSONObject("recordCounts").remove("data/account_icon_images.jsonl")
         if (version == 1) totals.getJSONObject("recordCounts").remove("data/credit_account_profiles.jsonl")
         files["verification/snapshot_totals.json"] = totals.toString().toByteArray()
@@ -916,7 +918,8 @@ class BackupPortabilityTest {
             (if (version >= 8) listOf("account-groups-v1") else emptyList()) +
             (if (version >= 9) listOf("wallet-face-library-v1") else emptyList()) +
             (if (version >= 10) listOf("fx-rate-history-v1") else emptyList()) +
-            (if (version >= 11) listOf("bills-v1") else emptyList())))
+            (if (version >= 11) listOf("bills-v1") else emptyList()) +
+            (if (version >= 13) listOf("bill-images-v1") else emptyList())))
         val fileRows = manifest.getJSONArray("files")
         val rebuilt = JSONArray()
         repeat(fileRows.length()) { index ->

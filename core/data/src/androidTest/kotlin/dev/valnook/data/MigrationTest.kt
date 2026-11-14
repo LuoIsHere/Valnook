@@ -490,7 +490,7 @@ class MigrationTest {
                 query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
                 close()
             }
-            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26).build()
+            val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addMigrations(MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27).build()
             try {
                 val faces = dev.valnook.data.repository.RoomWallet(db, java.time.Clock.systemUTC()).observeFaces().first()
                 assertEquals(listOf("shared", "orphan"), faces.map { it.key })
@@ -512,7 +512,7 @@ class MigrationTest {
                 execSQL("INSERT INTO cash_accounts(savings_account_id,currency_code,balance_minor,revision,updated_at_ms,id,name,note,currency_locked,created_at_ms) VALUES (1,'CNY',4500,1,1,1,'Cash','',1,1)")
                 close()
             }
-            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26).close()
+            helper.runMigrationsAndValidate(name, DATABASE_SCHEMA_VERSION, true, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27).close()
             val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).build()
             try {
                 db.openHelper.readableDatabase.query("PRAGMA integrity_check").use {
@@ -680,12 +680,42 @@ class MigrationTest {
         } finally { context.deleteDatabase(name) }
     }
 
+    @Test fun v26_to_v27_adds_empty_picture_tables_and_keeps_bills() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val name = "migration-bill-images-${UUID.randomUUID()}.db"
+        try {
+            helper.createDatabase(name, 26).apply {
+                execSQL("INSERT INTO currencies VALUES ('CNY',2)")
+                execSQL("INSERT INTO operations(operation_id,kind,request_fingerprint,result_kind,result_id,created_at_ms) VALUES ('a','B','x','BILL',1,1)")
+                execSQL("""INSERT INTO bill_categories(id,kind,parent_id,builtin_key,custom_name,icon_key,color_key,sort_order,hidden,
+                    last_cash_account_id,revision,created_at_ms,updated_at_ms) VALUES (5,'EXPENSE',NULL,'food',NULL,'utensils','orange',0,0,NULL,1,1,1)""")
+                execSQL("""INSERT INTO bill_entries(id,operation_id,type,occurred_at_ms,amount_minor,currency_code,discount_minor,
+                    cash_account_id,account_currency_code,account_amount_minor,rate,rate_source,transfer_kind,to_cash_account_id,
+                    to_currency_code,to_amount_minor,fee_minor,counterparty,category_id,sub_category_id,count_in_stats,reimbursable,
+                    reimburse_state,parent_id,batch_id,note,revision,is_deleted,created_at_ms,updated_at_ms,account_deleted)
+                    VALUES (1,'a','EXPENSE',1,100,'CNY',0,NULL,'CNY',100,'1','SAME',NULL,NULL,NULL,NULL,0,'',5,NULL,1,0,'NONE',NULL,NULL,
+                    'Synthetic',1,0,1,1,0)""")
+                close()
+            }
+            helper.runMigrationsAndValidate(name, 27, true, MIGRATION_26_27).apply {
+                query("SELECT COUNT(*) FROM bill_attachments").use { assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0)) }
+                query("SELECT COUNT(*) FROM bill_image_files").use { assertTrue(it.moveToFirst()); assertEquals(0L, it.getLong(0)) }
+                query("SELECT note FROM bill_entries WHERE id=1").use { assertTrue(it.moveToFirst()); assertEquals("Synthetic", it.getString(0)) }
+                // A picture can now sit on the bill.
+                execSQL("""INSERT INTO bill_attachments(bill_id,image_key,byte_size,width,height,sort_order,created_at_ms)
+                    VALUES (1,'${"a".repeat(64)}',100,10,10,0,1)""")
+                query("PRAGMA foreign_key_check").use { assertFalse(it.moveToFirst()) }
+                close()
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
     /** v0.0.15 (schema 17) and v0.0.16 (schema 18) installs reach the current schema with their manual rates unchanged. */
     @Test fun released_installs_reach_the_current_schema_with_manual_rates_unchanged(): Unit = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val chains = mapOf(
-            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26),
-            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26))
+            17 to arrayOf(MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27),
+            18 to arrayOf(MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27))
         chains.forEach { (version, migrations) ->
             val name = "migration-fx-v$version-${UUID.randomUUID()}.db"
             try {
