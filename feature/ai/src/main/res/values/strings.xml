@@ -157,11 +157,6 @@
     <string name="ai_section_features">Features</string>
     <string name="ai_feature_bill_chat">Bookkeeping by chat</string>
     <string name="ai_feature_bill_chat_summary">Opened from the button above + on the bills page</string>
-    <string name="ai_feature_share_text">Read shared text</string>
-    <string name="ai_feature_share_text_summary">When off, shared text goes into the note of a new bill</string>
-    <string name="ai_feature_share_image">Read shared pictures</string>
-    <string name="ai_feature_share_image_summary">When off, shared pictures are attached to a new bill</string>
-    <string name="ai_feature_share_image_unavailable">Requires the picture check</string>
     <string name="ai_feature_thinking">Deep thinking</string>
     <string name="ai_feature_thinking_summary">The model reasons before replying, which increases token usage and waiting time. Bookkeeping by chat only</string>
     <string name="ai_feature_thinking_unavailable">Requires the deep thinking check</string>

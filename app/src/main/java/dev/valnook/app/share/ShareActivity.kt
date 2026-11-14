@@ -39,6 +39,8 @@ import dev.valnook.feature.ai.AiChatScreen
 import dev.valnook.feature.ai.AiChatToolbarState
 import dev.valnook.feature.ai.AiChatViewModel
 import dev.valnook.feature.ai.AiDraftSaver
+import dev.valnook.feature.ai.AiNotices
+import dev.valnook.feature.ai.PictureNotice
 import dev.valnook.feature.bills.BillEditorScreen
 import dev.valnook.feature.bills.BillEditorViewModel
 import dev.valnook.feature.bills.BillImageCodec
@@ -49,9 +51,10 @@ import java.time.LocalDateTime
 import javax.inject.Inject
 
 /**
- * "Valnook bill" in the system share sheet: text, or up to four pictures. It runs in the sharing app's task, so
- * leaving it goes back there. With AI on for what was shared it opens the AI chat and sends the share there as the
- * user's message; otherwise the bill page opens with the text in the note and the pictures on the bill.
+ * "Valnook bill" in the system share sheet (turned off in Settings → Quick bookkeeping): text, or up to four
+ * pictures. It runs in the sharing app's task, so leaving it goes back there. With AI on it opens the AI chat and
+ * sends the share there as the user's message (pictures only when the model reads them); otherwise the bill page
+ * opens with the text in the note and the pictures on the bill.
  */
 @AndroidEntryPoint
 class ShareActivity : ComponentActivity() {
@@ -119,20 +122,27 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
             AiDraftSaver(bills, graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
                 graph.billImages)
         }
-        // Decided once, when the page opens: the AI chat for this kind of share, or straight to the bill page.
+        // Decided once, when the page opens: with AI on, the AI chat (pictures once the model reads them), otherwise
+        // straight to the bill page.
         val ai = graph.ai
         val assistant = graph.assistant
-        val useAi = rememberSaveable { ai != null && assistant != null &&
-            loaded.enabled && (if (shared.pictures.isNotEmpty()) loaded.shareImage else loaded.shareText) }
+        val context = LocalContext.current
+        val offered = rememberSaveable { ai != null && assistant != null &&
+            loaded.enabled && (shared.pictures.isEmpty() || loaded.shareImage) }
+        // The first pictures to go to the model ask first, as in the chat; declining puts them on a bill instead.
+        var asking by rememberSaveable { mutableStateOf(offered && shared.pictures.isNotEmpty() && !AiNotices.picturesSeen(context)) }
+        var declined by rememberSaveable { mutableStateOf(false) }
+        val useAi = offered && !declined
         var editor by remember { mutableStateOf<EditorRequest?>(null) }
         var nextKey by rememberSaveable { mutableIntStateOf(0) }
         var chatToolbar by remember { mutableStateOf<AiChatToolbarState?>(null) }
 
-        val chat: AiChatViewModel? = if (useAi && ai != null && assistant != null) viewModel(key = "share-chat",
+        val chat: AiChatViewModel? = if (useAi && !asking && ai != null && assistant != null) viewModel(key = "share-chat",
             factory = viewModelFactory { initializer {
                 AiChatViewModel(assistant, ai, bills, saver, graph.billImages, createSavedStateHandle())
             } }) else null
-        if (chat != null) LaunchedEffect(chat) { chat.sendShared(shared.text, sources) }
+        if (asking) PictureNotice({ asking = false; declined = true }) { AiNotices.markPicturesSeen(context); asking = false }
+        else if (chat != null) LaunchedEffect(chat) { chat.sendShared(shared.text, sources) }
         else LaunchedEffect(Unit) {
             // Without AI the share is a bill to write: its pictures are stored, the page opens with them.
             if (editor == null) editor = EditorRequest(++nextKey, manualPrefill(shared.text, sources, graph.billImages, saver),

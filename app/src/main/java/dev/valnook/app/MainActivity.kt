@@ -28,8 +28,11 @@ class MainActivity:ComponentActivity() {
         // Apply before resources or views are created, including native date/time dialogs.
         ThemePreferences(newBase).read().configurationOverride()?.let(::applyOverrideConfiguration)
     }
+    /** Where this start opens, until the root takes it: set only on a fresh start from the launcher icon. */
+    private var launchTarget: dev.valnook.feature.settings.QuickLaunchTarget? = null
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
+        launchTarget = dev.valnook.app.quick.QuickEntryPreferences.of(this).launchTarget(intent, savedInstanceState != null)
         enableEdgeToEdge()
         window.isNavigationBarContrastEnforced=false
         val appearance = ThemePreferences(this)
@@ -50,7 +53,7 @@ class MainActivity:ComponentActivity() {
                 val saved = appearance.save(mode)
                 if (saved) withContext(Dispatchers.Main.immediate) { recreate() }
                 saved
-            }) {
+            }, launchTarget = { launchTarget.also { launchTarget = null } }) {
                 lifecycleScope.launch {
                     webAdmin.stop()
                     sessions.exitDemo()

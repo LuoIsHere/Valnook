@@ -53,7 +53,6 @@ object AiText {
 object AiNotices {
     private const val FILE = "valnook_ai_notices"
     const val CHAT_PICTURES = "chat_pictures"
-    const val SHARE_PICTURES = "share_pictures"
     // Renamed when it changed from "seen once" to "Don't show again", so an old mark does not hide the notice.
     const val ENABLE = "enable_skip"
 

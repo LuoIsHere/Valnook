@@ -110,6 +110,9 @@ fun SettingsHome(
     /** Settings → AI; null hides the entry (demo mode). */
     onAi: (() -> Unit)? = null,
     aiSummary: String = "",
+    /** Settings → Quick bookkeeping; null hides the entry (no bills in this data). */
+    onQuickEntry: (() -> Unit)? = null,
+    quickEntrySummary: String = "",
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var appearancePicker by rememberSaveable { mutableStateOf<String?>(null) }
@@ -158,9 +161,12 @@ fun SettingsHome(
                 }
             }
         }
-        if (onAi != null) item {
+        if (onAi != null || onQuickEntry != null) item {
             GlassCard {
-                SettingEntry(stringResource(R.string.settings_ai), aiSummary, onAi, Modifier.testTag("settings-ai"))
+                if (onQuickEntry != null) SettingEntry(stringResource(R.string.settings_quick_entry), quickEntrySummary,
+                    onQuickEntry, Modifier.testTag("settings-quick-entry"))
+                if (onQuickEntry != null && onAi != null) HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                if (onAi != null) SettingEntry(stringResource(R.string.settings_ai), aiSummary, onAi, Modifier.testTag("settings-ai"))
             }
         }
         item {

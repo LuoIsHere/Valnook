@@ -132,20 +132,10 @@ private fun SecondaryButton(label: String, onClick: () -> Unit, tag: String, mod
 
 @Composable
 private fun FeaturesCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
-    val context = LocalContext.current
     val s = ui.settings
-    var pictureNotice by remember { mutableStateOf(false) }
     Section(stringResource(R.string.ai_section_features)) {
         SwitchRow(stringResource(R.string.ai_feature_bill_chat), stringResource(R.string.ai_feature_bill_chat_summary),
             s.billChat, true, "ai-feature-bill-chat") { on -> vm.setFeatures { it.copy(billChat = on) } }
-        SwitchRow(stringResource(R.string.ai_feature_share_text), stringResource(R.string.ai_feature_share_text_summary),
-            s.shareText, true, "ai-feature-share-text") { on -> vm.setFeatures { it.copy(shareText = on) } }
-        SwitchRow(stringResource(R.string.ai_feature_share_image), stringResource(if (ui.imagePassed)
-            R.string.ai_feature_share_image_summary else R.string.ai_feature_share_image_unavailable),
-            s.shareImage && ui.imagePassed, ui.imagePassed, "ai-feature-share-image") { on ->
-            if (on && !AiNotices.seen(context, AiNotices.SHARE_PICTURES)) pictureNotice = true
-            else vm.setFeatures { it.copy(shareImage = on) }
-        }
         SwitchRow(stringResource(R.string.ai_feature_thinking), stringResource(if (ui.thinkingPassed)
             R.string.ai_feature_thinking_summary else R.string.ai_feature_thinking_unavailable),
             s.thinking && ui.thinkingPassed, ui.thinkingPassed, "ai-feature-thinking") { on -> vm.setFeatures { it.copy(thinking = on) } }
@@ -153,11 +143,6 @@ private fun FeaturesCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
             s.chat, true, "ai-feature-chat") { on -> vm.setFeatures { it.copy(chat = on) } }
         SwitchRow(stringResource(R.string.ai_feature_habits), stringResource(R.string.ai_feature_habits_summary),
             s.sendHabits, true, "ai-feature-habits") { on -> vm.setFeatures { it.copy(sendHabits = on) } }
-    }
-    if (pictureNotice) PictureNotice({ pictureNotice = false }) {
-        AiNotices.mark(context, AiNotices.SHARE_PICTURES)
-        pictureNotice = false
-        vm.setFeatures { it.copy(shareImage = true) }
     }
 }
 

@@ -211,8 +211,9 @@ class AiSettingsScreenUiTest {
         rule.onNodeWithTag("ai-enable-notice").assertDoesNotExist()
         rule.waitUntil(5_000) { settings.value.enabled }
         // Features follow; those whose check did not pass stay off and say why.
-        rule.onNodeWithTag("ai-feature-share-image").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("需通过图像检测").assertExists()
+        // Sharing is set in Settings → Quick bookkeeping, not here.
+        rule.onNodeWithTag("ai-feature-share-image").assertDoesNotExist()
+        rule.onNodeWithTag("ai-feature-share-text").assertDoesNotExist()
         rule.onNodeWithTag("ai-feature-thinking").performScrollTo().assertIsNotEnabled()
         rule.onNodeWithTag("ai-feature-chat").performScrollTo().assertIsOff().performClick()
         rule.waitUntil(5_000) { settings.value.chat }

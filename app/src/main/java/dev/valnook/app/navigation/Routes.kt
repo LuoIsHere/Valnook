@@ -21,6 +21,7 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data object ReimbursementsKey : NavKey
 @Serializable data object BillImagesKey : NavKey
 @Serializable data object AiSettingsKey : NavKey
+@Serializable data object QuickEntryKey : NavKey
 @Serializable data object AiPromptKey : NavKey
 @Serializable data object AiChatKey : NavKey
 @Serializable data object AccountsKey : NavKey

@@ -140,4 +140,17 @@
     <string name="settings_reimbursements">Reimbursements</string>
     <string name="settings_ai">AI</string>
     <string name="settings_bill_images">Bill pictures</string>
+    <string name="settings_quick_entry">Quick bookkeeping</string>
+    <string name="quick_summary_launch_off">Opens as usual</string>
+    <string name="quick_summary_launch">Opens to %1$s</string>
+    <string name="quick_summary_share_on">sharing on</string>
+    <string name="quick_summary_share_off">sharing off</string>
+    <string name="quick_launch">Open to a new bill</string>
+    <string name="quick_launch_summary">When the app starts afresh from its icon, it opens to a new bill</string>
+    <string name="quick_target_manual">Manual entry</string>
+    <string name="quick_target_ai">AI chat</string>
+    <string name="quick_target_ai_unavailable">Requires AI bookkeeping to be on and checked; until then the bill page opens</string>
+    <string name="quick_share">Record from sharing</string>
+    <string name="quick_share_summary">Show \"Valnook bill\" in other apps\' share menus</string>
+    <string name="quick_share_note">When text or pictures are shared: with AI bookkeeping off, the text goes into the note of a new bill and the pictures are attached to it; with it on, the share is sent to the AI chat as a message and becomes drafts to confirm. If the model has not passed the picture check, pictures are attached instead.</string>
 </resources>

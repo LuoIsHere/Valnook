@@ -157,11 +157,6 @@
     <string name="ai_section_features">功能</string>
     <string name="ai_feature_bill_chat">对话记账</string>
     <string name="ai_feature_bill_chat_summary">入口位于记账页“+”按钮上方</string>
-    <string name="ai_feature_share_text">分享文字自动识别</string>
-    <string name="ai_feature_share_text_summary">关闭后，分享的文字将填入新账单的备注</string>
-    <string name="ai_feature_share_image">分享图片自动识别</string>
-    <string name="ai_feature_share_image_summary">关闭后，分享的图片将作为新账单的附件</string>
-    <string name="ai_feature_share_image_unavailable">需通过图像检测</string>
     <string name="ai_feature_thinking">深度思考</string>
     <string name="ai_feature_thinking_summary">回复前先进行推理，将增加 token 消耗与等待时间。仅适用于对话记账</string>
     <string name="ai_feature_thinking_unavailable">需通过深度思考检测</string>

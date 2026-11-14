@@ -95,6 +95,7 @@ import dev.valnook.feature.settings.NavigationToolbarState
 import dev.valnook.feature.statistics.StatisticsScreen
 import dev.valnook.feature.statistics.StatisticsViewModel
 import dev.valnook.feature.wallet.*
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
@@ -106,6 +107,8 @@ fun ValnookRoot(
     webAdmin: dev.valnook.domain.webadmin.WebAdminService,
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     onThemeChange: suspend (AppThemeMode) -> Boolean = { false },
+    /** Where a fresh start from the icon opens, taken once; null opens as usual. */
+    launchTarget: () -> dev.valnook.feature.settings.QuickLaunchTarget? = { null },
     onExit: () -> Unit = {}
 ) {
     val active by sessions.session.collectAsState()
@@ -134,7 +137,7 @@ fun ValnookRoot(
                     active.graph.fxSync) {
                     // The gate's AnimatedContent passes full-screen min constraints; this Box loosens them for the banner.
                     Box(Modifier.fillMaxSize()) {
-                        SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, onExit)
+                        SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, launchTarget, onExit)
                         val fxNotice by remember(active.id) { active.graph.fxSync.observeNotice() }
                             .collectAsStateWithLifecycle(null)
                         val noticeScope = rememberCoroutineScope()
@@ -206,6 +209,7 @@ private fun SessionRoot(
     webAdmin: dev.valnook.domain.webadmin.WebAdminService,
     themeMode: AppThemeMode,
     onThemeChange: suspend (AppThemeMode) -> Boolean,
+    launchTarget: () -> dev.valnook.feature.settings.QuickLaunchTarget?,
     onExit: () -> Unit
 ) {
     val graph = active.graph
@@ -304,6 +308,17 @@ private fun SessionRoot(
         .collectAsStateWithLifecycle(dev.valnook.domain.ai.AiFeatures())
     val aiPending by remember(graph.assistant) { graph.assistant?.observePendingDrafts() ?: kotlinx.coroutines.flow.flowOf(false) }
         .collectAsStateWithLifecycle(false)
+    val quickEntry = remember { dev.valnook.app.quick.QuickEntryPreferences.of(appContext) }
+    val quickSettings by quickEntry.settings.collectAsStateWithLifecycle()
+    // Started afresh from the icon with "open to a new bill" on: once, on real data, the bill page or the AI chat
+    // (the bill page while the chat cannot be used).
+    LaunchedEffect(graph.sessionId) {
+        val target = launchTarget() ?: return@LaunchedEffect
+        if (active.mode != DataMode.REAL || graph.bills == null) return@LaunchedEffect
+        val chat = target == dev.valnook.feature.settings.QuickLaunchTarget.AI && graph.assistant != null &&
+            graph.ai?.observeFeatures()?.first()?.chatEntry == true
+        open(if (chat) AiChatKey else BillEditorKey())
+    }
     val pop: () -> Unit = {
         if (stack.last() == BackupKey) scope.launch { sessions.cancelPendingRestore(active.id) }
         if (!stack.last().isRoot()) stack.removeAt(stack.lastIndex)
@@ -583,7 +598,9 @@ private fun SessionRoot(
                                     onBillImages = if (graph.billImageStorage != null) ({ open(BillImagesKey) }) else null,
                                     billImagesSummary = dev.valnook.feature.backup.billImagesSummaryText(imageUsage),
                                     onAi = if (ai != null) ({ open(AiSettingsKey) }) else null,
-                                    aiSummary = aiSummary?.let { (report, host) -> dev.valnook.feature.ai.aiSummaryText(report, host) }.orEmpty())
+                                    aiSummary = aiSummary?.let { (report, host) -> dev.valnook.feature.ai.aiSummaryText(report, host) }.orEmpty(),
+                                    onQuickEntry = if (bills != null) ({ open(QuickEntryKey) }) else null,
+                                    quickEntrySummary = dev.valnook.feature.settings.quickEntrySummary(quickSettings))
                             }
                             entry<WalletFaceLibraryKey> {
                                 dev.valnook.feature.wallet.WalletFaceLibraryScreen(pageViewModel {
@@ -615,6 +632,10 @@ private fun SessionRoot(
                                         dev.valnook.feature.ai.AiAvatars(dev.valnook.feature.ai.AiAvatars.directory(appContext)),
                                         graph.assistant)
                                 }, onPrompt = { open(AiPromptKey) }, onDirtyChange = { aiDirty = it })
+                            }
+                            entry<QuickEntryKey> {
+                                dev.valnook.feature.settings.QuickEntrySettingsScreen(quickSettings, aiFeatures.chatEntry,
+                                    quickEntry::setLaunch, quickEntry::setTarget, quickEntry::setShare)
                             }
                             entry<AiChatKey> {
                                 val ai = graph.ai

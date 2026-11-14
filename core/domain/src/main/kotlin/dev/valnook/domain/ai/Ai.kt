@@ -88,6 +88,7 @@ data class AiSettings(
     val connection: AiConnection = AiConnection(null, "", ""),
     val enabled: Boolean = false,
     val billChat: Boolean = true,
+    /** No longer switched: with AI on, shares go to it (Settings → Quick bookkeeping); kept as backups carry them. */
     val shareText: Boolean = true,
     val shareImage: Boolean = false,
     val query: Boolean = false,
@@ -130,7 +131,8 @@ data class AiFeatures(
             val image = report!!.of(AiCheckItem.IMAGE).state == AiCheckState.PASSED
             val thinking = report.of(AiCheckItem.THINKING).state == AiCheckState.PASSED &&
                 settings.connection.thinkingOnParams.isNotBlank()
-            return AiFeatures(true, settings.billChat, settings.shareText, settings.shareImage && image,
+            // A share goes to the AI whenever it is on; pictures once the model has passed the picture check.
+            return AiFeatures(true, settings.billChat, true, image,
                 settings.thinking && thinking, settings.chat, image)
         }
     }

@@ -68,7 +68,7 @@ class AiShareUiTest {
         ScriptedAiTransport.reset()
     }
 
-    private fun enableAi(pictures: Boolean, shareText: Boolean = true) = runBlocking {
+    private fun enableAi(pictures: Boolean) = runBlocking {
         val ai = graph.ai!!
         ai.saveConnection(AiConnection(null, "https://ai.example.test", "synthetic-model"), "synthetic-key")
         val fingerprint = ai.observeSettings().first().connection.fingerprint
@@ -77,7 +77,7 @@ class AiShareUiTest {
             if (pictures) put(AiCheckItem.IMAGE, AiCheck(AiCheckState.PASSED))
         }))
         ai.setEnabled(true)
-        ai.saveFeatures(billChat = true, shareText = shareText, shareImage = pictures, thinking = false, chat = false, sendHabits = false)
+        ai.saveFeatures(billChat = true, shareText = true, shareImage = pictures, thinking = false, chat = false, sendHabits = false)
     }
 
     private fun category(key: String) = db.openHelper.readableDatabase
@@ -152,8 +152,7 @@ class AiShareUiTest {
         rule.waitUntil(8_000) { closed() }
     }
 
-    @Test fun without_ai_for_text_the_bill_page_opens_with_it_in_the_note() {
-        enableAi(pictures = false, shareText = false)
+    @Test fun with_ai_off_the_bill_page_opens_with_the_text_in_the_note() {
         share("合成停车费 15")
         waitTag("bill-editor")
         rule.onNodeWithTag("bill-note").assertTextContains("合成停车费 15")
@@ -166,7 +165,7 @@ class AiShareUiTest {
         assertEquals(1_500L, bill.amountMinor)
     }
 
-    @Test fun without_ai_for_pictures_they_go_onto_the_bill() {
+    @Test fun pictures_the_model_cannot_read_go_onto_the_bill() {
         enableAi(pictures = false)
         share(pictures = listOf(picture(Color.RED), picture(Color.BLUE)))
         waitTag("bill-editor")
@@ -178,7 +177,12 @@ class AiShareUiTest {
         enableAi(pictures = true)
         drafts("""{"type":"EXPENSE","amount":"20","category_id":${category("food")},"note":"合成小票"}""")
         share(pictures = listOf(picture(Color.GREEN)))
+        // The first pictures to go to the model ask first, as in the chat.
+        waitTag("ai-picture-notice")
+        assertTrue(ScriptedAiTransport.requests.isEmpty())
+        rule.onNodeWithTag("ai-picture-notice-ok").performClick()
         waitTag("ai-draft-d1-pending")
+        assertTrue(AiNotices.picturesSeen(context))
         // Sent as a picture in the chat: the user's message carries it.
         rule.onAllNodes(tagStarting("ai-chat-shared-")).assertCountEquals(1)
         val parts = ScriptedAiTransport.requests.single()!!["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonArray
@@ -190,5 +194,17 @@ class AiShareUiTest {
         waitTag("ai-draft-d1-confirmed")
         val bill = runBlocking { graph.bills!!.observeSearch("合成小票").first().single() }
         assertEquals(1, runBlocking { graph.bills!!.observeImages(bill.id).first().size })
+    }
+
+    @Test fun declining_the_picture_notice_puts_the_pictures_on_a_bill() {
+        enableAi(pictures = true)
+        share(pictures = listOf(picture(Color.RED), picture(Color.BLUE)))
+        waitTag("ai-picture-notice")
+        rule.onNodeWithTag("ai-picture-notice-cancel").performClick()
+        waitTag("bill-editor")
+        waitTag("bill-editor-image-1")
+        assertTrue(ScriptedAiTransport.requests.isEmpty())
+        // It asks again next time.
+        assertTrue(!AiNotices.picturesSeen(context))
     }
 }
