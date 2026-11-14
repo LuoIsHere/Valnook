@@ -98,6 +98,36 @@ class OneDriveLiveTest {
             true, true, 3, true), result.copy(otherPictures = 0))
     }
 
+    /**
+     * Writes to the connected OneDrive: puts one made-up thing called bill_images there (mode folder, notice, file or
+     * orphan) and checks how claiming treats it; mode clear only removes the folder. Removed again unless kept.
+     */
+    @Test fun picture_folder_conflicts_against_onedrive() = runBlocking {
+        val mode = InstrumentationRegistry.getArguments().getString("liveOneDriveConflict")
+        assumeTrue(mode != null)
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val (reference, folder) = SQLiteDatabase.openDatabase(context.getDatabasePath("valnook.db").path,
+            null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("SELECT account_reference,folder_id FROM cloud_backup_state WHERE id=1 AND provider='ONEDRIVE' AND folder_id IS NOT NULL", null).use {
+                if (!it.moveToFirst() || it.isNull(0)) throw AssertionError("CONNECT_VALNOOK_FIRST")
+                it.getString(0) to it.getString(1)
+            }
+        }
+        val access = MicrosoftAuthorizationGateway(context).access(reference)
+        if (access !is CloudAccessResult.Granted) throw AssertionError("MICROSOFT_REAUTH_REQUIRED")
+        val keep = InstrumentationRegistry.getArguments().getString("liveOneDriveConflictKeep") == "true"
+        val result = try { dev.valnook.data.cloud.LiveOneDriveConflictProbe(folder, mode!!, keep).run(access.accessToken) }
+            catch (error: Throwable) { throw AssertionError("CONFLICT_PROBE_FAILED ${error.message}") }
+        instrumentation.sendStatus(0, Bundle().apply { putString("live_conflict", result.toString()) })
+        val expected = when (mode) {
+            "clear" -> result
+            "orphan" -> result.copy(claimRefused = false, findEmpty = false, foreignKept = true, noticeRestored = true)
+            else -> result.copy(claimRefused = true, findEmpty = true, foreignKept = true, noticeRestored = false)
+        }
+        assertEquals(result.toString(), expected, result)
+    }
+
     @Test fun disconnect_current_device_clears_msal_session_and_cancels_backup_schedule() = runBlocking {
         assumeTrue(InstrumentationRegistry.getArguments().getString("liveOneDriveAuth") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
