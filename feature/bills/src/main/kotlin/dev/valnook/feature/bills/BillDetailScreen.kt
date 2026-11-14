@@ -216,7 +216,12 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
         val category = bill.categoryId?.let(state.categories::get)
         val sub = bill.subCategoryId?.let(state.categories::get)
         rows += stringResource(R.string.bill_category) to (categoryName(category) + (sub?.let { " › " + categoryName(it) } ?: ""))
-        rows += stringResource(R.string.bill_count_in_stats) to stringResource(if (bill.countInStats) R.string.bill_yes else R.string.bill_no)
+        rows += stringResource(R.string.bill_count_in_stats) to stringResource(when {
+            bill.countInStats -> R.string.bill_yes
+            // Not marked to count, but paying it back was given up: what was not paid back is the user's own.
+            bill.counted -> R.string.bill_counted_unpaid_part
+            else -> R.string.bill_no
+        })
         if (bill.type == BillType.EXPENSE) {
             if (bill.refundedMinor > 0) rows += stringResource(R.string.bill_refunded) to money(bill.refundedMinor, bill.currency)
             if (bill.reimbursable) {

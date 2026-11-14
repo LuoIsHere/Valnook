@@ -31,6 +31,21 @@ class BillNetTest {
         assertEquals(BigDecimal("0.00"), net(expense(5_000, refunded = 5_000), "50"))
     }
 
+    @Test fun what_was_not_paid_back_counts_once_paying_back_is_given_up() {
+        val rates = dev.valnook.domain.fx.FxRateResolver(AppSettings(baseCurrency = Currency.of("CNY")), dev.valnook.domain.fx.FxContext())
+        // 20 to be paid back and kept out of income and expense; 5 came back.
+        val owed = expense(2_000, reimbursed = 500).copy(countInStats = false, reimburseState = ReimburseState.PARTIAL)
+        assertEquals(BigDecimal("0.00"), BillsViewModel.totals(listOf(owed), rates).expense)
+        assertEquals(false, BillFilter(counted = true).matches(owed))
+        // The other 15 given up: that is the user's own spending now.
+        val waived = owed.copy(reimburseState = ReimburseState.WAIVED)
+        assertEquals(BigDecimal("15.00"), BillsViewModel.totals(listOf(waived), rates).expense)
+        assertEquals(true, BillFilter(counted = true).matches(waived))
+        // Given up with nothing paid back: all of it.
+        val none = expense(2_000).copy(countInStats = false, reimbursable = true, reimburseState = ReimburseState.WAIVED)
+        assertEquals(BigDecimal("20.00"), BillsViewModel.totals(listOf(none), rates).expense)
+    }
+
     @Test fun what_is_owed_shows_in_the_base_currency_or_else_in_each_currency() {
         val cny = Currency.of("CNY")
         val usd = Currency.of("USD")

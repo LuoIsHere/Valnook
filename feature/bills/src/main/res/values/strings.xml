@@ -83,6 +83,7 @@
     <string name="bill_type">Type</string>
     <string name="bill_unavailable">This bill is not available.</string>
     <string name="bill_yes">Yes</string>
+    <string name="bill_counted_unpaid_part">The part not paid back</string>
     <string name="bill_yesterday">Yesterday</string>
     <string name="bills_day_expense">Out %1$s</string>
     <string name="bills_day_income">In %1$s</string>
@@ -119,6 +120,7 @@
     <string name="bill_refunded_tag">Refunded %1$s</string>
     <string name="bill_reimbursed_tag">Paid back %1$s</string>
     <string name="bill_pending_tag">%1$s to come</string>
+    <string name="bill_discount_tag">%1$s off</string>
     <string name="bill_waived_tag">Given up</string>
     <string name="bill_settle_left">%1$s %2$s left</string>
     <string name="bill_settle_full">All of it</string>

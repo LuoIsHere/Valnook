@@ -72,6 +72,8 @@ data class BillForm(
     val images: List<BillImage> = emptyList(),
     /** The pictures the bill had when the form opened; the others were added here and go if it closes unsaved. */
     val savedImages: List<String> = emptyList(),
+    /** Whether it counted before it was marked to be paid back in this form, to go back to when unmarked; null otherwise. */
+    val countedBeforeReimbursable: Boolean? = null,
 ) {
     /** Pictures added in this form, not yet on the bill. */
     val addedImages: List<String> get() = images.map { it.key }.filter { it !in savedImages }
@@ -396,10 +398,16 @@ class BillEditorViewModel(
 
     fun setCounterparty(value: String) = update { it.copy(counterparty = value) }
 
-    fun setCountInStats(value: Boolean) = update { it.copy(countInStats = value) }
+    // Chosen by hand: unmarking a reimbursement later keeps this instead of what it was before.
+    fun setCountInStats(value: Boolean) = update { it.copy(countInStats = value, countedBeforeReimbursable = null) }
 
     /** Marking an expense to be paid back leaves it out of income and expense at first; it can be counted again. */
-    fun setReimbursable(value: Boolean) = update { it.copy(reimbursable = value, countInStats = if (value) false else it.countInStats) }
+    /** Marking it to be paid back takes it out of income and expense; unmarking it in the same form puts that back. */
+    fun setReimbursable(value: Boolean) = update {
+        if (value == it.reimbursable) it
+        else if (value) it.copy(reimbursable = true, countInStats = false, countedBeforeReimbursable = it.countInStats)
+        else it.copy(reimbursable = false, countInStats = it.countedBeforeReimbursable ?: it.countInStats, countedBeforeReimbursable = null)
+    }
 
     fun setPayer(value: String) = update { it.copy(payer = value.take(BillRules.MAX_COUNTERPARTY_LENGTH)) }
 
@@ -638,6 +646,7 @@ class BillEditorViewModel(
             put("reimbursable", f.reimbursable); put("payer", f.payer)
             put("images", JSONArray(f.images.map { JSONObject().put("k", it.key).put("s", it.byteSize).put("w", it.width).put("h", it.height) }))
             put("savedImages", JSONArray(f.savedImages))
+            putOpt("countedBefore", f.countedBeforeReimbursable)
         }.toString()
 
         internal fun decode(text: String): BillForm? = runCatching {
@@ -655,7 +664,8 @@ class BillEditorViewModel(
                 o.optBoolean("reimbursable", false), o.optString("payer", ""),
                 o.optJSONArray("images")?.let { a -> (0 until a.length()).map { a.getJSONObject(it) }
                     .map { BillImage(it.getString("k"), it.getLong("s"), it.getInt("w"), it.getInt("h")) } }.orEmpty(),
-                o.optJSONArray("savedImages")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty())
+                o.optJSONArray("savedImages")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty(),
+                if (o.has("countedBefore")) o.getBoolean("countedBefore") else null)
         }.getOrNull()
     }
 }

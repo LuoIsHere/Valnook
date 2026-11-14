@@ -248,6 +248,11 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-account-$cashId").performClick()
         rule.onNodeWithTag("bill-reimbursable").performScrollTo().performClick()
         rule.onNodeWithTag("bill-count-in-stats").assertTextEquals("不计入收支")
+        // Unmarked in the same form, it counts again as it did before.
+        rule.onNodeWithTag("bill-reimbursable").performClick()
+        rule.onNodeWithTag("bill-count-in-stats").assertTextEquals("计入收支")
+        rule.onNodeWithTag("bill-reimbursable").performClick()
+        rule.onNodeWithTag("bill-count-in-stats").assertTextEquals("不计入收支")
         rule.onNodeWithTag("bill-payer").performTextInput("合成公司")
         rule.onNodeWithTag("bill-amount").performClick()
         waitTag("bill-keypad")
@@ -334,11 +339,33 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-waive").performScrollTo().performClick()
         rule.waitUntil(8_000) { runBlocking { db.bills().bill(gift)!!.reimburse_state } == "WAIVED" }
         waitTag("bill-unwaive")
+        // What was given up is the user's own spending, so it counts.
+        rule.onNodeWithText("未回款部分").assertExists()
         // Given up, nothing more can be paid back until it is waited for again.
         assertTrue(rule.onAllNodesWithTag("bill-reimburse").fetchSemanticsNodes().isEmpty())
         rule.onNodeWithTag("bill-unwaive").performScrollTo().performClick()
         rule.waitUntil(8_000) { runBlocking { db.bills().bill(gift)!!.reimburse_state } == "PENDING" }
         waitTag("bill-reimburse")
+    }
+
+    /** A discount shows under the amount, with its currency when the bill was paid in another one. */
+    @Test fun a_discount_shows_under_the_amount() {
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        fun key(value: String) = categories.single { it.builtinKey == value }.id
+        val (local, abroad, plain) = runBlocking {
+            fun save(draft: BillDraft) = runBlocking { graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, draft)).id }
+            val at = graph.clock.millis() - 60_000
+            Triple(
+                save(BillDraft(BillType.EXPENSE, at, 10_000, "CNY", 1_570, cashId, 8_430, categoryId = key("food"))),
+                // 10.00 USD less 2.00 off, at 7 to the yuan: the account paid 56.00 CNY.
+                save(BillDraft(BillType.EXPENSE, at, 1_000, "USD", 200, cashId, 5_600, java.math.BigDecimal("7"),
+                    dev.valnook.domain.model.BillRateSource.ONE_TIME, categoryId = key("food"))),
+                save(BillDraft(BillType.EXPENSE, at, 3_000, "CNY", 0, cashId, 3_000, categoryId = key("food"))))
+        }
+        waitTag("bill-row-$plain")
+        rule.onNodeWithTag("bill-row-discount-$local", useUnmergedTree = true).assertTextEquals("优惠 15.70")
+        rule.onNodeWithTag("bill-row-discount-$abroad", useUnmergedTree = true).assertTextEquals("优惠 2.00 USD")
+        rule.onNodeWithTag("bill-row-discount-$plain", useUnmergedTree = true).assertDoesNotExist()
     }
 
     /** A note search looks in the month on screen unless told to look in another month, a year or everywhere. */

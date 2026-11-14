@@ -30,7 +30,7 @@ data class BillFilter(
         (type == null || bill.type == type) &&
             (categoryId == null || bill.categoryId == categoryId || bill.subCategoryId == categoryId) &&
             (cashAccountId == null || bill.cashAccountId == cashAccountId || bill.toCashAccountId == cashAccountId) &&
-            (counted == null || (bill.type != BillType.TRANSFER && bill.countInStats == counted))
+            (counted == null || (bill.type != BillType.TRANSFER && bill.counted == counted))
 }
 
 /** Where a note search looks besides the month on screen (the default, null): another month, a year, or everywhere. */
@@ -148,7 +148,8 @@ class BillsViewModel(
         /**
          * Expense and income counted in income and expense, at today's rate into the base currency. An expense counts
          * net of its refunds and reimbursements, wherever they arrived ([Bill.remainingMinor] of what it paid); the
-         * refunds and reimbursements themselves are neither expense nor income.
+         * refunds and reimbursements themselves are neither expense nor income. An expense whose paying back was given
+         * up counts what was not paid back, even when it was not marked to count.
          */
         fun totals(list: List<Bill>, resolver: FxRateResolver): BillTotals {
             val base = resolver.base
@@ -156,7 +157,7 @@ class BillsViewModel(
             var income = BigDecimal.ZERO
             var partial = false
             var converted = false
-            list.filter { it.countInStats && (it.type == BillType.EXPENSE || it.type == BillType.INCOME) }.forEach { bill ->
+            list.filter { it.counted && (it.type == BillType.EXPENSE || it.type == BillType.INCOME) }.forEach { bill ->
                 val currency = bill.accountCurrency
                 val rate = resolver.today(currency.code)
                 if (rate == null) { partial = true; return@forEach }

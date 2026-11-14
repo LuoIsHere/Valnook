@@ -211,7 +211,7 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
         if (transfer) null else sideName(bill.cashAccountId, state.accounts, false, "", bill.accountDeleted))
     val colors = MaterialTheme.colorScheme
     // Refunds and reimbursements are neither income nor expense; what they take off their bill shows on it.
-    val counted = transfer || bill.isSettlement || bill.countInStats
+    val counted = transfer || bill.isSettlement || bill.counted
     val future = time.toLocalDate().isAfter(LocalDate.now())
     val settled = bill.refundedMinor + bill.reimbursedMinor
     // Everything came back: the bill no longer costs anything, so it greys out.
@@ -249,6 +249,11 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
                         else -> palette.gain
                     })
                 val digits = bill.currency.fraction_digits
+                // What the discount saved, right under the amount; with its currency when that is not the amount's.
+                if (bill.discountMinor > 0) Text(stringResource(R.string.bill_discount_tag, plainAmount(bill.discountMinor, digits) +
+                    if (bill.currency.code != bill.shownCurrencyCode) " ${bill.currency.code}" else ""),
+                    Modifier.testTag("bill-row-discount-${bill.id}"),
+                    style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"), color = palette.gain)
                 val tags = listOfNotNull(
                     if (!counted) stringResource(R.string.bill_not_counted) else null,
                     if (bill.refundedMinor > 0) stringResource(R.string.bill_refunded_tag, plainAmount(bill.refundedMinor, digits)) else null,

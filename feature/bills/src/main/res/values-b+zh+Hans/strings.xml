@@ -83,6 +83,7 @@
     <string name="bill_type">类型</string>
     <string name="bill_unavailable">这笔账单不存在或已删除。</string>
     <string name="bill_yes">是</string>
+    <string name="bill_counted_unpaid_part">未回款部分</string>
     <string name="bill_yesterday">昨天</string>
     <string name="bills_day_expense">支出 %1$s</string>
     <string name="bills_day_income">收入 %1$s</string>
@@ -118,6 +119,7 @@
     <string name="bill_refunded_tag">已退 %1$s</string>
     <string name="bill_reimbursed_tag">已报 %1$s</string>
     <string name="bill_pending_tag">待回款 %1$s</string>
+    <string name="bill_discount_tag">优惠 %1$s</string>
     <string name="bill_waived_tag">已放弃回款</string>
     <string name="bill_settle_left">还剩 %1$s %2$s</string>
     <string name="bill_settle_full">全额</string>

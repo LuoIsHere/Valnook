@@ -135,6 +135,12 @@ data class Bill(
     /** What can still be refunded or paid back: paid less what already was. */
     val remainingMinor: Long get() = paidMinor - refundedMinor - reimbursedMinor
 
+    /**
+     * Whether it counts in income and expense: as marked, or once paying it back was given up, when what was not paid
+     * back is the user's own spending. Either way only [remainingMinor] of what it paid counts.
+     */
+    val counted: Boolean get() = countInStats || reimburseState == ReimburseState.WAIVED
+
     /** Refunds and reimbursements come back to [parentId]; they are created and undone from it, never edited. */
     val isSettlement: Boolean get() = type == BillType.REFUND || type == BillType.REIMBURSEMENT
 
