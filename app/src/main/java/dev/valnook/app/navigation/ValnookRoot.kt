@@ -274,7 +274,12 @@ private fun SessionRoot(
         appContext.registerComponentCallbacks(memory);owner.lifecycle.addObserver(lifecycle)
         onDispose{appContext.unregisterComponentCallbacks(memory);owner.lifecycle.removeObserver(lifecycle);walletOverview.stop()}
     }
-    val updateWalletToolbar = remember(graph.sessionId) { { value: WalletToolbar? -> walletToolbar = value } }
+    // While the wallet is still in the back stack (a page opened on it, another tab in front), keep the bar it last
+    // reported. Coming back, the first frames would otherwise draw the overview's title and navigation bar before
+    // the page reports its card detail again.
+    val updateWalletToolbar = remember(graph.sessionId) { { value: WalletToolbar? ->
+        if (value != null || stack.none { it == WalletKey || it == HiddenWalletKey }) walletToolbar = value
+    } }
     val selectRoot: (NavKey) -> Unit = { route ->
         if (current.isRoot() && current != route) {
             if(current == WalletKey)walletToolbar?.back?.invoke()
