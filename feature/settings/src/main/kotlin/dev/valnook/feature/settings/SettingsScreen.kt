@@ -105,6 +105,8 @@ fun SettingsHome(
     /** Expenses to be paid back; null hides the entry (no bills in this data). */
     onReimbursements: (() -> Unit)? = null,
     reimbursementSummary: String = "",
+    onBillImages: (() -> Unit)? = null,
+    billImagesSummary: String = "",
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var appearancePicker by rememberSaveable { mutableStateOf<String?>(null) }
@@ -146,6 +148,11 @@ fun SettingsHome(
             GlassCard {
                 SettingEntry(stringResource(R.string.settings_reimbursements), reimbursementSummary, onReimbursements,
                     Modifier.testTag("settings-reimbursements"))
+                if (onBillImages != null) {
+                    HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                    SettingEntry(stringResource(R.string.settings_bill_images), billImagesSummary, onBillImages,
+                        Modifier.testTag("settings-bill-images"))
+                }
             }
         }
         item {

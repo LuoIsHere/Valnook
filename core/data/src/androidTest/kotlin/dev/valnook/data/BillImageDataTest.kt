@@ -213,6 +213,45 @@ class BillImageDataTest {
         assertTrue(db.bills().imageKeysInUse().isEmpty())
     }
 
+    /** Marks [image] as seen in OneDrive, as a backup would. */
+    private suspend fun inCloud(image: BillImage) =
+        db.bills().putImageFile(db.bills().imageFile(image.key)!!.copy(cloud_size = image.byteSize, cloud_quick_xor = "q", cloud_seen_at_ms = 1))
+
+    @Test fun clearing_the_device_takes_only_pictures_onedrive_holds_and_saved_long_enough_ago() = runBlocking {
+        val cash = cash()
+        val old = store.put(picture(11))
+        clock.at = clock.at.plusSeconds(10 * 24 * 3600)
+        val (recent, notUploaded, editing) = listOf(22, 33, 44).map { store.put(picture(it)) }
+        val bill = save(expense(cash, listOf(old, recent, notUploaded, editing)))
+        store.unpin(listOf(old, recent, notUploaded).map { it.key })
+        listOf(old, recent, editing).forEach { inCloud(it) }
+        // Saved more than five days ago: only the old one, which OneDrive holds.
+        val result = store.clearDevice(clock.millis() - 5L * 24 * 3600 * 1000)
+        assertEquals(dev.valnook.domain.repository.BillImageCleanup(1, 0), result)
+        assertFalse(store.has(old.key))
+        assertEquals(listOf(old.key, recent.key, notUploaded.key, editing.key), keys(bill))
+        assertNull(db.bills().imageFile(old.key)!!.local_saved_at_ms)
+        // Everything: the one OneDrive lacks and the one a form holds stay.
+        assertEquals(dev.valnook.domain.repository.BillImageCleanup(1, 1), store.clearDevice(null))
+        assertTrue(store.has(notUploaded.key) && store.has(editing.key) && !store.has(recent.key))
+    }
+
+    @Test fun deleting_everywhere_takes_pictures_off_their_bills_and_asks_onedrive_to_let_them_go() = runBlocking {
+        val cash = cash()
+        val (shared, local) = listOf(55, 66).map { store.put(picture(it)) }
+        val one = save(expense(cash, listOf(shared, local)))
+        val two = save(expense(cash, listOf(shared)))
+        store.unpin(listOf(shared.key, shared.key, local.key))
+        inCloud(shared)
+        assertEquals(2, store.deleteEverywhere(null))
+        assertTrue(keys(one).isEmpty() && keys(two).isEmpty())
+        assertFalse(store.has(shared.key) || store.has(local.key))
+        // OneDrive's copy goes at the next backup; the one never uploaded leaves no record.
+        assertNotNull(db.bills().imageFile(shared.key)!!.cloud_delete_requested_at_ms)
+        assertNull(db.bills().imageFile(local.key))
+        assertEquals(0, RoomBills(db).observeBill(one).first()!!.imageCount)
+    }
+
     @Test fun backups_carry_which_bill_holds_which_picture_but_never_the_files() = runBlocking {
         val cash = cash()
         val (p1, p2) = listOf(1, 2).map { store.put(picture(it * 60)) }

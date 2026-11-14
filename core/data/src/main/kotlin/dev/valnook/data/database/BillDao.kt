@@ -26,6 +26,9 @@ data class BillAccountRow(
 /** Pictures bills hold that are only on this device, and those only in OneDrive. */
 data class BillImageCounts(val not_uploaded: Int, val only_in_cloud: Int, val on_device: Int, val missing: Int)
 
+/** Room bills' pictures take here, and where the rest are. */
+data class BillImageUsageRow(val on_device: Int, val on_device_bytes: Long, val only_in_cloud: Int, val not_uploaded: Int)
+
 /** A bill with what came back for it so far (in its own currency) and, for a refund or reimbursement, its bill's note. */
 data class BillRow(
     @Embedded val bill: BillEntryEntity,
@@ -184,6 +187,26 @@ interface BillDao {
         (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a LEFT JOIN bill_image_files f ON f.image_key=a.image_key
             WHERE f.image_key IS NULL OR (f.local_saved_at_ms IS NULL AND f.cloud_size IS NULL)) AS missing""")
     fun observeImageCounts(): Flow<BillImageCounts>
+
+    @Query("""SELECT
+        (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
+            WHERE f.local_saved_at_ms IS NOT NULL) AS on_device,
+        (SELECT COALESCE(SUM(size),0) FROM (SELECT MAX(a.byte_size) AS size FROM bill_attachments a
+            JOIN bill_image_files f ON f.image_key=a.image_key WHERE f.local_saved_at_ms IS NOT NULL GROUP BY a.image_key)) AS on_device_bytes,
+        (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
+            WHERE f.local_saved_at_ms IS NULL AND f.cloud_size IS NOT NULL) AS only_in_cloud,
+        (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
+            WHERE f.local_saved_at_ms IS NOT NULL AND f.cloud_size IS NULL) AS not_uploaded""")
+    fun observeImageUsage(): Flow<BillImageUsageRow>
+
+    /** Records of bills' pictures saved on this device before [beforeMs] (all when null). */
+    @Query("""SELECT * FROM bill_image_files f WHERE f.local_saved_at_ms IS NOT NULL
+        AND (:beforeMs IS NULL OR f.local_saved_at_ms<:beforeMs)
+        AND EXISTS(SELECT 1 FROM bill_attachments a WHERE a.image_key=f.image_key)""")
+    suspend fun imagesSavedBefore(beforeMs: Long?): List<BillImageFileEntity>
+
+    @Query("DELETE FROM bill_attachments WHERE image_key IN (:keys)")
+    suspend fun deleteAttachmentsOf(keys: List<String>): Int
 
     /** Pictures bills hold, put on them since [sinceMs] (all when null). */
     @Query("SELECT DISTINCT image_key FROM bill_attachments WHERE :sinceMs IS NULL OR created_at_ms>=:sinceMs")

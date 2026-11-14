@@ -127,4 +127,27 @@
     <string name="cloud_disconnect_anyway">Disconnect anyway</string>
     <string name="backup_local_no_pictures">This backup does not include bill pictures (%1$d on this device). After changing phones or uninstalling, pictures can only come back from OneDrive.</string>
     <string name="backup_preview_pictures">The backup holds no bill picture files: pictures already on this device show as before, those in OneDrive can be fetched, and the rest show as missing.</string>
+    <string name="bill_images_title">Bill pictures</string>
+    <string name="bill_images_summary">%1$d on this device · %2$s MB</string>
+    <string name="bill_images_on_device">%1$d on this device, %2$s MB</string>
+    <string name="bill_images_only_cloud">Only in OneDrive: %1$d</string>
+    <string name="bill_images_not_uploaded">Not in OneDrive yet: %1$d</string>
+    <string name="bill_images_auto_clean">Clear pictures from this device automatically</string>
+    <string name="bill_images_auto_clean_hint">Pictures already in OneDrive leave this device once they have been here longer than the time chosen since they were saved or fetched; they can be fetched again. Nothing in OneDrive is deleted.</string>
+    <string name="bill_images_auto_clean_needs_cloud">Connect OneDrive first.</string>
+    <string name="bill_images_months">%1$d months</string>
+    <string name="bill_images_clear">Clear pictures from this device</string>
+    <string name="bill_images_fetch_all">Fetch all from OneDrive</string>
+    <string name="bill_images_cleared">%1$d pictures cleared.</string>
+    <string name="bill_images_cleared_kept">%1$d pictures cleared; %2$d not in OneDrive yet were kept.</string>
+    <string name="bill_images_deleted">%1$d pictures deleted.</string>
+    <string name="bill_images_clear_range">Clear pictures saved on this device more than:</string>
+    <string name="bill_images_older_than">%1$d months ago</string>
+    <string name="bill_images_all">All</string>
+    <string name="bill_images_also_cloud">Delete them from OneDrive too</string>
+    <string name="bill_images_clear_device">Only pictures already in OneDrive are cleared. Their bills then show them as in OneDrive, to fetch when needed.</string>
+    <string name="bill_images_clear_everywhere">These pictures are taken off their bills for good, and their copies in OneDrive go at the next backup; older OneDrive backups will show them as missing too. This cannot be undone.</string>
+    <string name="bill_images_clear_no_cloud">OneDrive is not connected, so clearing deletes these pictures from their bills for good. This cannot be undone.</string>
+    <string name="bill_images_delete">Delete</string>
+    <string name="bill_images_clear_action">Clear</string>
 </resources>

@@ -95,8 +95,10 @@ class StatisticsNavigationUiTest {
         rule.onNodeWithTag("cloud-connect").assertExists()
         rule.onNodeWithTag("cloud-title-icon", useUnmergedTree = true).assertExists()
         rule.activity.onBackPressedDispatcher.onBackPressed()
-        rule.waitUntil(5_000) { rule.onAllNodesWithTag("settings-demo-switch").fetchSemanticsNodes().isNotEmpty() }
-        rule.onNodeWithTag("settings-demo-switch").performScrollTo().performClick()
+        // The switch is further down the settings list, which only builds what is on screen.
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("settings-backup-export").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNode(hasScrollAction()).performScrollToNode(hasTestTag("settings-demo-switch"))
+        rule.onNodeWithTag("settings-demo-switch").performClick()
         rule.waitUntil(10_000) {
             rule.onAllNodesWithText(rule.activity.getString(dev.valnook.feature.settings.R.string.settings_demo_banner))
                 .fetchSemanticsNodes().isNotEmpty()

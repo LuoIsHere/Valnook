@@ -231,6 +231,8 @@ class CloudBackupCoordinator internal constructor(
                     } catch (_: Exception) {
                         // Clean-up is tried again after the next backup; nothing is lost by waiting.
                     }
+                    // With every picture safely in OneDrive, the automatic clean-up may let old ones leave this device.
+                    store.autoClean(dev.valnook.data.image.BillImagePreferences.of(appContext))
                 } catch (cancelled: CancellationException) {
                     imageProblem(CloudImageProblem.INCOMPLETE)
                     throw cancelled

@@ -56,7 +56,7 @@ private fun discardCreated(context: android.content.Context, uri: android.net.Ur
 }
 
 @Composable
-fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
+fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = LocalContext.current.applicationContext
     // Kept across a recreation while the system picker is open, or its answer would find nothing to write.
@@ -142,6 +142,9 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             Text(if (demoMode) stringResource(R.string.backup_export_demo_excel)
                 else stringResource(R.string.backup_export_excel))
         } }
+        if (onBillImages != null && !demoMode) item {
+            TextButton(onBillImages, Modifier.fillMaxWidth().testTag("backup-bill-images")) { Text(stringResource(R.string.bill_images_title)) }
+        }
         if (state.busy) item(key = "feedback-progress") {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 CircularProgressIndicator(Modifier.padding(4.dp))

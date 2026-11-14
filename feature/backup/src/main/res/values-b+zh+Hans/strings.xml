@@ -127,4 +127,27 @@
     <string name="cloud_disconnect_anyway">仍然断开</string>
     <string name="backup_local_no_pictures">这份备份不包含账单图片（本机 %1$d 张）。换机或卸载后，图片只能从 OneDrive 找回。</string>
     <string name="backup_preview_pictures">备份不包含账单图片文件：本机已有的图片照常显示，OneDrive 里有的可以取回，其余显示为图片缺失。</string>
+    <string name="bill_images_title">账单图片</string>
+    <string name="bill_images_summary">本机 %1$d 张 · %2$s MB</string>
+    <string name="bill_images_on_device">本机 %1$d 张，共 %2$s MB</string>
+    <string name="bill_images_only_cloud">只在 OneDrive：%1$d 张</string>
+    <string name="bill_images_not_uploaded">还没上传到 OneDrive：%1$d 张</string>
+    <string name="bill_images_auto_clean">自动清理本机图片</string>
+    <string name="bill_images_auto_clean_hint">已经备份到 OneDrive 的图片，在本机保存或取回超过所选时间后，从本机移除，需要时可以取回。不会删除 OneDrive 中的图片。</string>
+    <string name="bill_images_auto_clean_needs_cloud">需要先连接 OneDrive。</string>
+    <string name="bill_images_months">%1$d 个月</string>
+    <string name="bill_images_clear">清理本机图片</string>
+    <string name="bill_images_fetch_all">全部从 OneDrive 取回</string>
+    <string name="bill_images_cleared">已清理 %1$d 张。</string>
+    <string name="bill_images_cleared_kept">已清理 %1$d 张；%2$d 张还没备份到 OneDrive，已保留。</string>
+    <string name="bill_images_deleted">已删除 %1$d 张。</string>
+    <string name="bill_images_clear_range">清理在本机保存了多久的图片：</string>
+    <string name="bill_images_older_than">超过 %1$d 个月</string>
+    <string name="bill_images_all">全部</string>
+    <string name="bill_images_also_cloud">同时从 OneDrive 删除</string>
+    <string name="bill_images_clear_device">只清理已经备份到 OneDrive 的图片。清理后，账单里显示“在云端”，需要时可以取回。</string>
+    <string name="bill_images_clear_everywhere">这些图片会从账单里彻底移除，OneDrive 中的副本在下一次备份时删除，旧的 OneDrive 备份里这些图片也会变成缺失。无法撤销。</string>
+    <string name="bill_images_clear_no_cloud">没有连接 OneDrive，清理会把这些图片从账单里彻底删除。无法撤销。</string>
+    <string name="bill_images_delete">删除</string>
+    <string name="bill_images_clear_action">清理</string>
 </resources>

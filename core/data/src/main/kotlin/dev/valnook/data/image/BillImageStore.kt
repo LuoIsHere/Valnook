@@ -1,6 +1,7 @@
 package dev.valnook.data.image
 
 import android.graphics.BitmapFactory
+import androidx.room.withTransaction
 import dev.valnook.data.database.BillImageFileEntity
 import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.model.BillImage
@@ -142,6 +143,54 @@ class BillImageStore(private val dir: File, private val db: ValnookDatabase, pri
                 records.values.filter { it.local_saved_at_ms != null && !File(dir, "${it.image_key}.webp").isFile }
                     .forEach { forgetLocal(it) }
             }
+        }
+    }
+
+    /**
+     * Removes from this device the bills' pictures saved before [beforeMs] (all when null) that OneDrive was seen
+     * holding; they stay on their bills, to fetch again. Pictures a form holds, and those OneDrive lacks, stay.
+     */
+    suspend fun clearDevice(beforeMs: Long?): dev.valnook.domain.repository.BillImageCleanup = withContext(Dispatchers.IO) {
+        lock.withLock {
+            var removed = 0
+            var kept = 0
+            dao.imagesSavedBefore(beforeMs).forEach { record ->
+                when {
+                    pinned.containsKey(record.image_key) -> Unit
+                    record.cloud_size == null -> kept++
+                    else -> {
+                        File(dir, "${record.image_key}.webp").delete()
+                        dao.putImageFile(record.copy(local_saved_at_ms = null))
+                        removed++
+                    }
+                }
+            }
+            dev.valnook.domain.repository.BillImageCleanup(removed, kept)
+        }
+    }
+
+    /** The automatic clean-up, by this store's own clock: what [preferences] says may leave, does. */
+    suspend fun autoClean(preferences: BillImagePreferences): dev.valnook.domain.repository.BillImageCleanup? =
+        preferences.cutoff(clock.millis())?.let { clearDevice(it) }
+
+    /**
+     * Takes the bills' pictures saved before [beforeMs] (all when null) off their bills and deletes them here for
+     * good. Those OneDrive holds are marked for its next backup to delete there too. Returns how many went.
+     */
+    suspend fun deleteEverywhere(beforeMs: Long?): Int = withContext(Dispatchers.IO) {
+        lock.withLock {
+            val records = dao.imagesSavedBefore(beforeMs).filter { !pinned.containsKey(it.image_key) }
+            if (records.isEmpty()) return@withLock 0
+            val now = clock.millis()
+            db.withTransaction {
+                records.map { it.image_key }.chunked(500).forEach { dao.deleteAttachmentsOf(it) }
+                records.forEach { record ->
+                    if (record.cloud_size == null) dao.deleteImageFile(record.image_key)
+                    else dao.putImageFile(record.copy(local_saved_at_ms = null, cloud_delete_requested_at_ms = now))
+                }
+            }
+            records.forEach { File(dir, "${it.image_key}.webp").delete() }
+            records.size
         }
     }
 

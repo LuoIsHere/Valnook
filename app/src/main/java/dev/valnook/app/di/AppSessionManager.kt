@@ -73,6 +73,8 @@ class AppSessionManager @Inject internal constructor(
             runCatching { writeMutex.withLock { realDatabaseGraph.walletPrivate.cleanup() } }
             // Bill pictures left by a form a crash closed, and records of files that are gone.
             runCatching { realDatabaseGraph.images.sweep() }
+            // The automatic clean-up: pictures OneDrive holds that were saved here longer ago than the chosen months.
+            runCatching { realDatabaseGraph.images.autoClean(dev.valnook.data.image.BillImagePreferences.of(context)) }
             // Camera shots a closed form never read; a day old, so a photo taken just before the app was ended stays.
             runCatching {
                 val dayAgo = System.currentTimeMillis() - 24L * 60 * 60 * 1000
@@ -326,6 +328,7 @@ class AppSessionManager @Inject internal constructor(
         cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator),
         fxSync = SessionFxSync(sessionId, mode),
         bills = source.bills,
+        billImageStorage = source.imageStorage,
         billImages = object : dev.valnook.domain.repository.BillImageLibrary by source.billImages {
             // Pictures come back from OneDrive only for the real data, through this session's checks.
             override suspend fun fetch(keys: Collection<String>): Int = if (mode != DataMode.REAL) 0 else

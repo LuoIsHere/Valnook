@@ -546,6 +546,9 @@ private fun SessionRoot(
                                         ?: kotlinx.coroutines.flow.flowOf(null)
                                 }.collectAsStateWithLifecycle(null)
                                 val reimbursementText = dev.valnook.feature.bills.reimbursementSummaryText(reimbursements)
+                                val imageUsage by remember(graph.billImageStorage) {
+                                    graph.billImageStorage?.observeUsage() ?: kotlinx.coroutines.flow.flowOf(null)
+                                }.collectAsStateWithLifecycle(null)
                                 SettingsHome(vm, active.mode == DataMode.DEMO, switching, switchFailed,
                                     { open(FxSettingsKey) }, { enable ->
                                         if (!switching) scope.launch {
@@ -563,7 +566,9 @@ private fun SessionRoot(
                                     BuildConfig.VERSION_CODE, themeMode, onThemeChange, onAbout = { open(AboutKey) },
                                     onCardFaces = { open(WalletFaceLibraryKey) },
                                     onReimbursements = if (bills != null) ({ open(ReimbursementsKey) }) else null,
-                                    reimbursementSummary = reimbursementText)
+                                    reimbursementSummary = reimbursementText,
+                                    onBillImages = if (graph.billImageStorage != null) ({ open(BillImagesKey) }) else null,
+                                    billImagesSummary = dev.valnook.feature.backup.billImagesSummaryText(imageUsage))
                             }
                             entry<WalletFaceLibraryKey> {
                                 dev.valnook.feature.wallet.WalletFaceLibraryScreen(pageViewModel {
@@ -585,7 +590,14 @@ private fun SessionRoot(
                                     dev.valnook.feature.backup.BackupViewModel(
                                         graph.portability, graph.settings, active.mode == DataMode.DEMO,
                                         graph.cloudBackup, sessions.cloudAuthorization)
-                                }, active.mode == DataMode.DEMO)
+                                }, active.mode == DataMode.DEMO,
+                                    onBillImages = if (graph.billImageStorage != null) ({ open(BillImagesKey) }) else null)
+                            }
+                            entry<BillImagesKey> {
+                                dev.valnook.feature.backup.BillImagesScreen(pageViewModel {
+                                    dev.valnook.feature.backup.BillImagesViewModel(requireNotNull(graph.billImageStorage),
+                                        graph.cloudBackup, graph.clock)
+                                })
                             }
                             entry<WebAdminKey> {
                                 dev.valnook.feature.webadmin.WebAdminScreen(pageViewModel {

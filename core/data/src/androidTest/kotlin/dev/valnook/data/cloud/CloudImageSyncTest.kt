@@ -236,6 +236,28 @@ class CloudImageSyncTest {
         assertTrue(store.has(old.single().key))
     }
 
+    @Test fun the_automatic_clean_up_lets_old_pictures_leave_this_device_once_onedrive_has_them() = runBlocking {
+        val preferences = dev.valnook.data.image.BillImagePreferences.of(context)
+        try {
+            val (old, recent) = stored(12, 34)
+            bill(listOf(old, recent))
+            // The old one was saved here two months ago.
+            database.bills().putImageFile(database.bills().imageFile(old.key)!!.copy(
+                local_saved_at_ms = clock.millis() - 60L * 24 * 3600 * 1000))
+            preferences.setAutoCleanMonths(1)
+            coordinator.manualBackup()
+            assertFalse(store.has(old.key))
+            assertTrue(store.has(recent.key))
+            assertEquals(1, status().onlyInCloud)
+            // Fetched back, it starts its month again and stays through the next backup.
+            assertEquals(1, coordinator.fetchImages(listOf(old.key)))
+            coordinator.manualBackup()
+            assertTrue(store.has(old.key))
+        } finally {
+            preferences.setAutoCleanMonths(null)
+        }
+    }
+
     @Test fun disconnecting_forgets_what_onedrive_holds() = runBlocking {
         bill(stored(35))
         coordinator.manualBackup()
