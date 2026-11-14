@@ -17,6 +17,7 @@ android {
 dependencies {
     implementation(project(":core:domain"))
     implementation(project(":core:designsystem"))
+    implementation(project(":feature:bills"))
     implementation(libs.coroutines.core)
     implementation(libs.serialization.json)
     implementation(libs.androidx.activity.compose)

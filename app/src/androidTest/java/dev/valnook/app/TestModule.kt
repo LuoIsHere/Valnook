@@ -64,7 +64,8 @@ object TestModule {
     @Provides
     @Singleton
     internal fun databaseGraph(@ApplicationContext context: Context, database: ValnookDatabase, clock: Clock): DatabaseGraph =
-        createDatabaseGraph(context, database, clock, currentBuildInfo(), persistentPrivateCards = false)
+        createDatabaseGraph(context, database, clock, currentBuildInfo(), persistentPrivateCards = false,
+            aiTransport = ScriptedAiTransport).also { TestGraphs.real = it }
 
     @Provides @Singleton fun cloudAccessProvider(): CloudAccessProvider = CloudAccessProvider { CloudAccessResult.Unavailable }
     @Provides @Singleton fun backupScheduler(): BackupScheduler = object : BackupScheduler {
@@ -82,3 +83,6 @@ object TestModule {
     // UI tests never go online; automatic rates stay inert unless a test supplies its own engine.
     @Provides @Singleton fun fxSyncEngine(): dev.valnook.data.fx.FxSyncEngine = dev.valnook.data.fx.DisabledFxSyncEngine
 }
+
+/** The test's real database graph, for what pages cannot reach (the AI check report). */
+internal object TestGraphs { lateinit var real: DatabaseGraph }

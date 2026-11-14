@@ -51,7 +51,15 @@ data class AiSettingsUi(
     val checking: AiCheckItem? = null,
     val saving: Boolean = false,
     val saveFailed: Boolean = false,
+    /** This month's AI requests; null without conversations (demo, tests). */
+    val usage: AiUsageSummary? = null,
 ) {
+    /** The master switch can be turned on: the required checks of the saved connection passed. */
+    val canEnable: Boolean get() = report?.usable == true
+    val imagePassed: Boolean get() = report?.of(AiCheckItem.IMAGE)?.state == AiCheckState.PASSED
+    val thinkingPassed: Boolean get() = report?.of(AiCheckItem.THINKING)?.state == AiCheckState.PASSED &&
+        settings.connection.thinkingOnParams.isNotBlank()
+
     val connectionDirty: Boolean get() = form.connection().let { typed ->
         val saved = settings.connection
         typed.baseUrl != saved.baseUrl || typed.model != saved.model || typed.extraParams != saved.extraParams ||
@@ -75,11 +83,13 @@ data class AiSettingsUi(
 }
 
 /** Settings → AI. The connection and personal sections are drafts saved with their buttons; defaults save at once. */
-class AiSettingsViewModel(private val service: AiService, val avatars: AiAvatars) : ViewModel() {
+class AiSettingsViewModel(private val service: AiService, val avatars: AiAvatars,
+    private val assistant: AiAssistant? = null) : ViewModel() {
     private val mutable = MutableStateFlow(AiSettingsUi())
     val state: StateFlow<AiSettingsUi> = mutable
 
     init {
+        assistant?.let { chat -> viewModelScope.launch { chat.observeUsage().collect { usage -> mutable.update { it.copy(usage = usage) } } } }
         viewModelScope.launch {
             combine(service.observeSettings(), service.observeKeySaved(), service.observeChecks(), service.observeChoices()) {
                 settings, keySaved, report, choices -> listOf(settings, keySaved, report, choices)
@@ -95,6 +105,29 @@ class AiSettingsViewModel(private val service: AiService, val avatars: AiAvatars
                 }
             }
         }
+    }
+
+    /** Switching on needs the required checks passed; the page asks the first time before calling this. */
+    fun setEnabled(enabled: Boolean) {
+        if (enabled && !state.value.canEnable) return
+        viewModelScope.launch { runCatching { service.setEnabled(enabled) } }
+    }
+
+    /** One feature switch changed; those whose check did not pass stay off. */
+    fun setFeatures(change: (AiSettings) -> AiSettings) {
+        val ui = state.value
+        val next = change(ui.settings)
+        viewModelScope.launch {
+            runCatching {
+                service.saveFeatures(next.billChat, next.shareText, next.shareImage && ui.imagePassed,
+                    next.thinking && ui.thinkingPassed, next.chat, next.sendHabits)
+            }
+        }
+    }
+
+    fun clearConversations() {
+        val chat = assistant ?: return
+        viewModelScope.launch { runCatching { chat.clearConversations() } }
     }
 
     fun editConnection(change: (AiConnectionForm) -> AiConnectionForm) = mutable.update { it.copy(form = change(it.form), saveFailed = false) }

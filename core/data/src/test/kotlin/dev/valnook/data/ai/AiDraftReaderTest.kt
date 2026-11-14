@@ -136,6 +136,27 @@ class AiDraftReaderTest {
         assertTrue(AiDraftFlag.ACCOUNT in one("""{"type":"TRANSFER","amount":"5"}""").flags)
     }
 
+    @Test fun a_transfer_said_by_what_arrived_keeps_that_amount() {
+        // 1000 yen arrive in the yen account from the CNY card: what left is worked out at the app's rate.
+        val received = one("""{"type":"TRANSFER","amount":"1000","currency":"JPY","account_id":7,"to_account_id":9}""")
+        assertNull(received.amountMinor)
+        assertEquals(1000L, received.toAmountMinor)
+        assertEquals("CNY", received.currencyCode)
+        assertTrue(received.hasAmount)
+        assertTrue(AiDraftFlag.AMOUNT !in received.flags)
+        // Said in the leaving account's currency, or in neither, it is what left.
+        assertEquals(1000L, one("""{"type":"TRANSFER","amount":"10","currency":"CNY","account_id":7,"to_account_id":9}""").amountMinor)
+        assertEquals(1000L, one("""{"type":"TRANSFER","amount":"10","currency":"USD","account_id":7,"to_account_id":9}""").amountMinor)
+    }
+
+    @Test fun an_expense_keeps_the_currency_paid_on_an_account_in_another() {
+        val abroad = one("""{"type":"EXPENSE","amount":"1200","currency":"JPY","category_id":1,"account_id":7}""")
+        assertEquals("JPY" to 1200L, abroad.currencyCode to abroad.amountMinor)
+        assertEquals(7L, abroad.cashAccountId)
+        // Not said: the account's currency.
+        assertEquals("JPY", one("""{"type":"EXPENSE","amount":"5","category_id":1,"account_id":9}""").currencyCode)
+    }
+
     @Test fun only_the_shape_of_the_call_can_fail_it() {
         assertEquals(1, reader().read("""{"bills":"[{\"type\":\"EXPENSE\",\"amount\":\"1\"}]"}""").drafts.size)
         assertTrue(reader().read("""{"message":"Nothing here"}""").drafts.isEmpty())

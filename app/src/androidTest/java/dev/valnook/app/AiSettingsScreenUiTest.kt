@@ -61,12 +61,20 @@ class AiSettingsScreenUiTest {
                 AiCheckItem.THINKING to AiCheck(AiCheckState.UNKNOWN, AiProblem.TIMEOUT))).also { report.value = it }
         }
         override suspend fun promptPreview() = ""
+        override fun observeFeatures() = combine(settings, observeChecks()) { s, r -> AiFeatures.of(s, r) }
+        override suspend fun setEnabled(enabled: Boolean) { settings.value = settings.value.copy(enabled = enabled) }
+        override suspend fun saveFeatures(billChat: Boolean, shareText: Boolean, shareImage: Boolean, thinking: Boolean,
+            chat: Boolean, sendHabits: Boolean) {
+            settings.value = settings.value.copy(billChat = billChat, shareText = shareText, shareImage = shareImage,
+                thinking = thinking, chat = chat, sendHabits = sendHabits)
+        }
     }
 
     private fun category(id: Long, key: String?, name: String, kind: BillCategoryKind = BillCategoryKind.EXPENSE) =
         BillCategory(id, kind, null, key, name, "circle", "grey", id, false, null, 1)
 
     private fun show() {
+        dev.valnook.feature.ai.AiNotices.clear(InstrumentationRegistry.getInstrumentation().targetContext)
         val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "ai-avatars-test").apply { deleteRecursively() }
         val vm = AiSettingsViewModel(service, AiAvatars(directory))
         rule.setContent { ValnookTheme(dark_theme = false) { AiSettingsScreen(vm, onPrompt = { prompts++ }, onDirtyChange = { dirty = it }) } }
@@ -155,5 +163,31 @@ class AiSettingsScreenUiTest {
         rule.onNodeWithTag("ai-prompt-entry").performScrollTo().performClick()
         assertEquals(1, prompts)
         rule.onNodeWithTag("ai-disclaimer").performScrollTo().assertExists()
+    }
+
+    @Test fun the_master_switch_waits_for_the_checks_and_explains_itself_once() {
+        show()
+        rule.onNodeWithTag("ai-enable").assertIsNotEnabled().assertIsOff()
+        rule.onNodeWithText("连通和工具调用检测都通过后才能打开").assertExists()
+        rule.onNodeWithTag("ai-check").performScrollTo().performClick()
+        rule.waitUntil(5_000) { checks == 1 }
+        rule.onNodeWithTag("ai-enable").performScrollTo().assertIsEnabled().performClick()
+        // The first time it says where the data goes before switching on.
+        rule.onNodeWithTag("ai-enable-notice").assertExists()
+        rule.onNodeWithTag("ai-enable-notice-ok").performClick()
+        rule.waitUntil(5_000) { settings.value.enabled }
+        rule.onNodeWithTag("ai-enable").performClick()
+        rule.waitUntil(5_000) { !settings.value.enabled }
+        rule.onNodeWithTag("ai-enable").performClick()
+        rule.onNodeWithTag("ai-enable-notice").assertDoesNotExist()
+        rule.waitUntil(5_000) { settings.value.enabled }
+        // Features follow; those whose check did not pass stay off and say why.
+        rule.onNodeWithTag("ai-feature-share-image").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithText("图像检测通过后才能打开").assertExists()
+        rule.onNodeWithTag("ai-feature-thinking").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithTag("ai-feature-chat").performScrollTo().assertIsOff().performClick()
+        rule.waitUntil(5_000) { settings.value.chat }
+        rule.onNodeWithTag("ai-feature-bill-chat").performScrollTo().assertIsOn().performClick()
+        rule.waitUntil(5_000) { !settings.value.billChat }
     }
 }

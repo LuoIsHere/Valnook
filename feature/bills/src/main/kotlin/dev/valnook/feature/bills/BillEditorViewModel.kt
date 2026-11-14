@@ -127,7 +127,9 @@ data class BillEditorState(
 
 /**
  * The bill form. A new bill when [billId] and [copyFromId] are null; [billId] edits one; [copyFromId] starts a new one
- * from another bill's category, account, amount and note, dated now.
+ * from another bill's category, account, amount and note, dated now. [prefill] (an encoded [BillForm], see
+ * [BillPrefill]) starts a new bill already filled in, saved under [operation] when given, so whoever filled it in can
+ * find out afterwards whether it was saved.
  */
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class BillEditorViewModel(
@@ -142,9 +144,13 @@ class BillEditorViewModel(
     private val saved: SavedStateHandle,
     /** The device's bill pictures; without it (tests) pictures cannot be added. */
     private val images: BillImageLibrary? = null,
+    prefill: String? = null,
+    operation: String? = null,
 ) : ViewModel() {
-    private var operationId: String = saved.get<String>("operation") ?: newOperation()
-    private val form = MutableStateFlow(saved.get<String>("form")?.let(::decode) ?: BillForm(tab = initialTab, occurredAt = now()))
+    private var operationId: String = saved.get<String>("operation") ?: operation?.also { saved["operation"] = it } ?: newOperation()
+    private val form = MutableStateFlow(saved.get<String>("form")?.let(::decode)
+        ?: prefill?.takeIf { billId == null && copyFromId == null }?.let(::decode)?.copy(target = BillField.AMOUNT)
+        ?: BillForm(tab = initialTab, occurredAt = now()))
     private val meta = MutableStateFlow(Meta(
         loaded = saved.get<Boolean>("loaded") ?: (billId == null && copyFromId == null),
         revision = saved.get<Long>("revision"),
@@ -509,34 +515,40 @@ class BillEditorViewModel(
 
     fun consumeSaved(): Boolean = meta.value.phase == BillSavePhase.SAVED
 
-    private fun draft(f: BillForm, p: BillPreview): BillDraft {
-        p.problem?.let { throw DomainException(when (it) {
-            BillProblem.AMOUNT, BillProblem.DIVIDE -> ErrorCode.POSITIVE
-            BillProblem.DISCOUNT -> ErrorCode.FORMAT
-            BillProblem.ACCOUNT, BillProblem.SAME_ACCOUNT, BillProblem.BOTH_EXTERNAL -> ErrorCode.WRONG_CASH_ACCOUNT
-            BillProblem.CATEGORY -> ErrorCode.FORMAT
-            BillProblem.RATE -> ErrorCode.CURRENCY
-        }) }
-        val time = f.occurredAt.atZone(clock.zone).toInstant().toEpochMilli()
-        val amount = p.amountMinor!!
-        if (f.tab == BillTab.TRANSFER) {
-            val kind = when { f.fromExternal -> TransferKind.FROM_EXTERNAL; f.toExternal -> TransferKind.TO_EXTERNAL; else -> TransferKind.INTERNAL }
-            val fee = if (kind == TransferKind.FROM_EXTERNAL) 0 else f.fee.minor(p.accountCurrency!!.fraction_digits) ?: 0
-            return BillDraft(BillType.TRANSFER, time, amount, p.accountCurrency!!.code, 0,
-                if (kind == TransferKind.FROM_EXTERNAL) null else f.cashAccountId, amount, p.rate ?: BigDecimal.ONE,
-                p.rateSource ?: BillRateSource.SAME, kind, if (kind == TransferKind.TO_EXTERNAL) null else f.toCashAccountId,
-                when (kind) { TransferKind.TO_EXTERNAL -> null; TransferKind.FROM_EXTERNAL -> amount; else -> p.convertedMinor },
-                fee, if (kind == TransferKind.INTERNAL) "" else f.counterparty, countInStats = false, note = f.note,
-                images = f.images)
-        }
-        return BillDraft(if (f.tab == BillTab.INCOME) BillType.INCOME else BillType.EXPENSE, time, amount, p.currency!!.code,
-            p.discountMinor, f.cashAccountId, p.convertedMinor!!, p.rate ?: BigDecimal.ONE, p.rateSource ?: BillRateSource.SAME,
-            categoryId = f.categoryId, subCategoryId = f.subCategoryId, countInStats = f.countInStats, note = f.note,
-            reimbursable = f.tab == BillTab.EXPENSE && f.reimbursable,
-            counterparty = if (f.tab == BillTab.EXPENSE && f.reimbursable) f.payer else "", images = f.images)
-    }
+    private fun draft(f: BillForm, p: BillPreview): BillDraft = draftOf(f, p, clock.zone)
 
     companion object {
+        /**
+         * The bill [f] saves as, with [p] its preview; throws [DomainException] for what [BillPreview.problem] names.
+         * The one way a form becomes a bill, for this page and for drafts saved without opening it.
+         */
+        fun draftOf(f: BillForm, p: BillPreview, zone: java.time.ZoneId): BillDraft {
+            p.problem?.let { throw DomainException(when (it) {
+                BillProblem.AMOUNT, BillProblem.DIVIDE -> ErrorCode.POSITIVE
+                BillProblem.DISCOUNT -> ErrorCode.FORMAT
+                BillProblem.ACCOUNT, BillProblem.SAME_ACCOUNT, BillProblem.BOTH_EXTERNAL -> ErrorCode.WRONG_CASH_ACCOUNT
+                BillProblem.CATEGORY -> ErrorCode.FORMAT
+                BillProblem.RATE -> ErrorCode.CURRENCY
+            }) }
+            val time = f.occurredAt.atZone(zone).toInstant().toEpochMilli()
+            val amount = p.amountMinor!!
+            if (f.tab == BillTab.TRANSFER) {
+                val kind = when { f.fromExternal -> TransferKind.FROM_EXTERNAL; f.toExternal -> TransferKind.TO_EXTERNAL; else -> TransferKind.INTERNAL }
+                val fee = if (kind == TransferKind.FROM_EXTERNAL) 0 else f.fee.minor(p.accountCurrency!!.fraction_digits) ?: 0
+                return BillDraft(BillType.TRANSFER, time, amount, p.accountCurrency!!.code, 0,
+                    if (kind == TransferKind.FROM_EXTERNAL) null else f.cashAccountId, amount, p.rate ?: BigDecimal.ONE,
+                    p.rateSource ?: BillRateSource.SAME, kind, if (kind == TransferKind.TO_EXTERNAL) null else f.toCashAccountId,
+                    when (kind) { TransferKind.TO_EXTERNAL -> null; TransferKind.FROM_EXTERNAL -> amount; else -> p.convertedMinor },
+                    fee, if (kind == TransferKind.INTERNAL) "" else f.counterparty, countInStats = false, note = f.note,
+                    images = f.images)
+            }
+            return BillDraft(if (f.tab == BillTab.INCOME) BillType.INCOME else BillType.EXPENSE, time, amount, p.currency!!.code,
+                p.discountMinor, f.cashAccountId, p.convertedMinor!!, p.rate ?: BigDecimal.ONE, p.rateSource ?: BillRateSource.SAME,
+                categoryId = f.categoryId, subCategoryId = f.subCategoryId, countInStats = f.countInStats, note = f.note,
+                reimbursable = f.tab == BillTab.EXPENSE && f.reimbursable,
+                counterparty = if (f.tab == BillTab.EXPENSE && f.reimbursable) f.payer else "", images = f.images)
+        }
+
         /** Works out every figure the form shows and whether it can be saved. */
         fun preview(f: BillForm, accounts: List<BillAccountChoice>, settings: AppSettings?, fx: FxContext,
             dayRates: Map<String, BigDecimal>): BillPreview {

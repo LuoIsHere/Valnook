@@ -46,7 +46,9 @@ class AppGraph(
     val billImages: dev.valnook.domain.repository.BillImageLibrary? = null,
     val billImageStorage: dev.valnook.domain.repository.BillImageStorage? = null,
     /** Real data only: demo mode shows no AI. */
-    val ai: dev.valnook.domain.ai.AiService? = null
+    val ai: dev.valnook.domain.ai.AiService? = null,
+    /** Conversations and shares; real data only, like [ai]. */
+    val assistant: dev.valnook.domain.ai.AiAssistant? = null
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -75,7 +77,8 @@ internal data class DatabaseGraph(
     val ai: dev.valnook.domain.ai.AiService,
     /** On this device only, cleared with all data. */
     val aiKeys: dev.valnook.data.ai.AiKeyStore,
-    val aiChecks: dev.valnook.data.ai.AiCheckStore
+    val aiChecks: dev.valnook.data.ai.AiCheckStore,
+    val assistant: dev.valnook.data.ai.RoomAiAssistant
 )
 
 internal fun createDatabaseGraph(
@@ -83,7 +86,9 @@ internal fun createDatabaseGraph(
     database: ValnookDatabase,
     clock: Clock,
     buildInfo: AppBuildInfo,
-    persistentPrivateCards: Boolean = true
+    persistentPrivateCards: Boolean = true,
+    /** Where AI requests go; tests script it. */
+    aiTransport: dev.valnook.data.ai.AiTransport = dev.valnook.data.ai.UrlConnectionAiTransport()
 ): DatabaseGraph {
     val cash = RoomCash(database.cash())
     val deposits = RoomDeposits(database.deposits())
@@ -96,6 +101,13 @@ internal fun createDatabaseGraph(
     // The key and check report belong to the device; a demo or test database gets throwaway ones.
     val aiKeys = if (persistentPrivateCards) dev.valnook.data.ai.EncryptedAiKeyStore(context) else dev.valnook.data.ai.MemoryAiKeyStore()
     val aiChecks = if (persistentPrivateCards) dev.valnook.data.ai.PreferencesAiCheckStore(context) else dev.valnook.data.ai.MemoryAiCheckStore()
+    val english = { !appLanguageIsChinese(context) }
+    val aiClient = dev.valnook.data.ai.AiClient(aiTransport)
+    val ai = dev.valnook.data.ai.RoomAiService(database, aiKeys, aiChecks, clock, english, aiClient)
+    // Conversations belong to the device like the key; a demo or test database gets a throwaway one.
+    val chat = if (persistentPrivateCards) dev.valnook.data.ai.AiChatDatabase.open(context)
+        else dev.valnook.data.ai.AiChatDatabase.inMemory(context)
+    val aiPictures = dev.valnook.data.ai.StoreAiPictures(images)
     return DatabaseGraph(
         database = database,
         accounts = RoomAccounts(database),
@@ -122,9 +134,10 @@ internal fun createDatabaseGraph(
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)),
         imageStorage = dev.valnook.data.image.LocalBillImageStorage(images, database,
             dev.valnook.data.image.BillImagePreferences.of(context)),
-        ai = dev.valnook.data.ai.RoomAiService(database, aiKeys, aiChecks, clock, { !appLanguageIsChinese(context) }),
+        ai = ai,
         aiKeys = aiKeys,
-        aiChecks = aiChecks
+        aiChecks = aiChecks,
+        assistant = dev.valnook.data.ai.RoomAiAssistant(database, chat, ai, aiKeys, clock, english, aiPictures, aiPictures, aiClient)
     )
 }
 

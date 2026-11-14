@@ -21,7 +21,7 @@ import dev.valnook.feature.wallet.*
 /** The title bar's text for [current]; names of an account, an instrument or a sub-account come from the root's reads. */
 @Composable
 internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long) -> String,
-    instrumentName: (Long) -> String?, cashName: (Long) -> String?): String = when (current) {
+    instrumentName: (Long) -> String?, cashName: (Long) -> String?, aiChatTitle: String? = null): String = when (current) {
     WalletKey, HiddenWalletKey -> walletTitle ?: stringResource(R.string.nav_wallet)
     BillsKey, HiddenBillsKey -> stringResource(R.string.nav_bills)
     is BillEditorKey -> stringResource(if (current.billId != null) R.string.title_edit_bill else R.string.title_new_bill)
@@ -32,6 +32,7 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     BillImagesKey -> stringResource(R.string.title_bill_images)
     AiSettingsKey -> stringResource(dev.valnook.feature.ai.R.string.ai_title)
     AiPromptKey -> stringResource(dev.valnook.feature.ai.R.string.ai_prompt_title)
+    AiChatKey -> aiChatTitle ?: stringResource(dev.valnook.feature.ai.R.string.ai_chat_title)
     AccountsKey, HiddenAccountsKey -> stringResource(R.string.nav_accounts)
     InvestmentsKey, HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
     StatisticsKey, HiddenStatisticsKey -> stringResource(R.string.nav_statistics)
@@ -94,6 +95,15 @@ internal fun RootTopBarActions(current: NavKey, walletDetail: Boolean, wallet: W
             IconButton({ open(BillCategoriesKey) }, Modifier.testTag("bills-categories")
                 .semantics { contentDescription = categoriesLabel }) {
                 dev.valnook.designsystem.FaIcon(dev.valnook.designsystem.FaIcons.tags, null, Modifier.size(20.dp))
+            }
+        }
+        AiChatKey -> toolbars.aiChat?.let { chat ->
+            val newLabel = stringResource(dev.valnook.feature.ai.R.string.ai_chat_new)
+            IconButton(chat.onNew, Modifier.testTag("ai-chat-new").semantics { contentDescription = newLabel },
+                enabled = chat.canNew) { dev.valnook.designsystem.AddIcon(enabled = chat.canNew) }
+            val historyLabel = stringResource(dev.valnook.feature.ai.R.string.ai_chat_history)
+            IconButton(chat.onHistory, Modifier.testTag("ai-chat-history-open").semantics { contentDescription = historyLabel }) {
+                dev.valnook.designsystem.FaIcon(dev.valnook.core.designsystem.R.drawable.fa_bars, null, Modifier.size(20.dp))
             }
         }
         BillCategoriesKey -> {

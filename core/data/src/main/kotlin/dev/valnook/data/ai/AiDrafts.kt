@@ -78,6 +78,15 @@ class AiDraftReader(
             // A transfer is counted in the currency of the account it leaves, or of the one it reaches from outside.
             val currency = (accountId ?: toAccountId)?.let { knownAccounts[it]?.currencyCode }
                 ?: currency(text(item, "currency")) ?: baseCurrency ?: DEFAULT_CURRENCY
+            // Between two currencies, an amount said in the receiving one is what arrived.
+            val said = currency(text(item, "currency"))
+            val toCurrency = toAccountId?.let { knownAccounts[it]?.currencyCode }
+            if (accountId != null && said != null && said != currency && said == toCurrency) {
+                val received = amount(item, "amount", said).takeIf { it != null && it > 0 }
+                if (received == null) flags += AiDraftFlag.AMOUNT
+                return label to AiBillDraft(type, null, currency, 0, null, null, accountId, toAccountId, time, note,
+                    counterparty, false, flags, toAmountMinor = received)
+            }
             val amount = amount(item, "amount", currency).takeIf { it != null && it > 0 }
             if (amount == null) flags += AiDraftFlag.AMOUNT
             return label to AiBillDraft(type, amount, currency, 0, null, null, accountId, toAccountId, time, note,

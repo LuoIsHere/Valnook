@@ -19,7 +19,9 @@ enum class AiDraftFlag {
 
 /**
  * A bill the model proposed, checked against the lists it was sent: every id in it exists. A transfer with no
- * [cashAccountId] comes from outside, one with no [toCashAccountId] goes outside.
+ * [cashAccountId] comes from outside, one with no [toCashAccountId] goes outside. [amountMinor] is in
+ * [currencyCode]; a transfer between currencies said by what arrived has [toAmountMinor] (in the receiving account's
+ * currency) instead, and the app works out what left.
  */
 data class AiBillDraft(
     val type: BillType,
@@ -35,7 +37,11 @@ data class AiBillDraft(
     val counterparty: String = "",
     val reimbursable: Boolean = false,
     val flags: Set<AiDraftFlag> = emptySet(),
-)
+    val toAmountMinor: Long? = null,
+) {
+    /** An amount was given, paid or (for a transfer between currencies) received. */
+    val hasAmount: Boolean get() = amountMinor != null || toAmountMinor != null
+}
 
 enum class AiDraftState {
     PENDING,

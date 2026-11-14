@@ -8,8 +8,12 @@ import dev.valnook.feature.deposits.DepositFormMode
 
 @Serializable data object BillsKey : NavKey
 @Serializable data object HiddenBillsKey : NavKey
-/** A new bill on [tab], an edit of [billId], or a new bill copied from [copyFromId]. */
-@Serializable data class BillEditorKey(val billId: Long? = null, val copyFromId: Long? = null, val tab: String = "EXPENSE") : NavKey
+/**
+ * A new bill on [tab], an edit of [billId], or a new bill copied from [copyFromId]. [prefill] is a form filled in
+ * elsewhere (see BillPrefill), saved under [operation] when given.
+ */
+@Serializable data class BillEditorKey(val billId: Long? = null, val copyFromId: Long? = null, val tab: String = "EXPENSE",
+    val prefill: String? = null, val operation: String? = null) : NavKey
 @Serializable data class BillDetailKey(val id: Long) : NavKey
 /** A refund or reimbursement ([type]) of the expense [parentId]. */
 @Serializable data class BillSettleKey(val parentId: Long, val type: String) : NavKey
@@ -18,6 +22,7 @@ import dev.valnook.feature.deposits.DepositFormMode
 @Serializable data object BillImagesKey : NavKey
 @Serializable data object AiSettingsKey : NavKey
 @Serializable data object AiPromptKey : NavKey
+@Serializable data object AiChatKey : NavKey
 @Serializable data object AccountsKey : NavKey
 @Serializable data object AccountGroupsKey : NavKey
 @Serializable data object WalletKey : NavKey

@@ -3,6 +3,8 @@ package dev.valnook.app.navigation
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -32,13 +34,15 @@ import dev.valnook.feature.settings.navigationLabel
 @Composable
 internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId>,
     onSelect: (NavKey) -> Unit, modifier: Modifier, backdrop: GlassBackdrop? = null,
-    fold: () -> Float = { 0f }, onExpand: () -> Unit = {}, onAddBill: (() -> Unit)? = null) {
+    fold: () -> Float = { 0f }, onExpand: () -> Unit = {}, onAddBill: (() -> Unit)? = null,
+    onAiChat: (() -> Unit)? = null, aiPending: Boolean = false) {
     val selected = itemForKey(current)
     val expandLabel = stringResource(R.string.nav_expand_bar, navigationLabel(selected))
     Column(modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
         .padding(horizontal = 16.dp, vertical = 8.dp), horizontalAlignment = Alignment.End,
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         // Above the bar at the right, moving with it when it folds; part of the overlay, so pages leave room for it.
+        if (onAddBill != null && onAiChat != null) AiChatButton(onAiChat, aiPending, backdrop)
         if (onAddBill != null) AddBillButton(onAddBill, backdrop)
         NavigationCapsule(items, selected, { onSelect(it.rootKey()) }, ::navigationIcon, { navigationLabel(it) },
             Modifier.testTag("root-capsule"), backdrop, optionModifier = { Modifier.testTag("nav-${it.name.lowercase()}") },
@@ -54,6 +58,24 @@ internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             FaIcon(FaIcons.plus, null, Modifier.size(24.dp), MaterialTheme.colorScheme.onSurface)
         }
+    }
+}
+
+/** One size smaller than "+" and outlined, so the two read apart; a dot while AI drafts wait. */
+@Composable private fun AiChatButton(onClick: () -> Unit, pending: Boolean, backdrop: GlassBackdrop?) {
+    val label = stringResource(if (pending) dev.valnook.feature.ai.R.string.ai_chat_entry_pending else dev.valnook.feature.ai.R.string.ai_chat_entry)
+    Box(Modifier.padding(end = 4.dp)) {
+        GlassSurface(Modifier.size(48.dp).clip(CircleShape)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = label }.testTag("ai-chat-entry"), shape = CircleShape, backdrop = backdrop) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Text("AI", style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (pending) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape)
+            .background(MaterialTheme.colorScheme.error).testTag("ai-chat-entry-dot"))
     }
 }
 

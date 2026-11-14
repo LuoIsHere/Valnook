@@ -298,6 +298,12 @@ private fun SessionRoot(
     var leavePrompt by remember(graph.sessionId) { mutableStateOf(false) }
     // The AI settings page keeps drafts saved with its buttons; leaving with changes asks first.
     var aiDirty by remember(graph.sessionId) { mutableStateOf(false) }
+    val toolbars = remember(graph.sessionId) { RootToolbars() }
+    // The AI button above "+": only while a conversation feature is usable, with a dot while drafts wait.
+    val aiFeatures by remember(graph.ai) { graph.ai?.observeFeatures() ?: kotlinx.coroutines.flow.flowOf(dev.valnook.domain.ai.AiFeatures()) }
+        .collectAsStateWithLifecycle(dev.valnook.domain.ai.AiFeatures())
+    val aiPending by remember(graph.assistant) { graph.assistant?.observePendingDrafts() ?: kotlinx.coroutines.flow.flowOf(false) }
+        .collectAsStateWithLifecycle(false)
     val pop: () -> Unit = {
         if (stack.last() == BackupKey) scope.launch { sessions.cancelPendingRestore(active.id) }
         if (!stack.last().isRoot()) stack.removeAt(stack.lastIndex)
@@ -321,7 +327,8 @@ private fun SessionRoot(
     val walletDetail = walletCurrent && walletToolbar?.detail == true
     val walletNavigationHidden = walletCurrent && walletToolbar?.navigationHidden == true
     val title = rootTitle(current, walletToolbar?.title, accountName,
-        { id -> selectedInstrument?.takeIf { it.id == id }?.name }, { id -> selectedCash?.takeIf { it.id == id }?.name })
+        { id -> selectedInstrument?.takeIf { it.id == id }?.name }, { id -> selectedCash?.takeIf { it.id == id }?.name },
+        toolbars.aiChat?.title)
     val offset = with(LocalDensity.current) { 16.dp.roundToPx() }
     val barHeight = (56f + 32f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp
     val backdrop = rememberGlassBackdrop()
@@ -367,7 +374,6 @@ private fun SessionRoot(
         tween(300, easing = FastOutSlowInEasing), label = "navigation-fold")
     var switching by remember { mutableStateOf(false) }
     var switchFailed by remember { mutableStateOf(false) }
-    val toolbars = remember(graph.sessionId) { RootToolbars() }
 
     // Per page: while one page leaves and the next arrives, the leaving page's reset must not clear the new one's room.
     val titleReserves = remember(graph.sessionId) { androidx.compose.runtime.mutableStateMapOf<NavKey, Int>() }
@@ -495,7 +501,7 @@ private fun SessionRoot(
                                     dev.valnook.feature.bills.BillEditorViewModel(route.billId, route.copyFromId,
                                         dev.valnook.feature.bills.BillTab.valueOf(route.tab), requireNotNull(graph.bills),
                                         graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(),
-                                        graph.clock, createSavedStateHandle(), graph.billImages)
+                                        graph.clock, createSavedStateHandle(), graph.billImages, route.prefill, route.operation)
                                 }, onDone = pop, onManageCategories = { open(BillCategoriesKey) })
                             }
                             entry<BillDetailKey> { route ->
@@ -606,8 +612,23 @@ private fun SessionRoot(
                                 val ai = graph.ai
                                 if (ai != null) dev.valnook.feature.ai.AiSettingsScreen(pageViewModel {
                                     dev.valnook.feature.ai.AiSettingsViewModel(ai,
-                                        dev.valnook.feature.ai.AiAvatars(dev.valnook.feature.ai.AiAvatars.directory(appContext)))
+                                        dev.valnook.feature.ai.AiAvatars(dev.valnook.feature.ai.AiAvatars.directory(appContext)),
+                                        graph.assistant)
                                 }, onPrompt = { open(AiPromptKey) }, onDirtyChange = { aiDirty = it })
+                            }
+                            entry<AiChatKey> {
+                                val ai = graph.ai
+                                val assistant = graph.assistant
+                                val bills = graph.bills
+                                if (ai != null && assistant != null && bills != null) dev.valnook.feature.ai.AiChatScreen(pageViewModel {
+                                    dev.valnook.feature.ai.AiChatViewModel(assistant, ai, bills,
+                                        dev.valnook.feature.ai.AiDraftSaver(bills, graph.commands, graph.settings.observeSettings(),
+                                            graph.overview.observeFxContext(), graph.clock, graph.billImages),
+                                        graph.billImages, createSavedStateHandle())
+                                }, onEdit = { prefill, operation -> open(BillEditorKey(prefill = prefill, operation = operation)) },
+                                    onOpenBill = { open(BillDetailKey(it)) },
+                                    onManual = { prefill -> open(BillEditorKey(prefill = prefill)) }, onToolbar = toolbars.onAiChat,
+                                    onRates = { open(FxSettingsKey) })
                             }
                             entry<AiPromptKey> {
                                 graph.ai?.let { dev.valnook.feature.ai.AiPromptScreen(it) }
@@ -672,7 +693,9 @@ private fun SessionRoot(
                 Modifier.fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
                     .testTag("floating-navigation-overlay"), backdrop,
                 fold = { navigationFold }, onExpand = navigationCollapse::expand,
-                onAddBill = if (graph.bills != null && !walletDetail) ({ open(BillEditorKey()) }) else null)
+                onAddBill = if (graph.bills != null && !walletDetail) ({ open(BillEditorKey()) }) else null,
+                onAiChat = if (graph.bills != null && !walletDetail && aiFeatures.chatEntry) ({ open(AiChatKey) }) else null,
+                aiPending = aiPending)
         }
     }
 }

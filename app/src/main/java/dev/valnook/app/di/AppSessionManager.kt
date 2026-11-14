@@ -71,6 +71,9 @@ class AppSessionManager @Inject internal constructor(
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
             // Reconcile unreferenced ciphertext after interrupted deletion/restore; no values are decoded.
             runCatching { writeMutex.withLock { realDatabaseGraph.walletPrivate.cleanup() } }
+            // Pictures of AI drafts still waiting are held first, so the sweep keeps them; old conversations go.
+            runCatching { realDatabaseGraph.assistant.restorePins() }
+            runCatching { realDatabaseGraph.assistant.expire() }
             // Bill pictures left by a form a crash closed, and records of files that are gone.
             runCatching { realDatabaseGraph.images.sweep() }
             // The automatic clean-up: pictures OneDrive holds that were saved here longer ago than the chosen months.
@@ -205,6 +208,8 @@ class AppSessionManager @Inject internal constructor(
                     realDatabaseGraph.aiKeys.destroy()
                     realDatabaseGraph.aiChecks.clear()
                     dev.valnook.feature.ai.AiAvatars.directory(context).deleteRecursively()
+                    realDatabaseGraph.assistant.clearAll()
+                    dev.valnook.feature.ai.AiNotices.clear(context)
                 }
                 withContext(kotlinx.coroutines.Dispatchers.IO) {
                     onboarding.save(dev.valnook.app.onboarding.OnboardingDraft())
@@ -336,6 +341,7 @@ class AppSessionManager @Inject internal constructor(
         bills = source.bills,
         billImageStorage = source.imageStorage,
         ai = if (mode == DataMode.REAL) source.ai else null,
+        assistant = if (mode == DataMode.REAL) source.assistant else null,
         billImages = object : dev.valnook.domain.repository.BillImageLibrary by source.billImages {
             // Pictures come back from OneDrive only for the real data, through this session's checks.
             override suspend fun fetch(keys: Collection<String>): Int = if (mode != DataMode.REAL) 0 else

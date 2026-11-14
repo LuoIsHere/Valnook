@@ -4,6 +4,9 @@ import dev.valnook.domain.ai.AiConnection
 import dev.valnook.domain.ai.AiException
 import dev.valnook.domain.ai.AiProblem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -32,10 +35,16 @@ fun interface AiTransport {
  * network). Redirects are not followed, so the key never reaches another address.
  */
 class UrlConnectionAiTransport : AiTransport {
-    override suspend fun execute(request: AiHttpRequest) = withContext(Dispatchers.IO) {
+    override suspend fun execute(request: AiHttpRequest): AiHttpResponse = coroutineScope {
         val uri = URI(request.url)
         require(uri.scheme in setOf("http", "https") && uri.userInfo == null && uri.fragment == null)
-        val connection = uri.toURL().openConnection() as HttpURLConnection
+        val connection = withContext(Dispatchers.IO) { uri.toURL().openConnection() as HttpURLConnection }
+        // A blocked read ignores cancelling; closing the connection ends it at once.
+        val watcher = launch(Dispatchers.IO) { try { awaitCancellation() } finally { connection.disconnect() } }
+        try { withContext(Dispatchers.IO) { exchange(connection, request) } } finally { watcher.cancel() }
+    }
+
+    private fun exchange(connection: HttpURLConnection, request: AiHttpRequest): AiHttpResponse {
         try {
             connection.instanceFollowRedirects = false
             connection.useCaches = false
@@ -60,7 +69,7 @@ class UrlConnectionAiTransport : AiTransport {
                     if (out.size() > MAX_RESPONSE) throw IOException("Response too large")
                 }
             }
-            AiHttpResponse(status, out.toString(Charsets.UTF_8.name()))
+            return AiHttpResponse(status, out.toString(Charsets.UTF_8.name()))
         } finally { connection.disconnect() }
     }
 

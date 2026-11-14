@@ -48,10 +48,13 @@ fun AiSettingsScreen(vm: AiSettingsViewModel, onPrompt: () -> Unit, onDirtyChang
     if (!ui.loaded) return
     LazyColumn(Modifier.fillMaxSize().testTag("ai-settings"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
+        item { EnableCard(ui, vm) }
         item { ConnectionCard(ui, vm) }
         item { ChecksCard(ui, vm) }
+        if (ui.settings.enabled && ui.canEnable) item { FeaturesCard(ui, vm) }
         item { DefaultsCard(ui, vm) }
         item { PersonalCard(ui, vm) }
+        if (ui.usage != null) item { DataCard(ui, vm) }
         item {
             GlassCard {
                 Row(Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onPrompt).testTag("ai-prompt-entry")
@@ -67,6 +70,92 @@ fun AiSettingsScreen(vm: AiSettingsViewModel, onPrompt: () -> Unit, onDirtyChang
         }
         item { AiDisclaimer() }
     }
+}
+
+@Composable
+private fun SwitchRow(title: String, summary: String?, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(enabled = enabled, role = Role.Switch) { onChange(!checked) }
+        .padding(vertical = Space.xs), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).padding(end = Space.sm)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            summary?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        }
+        Switch(checked, onChange, enabled = enabled, modifier = Modifier.testTag(tag))
+    }
+}
+
+/** The master switch: off by default, and only on once the required checks passed; the first time it explains. */
+@Composable
+private fun EnableCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
+    val context = LocalContext.current
+    var notice by remember { mutableStateOf(false) }
+    Section(stringResource(R.string.ai_section_enable)) {
+        SwitchRow(stringResource(R.string.ai_enable), if (ui.canEnable) null else stringResource(R.string.ai_enable_needs_checks),
+            ui.settings.enabled && ui.canEnable, ui.canEnable || ui.settings.enabled, "ai-enable") { on ->
+            if (on && !AiNotices.seen(context, AiNotices.ENABLE)) notice = true else vm.setEnabled(on)
+        }
+    }
+    if (notice) AlertDialog({ notice = false },
+        confirmButton = { TextButton({ AiNotices.mark(context, AiNotices.ENABLE); notice = false; vm.setEnabled(true) },
+            Modifier.testTag("ai-enable-notice-ok")) { Text(stringResource(R.string.ai_notice_ok)) } },
+        dismissButton = { TextButton({ notice = false }) { Text(stringResource(R.string.ai_chat_cancel)) } },
+        title = { Text(stringResource(R.string.ai_enable_notice_title)) },
+        text = { Text(stringResource(R.string.ai_enable_notice)) }, modifier = Modifier.testTag("ai-enable-notice"))
+}
+
+@Composable
+private fun FeaturesCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
+    val context = LocalContext.current
+    val s = ui.settings
+    var pictureNotice by remember { mutableStateOf(false) }
+    Section(stringResource(R.string.ai_section_features)) {
+        SwitchRow(stringResource(R.string.ai_feature_bill_chat), stringResource(R.string.ai_feature_bill_chat_summary),
+            s.billChat, true, "ai-feature-bill-chat") { on -> vm.setFeatures { it.copy(billChat = on) } }
+        SwitchRow(stringResource(R.string.ai_feature_share_text), stringResource(R.string.ai_feature_share_text_summary),
+            s.shareText, true, "ai-feature-share-text") { on -> vm.setFeatures { it.copy(shareText = on) } }
+        SwitchRow(stringResource(R.string.ai_feature_share_image), stringResource(if (ui.imagePassed)
+            R.string.ai_feature_share_image_summary else R.string.ai_feature_share_image_unavailable),
+            s.shareImage && ui.imagePassed, ui.imagePassed, "ai-feature-share-image") { on ->
+            if (on && !AiNotices.seen(context, AiNotices.SHARE_PICTURES)) pictureNotice = true
+            else vm.setFeatures { it.copy(shareImage = on) }
+        }
+        SwitchRow(stringResource(R.string.ai_feature_thinking), stringResource(if (ui.thinkingPassed)
+            R.string.ai_feature_thinking_summary else R.string.ai_feature_thinking_unavailable),
+            s.thinking && ui.thinkingPassed, ui.thinkingPassed, "ai-feature-thinking") { on -> vm.setFeatures { it.copy(thinking = on) } }
+        SwitchRow(stringResource(R.string.ai_feature_chat), stringResource(R.string.ai_feature_chat_summary),
+            s.chat, true, "ai-feature-chat") { on -> vm.setFeatures { it.copy(chat = on) } }
+        SwitchRow(stringResource(R.string.ai_feature_habits), stringResource(R.string.ai_feature_habits_summary),
+            s.sendHabits, true, "ai-feature-habits") { on -> vm.setFeatures { it.copy(sendHabits = on) } }
+    }
+    if (pictureNotice) PictureNotice({ pictureNotice = false }) {
+        AiNotices.mark(context, AiNotices.SHARE_PICTURES)
+        pictureNotice = false
+        vm.setFeatures { it.copy(shareImage = true) }
+    }
+}
+
+@Composable
+private fun DataCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
+    val usage = ui.usage ?: return
+    var confirm by remember { mutableStateOf(false) }
+    val number = java.text.NumberFormat.getIntegerInstance(LocalConfiguration.current.locales[0])
+    Section(stringResource(R.string.ai_section_data)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.ai_usage), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.ai_usage_value, usage.requests, number.format(usage.tokens)),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.testTag("ai-usage"))
+        }
+        TextButton({ confirm = true }, Modifier.testTag("ai-clear-conversations")) {
+            Text(stringResource(R.string.ai_clear_conversations))
+        }
+    }
+    if (confirm) AlertDialog({ confirm = false },
+        confirmButton = { TextButton({ confirm = false; vm.clearConversations() }, Modifier.testTag("ai-clear-confirm")) {
+            Text(stringResource(R.string.ai_clear), color = MaterialTheme.colorScheme.error) } },
+        dismissButton = { TextButton({ confirm = false }) { Text(stringResource(R.string.ai_chat_cancel)) } },
+        text = { Text(stringResource(R.string.ai_clear_conversations_confirm)) })
 }
 
 /** The line every AI page ends with. */
@@ -369,6 +458,7 @@ internal fun problemText(problem: AiProblem, host: String): String = when (probl
     AiProblem.NO_THINKING -> stringResource(R.string.ai_problem_no_thinking)
     AiProblem.NO_KEY_STORAGE -> stringResource(R.string.ai_problem_no_key_storage)
     AiProblem.THINKING_STILL_ON -> stringResource(R.string.ai_problem_thinking_still_on)
+    AiProblem.UNREADABLE_DRAFTS -> stringResource(R.string.ai_problem_unreadable_drafts)
 }
 
 /** The settings entry's summary line. */

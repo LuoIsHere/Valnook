@@ -101,7 +101,7 @@ private object BillImageCache {
  * A square thumbnail of picture [key]. One only in OneDrive is fetched when tapped; one nowhere known shows as missing.
  * Tapping a picture that is here calls [onClick].
  */
-@Composable internal fun BillImageThumb(key: String, size: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
+@Composable fun BillImageThumb(key: String, size: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val px = with(LocalDensity.current) { size.roundToPx() } * 2
     val image = rememberBillImage(key, px)
@@ -157,7 +157,7 @@ private object BillImageCache {
 }
 
 /** Pictures full screen: swipe between them, pinch or double-tap to zoom. */
-@Composable internal fun BillImageViewer(keys: List<String>, start: Int, onDismiss: () -> Unit) {
+@Composable fun BillImageViewer(keys: List<String>, start: Int, onDismiss: () -> Unit) {
     Dialog(onDismiss, DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val pager = rememberPagerState(start.coerceIn(0, (keys.size - 1).coerceAtLeast(0))) { keys.size }
         var zoomed by remember { mutableStateOf(false) }

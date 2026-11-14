@@ -82,6 +82,8 @@ class AiConversationsTest {
         assertEquals(draft, AiConversations.decodeDraft(AiConversations.encodeDraft(draft)))
         val missing = draft.copy(type = BillType.EXPENSE, amountMinor = null, categoryId = 3, subCategoryId = 31, flags = emptySet())
         assertEquals(missing, AiConversations.decodeDraft(AiConversations.encodeDraft(missing)))
+        val received = draft.copy(amountMinor = null, toAmountMinor = 1000)
+        assertEquals(received, AiConversations.decodeDraft(AiConversations.encodeDraft(received)))
         assertNull(AiConversations.decodeDraft("{"))
         val images = listOf(BillImage("c".repeat(64), 1000, 30, 40))
         assertEquals(images, AiConversations.decodeImages(AiConversations.encodeImages(images)))

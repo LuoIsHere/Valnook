@@ -20,7 +20,7 @@ data class AiHabit(val note: String, val categoryId: Long)
 
 object AiPrompt {
     /** Raised whenever the fixed rules change. */
-    const val RULES_VERSION = 1
+    const val RULES_VERSION = 2
 
     /** The bill draft tool: the only one in bill requests. Names and descriptions are short English to save tokens. */
     val billTool: JsonObject = tool(BILL_TOOL,
@@ -93,6 +93,9 @@ object AiPrompt {
         "- Turn what the user says or shows into bill drafts by calling create_bill_drafts. You never save anything; the user confirms every draft in the app.",
         "- Use only the category and account ids listed below. Leave out a field you are unsure of. Never invent amounts; leave unreadable parts out.",
         "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up; the app does that.",
+        "- currency: the ISO code of what was paid, only when the user says or shows it; otherwise leave it out and the account's currency is used. Each account's currency is listed below.",
+        "- account_id: the account the user says paid or received; leave it out when they do not say. Paying in another currency than the account's is fine; the app converts at its own rates.",
+        "- A transfer's amount is what left account_id, in its currency; if the user only says what arrived in to_account_id's currency, give that amount with that currency.",
         "- Do not create refunds or reimbursement payments.",
         "- occurred_at: local \"YYYY-MM-DDTHH:MM\"; only \"YYYY-MM-DD\" when a day but no time was said; leave it out when nothing about time was said.",
         "- When something needed is missing, such as the amount, ask in message, or make a draft without it.",
