@@ -118,6 +118,9 @@ class AiClient(private val transport: AiTransport = UrlConnectionAiTransport()) 
             status == 429 -> AiProblem.RATE_LIMITED
             status >= 500 -> AiProblem.SERVER
             status in 300..399 -> AiProblem.BAD_RESPONSE
+            // Some services keep thinking although asked not to, then refuse a history without that thinking.
+            status in 400..499 && body.contains("thinking", ignoreCase = true) &&
+                body.contains("passed back", ignoreCase = true) -> AiProblem.THINKING_STILL_ON
             else -> AiProblem.REJECTED
         }
     }

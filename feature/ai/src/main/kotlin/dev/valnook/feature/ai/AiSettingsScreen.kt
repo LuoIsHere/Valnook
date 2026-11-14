@@ -368,6 +368,7 @@ internal fun problemText(problem: AiProblem, host: String): String = when (probl
     AiProblem.WRONG_ANSWER -> stringResource(R.string.ai_problem_wrong_answer)
     AiProblem.NO_THINKING -> stringResource(R.string.ai_problem_no_thinking)
     AiProblem.NO_KEY_STORAGE -> stringResource(R.string.ai_problem_no_key_storage)
+    AiProblem.THINKING_STILL_ON -> stringResource(R.string.ai_problem_thinking_still_on)
 }
 
 /** The settings entry's summary line. */

@@ -63,6 +63,7 @@
     <string name="ai_problem_wrong_answer">回答不正确</string>
     <string name="ai_problem_no_thinking">没有返回思考内容</string>
     <string name="ai_problem_no_key_storage">读不出保存的 Key，请重新填写</string>
+    <string name="ai_problem_thinking_still_on">服务方没有关闭思考，要求回传思考内容。请在“高级参数”里换一种“思考关参数”的写法</string>
 
     <string name="ai_section_defaults">默认值</string>
     <string name="ai_defaults_note">AI 没有给出或给错时使用</string>

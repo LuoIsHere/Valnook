@@ -129,7 +129,9 @@ enum class AiCheckState {
 
 enum class AiProblem {
     OFFLINE, TIMEOUT, UNAUTHORIZED, PAYMENT, NOT_FOUND, RATE_LIMITED, SERVER, REJECTED, BAD_RESPONSE,
-    NO_TOOL_CALL, WRONG_ANSWER, NO_THINKING, NO_KEY_STORAGE;
+    NO_TOOL_CALL, WRONG_ANSWER, NO_THINKING, NO_KEY_STORAGE,
+    /** The service still thinks with thinking off and wants that thinking back: the thinking off parameters do not work there. */
+    THINKING_STILL_ON;
 
     /** Whether trying again later could give another answer, so the capability is left undecided. */
     val transient: Boolean get() = this in setOf(OFFLINE, TIMEOUT, UNAUTHORIZED, PAYMENT, RATE_LIMITED, SERVER, NO_KEY_STORAGE)

@@ -52,6 +52,12 @@ class AiCheckerTest {
         assertEquals("call it", assistant["reasoning_content"]!!.jsonPrimitive.content)
         assertEquals("t1", second["messages"]!!.jsonArray[2].jsonObject["tool_call_id"]!!.jsonPrimitive.content)
         assertEquals(4, drawn.length)
+        // Stricter services reject a tool schema without a required list, even an empty one.
+        val parameters = second["tools"]!!.jsonArray.single().jsonObject["function"]!!.jsonObject["parameters"]!!.jsonObject
+        assertEquals(JsonArray(emptyList()), parameters["required"])
+        // Tool and picture checks leave room for an answer after unwanted thinking.
+        requests.filter { it["tools"] != null || it["messages"]!!.jsonArray.last().jsonObject["content"] is JsonArray }
+            .forEach { assertEquals(1024, it["max_tokens"]!!.jsonPrimitive.int) }
     }
 
     @Test fun no_tool_call_or_a_wrong_reading_fails_that_check_only() = runTest {

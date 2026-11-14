@@ -63,6 +63,7 @@
     <string name="ai_problem_wrong_answer">Wrong answer</string>
     <string name="ai_problem_no_thinking">No thinking came back</string>
     <string name="ai_problem_no_key_storage">The saved key cannot be read; enter it again</string>
+    <string name="ai_problem_thinking_still_on">The service kept thinking and wants that thinking sent back. Try other thinking off parameters under Advanced parameters</string>
 
     <string name="ai_section_defaults">Defaults</string>
     <string name="ai_defaults_note">Used when the AI leaves something out or gets it wrong</string>

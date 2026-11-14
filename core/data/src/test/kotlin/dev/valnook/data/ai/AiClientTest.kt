@@ -57,6 +57,9 @@ class AiClientTest {
         assertEquals(AiProblem.RATE_LIMITED, problem { AiHttpResponse(429, "") })
         assertEquals(AiProblem.SERVER, problem { AiHttpResponse(503, "") })
         assertEquals(AiProblem.REJECTED, problem { AiHttpResponse(400, """{"error":"tools not supported"}""") })
+        // A relay that keeps thinking on refuses a history without the thinking; the parameters need changing.
+        assertEquals(AiProblem.THINKING_STILL_ON, problem { AiHttpResponse(400,
+            """{"error":{"message":"The `content[].thinking` in the thinking mode must be passed back to the API."}}""") })
         assertEquals(AiProblem.BAD_RESPONSE, problem { AiHttpResponse(302, "") })
         assertEquals(AiProblem.BAD_RESPONSE, problem { AiHttpResponse(200, "<html>") })
         assertEquals(AiProblem.OFFLINE, problem { throw IOException() })

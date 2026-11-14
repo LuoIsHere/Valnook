@@ -44,9 +44,11 @@ class AiChecker(
         val code = code()
         val tool = JsonObject(mapOf("type" to JsonPrimitive("function"), "function" to JsonObject(mapOf(
             "name" to JsonPrimitive("get_code"), "description" to JsonPrimitive("Returns the verification code."),
-            "parameters" to JsonObject(mapOf("type" to JsonPrimitive("object"), "properties" to JsonObject(emptyMap())))))))
+            // An empty required list, as stricter services reject a schema without one.
+            "parameters" to JsonObject(mapOf("type" to JsonPrimitive("object"), "properties" to JsonObject(emptyMap()),
+                "required" to JsonArray(emptyList())))))))
         val ask = user("Call the get_code tool to get the verification code, then tell me the code.")
-        val first = client.chat(connection, apiKey, body(listOf(ask), 256, listOf(tool)), false, AiRules.TIMEOUT_TEXT_MS)
+        val first = client.chat(connection, apiKey, body(listOf(ask), ANSWER_TOKENS, listOf(tool)), false, AiRules.TIMEOUT_TEXT_MS)
         val calls = first.toolCalls.filter { it.name == "get_code" }
         if (calls.isEmpty()) return AiCheck(AiCheckState.FAILED, AiProblem.NO_TOOL_CALL)
         // Every call gets its result, as the protocol requires; the assistant message goes back as it came.
@@ -54,7 +56,7 @@ class AiChecker(
             JsonObject(mapOf("role" to JsonPrimitive("tool"), "tool_call_id" to JsonPrimitive(call.id),
                 "content" to JsonPrimitive(if (call.name == "get_code") code else "Unknown tool")))
         }
-        val second = client.chat(connection, apiKey, body(history, 256, listOf(tool)), false, AiRules.TIMEOUT_TEXT_MS)
+        val second = client.chat(connection, apiKey, body(history, ANSWER_TOKENS, listOf(tool)), false, AiRules.TIMEOUT_TEXT_MS)
         return if (code in second.content) AiCheck(AiCheckState.PASSED) else AiCheck(AiCheckState.FAILED, AiProblem.WRONG_ANSWER)
     }
 
@@ -66,7 +68,7 @@ class AiChecker(
             JsonObject(mapOf("type" to JsonPrimitive("text"),
                 "text" to JsonPrimitive("What is the number in this picture? Reply with the digits only."))),
             JsonObject(mapOf("type" to JsonPrimitive("image_url"), "image_url" to JsonObject(mapOf("url" to JsonPrimitive(url)))))))))
-        val reply = client.chat(connection, apiKey, body(listOf(message), 64), false, AiRules.TIMEOUT_IMAGE_MS)
+        val reply = client.chat(connection, apiKey, body(listOf(message), ANSWER_TOKENS), false, AiRules.TIMEOUT_IMAGE_MS)
         return if (code in reply.content.filter(Char::isDigit)) AiCheck(AiCheckState.PASSED)
             else AiCheck(AiCheckState.FAILED, AiProblem.WRONG_ANSWER)
     }
@@ -90,6 +92,14 @@ class AiChecker(
             AiCheck(if (undecided) AiCheckState.UNKNOWN else AiCheckState.FAILED, error.problem)
         }
         catch (_: IllegalArgumentException) { AiCheck(AiCheckState.FAILED, AiProblem.REJECTED) }
+
+    private companion object {
+        /**
+         * Room for an answer after thinking the service was asked not to do: some relays think anyway (seen on
+         * pictures), and a tight limit leaves an empty answer. Only what is written is billed.
+         */
+        const val ANSWER_TOKENS = AiRules.MAX_TOKENS_BILLS
+    }
 
     private fun code() = (1..AiRules.CODE_DIGITS).joinToString("") { random.nextInt(10).toString() }
         .let { if (it.first() == '0') "1" + it.drop(1) else it }
