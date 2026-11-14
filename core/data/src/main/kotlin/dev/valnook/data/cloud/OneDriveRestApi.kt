@@ -191,6 +191,193 @@ internal class OneDriveRestApi(
         downloadContent(accessToken, "${Ref.file(fileId).itemUrl}/content", output, file.version)
     }
 
+    // Bill pictures. The folder handle is "drive|folder"; files are "drive|item".
+
+    override suspend fun claimImageFolder(accessToken: String, folderId: String,
+        beforeRemoteSideEffect: suspend () -> Unit): String = withContext(Dispatchers.IO) {
+        val root = Ref.folder(folderId)
+        val found = imageFolderItem(accessToken, root)
+        if (found == null) {
+            beforeRemoteSideEffect()
+            val id = childFolder(accessToken, root.drive, root.root, ImagePool.FOLDER, beforeRemoteSideEffect)
+            writeNotice(accessToken, root.drive, id, beforeRemoteSideEffect)
+            return@withContext "${root.drive}|$id"
+        }
+        val id = found.getString("id")
+        when (noticeOf(accessToken, root.drive, id)) {
+            true -> "${root.drive}|$id"
+            false -> throw ImageFolderConflict()
+            // The notice was removed: still Valnook's when nothing but its own files is in it.
+            null -> if (onlyPoolFiles(accessToken, root.drive, id)) {
+                writeNotice(accessToken, root.drive, id, beforeRemoteSideEffect)
+                "${root.drive}|$id"
+            } else throw ImageFolderConflict()
+        }
+    }
+
+    override suspend fun findImageFolder(accessToken: String, folderId: String): String? = withContext(Dispatchers.IO) {
+        val root = Ref.folder(folderId)
+        val found = try { imageFolderItem(accessToken, root) } catch (_: ImageFolderConflict) { null } ?: return@withContext null
+        val id = found.getString("id")
+        val ours = when (noticeOf(accessToken, root.drive, id)) {
+            true -> true
+            false -> false
+            null -> onlyPoolFiles(accessToken, root.drive, id)
+        }
+        if (ours) "${root.drive}|$id" else null
+    }
+
+    override suspend fun listImages(accessToken: String, imageFolder: String, pageToken: String?): RemoteImagePage {
+        val (drive, folder) = imageFolder.split('|').also { require(it.size == 2) }
+        return page(accessToken, drive, folder, pageToken) { ImagePool.keyOf(it) != null }
+    }
+
+    override suspend fun uploadImage(accessToken: String, imageFolder: String, name: String, bytes: ByteArray,
+        beforeRemoteSideEffect: suspend () -> Unit): RemoteImageFile = withContext(Dispatchers.IO) {
+        require(ImagePool.keyOf(name) != null)
+        val (drive, folder) = imageFolder.split('|').also { require(it.size == 2) }
+        val base = "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}"
+        beforeRemoteSideEffect()
+        // Never replaces: a file of that name already holds those very bytes, as the name is their hash.
+        val item = try {
+            json(request("PUT", "$base:/${segment(name)}:/content?@microsoft.graph.conflictBehavior=fail", accessToken, bytes,
+                mapOf("Content-Type" to "image/webp"), beforeRemoteSideEffect))
+        } catch (error: DriveRequestException) {
+            if (error.statusCode != 409) throw error
+            json(request("GET", "$base:/${segment(name)}", accessToken))
+        }
+        imageFile(drive, item)
+    }
+
+    override suspend fun downloadImage(accessToken: String, imageFolder: String, name: String, output: OutputStream) =
+        withContext(Dispatchers.IO) {
+            val (drive, folder) = imageFolder.split('|').also { require(it.size == 2) }
+            downloadContent(accessToken, "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}:/${segment(name)}:/content", output, null)
+        }
+
+    override suspend fun deleteImageFile(accessToken: String, file: RemoteImageFile, beforeRemoteSideEffect: suspend () -> Unit) =
+        withContext(Dispatchers.IO) {
+            val (drive, item) = file.id.split('|').also { require(it.size == 2) }
+            if (ImagePool.keyOf(file.name) == null && ImagePool.backupOf(file.name) == null) denied()
+            beforeRemoteSideEffect()
+            request("DELETE", "$GRAPH/drives/${segment(drive)}/items/${segment(item)}", accessToken,
+                headers = file.version?.let { mapOf("If-Match" to it) } ?: emptyMap(), guard = beforeRemoteSideEffect)
+            Unit
+        }
+
+    override suspend fun writeImageList(accessToken: String, imageFolder: String, backupId: String, keys: Collection<String>,
+        beforeRemoteSideEffect: suspend () -> Unit) = withContext(Dispatchers.IO) {
+        val (drive, folder) = imageFolder.split('|').also { require(it.size == 2) }
+        beforeRemoteSideEffect()
+        val lists = childFolder(accessToken, drive, folder, ImagePool.LISTS, beforeRemoteSideEffect)
+        request("PUT", "$GRAPH/drives/${segment(drive)}/items/${segment(lists)}:/${segment(ImagePool.listName(backupId))}:/content",
+            accessToken, ImagePool.encodeList(backupId, keys), mapOf("Content-Type" to "application/json"), beforeRemoteSideEffect)
+        Unit
+    }
+
+    override suspend fun readImageList(accessToken: String, imageFolder: String, backupId: String): Set<String>? =
+        withContext(Dispatchers.IO) {
+            val (drive, folder) = imageFolder.split('|').also { require(it.size == 2) }
+            val bytes = try {
+                bounded(ImagePool.MAX_LIST_BYTES) { out ->
+                    downloadContent(accessToken, "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}:/${ImagePool.LISTS}/" +
+                        "${segment(ImagePool.listName(backupId))}:/content", out, null)
+                }
+            } catch (error: DriveRequestException) { if (error.statusCode == 404) return@withContext null else throw error }
+            ImagePool.decodeList(bytes, backupId)
+        }
+
+    override suspend fun listImageLists(accessToken: String, imageFolder: String, pageToken: String?): RemoteImagePage =
+        withContext(Dispatchers.IO) {
+            val (drive, folder) = imageFolder.split('|').also { require(it.size == 2) }
+            if (pageToken != null) return@withContext page(accessToken, drive, folder, pageToken) { ImagePool.backupOf(it) != null }
+            val lists = try { json(request("GET", "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}:/${ImagePool.LISTS}", accessToken)) }
+                catch (error: DriveRequestException) { if (error.statusCode == 404) null else throw error }
+            if (lists == null || !lists.has("folder")) RemoteImagePage(emptyList(), null)
+            else page(accessToken, drive, lists.getString("id"), null) { ImagePool.backupOf(it) != null }
+        }
+
+    private suspend fun imageFolderItem(token: String, root: Ref): JSONObject? {
+        val found = try { json(request("GET", "${root.rootUrl}:/${ImagePool.FOLDER}", token)) }
+            catch (error: DriveRequestException) { if (error.statusCode == 404) return null else throw error }
+        if (!found.has("folder")) throw ImageFolderConflict()
+        return found
+    }
+
+    /** True when the notice is Valnook's, false when a file of that name says something else, null when there is none. */
+    private suspend fun noticeOf(token: String, drive: String, folder: String): Boolean? {
+        val bytes = try {
+            bounded(64 * 1024) { out ->
+                downloadContent(token, "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}:/${ImagePool.NOTICE}:/content", out, null)
+            }
+        } catch (error: DriveRequestException) { if (error.statusCode == 404) return null else throw error }
+          catch (_: CloudBackupException) { return false }
+        return ImagePool.isNotice(bytes.toString(Charsets.UTF_8))
+    }
+
+    /** Whether the folder holds only pictures and a refs folder of lists, as Valnook leaves it. */
+    private suspend fun onlyPoolFiles(token: String, drive: String, folder: String): Boolean {
+        var next: String? = null
+        do {
+            val url = next?.also(::safeGraphUrl) ?: "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}/children?\$top=200"
+            val page = json(request("GET", url, token))
+            val items = page.getJSONArray("value")
+            for (index in 0 until items.length()) {
+                val item = items.getJSONObject(index)
+                val name = item.getString("name")
+                val fine = when {
+                    item.has("folder") -> name == ImagePool.LISTS &&
+                        page(token, drive, item.getString("id"), null) { true }.let { lists ->
+                            lists.nextPageToken == null && lists.files.all { ImagePool.backupOf(it.name) != null }
+                        }
+                    else -> ImagePool.keyOf(name) != null
+                }
+                if (!fine) return false
+            }
+            next = page.optString("@odata.nextLink").takeIf { it.isNotBlank() }
+        } while (next != null)
+        return true
+    }
+
+    private suspend fun writeNotice(token: String, drive: String, folder: String, guard: suspend () -> Unit) {
+        guard()
+        request("PUT", "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}:/${ImagePool.NOTICE}:/content", token,
+            ImagePool.NOTICE_TEXT.toByteArray(Charsets.UTF_8), mapOf("Content-Type" to "text/plain; charset=utf-8"), guard)
+    }
+
+    /** One page of files in [folder] whose names pass [keep]; folders are left out. */
+    private suspend fun page(token: String, drive: String, folder: String, pageToken: String?,
+        keep: (String) -> Boolean): RemoteImagePage {
+        val url = pageToken?.also(::safeGraphUrl)
+            ?: "$GRAPH/drives/${segment(drive)}/items/${segment(folder)}/children?\$top=200&\$select=id,name,size,file,folder,createdDateTime,eTag"
+        val page = json(request("GET", url, token))
+        val items = page.getJSONArray("value")
+        val files = (0 until items.length()).map { items.getJSONObject(it) }
+            .filter { !it.has("folder") && it.has("file") && keep(it.getString("name")) }
+            .map { imageFile(drive, it) }
+        return RemoteImagePage(files, page.optString("@odata.nextLink").takeIf { it.isNotBlank() })
+    }
+
+    private fun imageFile(drive: String, item: JSONObject) = RemoteImageFile(
+        id = "$drive|${item.getString("id")}",
+        name = item.getString("name"),
+        size = item.optLong("size", -1),
+        quickXor = item.optJSONObject("file")?.optJSONObject("hashes")?.optString("quickXorHash")?.takeIf { it.isNotBlank() },
+        createdTime = item.optString("createdDateTime"),
+        version = item.optString("eTag").takeIf { it.isNotBlank() })
+
+    private suspend fun bounded(limit: Int, read: suspend (OutputStream) -> Unit): ByteArray {
+        val bytes = ByteArrayOutputStream()
+        read(object : OutputStream() {
+            override fun write(value: Int) { if (bytes.size() >= limit) denied(); bytes.write(value) }
+            override fun write(buffer: ByteArray, offset: Int, length: Int) {
+                if (bytes.size() + length > limit) denied()
+                bytes.write(buffer, offset, length)
+            }
+        })
+        return bytes.toByteArray()
+    }
+
     private suspend fun readMetadata(token: String, ref: Ref): JSONObject {
         val bytes = ByteArrayOutputStream()
         val bounded = object : OutputStream() {

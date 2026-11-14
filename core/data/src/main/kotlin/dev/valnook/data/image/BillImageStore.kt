@@ -61,6 +61,25 @@ class BillImageStore(private val dir: File, private val db: ValnookDatabase, pri
         image
     }
 
+    /**
+     * Stores picture [key] fetched back from OneDrive, when [bytes] really are it; it is not pinned, and its clean-up
+     * clock starts again from now. Returns whether it was stored.
+     */
+    suspend fun putFetched(key: String, bytes: ByteArray): Boolean = withContext(Dispatchers.IO) {
+        val image = inspect(bytes)?.takeIf { it.key == key } ?: return@withContext false
+        lock.withLock {
+            dir.mkdirs()
+            val target = file(image.key)
+            if (!(target.isFile && target.length() == bytes.size.toLong())) write(target, bytes)
+            val old = dao.imageFile(key)
+            dao.putImageFile((old ?: BillImageFileEntity(key, null, null, null, null, null)).copy(local_saved_at_ms = clock.millis()))
+        }
+        true
+    }
+
+    /** A file whose bytes no longer match its name is no use: it goes, so the picture can come back from OneDrive. */
+    suspend fun dropCorrupt(key: String) = withContext(Dispatchers.IO) { lock.withLock { drop(key) } }
+
     /** The stored picture [key] as a bill holds it; null when it is not on this device or not a valid picture. */
     suspend fun describe(key: String): BillImage? = withContext(Dispatchers.IO) {
         if (!has(key)) return@withContext null

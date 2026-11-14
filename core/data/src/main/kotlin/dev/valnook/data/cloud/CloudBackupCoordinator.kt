@@ -23,6 +23,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /** How long this app's copy may stay unverified before rotation removes it: longer than any upload and check. */
@@ -36,11 +38,17 @@ class CloudBackupCoordinator internal constructor(
     private val drive: CloudDriveApi,
     private val scheduler: BackupScheduler,
     private val networkClock: NetworkUtcClock,
-    private val network: NetworkAvailability
+    private val network: NetworkAvailability,
+    /** The bill picture files; without it backups leave pictures alone. */
+    private val images: dev.valnook.data.image.BillImageStore? = null
 ) : CloudBackupService {
     private val appContext = context.applicationContext
     private val store = PersistentCloudBackupStore(database)
     private val running = AtomicBoolean(false)
+    private val imageProgress = kotlinx.coroutines.flow.MutableStateFlow(CloudImageStatus())
+    /** One picture transfer at a time: a backup's upload or a fetch. */
+    private val imageTransfer = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var imageStop = false
     private val cloudRoot = File(appContext.cacheDir, "valnook-cloud").also(::secureDirectory)
     // One coordinator per process, made before anything runs: a download staged for a restore by a process that
     // died is never released, so it goes now.
@@ -120,6 +128,253 @@ class CloudBackupCoordinator internal constructor(
         refreshWithToken(grant.accessToken)
     }
 
+    // Bill pictures
+
+    override fun observeImages(): Flow<CloudImageStatus> =
+        combine(imageProgress, database.bills().observeImageCounts()) { progress, counts ->
+            progress.copy(notUploaded = counts.not_uploaded, onlyInCloud = counts.only_in_cloud)
+        }
+
+    override fun stopImageTransfer() { imageStop = true }
+
+    private fun imageProblem(problem: CloudImageProblem?) =
+        imageProgress.update { it.copy(problem = problem, uploading = null) }
+
+    /**
+     * Before the snapshot goes up: claims the picture folder and writes the list of pictures the snapshot holds, so
+     * every backup kept later has one. Null when there is nothing about pictures to do or the folder cannot be used now.
+     */
+    private suspend fun prepareImages(token: String, folderId: String, backupId: String, archive: File,
+        generation: Generation, cycleId: String, automatic: Boolean): String? {
+        if (images == null) return null
+        return try {
+            val keys = withContext(Dispatchers.IO) { archiveImageKeys(archive) }
+            // Never a folder in OneDrive for someone who has not used pictures.
+            if (keys.isEmpty() && database.bills().imageFiles().none { it.cloud_size != null || it.cloud_delete_requested_at_ms != null })
+                return null
+            val folder = drive.claimImageFolder(token, folderId) { assertGeneration(generation, cycleId, automatic) } ?: return null
+            drive.writeImageList(token, folder, backupId, keys) { assertGeneration(generation, cycleId, automatic) }
+            imageProblem(null)
+            folder
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: ImageFolderConflict) {
+            imageProblem(CloudImageProblem.FOLDER_CONFLICT); null
+        } catch (error: CloudBackupException) {
+            if (error.error == CloudBackupError.SESSION_EXPIRED) throw error
+            imageProblem(CloudImageProblem.INCOMPLETE); null
+        } catch (_: Exception) {
+            imageProblem(CloudImageProblem.INCOMPLETE); null
+        }
+    }
+
+    /**
+     * After the data is backed up: uploads the pictures bills hold that OneDrive lacks, checking each against the hash
+     * OneDrive reports, then lets go of those no kept backup holds. A stop leaves the rest for next time.
+     */
+    private suspend fun syncImages(token: String, folderId: String, folder: String, generation: Generation,
+        cycleId: String, automatic: Boolean) {
+        val store = images ?: return
+        imageStop = false
+        imageTransfer.withLock {
+            store.hold().use {
+                try {
+                    val remote = listAllImages(token, folder)
+                    recordCloud(remote.values, complete = true)
+                    val wanted = database.bills().imageKeysInUse()
+                        .filter { store.has(it) && remote[it]?.size != store.file(it).length() }
+                    imageProgress.update { it.copy(uploading = 0 to wanted.size) }
+                    wanted.forEachIndexed { index, key ->
+                        if (imageStop) throw CloudBackupException(CloudBackupError.UPLOAD_FAILED)
+                        assertGeneration(generation, cycleId, automatic)
+                        val bytes = withContext(Dispatchers.IO) { store.file(key).readBytes() }
+                        if (digestOf(bytes) != key) {
+                            // A damaged file must not reach OneDrive; it can come back from there if it is there.
+                            store.dropCorrupt(key)
+                        } else {
+                            val uploaded = drive.uploadImage(token, folder, ImagePool.pictureName(key), bytes) {
+                                assertGeneration(generation, cycleId, automatic)
+                            }
+                            if (uploaded.size != bytes.size.toLong() ||
+                                (uploaded.quickXor != null && uploaded.quickXor != QuickXorHash.of(bytes))) {
+                                runCatching { drive.deleteImageFile(token, uploaded) {} }
+                                throw CloudBackupException(CloudBackupError.VERIFY_FAILED)
+                            }
+                            remote[key] = uploaded
+                            recordCloud(listOf(uploaded), complete = false)
+                        }
+                        imageProgress.update { it.copy(uploading = index + 1 to wanted.size) }
+                    }
+                    imageProgress.update { it.copy(uploading = null, problem = null) }
+                    try {
+                        cleanImages(token, folderId, folder, remote, generation, cycleId, automatic)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // Clean-up is tried again after the next backup; nothing is lost by waiting.
+                    }
+                } catch (cancelled: CancellationException) {
+                    imageProblem(CloudImageProblem.INCOMPLETE)
+                    throw cancelled
+                } catch (_: Exception) {
+                    imageProblem(CloudImageProblem.INCOMPLETE)
+                }
+            }
+        }
+    }
+
+    /**
+     * Lets go of pictures in OneDrive: those the user asked to delete there at once (unless a bill holds them again),
+     * and any other that no kept backup's list and no bill holds, three days after it went up. When a kept backup has
+     * no list, nothing else goes. Lists of backups that are gone follow after the same three days.
+     */
+    private suspend fun cleanImages(token: String, folderId: String, folder: String, remote: MutableMap<String, RemoteImageFile>,
+        generation: Generation, cycleId: String, automatic: Boolean) {
+        val now = trustedNow(token) ?: return
+        val dao = database.bills()
+        val inUse = dao.imageKeysInUse().toSet()
+        val guard: suspend () -> Unit = { assertGeneration(generation, cycleId, automatic) }
+        dao.imageFiles().filter { it.cloud_delete_requested_at_ms != null }.forEach { record ->
+            if (record.image_key in inUse) dao.putImageFile(record.copy(cloud_delete_requested_at_ms = null))
+            else {
+                remote.remove(record.image_key)?.let { drive.deleteImageFile(token, it, guard) }
+                forgetCloud(record.image_key)
+            }
+        }
+        val managed = listManaged(token, folderId)
+        val held = inUse.toMutableSet()
+        managed.filter { it.properties["verificationState"] == "verified" }.mapNotNull { it.properties["backupId"] }.forEach { id ->
+            held += drive.readImageList(token, folder, id) ?: return
+        }
+        fun old(file: RemoteImageFile) =
+            runCatching { now - Instant.parse(file.createdTime).toEpochMilli() >= ImagePool.GRACE_MS }.getOrDefault(false)
+        remote.filter { (key, file) -> key !in held && old(file) }.forEach { (key, file) ->
+            drive.deleteImageFile(token, file, guard)
+            remote.remove(key)
+            forgetCloud(key)
+        }
+        val backups = managed.mapNotNull { it.properties["backupId"] }.toSet()
+        listAllLists(token, folder).filter { (id, file) -> id !in backups && old(file) }
+            .forEach { (_, file) -> drive.deleteImageFile(token, file, guard) }
+    }
+
+    override suspend fun fetchImages(keys: Collection<String>): Int {
+        val store = images ?: return 0
+        val wanted = keys.filter { dev.valnook.domain.model.BillImageRules.validKey(it) && !store.has(it) }.distinct()
+        if (wanted.isEmpty()) return 0
+        val state = requireConnection()
+        val token = requireAccess(state.account_reference ?: throw CloudBackupException(CloudBackupError.AUTH_REQUIRED))
+        val folder = drive.findImageFolder(token, state.folder_id!!) ?: return 0
+        return fetch(token, folder, wanted)
+    }
+
+    override suspend fun fetchMissingImages(attachedSinceMs: Long?): Int {
+        val store = images ?: return 0
+        val state = requireConnection()
+        val token = requireAccess(state.account_reference ?: throw CloudBackupException(CloudBackupError.AUTH_REQUIRED))
+        val folder = drive.findImageFolder(token, state.folder_id!!) ?: return 0
+        recordCloud(listAllImages(token, folder).values, complete = true)
+        val wanted = database.bills().imageKeysAttachedSince(attachedSinceMs).filter { !store.has(it) }
+        return fetch(token, folder, wanted)
+    }
+
+    private suspend fun fetch(token: String, folder: String, wanted: List<String>): Int {
+        val store = images ?: return 0
+        imageStop = false
+        var arrived = 0
+        imageTransfer.withLock {
+            try {
+                imageProgress.update { it.copy(fetching = 0 to wanted.size) }
+                for ((index, key) in wanted.withIndex()) {
+                    if (imageStop) break
+                    try {
+                        val out = java.io.ByteArrayOutputStream()
+                        drive.downloadImage(token, folder, ImagePool.pictureName(key), object : OutputStream() {
+                            override fun write(value: Int) = write(byteArrayOf(value.toByte()), 0, 1)
+                            override fun write(bytes: ByteArray, offset: Int, length: Int) {
+                                if (out.size() + length > dev.valnook.domain.model.BillImageRules.MAX_BYTES) throw CloudBackupException(CloudBackupError.VERIFY_FAILED)
+                                out.write(bytes, offset, length)
+                            }
+                        })
+                        if (store.putFetched(key, out.toByteArray())) arrived++
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: DriveRequestException) {
+                        // Not in OneDrive any more: it is missing, not waiting there.
+                        if (error.statusCode == 404) forgetCloud(key)
+                    } catch (_: Exception) {
+                        // Left as it is; it can be fetched again later.
+                    }
+                    imageProgress.update { it.copy(fetching = index + 1 to wanted.size) }
+                }
+            } finally {
+                imageProgress.update { it.copy(fetching = null) }
+            }
+        }
+        return arrived
+    }
+
+    private suspend fun listAllImages(token: String, folder: String): MutableMap<String, RemoteImageFile> {
+        val files = linkedMapOf<String, RemoteImageFile>()
+        var page: String? = null
+        val seen = mutableSetOf<String>()
+        do {
+            if (page != null && (!seen.add(page) || seen.size > 10_000)) throw CloudBackupException(CloudBackupError.DOWNLOAD_FAILED)
+            val response = drive.listImages(token, folder, page)
+            response.files.forEach { file -> ImagePool.keyOf(file.name)?.let { files[it] = file } }
+            page = response.nextPageToken
+        } while (page != null)
+        return files
+    }
+
+    private suspend fun listAllLists(token: String, folder: String): Map<String, RemoteImageFile> {
+        val files = linkedMapOf<String, RemoteImageFile>()
+        var page: String? = null
+        val seen = mutableSetOf<String>()
+        do {
+            if (page != null && (!seen.add(page) || seen.size > 1000)) throw CloudBackupException(CloudBackupError.DOWNLOAD_FAILED)
+            val response = drive.listImageLists(token, folder, page)
+            response.files.forEach { file -> ImagePool.backupOf(file.name)?.let { files[it] = file } }
+            page = response.nextPageToken
+        } while (page != null)
+        return files
+    }
+
+    /** What OneDrive holds, as this device's record; a [complete] listing also forgets copies no longer there. */
+    private suspend fun recordCloud(files: Collection<RemoteImageFile>, complete: Boolean) {
+        val dao = database.bills()
+        val now = System.currentTimeMillis()
+        val seen = mutableSetOf<String>()
+        files.forEach { file ->
+            val key = ImagePool.keyOf(file.name) ?: return@forEach
+            seen += key
+            val old = dao.imageFile(key)
+            dao.putImageFile((old ?: dev.valnook.data.database.BillImageFileEntity(key, null, null, null, null, null))
+                .copy(cloud_size = file.size, cloud_quick_xor = file.quickXor, cloud_seen_at_ms = now))
+        }
+        if (complete) dao.imageFiles().filter { it.cloud_size != null && it.image_key !in seen }.forEach { forgetCloud(it.image_key) }
+    }
+
+    /** OneDrive no longer has this picture, or was asked to let it go. */
+    private suspend fun forgetCloud(key: String) {
+        val dao = database.bills()
+        val old = dao.imageFile(key) ?: return
+        if (old.local_saved_at_ms == null) dao.deleteImageFile(key)
+        else dao.putImageFile(old.copy(cloud_size = null, cloud_quick_xor = null, cloud_seen_at_ms = null,
+            cloud_delete_requested_at_ms = null))
+    }
+
+    private fun digestOf(bytes: ByteArray) = dev.valnook.domain.model.WalletImageFormat.digest(bytes)
+
+    /** The pictures a snapshot holds, read from its attachment rows. */
+    private fun archiveImageKeys(archive: File): Set<String> = java.util.zip.ZipFile(archive).use { zip ->
+        val entry = zip.getEntry("data/bill_attachments.jsonl") ?: return emptySet()
+        zip.getInputStream(entry).bufferedReader(Charsets.UTF_8).useLines { lines ->
+            lines.filter { it.isNotBlank() }.map { org.json.JSONObject(it).getString("image_key") }
+                .filter(dev.valnook.domain.model.BillImageRules::validKey).toSet()
+        }
+    }
+
     override suspend fun disconnect() {
         val now = networkClock.nowUtcMs() ?: System.currentTimeMillis()
         store.updateClearingIndex { current -> current.copy(
@@ -139,6 +394,10 @@ class CloudBackupCoordinator internal constructor(
             updated_at_ms = now
         ) }
         scheduler.cancel()
+        // What this device knew about OneDrive's pictures belongs to that connection; the files there stay.
+        database.bills().forgetCloudCopies()
+        database.bills().dropEmptyImageRecords()
+        imageProgress.value = CloudImageStatus()
     }
 
     override suspend fun manualBackup() {
@@ -380,6 +639,7 @@ class CloudBackupCoordinator internal constructor(
             assertGeneration(actual, cycleId, automatic)
             store.update { it.copy(attempt_state = BackupAttemptState.UPLOADING.name,
                 last_attempt_at_utc_ms = now, latest_error = null, updated_at_ms = now) }
+            val pictureFolder = prepareImages(token, state.folder_id!!, backupId, archiveFile, actual, cycleId, automatic)
             val properties = metadata(attempt, result.createdAtUtc)
             val uploaded = try {
                 drive.upload(token, state.folder_id!!, archiveFile, result.fileName, properties) {
@@ -416,6 +676,8 @@ class CloudBackupCoordinator internal constructor(
             attempt = finishVerifiedAttempt(attempt, token, state.folder_id!!, actual, cycleId, automatic)
             archive.parentFile?.deleteRecursively()
             archive = null
+            // The data is backed up; pictures follow, and whatever stops them leaves that backup as it is.
+            pictureFolder?.let { syncImages(token, state.folder_id!!, it, actual, cycleId, automatic) }
         } catch (cancelled: CancellationException) {
             // Leaving the backup page cancels a manual backup: the screen must not stay "in progress". The attempt
             // keeps its state, so the next cycle reconciles an upload that may have finished.
@@ -904,7 +1166,8 @@ fun createCloudBackupCoordinator(
     portability: RoomPortabilityEngine,
     accessProvider: CloudAccessProvider,
     scheduler: BackupScheduler,
-    networkUtcClock: NetworkUtcClock = AndroidNetworkUtcClock
+    networkUtcClock: NetworkUtcClock = AndroidNetworkUtcClock,
+    images: dev.valnook.data.image.BillImageStore? = null
 ): CloudBackupCoordinator = CloudBackupCoordinator(
     context = context,
     database = database,
@@ -913,5 +1176,6 @@ fun createCloudBackupCoordinator(
     drive = OneDriveRestApi(),
     scheduler = scheduler,
     networkClock = networkUtcClock,
-    network = AndroidNetworkAvailability(context)
+    network = AndroidNetworkAvailability(context),
+    images = images
 )

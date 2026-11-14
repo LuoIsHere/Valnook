@@ -64,7 +64,33 @@ internal interface CloudDriveApi {
     /** Like [trash], for this app's copy that never got the verified marker; a verified backup is refused. */
     suspend fun trashUnverified(accessToken: String, fileId: String, beforeRemoteSideEffect: suspend () -> Unit)
     suspend fun download(accessToken: String, fileId: String, output: OutputStream)
+
+    // Bill pictures (ImagePool). A drive without them returns null from the folder calls and is never asked for more.
+
+    /**
+     * Valnook's picture folder in the backup folder [folderId], made with its notice when there is none. Throws
+     * [ImageFolderConflict] when a folder of that name is not Valnook's.
+     */
+    suspend fun claimImageFolder(accessToken: String, folderId: String, beforeRemoteSideEffect: suspend () -> Unit): String? = null
+    /** The picture folder when it exists and is Valnook's; nothing is written. */
+    suspend fun findImageFolder(accessToken: String, folderId: String): String? = null
+    /** Pictures in the folder, one page at a time; other files are left out. */
+    suspend fun listImages(accessToken: String, imageFolder: String, pageToken: String?): RemoteImagePage = unsupported()
+    /** Stores a picture under [name]; one already there with that name is returned as it is. */
+    suspend fun uploadImage(accessToken: String, imageFolder: String, name: String, bytes: ByteArray,
+        beforeRemoteSideEffect: suspend () -> Unit): RemoteImageFile = unsupported()
+    /** Writes picture [name] to [output]; a DriveRequestException with 404 when it is not there. */
+    suspend fun downloadImage(accessToken: String, imageFolder: String, name: String, output: OutputStream): Unit = unsupported()
+    /** Deletes a picture or a list, only as it was when listed. */
+    suspend fun deleteImageFile(accessToken: String, file: RemoteImageFile, beforeRemoteSideEffect: suspend () -> Unit): Unit = unsupported()
+    suspend fun writeImageList(accessToken: String, imageFolder: String, backupId: String, keys: Collection<String>,
+        beforeRemoteSideEffect: suspend () -> Unit): Unit = unsupported()
+    /** The pictures backup [backupId] holds, or null when its list is missing or not valid. */
+    suspend fun readImageList(accessToken: String, imageFolder: String, backupId: String): Set<String>? = unsupported()
+    suspend fun listImageLists(accessToken: String, imageFolder: String, pageToken: String?): RemoteImagePage = unsupported()
 }
+
+private fun unsupported(): Nothing = throw UnsupportedOperationException("This drive keeps no bill pictures")
 
 /** Hashes what [download] writes and fails unless it is exactly [expectedSize] bytes with [expectedSha256]. */
 internal suspend fun verifyBytes(expectedSha256: String, expectedSize: Long, download: suspend (OutputStream) -> Unit) {

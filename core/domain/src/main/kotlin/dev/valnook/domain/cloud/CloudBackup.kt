@@ -118,6 +118,22 @@ data class CloudBackupRuntimeState(
 
 data class CloudRestoreDownload(val localId: String, val fileName: String)
 
+/** Why bill pictures did not all reach OneDrive: a bill_images folder Valnook did not make, or the transfer stopped. */
+enum class CloudImageProblem { FOLDER_CONFLICT, INCOMPLETE }
+
+/** Bill pictures and OneDrive: what moves now, what went wrong last, what is still only on this device. */
+data class CloudImageStatus(
+    /** Pictures uploaded so far of those to upload, while a backup sends them. */
+    val uploading: Pair<Int, Int>? = null,
+    /** Pictures fetched so far of those asked for, while they come back from OneDrive. */
+    val fetching: Pair<Int, Int>? = null,
+    val problem: CloudImageProblem? = null,
+    /** Pictures bills hold that are on this device but not in OneDrive yet. */
+    val notUploaded: Int = 0,
+    /** Pictures bills hold that are only in OneDrive, not on this device. */
+    val onlyInCloud: Int = 0,
+)
+
 interface BackupScheduler {
     suspend fun replace(nextDueAtUtcMs: Long, referenceUtcMs: Long, cycleId: String, dataGeneration: Long,
         connectionGeneration: Long, scheduleGeneration: Long)
@@ -144,6 +160,16 @@ interface CloudBackupService {
     fun openStagedRestore(localId: String): InputStream
     fun releaseStagedRestore(localId: String)
     suspend fun consumeBanner(eventId: String)
+    fun observeImages(): Flow<CloudImageStatus> = kotlinx.coroutines.flow.flowOf(CloudImageStatus())
+    /** Brings [keys] back from OneDrive's picture folder onto this device; returns how many arrived. */
+    suspend fun fetchImages(keys: Collection<String>): Int = 0
+    /**
+     * After a restore: finds what OneDrive holds and brings back the pictures bills hold that are not on this device,
+     * those put on a bill since [attachedSinceMs] only when it is given. Returns how many arrived.
+     */
+    suspend fun fetchMissingImages(attachedSinceMs: Long?): Int = 0
+    /** Stops an upload or fetch of pictures; what arrived stays, the rest waits for next time. */
+    fun stopImageTransfer() = Unit
 }
 
 object UnavailableCloudBackupService : CloudBackupService {

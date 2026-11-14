@@ -199,5 +199,5 @@ object AppModule {
         accessProvider: CloudAccessProvider,
         scheduler: BackupScheduler
     ): dev.valnook.data.cloud.CloudBackupCoordinator = dev.valnook.data.cloud.createCloudBackupCoordinator(
-        context, database, graph.portability, accessProvider, scheduler)
+        context, database, graph.portability, accessProvider, scheduler, images = graph.images)
 }

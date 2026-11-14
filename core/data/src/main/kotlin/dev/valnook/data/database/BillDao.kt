@@ -23,6 +23,9 @@ data class BillAccountRow(
     val limit_source_account_id: Long?,
 )
 
+/** Pictures bills hold that are only on this device, and those only in OneDrive. */
+data class BillImageCounts(val not_uploaded: Int, val only_in_cloud: Int)
+
 /** A bill with what came back for it so far (in its own currency) and, for a refund or reimbursement, its bill's note. */
 data class BillRow(
     @Embedded val bill: BillEntryEntity,
@@ -170,6 +173,25 @@ interface BillDao {
 
     @Query("DELETE FROM bill_image_files WHERE image_key=:key")
     suspend fun deleteImageFile(key: String): Int
+
+    @Query("""SELECT
+        (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
+            WHERE f.local_saved_at_ms IS NOT NULL AND f.cloud_size IS NULL) AS not_uploaded,
+        (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
+            WHERE f.local_saved_at_ms IS NULL AND f.cloud_size IS NOT NULL) AS only_in_cloud""")
+    fun observeImageCounts(): Flow<BillImageCounts>
+
+    /** Pictures bills hold, put on them since [sinceMs] (all when null). */
+    @Query("SELECT DISTINCT image_key FROM bill_attachments WHERE :sinceMs IS NULL OR created_at_ms>=:sinceMs")
+    suspend fun imageKeysAttachedSince(sinceMs: Long?): List<String>
+
+    /** Forgets everything known about OneDrive's copies, as when the connection goes. */
+    @Query("""UPDATE bill_image_files SET cloud_size=NULL,cloud_quick_xor=NULL,cloud_seen_at_ms=NULL,
+        cloud_delete_requested_at_ms=NULL""")
+    suspend fun forgetCloudCopies(): Int
+
+    @Query("DELETE FROM bill_image_files WHERE local_saved_at_ms IS NULL AND cloud_size IS NULL AND cloud_delete_requested_at_ms IS NULL")
+    suspend fun dropEmptyImageRecords(): Int
 
     @Query("""SELECT cash_account_id FROM bill_entries WHERE is_deleted=0 AND cash_account_id IS NOT NULL
         AND type IN ('EXPENSE','INCOME') ORDER BY created_at_ms DESC,id DESC LIMIT 1""")

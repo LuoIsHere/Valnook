@@ -409,6 +409,11 @@ class AppSessionManager @Inject internal constructor(
         override fun openStagedRestore(localId: String): InputStream { check(); return delegate.openStagedRestore(localId) }
         override fun releaseStagedRestore(localId: String) { delegate.releaseStagedRestore(localId) }
         override suspend fun consumeBanner(eventId: String) { check(); delegate.consumeBanner(eventId) }
+        override fun observeImages() = if (mode == DataMode.REAL) delegate.observeImages()
+            else kotlinx.coroutines.flow.flowOf(dev.valnook.domain.cloud.CloudImageStatus())
+        override suspend fun fetchImages(keys: Collection<String>): Int { check(); return delegate.fetchImages(keys) }
+        override suspend fun fetchMissingImages(attachedSinceMs: Long?): Int { check(); return delegate.fetchMissingImages(attachedSinceMs) }
+        override fun stopImageTransfer() = delegate.stopImageTransfer()
     }
 
     private fun clearAbandonedDemoDatabases() {
