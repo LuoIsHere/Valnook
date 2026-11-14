@@ -4,6 +4,8 @@ import androidx.room.*
 import kotlinx.coroutines.flow.Flow
 
 /** A sub-account with what the bill account picker shows; credit fields are null for savings sub-accounts. */
+data class BillHabitRow(val note: String, val category_id: Long, val at: Long)
+
 data class BillAccountRow(
     val id: Long,
     val savings_account_id: Long,
@@ -223,6 +225,12 @@ interface BillDao {
     @Query("""SELECT cash_account_id FROM bill_entries WHERE is_deleted=0 AND cash_account_id IS NOT NULL
         AND type IN ('EXPENSE','INCOME') ORDER BY created_at_ms DESC,id DESC LIMIT 1""")
     suspend fun lastUsedCashAccountId(): Long?
+
+    /** The newest distinct notes of expenses and income with the category of their latest use, for AI hints. */
+    @Query("""SELECT note, COALESCE(sub_category_id, category_id) AS category_id, MAX(created_at_ms) AS at FROM bill_entries
+        WHERE is_deleted=0 AND note<>'' AND category_id IS NOT NULL AND type IN ('EXPENSE','INCOME')
+        GROUP BY note ORDER BY at DESC LIMIT :limit""")
+    suspend fun recentHabits(limit: Int): List<BillHabitRow>
 
     @Query("SELECT MIN(occurred_at_ms) FROM bill_entries WHERE is_deleted=0")
     fun observeFirstBillAt(): Flow<Long?>

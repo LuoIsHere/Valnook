@@ -15,12 +15,15 @@ import java.util.Locale
  * What every request starts with, in a fixed order so services that cache a repeated beginning can: tools, the fixed
  * rules, the user's rules, categories and accounts, then the time, which changes on every request, last.
  */
+/** A note the user filed under [categoryId] (a subcategory when it had one). */
+data class AiHabit(val note: String, val categoryId: Long)
+
 object AiPrompt {
     /** Raised whenever the fixed rules change. */
     const val RULES_VERSION = 1
 
     /** The bill draft tool: the only one in bill requests. Names and descriptions are short English to save tokens. */
-    val billTool: JsonObject = tool("create_bill_drafts",
+    val billTool: JsonObject = tool(BILL_TOOL,
         "Create bill drafts for the user to confirm in the app. Pass draft_id to replace an unconfirmed draft.",
         obj(
             "message" to prop("string", "Reply or question shown to the user"),
@@ -48,13 +51,33 @@ object AiPrompt {
 
     /** The system message: everything before the conversation. */
     fun system(settings: AiSettings, categories: List<BillCategory>, accounts: List<AiAccountChoice>,
-        now: LocalDateTime, baseCurrency: String?, english: Boolean): String = buildString {
+        now: LocalDateTime, baseCurrency: String?, english: Boolean, habits: List<AiHabit> = emptyList()): String = buildString {
         append(fixedRules(settings, english))
         personal(settings)?.let { append("\n\n").append(it) }
         append("\n\n").append(categoryList(categories, english))
         append("\n\n").append(accountList(accounts))
+        if (settings.sendHabits && habits.isNotEmpty()) append("\n\n").append(habitList(habits))
         append("\n\n").append(time(now, baseCurrency))
     }
+
+    /** Recent notes with the category they were filed under, newest first, as hints. */
+    internal fun habitList(habits: List<AiHabit>): String = "Recent bills (note -> category id), as hints:\n" +
+        habits.take(AiRules.HABITS).joinToString("\n") { "${it.note.replace('\n', ' ').take(HABIT_NOTE)} -> ${it.categoryId}" }
+
+    /** A share is read once: the tool is required, unless [forceTool] is off for a service that refuses that. */
+    fun shareRequest(system: String, user: JsonObject, forceTool: Boolean): JsonObject = JsonObject(buildMap {
+        put("messages", JsonArray(listOf(message("system", system), user)))
+        put("tools", JsonArray(listOf(billTool)))
+        put("max_tokens", JsonPrimitive(AiRules.MAX_TOKENS_BILLS))
+        if (forceTool) put("tool_choice", JsonObject(mapOf("type" to JsonPrimitive("function"),
+            "function" to JsonObject(mapOf("name" to JsonPrimitive(BILL_TOOL))))))
+    })
+
+    /** What comes before shared content, so the model reads it as bills to find rather than words to answer. */
+    const val SHARE_INTRO = "Shared from another app. Make drafts of the bills in it; if there are none, send an empty bills list and say so in message."
+
+    const val BILL_TOOL = "create_bill_drafts"
+    private const val HABIT_NOTE = 40
 
     /** The request body of a bill request before the model and connection parameters. */
     fun billRequest(system: String, conversation: List<JsonObject>, thinking: Boolean): JsonObject = JsonObject(mapOf(

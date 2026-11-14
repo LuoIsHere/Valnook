@@ -23,6 +23,8 @@ data class AiReply(
     val reasoning: String?,
     val toolCalls: List<AiToolCall>,
     val usage: AiUsage?,
+    /** "length" when the output limit cut the reply short. */
+    val finishReason: String? = null,
 )
 
 object AiJson {
@@ -50,7 +52,8 @@ object AiJson {
     /** Reads the first choice of a chat completion; null when the body is not one. */
     fun reply(body: String): AiReply? = runCatching {
         val root = format.parseToJsonElement(body).jsonObject
-        val message = root["choices"]!!.jsonArray.first().jsonObject["message"]!!.jsonObject
+        val choice = root["choices"]!!.jsonArray.first().jsonObject
+        val message = choice["message"]!!.jsonObject
         val raw = (message["content"] as? JsonPrimitive)?.contentOrNull.orEmpty()
         val (thought, content) = splitThinking(raw)
         val reasoning = listOf("reasoning_content", "reasoning").firstNotNullOfOrNull { key ->
@@ -63,7 +66,8 @@ object AiJson {
                 (function["name"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null,
                 (function["arguments"] as? JsonPrimitive)?.contentOrNull.orEmpty())
         }
-        AiReply(message, content, reasoning, calls, usage(root["usage"] as? JsonObject))
+        AiReply(message, content, reasoning, calls, usage(root["usage"] as? JsonObject),
+            (choice["finish_reason"] as? JsonPrimitive)?.contentOrNull)
     }.getOrNull()
 
     /** A leading `<think>…</think>` is the model's thinking, as some local models write it, and not part of the answer. */

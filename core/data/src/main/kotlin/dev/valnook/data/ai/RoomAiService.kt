@@ -37,6 +37,20 @@ class RoomAiService(
         AiChoices(accounts.map { it.choice() }, categories.map { it.toModel() })
     }
 
+    override fun observeFeatures(): Flow<AiFeatures> =
+        combine(observeSettings(), observeChecks()) { settings, report -> AiFeatures.of(settings, report) }.distinctUntilChanged()
+
+    override suspend fun setEnabled(enabled: Boolean) {
+        if (enabled) require(observeChecks().first()?.usable == true)
+        update { it.copy(enabled = enabled) }
+    }
+
+    override suspend fun saveFeatures(billChat: Boolean, shareText: Boolean, shareImage: Boolean, thinking: Boolean,
+        chat: Boolean, sendHabits: Boolean) {
+        update { it.copy(bill_chat = billChat, share_text = shareText, share_image = shareImage, thinking = thinking,
+            chat = chat, send_habits = sendHabits) }
+    }
+
     override suspend fun saveConnection(connection: AiConnection, apiKey: String?) {
         val clean = connection.copy(baseUrl = AiConnection.normalizeBaseUrl(connection.baseUrl), model = connection.model.trim(),
             extraParams = connection.extraParams.trim(), thinkingOffParams = connection.thinkingOffParams.trim(),
@@ -88,8 +102,10 @@ class RoomAiService(
         val settings = observeSettings().first()
         val choices = observeChoices().first()
         val base = db.overview().settings()?.base_currency
+        val habits = if (settings.sendHabits) db.bills().recentHabits(AiRules.HABITS).map { AiHabit(it.note, it.category_id) }
+            else emptyList()
         val system = AiPrompt.system(settings, choices.categories, choices.accounts,
-            LocalDateTime.now(clock), base, english())
+            LocalDateTime.now(clock), base, english(), habits)
         val placeholder = if (english()) "(what you type or share)" else "（你输入或分享的内容）"
         val body = AiPrompt.billRequest(system, listOf(AiPrompt.message("user", placeholder)), settings.thinking)
         return AiJson.pretty.encodeToString(kotlinx.serialization.json.JsonObject.serializer(),

@@ -27,6 +27,17 @@ object AiRules {
     const val MAX_IMAGES = 4
     const val IMAGE_EDGE = 1280
     const val IMAGE_QUALITY = 80
+    /** A conversation quiet this long is not continued: the chat page starts a new one. */
+    const val CONVERSATION_IDLE_MS = 60 * 60 * 1000L
+    const val KEEP_DAYS = 30L
+    /** Drafts read from one reply at most. */
+    const val MAX_DRAFTS = 20
+    /** Longest edge of the copy of a sent picture kept with the conversation. */
+    const val THUMB_EDGE = 320
+    /** A conversation's title: the start of its first message. */
+    const val TITLE_LENGTH = 16
+    /** How far from now a bill's time may be before now is used instead. */
+    const val MAX_TIME_DAYS = 366L
 }
 
 /**
@@ -114,6 +125,36 @@ data class AiSettings(
     val aiNickname: String = "",
 )
 
+/**
+ * What can be used right now: the switches as set, limited by what the saved connection's checks passed. A changed
+ * connection voids its checks, and with them every entry, until it is checked again.
+ */
+data class AiFeatures(
+    val enabled: Boolean = false,
+    val billChat: Boolean = false,
+    val shareText: Boolean = false,
+    val shareImage: Boolean = false,
+    val thinking: Boolean = false,
+    val chat: Boolean = false,
+    /** Pictures can be sent in a conversation. */
+    val pictures: Boolean = false,
+) {
+    /** The chat page has something to offer. */
+    val chatEntry: Boolean get() = enabled && billChat
+
+    companion object {
+        fun of(settings: AiSettings, report: AiCheckReport?): AiFeatures {
+            val on = settings.enabled && report?.usable == true
+            if (!on) return AiFeatures()
+            val image = report!!.of(AiCheckItem.IMAGE).state == AiCheckState.PASSED
+            val thinking = report.of(AiCheckItem.THINKING).state == AiCheckState.PASSED &&
+                settings.connection.thinkingOnParams.isNotBlank()
+            return AiFeatures(true, settings.billChat, settings.shareText, settings.shareImage && image,
+                settings.thinking && thinking, settings.chat, image)
+        }
+    }
+}
+
 enum class AiCheckItem { CONNECT, TOOLS, IMAGE, THINKING }
 
 enum class AiCheckState {
@@ -131,7 +172,9 @@ enum class AiProblem {
     OFFLINE, TIMEOUT, UNAUTHORIZED, PAYMENT, NOT_FOUND, RATE_LIMITED, SERVER, REJECTED, BAD_RESPONSE,
     NO_TOOL_CALL, WRONG_ANSWER, NO_THINKING, NO_KEY_STORAGE,
     /** The service still thinks with thinking off and wants that thinking back: the thinking off parameters do not work there. */
-    THINKING_STILL_ON;
+    THINKING_STILL_ON,
+    /** The drafts the model wrote could not be read, even after asking again. */
+    UNREADABLE_DRAFTS;
 
     /** Whether trying again later could give another answer, so the capability is left undecided. */
     val transient: Boolean get() = this in setOf(OFFLINE, TIMEOUT, UNAUTHORIZED, PAYMENT, RATE_LIMITED, SERVER, NO_KEY_STORAGE)
@@ -160,10 +203,16 @@ interface AiService {
     fun observeChecks(): Flow<AiCheckReport?>
     fun observeKeySaved(): Flow<Boolean>
     fun observeChoices(): Flow<AiChoices>
+    fun observeFeatures(): Flow<AiFeatures>
     /** [apiKey]: null keeps the saved key, empty removes it. */
     suspend fun saveConnection(connection: AiConnection, apiKey: String?)
     suspend fun saveDefaults(timeMinutes: Int, cashAccountId: Long?, expenseCategoryId: Long?, incomeCategoryId: Long?)
     suspend fun savePersonal(myRules: String, userNickname: String, aiNickname: String)
+    /** The master switch; switching on needs the required checks passed for the saved connection. */
+    suspend fun setEnabled(enabled: Boolean)
+    /** The feature switches: everything in [AiSettings] after [AiSettings.enabled]. */
+    suspend fun saveFeatures(billChat: Boolean, shareText: Boolean, shareImage: Boolean, thinking: Boolean, chat: Boolean,
+        sendHabits: Boolean)
     /** The models [connection] offers, with [apiKey] or else the saved key; throws [AiException]. */
     suspend fun fetchModels(connection: AiConnection, apiKey: String?): List<String>
     /** Runs every check against the saved connection, telling [progress] which one runs. */
