@@ -23,7 +23,10 @@ enum class AiDraftFlag {
  * A bill the model proposed, checked against the lists it was sent: every id in it exists. A transfer with no
  * [cashAccountId] comes from outside, one with no [toCashAccountId] goes outside. [amountMinor] is in
  * [currencyCode]; a transfer between currencies said by what arrived has [toAmountMinor] (in the receiving account's
- * currency) instead, and the app works out what left.
+ * currency) instead, and the app works out what left. Across currencies the user may give the rate: [rate] is 1
+ * [currencyCode] (what left, for a transfer) in the account's currency (what arrived), or [accountAmountMinor] what
+ * the account was actually charged or credited, in its own currency (for a transfer: what arrived, [toAmountMinor]).
+ * Without either the app's own rate is used.
  */
 data class AiBillDraft(
     val type: BillType,
@@ -40,6 +43,8 @@ data class AiBillDraft(
     val reimbursable: Boolean = false,
     val flags: Set<AiDraftFlag> = emptySet(),
     val toAmountMinor: Long? = null,
+    val rate: java.math.BigDecimal? = null,
+    val accountAmountMinor: Long? = null,
 ) {
     /** An amount was given, paid or (for a transfer between currencies) received. */
     val hasAmount: Boolean get() = amountMinor != null || toAmountMinor != null

@@ -177,6 +177,10 @@
     <string name="ai_clear">Clear</string>
     <string name="ai_draft_charged">Account %1$s</string>
     <string name="ai_draft_received">Arrives %1$s</string>
+    <string name="ai_draft_charged_rate">Account %1$s (at the given rate %2$s)</string>
+    <string name="ai_draft_received_rate">Arrives %1$s (at the given rate %2$s)</string>
+    <string name="ai_draft_charged_given">Account %1$s (as given)</string>
+    <string name="ai_draft_rate_far">The rate is far from the reference rate; please check</string>
     <string name="ai_draft_no_rate">No %1$s → %2$s rate</string>
     <string name="ai_draft_rate_settings">Exchange rates</string>
     <string name="ai_draft_add_rate">Enter rate</string>

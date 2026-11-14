@@ -65,6 +65,10 @@
     <string name="bill_problem_rate">Enter the rate for this bill or the amount the account was charged.</string>
     <string name="bill_problem_same_account">Choose two different accounts.</string>
     <string name="bill_rate">Rate</string>
+    <string name="bill_rate_source_auto">Auto rate</string>
+    <string name="bill_rate_source_manual">Manual rate</string>
+    <string name="bill_rate_source_one_time">This bill only</string>
+    <string name="bill_rate_source_derived">From the amount charged</string>
     <string name="bill_rate_flip">Swap direction</string>
     <string name="bill_rate_missing">No %1$s→%2$s rate is set. Enter the rate for this bill.</string>
     <string name="bill_rate_reset">Use the default rate</string>

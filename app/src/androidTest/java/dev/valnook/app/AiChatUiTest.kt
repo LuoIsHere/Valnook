@@ -104,6 +104,33 @@ class AiChatUiTest {
         it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
     }
 
+    @Test fun a_rate_the_user_gives_is_used_for_that_bill_and_checked_against_the_app_rate() {
+        runBlocking {
+            val settings = graph.settings.observeSettings().first()
+            graph.settingsWriter.applyChange(dev.valnook.domain.repository.SaveFinancialSettings(settings.revision,
+                dev.valnook.domain.model.Currency.of("CNY"), listOf(dev.valnook.domain.model.FxRate(
+                    dev.valnook.domain.model.Currency.of("USD"), dev.valnook.domain.model.Currency.of("CNY"), java.math.BigDecimal("7.2")))))
+        }
+        openChat()
+        drafts("记好了", """{"type":"EXPENSE","amount":"3","currency":"USD","category_id":${category("food")},
+            "account_id":$cashId,"rate":"7.1","note":"合成可乐"}""", """{"type":"EXPENSE","amount":"2","currency":"USD",
+            "category_id":${category("food")},"account_id":$cashId,"rate":"0.14","note":"合成矿泉水"}""")
+        send("可乐 3 美元，汇率 7.1；矿泉水 2 美元，汇率 0.14")
+        waitTag("ai-draft-d2-pending")
+        rule.onNodeWithTag("ai-draft-d1-converted").assertTextEquals("扣款 ≈ 21.30 CNY（按提供的汇率 7.1）")
+        rule.onNodeWithTag("ai-draft-d1-rate-far").assertDoesNotExist()
+        // Far from the app's 7.2, perhaps said the other way round: the card asks to check it.
+        rule.onNodeWithTag("ai-draft-d2-rate-far").assertExists()
+        rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
+        waitTag("ai-draft-d1-confirmed")
+        assertEquals(100_000L - 2_130L, balance())
+        db.openHelper.readableDatabase.query("SELECT rate_source, rate FROM bill_entries WHERE note=?", arrayOf("合成可乐")).use {
+            assertTrue(it.moveToFirst())
+            assertEquals("ONE_TIME", it.getString(0))
+            assertEquals(0, java.math.BigDecimal(it.getString(1)).compareTo(java.math.BigDecimal("7.1")))
+        }
+    }
+
     @Test fun a_sentence_becomes_a_draft_that_is_saved_and_taken_back() {
         openChat()
         waitTag("ai-chat-examples")

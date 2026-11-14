@@ -20,7 +20,7 @@ data class AiHabit(val note: String, val categoryId: Long)
 
 object AiPrompt {
     /** Raised whenever the fixed rules change. */
-    const val RULES_VERSION = 3
+    const val RULES_VERSION = 4
 
     /** The bill draft tool: the only one in bill requests. Names and descriptions are short English to save tokens. */
     val billTool: JsonObject = tool(BILL_TOOL,
@@ -36,6 +36,8 @@ object AiPrompt {
                     "amount" to prop("string", "Decimal amount paid, e.g. \"35.50\""),
                     "currency" to prop("string", "ISO 4217 code"),
                     "discount" to prop("string", "Decimal discount, if any"),
+                    "rate" to prop("string", "Only a rate the user gave: 1 currency = rate account currency (transfer: to account's)"),
+                    "account_amount" to prop("string", "Only if the user said it: what the account was charged in its own currency (transfer: what arrived)"),
                     "category_id" to prop("integer", null),
                     "sub_category_id" to prop("integer", null),
                     "account_id" to prop("integer", null),
@@ -87,10 +89,11 @@ object AiPrompt {
         "You are the bookkeeping assistant in Valnook, a personal finance app. Rules v$RULES_VERSION:",
         "- Turn what the user says or shows into bill drafts by calling create_bill_drafts. You never save anything; the user confirms every draft in the app.",
         "- Use only the category and account ids listed below. Leave out a field you are unsure of. Never invent amounts; leave unreadable parts out.",
-        "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up; the app does that.",
+        "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up yourself; the app does that.",
         "- currency: the ISO code of what was paid, only when the user says or shows it; otherwise leave it out and the account's currency is used. Each account's currency is listed below.",
         "- In screenshots, receipts and shared text, set currency on every bill from what is shown: symbols, codes and words (¥, 元, RMB -> CNY, but 円 or a Japanese context -> JPY; $ -> USD unless written HK$, S$, NT$, A$, C$ or MOP$; €, £, ₩, ฿ and the like by their currency). Leave it out only when nothing there shows a currency.",
         "- account_id: the account the user says paid or received; leave it out when they do not say. Paying in another currency than the account's is fine; the app converts at its own rates.",
+        "- When the user gives an exchange rate, set rate (1 unit of currency = rate units of the account's currency; for a transfer, of to_account_id's). When they say what the account was actually charged or credited in its own currency, set account_amount; for a transfer, account_amount is what arrived. Never look up or guess a rate, and do not put it in note.",
         "- A transfer's amount is what left account_id, in its currency; if the user only says what arrived in to_account_id's currency, give that amount with that currency.",
         "- Do not create refunds or reimbursement payments.",
         "- occurred_at: local \"YYYY-MM-DDTHH:MM\"; only \"YYYY-MM-DD\" when a day but no time was said; leave it out when nothing about time was said.",

@@ -21,6 +21,7 @@ import dev.valnook.domain.ai.AiDraftFlag
 import dev.valnook.domain.ai.AiDraftState
 import dev.valnook.domain.model.BillCategory
 import dev.valnook.domain.model.BillImage
+import dev.valnook.domain.model.BillRateSource
 import dev.valnook.domain.model.BillType
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.repository.BillAccountChoice
@@ -30,6 +31,7 @@ import dev.valnook.feature.bills.CategoryIcon
 import dev.valnook.feature.bills.categoryName
 import dev.valnook.feature.bills.label
 import dev.valnook.feature.bills.plainAmount
+import dev.valnook.feature.bills.shortRate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -145,11 +147,22 @@ private fun Conversion(card: AiDraftCard, money: AiDraftMoney?, actions: AiDraft
     }
     val to = money.toMinor?.let { plainAmount(it, money.toDigits) + " " + money.to } ?: return
     val transfer = draft.type == BillType.TRANSFER
-    // What arrived was said; anything worked out at a rate is marked as about.
-    val shown = if (transfer && draft.amountMinor == null) to else "≈ $to"
-    Text(stringResource(if (transfer) R.string.ai_draft_received else R.string.ai_draft_charged, shown),
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+    // An amount that was said is shown as it is; anything worked out at a rate is marked as about, and a rate the
+    // user gave says so.
+    val text = when {
+        transfer && draft.toAmountMinor != null -> stringResource(R.string.ai_draft_received, to)
+        draft.accountAmountMinor != null -> stringResource(R.string.ai_draft_charged_given, to)
+        money.given && money.source == BillRateSource.ONE_TIME && money.rate != null -> stringResource(
+            if (transfer) R.string.ai_draft_received_rate else R.string.ai_draft_charged_rate, "≈ $to", shortRate(money.rate))
+        else -> stringResource(if (transfer) R.string.ai_draft_received else R.string.ai_draft_charged, "≈ $to")
+    }
+    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag("ai-draft-${card.label}-converted"))
+    if (money.given && money.farOff) Surface(shape = RoundedCornerShape(8.dp), color = MaterialTheme.colorScheme.tertiaryContainer,
+        modifier = Modifier.testTag("ai-draft-${card.label}-rate-far")) {
+        Text(stringResource(R.string.ai_draft_rate_far), Modifier.padding(horizontal = Space.sm, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+    }
 }
 
 @Composable

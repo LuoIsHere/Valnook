@@ -115,6 +115,8 @@ internal object AiConversations {
         put("reimbursable", JsonPrimitive(draft.reimbursable))
         put("flags", JsonArray(draft.flags.map { JsonPrimitive(it.name) }))
         draft.toAmountMinor?.let { put("toAmount", JsonPrimitive(it)) }
+        draft.rate?.let { put("rate", JsonPrimitive(it.toPlainString())) }
+        draft.accountAmountMinor?.let { put("accountAmount", JsonPrimitive(it)) }
     }).toString()
 
     fun decodeDraft(text: String): AiBillDraft? = runCatching {
@@ -126,7 +128,7 @@ internal object AiConversations {
             string("note").orEmpty(), string("counterparty").orEmpty(), (o["reimbursable"] as? JsonPrimitive)?.booleanOrNull ?: false,
             (o["flags"] as? JsonArray).orEmpty().mapNotNull { flag ->
                 (flag as? JsonPrimitive)?.contentOrNull?.let { name -> AiDraftFlag.entries.firstOrNull { it.name == name } }
-            }.toSet(), long("toAmount"))
+            }.toSet(), long("toAmount"), string("rate")?.toBigDecimalOrNull(), long("accountAmount"))
     }.getOrNull()
 
     fun encodeImages(images: List<BillImage>): String = JsonArray(images.map(::encodeImage)).toString()

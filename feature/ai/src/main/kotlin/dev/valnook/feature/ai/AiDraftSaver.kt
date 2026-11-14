@@ -9,15 +9,20 @@ import dev.valnook.feature.bills.BillPrefill
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import java.math.BigDecimal
+import java.math.MathContext
 import java.time.Clock
 import java.util.UUID
 
 /**
  * A draft across currencies: [fromMinor] of [from] (what is paid, or what leaves in a transfer) and, at the rate
  * the bill would get, [toMinor] of [to] (what the account moves, or what arrives); [missingRate] when there is none.
+ * [given] when that rate came from the user (a rate, or the amount charged or received): [rate] is it, and [farOff]
+ * when it is more than [AiDraftSaver.FAR_OFF] away from the app's own rate, perhaps said the other way round.
  */
 data class AiDraftMoney(val from: String, val fromDigits: Int, val fromMinor: Long?, val to: String, val toDigits: Int,
-    val toMinor: Long?, val missingRate: Boolean)
+    val toMinor: Long?, val missingRate: Boolean, val given: Boolean = false, val rate: BigDecimal? = null,
+    val source: BillRateSource? = null, val farOff: Boolean = false)
 
 /** What confirming a draft came to. */
 sealed interface AiSaveOutcome {
@@ -44,7 +49,7 @@ class AiDraftSaver(
         return BillPrefill.form(draft.type, draft.amountMinor, draft.currencyCode, draft.occurredAt,
             bills.observeAccountChoices().first(), settings.first().baseCurrency?.code, draft.discountMinor,
             draft.cashAccountId, draft.toCashAccountId, draft.categoryId, draft.subCategoryId, draft.note,
-            draft.counterparty, draft.reimbursable, kept, draft.toAmountMinor)
+            draft.counterparty, draft.reimbursable, kept, draft.toAmountMinor, draft.rate, draft.accountAmountMinor)
     }
 
     /**
@@ -61,8 +66,14 @@ class AiDraftSaver(
         if (!preview.crossCurrency) return@runCatching null
         val from = (if (draft.type == BillType.TRANSFER) preview.accountCurrency else preview.currency) ?: return@runCatching null
         val to = (if (draft.type == BillType.TRANSFER) preview.toCurrency else preview.accountCurrency) ?: return@runCatching null
+        val given = preview.rateSource == BillRateSource.ONE_TIME || preview.rateSource == BillRateSource.DERIVED
+        val reference = if (given) BillRates.suggest(from, to, appSettings, fx.first(), dayRates)?.rate else null
+        val rate = preview.rate
+        val farOff = reference != null && reference.signum() > 0 && rate != null &&
+            (rate.divide(reference, MathContext.DECIMAL64) - BigDecimal.ONE).abs() > FAR_OFF
         AiDraftMoney(from.code, from.fraction_digits, preview.amountMinor?.let { it - preview.discountMinor },
-            to.code, to.fraction_digits, preview.convertedMinor?.takeIf { !preview.missingRate }, preview.missingRate)
+            to.code, to.fraction_digits, preview.convertedMinor?.takeIf { !preview.missingRate }, preview.missingRate,
+            given, rate, preview.rateSource, farOff)
     }.getOrNull()
 
     suspend fun prefill(draft: AiBillDraft, pictures: List<BillImage>): String = BillPrefill.encode(form(draft, pictures))
@@ -83,6 +94,11 @@ class AiDraftSaver(
     } catch (cancelled: CancellationException) { throw cancelled }
     catch (error: DomainException) { AiSaveOutcome.Failed(error.code) }
     catch (_: Exception) { AiSaveOutcome.Failed(null) }
+
+    companion object {
+        /** How far a rate the user gave may be from the app's own before the card asks to check it. */
+        val FAR_OFF: BigDecimal = BigDecimal("0.3")
+    }
 
     /** The bill saved under [operationId], if one was. */
     suspend fun savedAs(operationId: String): Long? = runCatching { commands.operationResult(operationId)?.id }.getOrNull()

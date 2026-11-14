@@ -241,7 +241,8 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
     if (crossed) {
         val pairTo = if (bill.type == BillType.TRANSFER) bill.toCurrency ?: bill.accountCurrency else bill.accountCurrency
         val pairFrom = if (bill.type == BillType.TRANSFER) bill.accountCurrency else bill.currency
-        rows += stringResource(R.string.bill_rate) to "1 ${pairFrom.code} = ${bill.rate.stripTrailingZeros().toPlainString()} ${pairTo.code}"
+        rows += stringResource(R.string.bill_rate) to "1 ${pairFrom.code} = ${shortRate(bill.rate)} ${pairTo.code}" +
+            rateSourceLabel(bill.rateSource)?.let { " · $it" }.orEmpty()
         if (bill.type != BillType.TRANSFER) rows += stringResource(R.string.bill_account_amount, bill.accountCurrency.code) to
             money(bill.accountAmountMinor, bill.accountCurrency)
     }

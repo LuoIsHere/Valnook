@@ -83,16 +83,20 @@ class AiDraftReader(
             // Between two currencies, an amount said in the receiving one is what arrived.
             val said = currency(text(item, "currency"))
             val toCurrency = toAccountId?.let { knownAccounts[it]?.currencyCode }
+            val crossing = accountId != null && toCurrency != null && toCurrency != currency
             if (accountId != null && said != null && said != currency && said == toCurrency) {
                 val received = amount(item, "amount", said).takeIf { it != null && it > 0 }
                 if (received == null) flags += AiDraftFlag.AMOUNT
                 return label to AiBillDraft(type, null, currency, 0, null, null, accountId, toAccountId, time, note,
-                    counterparty, false, flags, toAmountMinor = received)
+                    counterparty, false, flags, toAmountMinor = received, rate = rate(item))
             }
             val amount = amount(item, "amount", currency).takeIf { it != null && it > 0 }
             if (amount == null) flags += AiDraftFlag.AMOUNT
+            // Between currencies the user may say what arrived as well, or the rate; what arrived wins.
+            val received = if (crossing && amount != null) amount(item, "account_amount", toCurrency!!)?.takeIf { it > 0 } else null
             return label to AiBillDraft(type, amount, currency, 0, null, null, accountId, toAccountId, time, note,
-                counterparty, false, flags)
+                counterparty, false, flags, toAmountMinor = received,
+                rate = if (crossing && received == null) rate(item) else null)
         }
 
         val kind = if (type == BillType.INCOME) BillCategoryKind.INCOME else BillCategoryKind.EXPENSE
@@ -111,8 +115,13 @@ class AiDraftReader(
         if (amount == null) flags += AiDraftFlag.AMOUNT
         val discount = amount(item, "discount", currency)?.takeIf { it > 0 && amount != null && it < amount } ?: 0
         val reimbursable = type == BillType.EXPENSE && bool(item, "reimbursable")
+        // Paid in another currency than the account's: a rate or charged amount the user gave; the amount wins.
+        val accountCurrency = account?.let { knownAccounts[it]?.currencyCode }
+        val crossing = accountCurrency != null && accountCurrency != currency
+        val charged = if (crossing && amount != null) amount(item, "account_amount", accountCurrency!!)?.takeIf { it > 0 } else null
         return label to AiBillDraft(type, amount, currency, discount, category, sub, account, null, time, note,
-            counterparty, reimbursable, flags)
+            counterparty, reimbursable, flags, rate = if (crossing && charged == null) rate(item) else null,
+            accountAmountMinor = charged)
     }
 
     /** The category and subcategory named, if they are shown ones of [kind]; a subcategory alone brings its parent. */
@@ -173,6 +182,11 @@ class AiDraftReader(
             ?.takeIf { it < MAX_MINOR }
     }
 
+    /** A rate the user gave: a positive number within reason, else nothing. */
+    private fun rate(item: JsonObject): BigDecimal? =
+        (item["rate"] as? JsonPrimitive)?.contentOrNull?.trim()?.replace(",", "")?.toBigDecimalOrNull()
+            ?.takeIf { it.signum() > 0 && it < MAX_RATE }?.stripTrailingZeros()
+
     private fun text(item: JsonObject, key: String): String? = (item[key] as? JsonPrimitive)?.contentOrNull
 
     private fun id(item: JsonObject, key: String): Long? = (item[key] as? JsonPrimitive)?.contentOrNull?.trim()
@@ -186,5 +200,6 @@ class AiDraftReader(
         const val DEFAULT_CURRENCY = "CNY"
         /** Far above any real bill, so a stray number never overflows the arithmetic after it. */
         val MAX_MINOR: Long = BigDecimal("1e15").toLong()
+        val MAX_RATE: BigDecimal = BigDecimal("1e9")
     }
 }

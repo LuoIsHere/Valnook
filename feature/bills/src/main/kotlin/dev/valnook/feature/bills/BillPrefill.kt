@@ -35,6 +35,10 @@ object BillPrefill {
         images: List<BillImage> = emptyList(),
         /** A transfer between currencies said by what arrived, in the receiving account's currency. */
         toAmountMinor: Long? = null,
+        /** Between currencies, a rate given for this bill: 1 paid (or leaving) unit in the account's (arriving) currency. */
+        rate: BigDecimal? = null,
+        /** Between currencies, what the account was actually charged or credited, in its currency (expense and income). */
+        accountAmountMinor: Long? = null,
     ): BillForm {
         val own = accounts.firstOrNull { it.cashAccountId == cashAccountId }
         val tab = when (type) { BillType.INCOME -> BillTab.INCOME; BillType.TRANSFER -> BillTab.TRANSFER; else -> BillTab.EXPENSE }
@@ -45,12 +49,17 @@ object BillPrefill {
             val source = own ?: target
             val digits = source?.currency?.fraction_digits ?: 2
             val outside = own == null || target == null
-            // Only what arrived is known: what left follows from it and the rate.
-            val received = toAmountMinor?.takeIf { it > 0 && own != null && target != null && own.currency != target.currency }
+            val crossing = own != null && target != null && own.currency != target.currency
+            // Only what arrived is known: what left follows from it and the rate. Both known: the rate follows them.
+            val received = toAmountMinor?.takeIf { it > 0 && crossing }
+            val given = rate?.takeIf { crossing && it.signum() > 0 && !(received != null && amountMinor != null) }
             return BillForm(tab = tab, amount = amount(amountMinor, digits), cashAccountId = own?.cashAccountId,
-                toAmount = amount(received, target?.currency?.fraction_digits ?: 2),
-                transferEdits = if (received != null && amountMinor == null) listOf(TransferFigure.OUT, TransferFigure.RATE, TransferFigure.IN)
-                    else listOf(TransferFigure.IN, TransferFigure.RATE, TransferFigure.OUT),
+                toAmount = amount(received, target?.currency?.fraction_digits ?: 2), rate = given?.toPlainString(),
+                transferEdits = when {
+                    received != null && amountMinor == null -> listOf(TransferFigure.OUT, TransferFigure.RATE, TransferFigure.IN)
+                    received != null -> listOf(TransferFigure.RATE, TransferFigure.IN, TransferFigure.OUT)
+                    else -> listOf(TransferFigure.IN, TransferFigure.RATE, TransferFigure.OUT)
+                },
                 accountChosen = own != null, fromExternal = own == null && target != null, toCashAccountId = target?.cashAccountId,
                 toExternal = own != null && target == null,
                 counterparty = if (outside) BillRules.counterpartyOrTruncated(counterparty) else "",
@@ -60,7 +69,11 @@ object BillPrefill {
         val currency = currencyCode?.takeIf { code -> code != following && Currency.supported.any { it.code == code } }
         val digits = (currency?.let(Currency::of) ?: own?.currency ?: baseCurrency?.let(Currency::of))?.fraction_digits ?: 2
         val payBack = tab == BillTab.EXPENSE && reimbursable
-        return BillForm(tab = tab, amount = amount(amountMinor, digits),
+        // A charged amount or rate given across currencies, as if typed on the page (the amount wins, as there).
+        val crossing = currency != null && own != null
+        val charged = accountAmountMinor?.takeIf { crossing && it > 0 }?.let { BillExpression.of(it, own!!.currency.fraction_digits) }
+        val given = rate?.takeIf { crossing && charged == null && it.signum() > 0 }?.toPlainString()
+        return BillForm(tab = tab, amount = amount(amountMinor, digits), rate = given, accountAmount = charged,
             discount = if (discountMinor > 0) BillExpression.of(discountMinor, digits) else BillExpression(),
             currencyCode = currency, cashAccountId = own?.cashAccountId, accountChosen = own != null,
             expenseCategoryId = if (tab == BillTab.EXPENSE) categoryId else null,

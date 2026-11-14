@@ -169,6 +169,32 @@ class AiDraftReaderTest {
         assertEquals("JPY", one("""{"type":"EXPENSE","amount":"5","category_id":1,"account_id":9}""").currencyCode)
     }
 
+    @Test fun a_rate_or_charged_amount_the_user_gave_is_kept_across_currencies() {
+        // 3 USD on the CNY card at the rate the user gave.
+        val rated = one("""{"type":"EXPENSE","amount":"3","currency":"USD","category_id":1,"account_id":7,"rate":"7.10"}""")
+        assertEquals(java.math.BigDecimal("7.1"), rated.rate)
+        assertNull(rated.accountAmountMinor)
+        // What the card was charged wins over a rate, as on the bill page.
+        val charged = one("""{"type":"EXPENSE","amount":"3","currency":"USD","category_id":1,"account_id":7,"rate":"7.1","account_amount":"21.35"}""")
+        assertEquals(2135L, charged.accountAmountMinor)
+        assertNull(charged.rate)
+        // One currency, no account, or a rate that is not one: nothing is kept.
+        val same = one("""{"type":"EXPENSE","amount":"3","category_id":1,"account_id":7,"rate":"7.1","account_amount":"5"}""")
+        assertNull(same.rate); assertNull(same.accountAmountMinor)
+        assertNull(one("""{"type":"EXPENSE","amount":"3","currency":"USD","category_id":1,"sub_category_id":12,"rate":"7.1"}""").rate)
+        for (bad in listOf("\"-1\"", "\"0\"", "\"abc\"", "\"1e12\"")) assertNull(bad,
+            one("""{"type":"EXPENSE","amount":"3","currency":"USD","category_id":1,"account_id":7,"rate":$bad}""").rate)
+        // A transfer between currencies: what arrived wins, else the rate.
+        val arrived = one("""{"type":"TRANSFER","amount":"100","account_id":7,"to_account_id":9,"account_amount":"2050","rate":"20"}""")
+        assertEquals(10000L to 2050L, arrived.amountMinor to arrived.toAmountMinor)
+        assertNull(arrived.rate)
+        assertEquals(java.math.BigDecimal("20.5"),
+            one("""{"type":"TRANSFER","amount":"100","account_id":7,"to_account_id":9,"rate":"20.5"}""").rate)
+        // Said by what arrived, with the rate too.
+        assertEquals(java.math.BigDecimal("20.5"),
+            one("""{"type":"TRANSFER","amount":"2050","currency":"JPY","account_id":7,"to_account_id":9,"rate":"20.5"}""").rate)
+    }
+
     @Test fun only_the_shape_of_the_call_can_fail_it() {
         assertEquals(1, reader().read("""{"bills":"[{\"type\":\"EXPENSE\",\"amount\":\"1\"}]"}""").drafts.size)
         assertTrue(reader().read("""{"message":"Nothing here"}""").drafts.isEmpty())

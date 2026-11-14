@@ -48,6 +48,40 @@ class BillPrefillTest {
         assertNull(BillPrefill.draft(form, accounts, AppSettings(Currency.of("CNY")), FxContext(), emptyMap(), zone))
     }
 
+    @Test fun a_rate_or_charged_amount_given_is_used_for_this_bill_only() {
+        val rated = BillPrefill.form(BillType.EXPENSE, 1000, "USD", time, accounts, "CNY", cashAccountId = 1, categoryId = 10,
+            rate = BigDecimal("7"))
+        assertEquals("7", rated.rate)
+        val bill = draft(rated)!!
+        assertEquals(7000L, bill.accountAmountMinor)
+        assertEquals(BillRateSource.ONE_TIME, bill.rateSource)
+        // What the account was charged: the rate is worked out from it.
+        val charged = draft(BillPrefill.form(BillType.EXPENSE, 1000, "USD", time, accounts, "CNY", cashAccountId = 1,
+            categoryId = 10, rate = BigDecimal("7"), accountAmountMinor = 7100))!!
+        assertEquals(7100L, charged.accountAmountMinor)
+        assertEquals(BillRateSource.DERIVED, charged.rateSource)
+        // Saved even with no rate of the app's own.
+        assertNotNull(BillPrefill.draft(rated, accounts, AppSettings(Currency.of("CNY")), FxContext(), emptyMap(), zone))
+        // In the account's own currency there is nothing to convert.
+        assertNull(BillPrefill.form(BillType.EXPENSE, 1000, "CNY", time, accounts, "CNY", cashAccountId = 1, rate = BigDecimal("7")).rate)
+        // A transfer between currencies at the rate given, or by both amounts.
+        val transfer = draft(BillPrefill.form(BillType.TRANSFER, 7000, "CNY", time, accounts, "CNY", cashAccountId = 1,
+            toCashAccountId = 3, rate = BigDecimal("0.14")))!!
+        assertEquals(980L, transfer.toAmountMinor)
+        assertEquals(BillRateSource.ONE_TIME, transfer.rateSource)
+        val both = draft(BillPrefill.form(BillType.TRANSFER, 7000, "CNY", time, accounts, "CNY", cashAccountId = 1,
+            toCashAccountId = 3, toAmountMinor = 990, rate = BigDecimal("0.14")))!!
+        assertEquals(7000L to 990L, both.amountMinor to both.toAmountMinor)
+        assertEquals(BillRateSource.DERIVED, both.rateSource)
+    }
+
+    @Test fun rates_read_with_six_significant_digits() {
+        assertEquals("0.848896", shortRate(BigDecimal("0.848896434635")))
+        assertEquals("7.1", shortRate(BigDecimal("7.10000")))
+        assertEquals("0.000123457", shortRate(BigDecimal("0.000123456789")))
+        assertEquals("150.124", shortRate(BigDecimal("150.1235")))
+    }
+
     @Test fun incomplete_forms_are_left_for_the_page() {
         assertNull(draft(BillPrefill.form(BillType.EXPENSE, null, "CNY", time, accounts, "CNY", categoryId = 10)))
         assertNull(draft(BillPrefill.form(BillType.EXPENSE, 100, "CNY", time, accounts, "CNY")))

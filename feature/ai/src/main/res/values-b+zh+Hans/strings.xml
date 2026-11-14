@@ -177,6 +177,10 @@
     <string name="ai_clear">清空</string>
     <string name="ai_draft_charged">扣款 %1$s</string>
     <string name="ai_draft_received">到账 %1$s</string>
+    <string name="ai_draft_charged_rate">扣款 %1$s（按提供的汇率 %2$s）</string>
+    <string name="ai_draft_received_rate">到账 %1$s（按提供的汇率 %2$s）</string>
+    <string name="ai_draft_charged_given">扣款 %1$s（按提供的扣款金额）</string>
+    <string name="ai_draft_rate_far">汇率与参考汇率相差较大，请核对</string>
     <string name="ai_draft_no_rate">缺少 %1$s → %2$s 汇率</string>
     <string name="ai_draft_rate_settings">汇率设置</string>
     <string name="ai_draft_add_rate">填写汇率</string>
