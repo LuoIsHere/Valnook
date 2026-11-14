@@ -161,7 +161,11 @@ private fun DraftDetails(draft: AiBillDraft, accounts: Map<Long, BillAccountChoi
         "$from → $to"
     } else draft.cashAccountId?.let(accounts::get)?.label() ?: none
     val time = draft.occurredAt.format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale))
+    // The currency paid, by name and code, first: a share's currency is read off it and worth checking.
+    val currency = runCatching { Currency.of(draft.currencyCode) }.getOrNull()
+        ?.let { "${it.display_name(locale.language)} ${it.code}" } ?: draft.currencyCode
     val extras = buildList {
+        if (draft.type != BillType.TRANSFER) add(currency)
         add(account)
         add(time)
         if (draft.discountMinor > 0) add(stringResource(R.string.ai_draft_discount,
@@ -170,7 +174,8 @@ private fun DraftDetails(draft: AiBillDraft, accounts: Map<Long, BillAccountChoi
             draft.counterparty.takeIf { it.isNotBlank() }?.let { " · $it" }.orEmpty())
         else if (draft.type == BillType.TRANSFER && draft.counterparty.isNotBlank()) add(draft.counterparty)
     }
-    Text(extras.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Text(extras.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.testTag("ai-draft-details"))
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -178,7 +183,8 @@ private fun DraftDetails(draft: AiBillDraft, accounts: Map<Long, BillAccountChoi
 private fun DraftFlags(draft: AiBillDraft) {
     if (draft.flags.isEmpty()) return
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.xs), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-        listOf(AiDraftFlag.AMOUNT, AiDraftFlag.CATEGORY, AiDraftFlag.ACCOUNT, AiDraftFlag.TIME).filter { it in draft.flags }.forEach { flag ->
+        listOf(AiDraftFlag.AMOUNT, AiDraftFlag.CURRENCY, AiDraftFlag.CATEGORY, AiDraftFlag.ACCOUNT, AiDraftFlag.TIME)
+            .filter { it in draft.flags }.forEach { flag ->
             Surface(shape = RoundedCornerShape(8.dp), color = if (flag == AiDraftFlag.AMOUNT) MaterialTheme.colorScheme.errorContainer
                 else MaterialTheme.colorScheme.tertiaryContainer, modifier = Modifier.testTag("ai-draft-flag-${flag.name.lowercase()}")) {
                 Text(stringResource(when (flag) {
@@ -186,6 +192,7 @@ private fun DraftFlags(draft: AiBillDraft) {
                     AiDraftFlag.CATEGORY -> R.string.ai_draft_flag_category
                     AiDraftFlag.ACCOUNT -> R.string.ai_draft_flag_account
                     AiDraftFlag.TIME -> R.string.ai_draft_flag_time
+                    AiDraftFlag.CURRENCY -> R.string.ai_draft_flag_currency
                 }), Modifier.padding(horizontal = Space.sm, vertical = 2.dp), style = MaterialTheme.typography.labelSmall,
                     color = if (flag == AiDraftFlag.AMOUNT) MaterialTheme.colorScheme.onErrorContainer
                     else MaterialTheme.colorScheme.onTertiaryContainer)

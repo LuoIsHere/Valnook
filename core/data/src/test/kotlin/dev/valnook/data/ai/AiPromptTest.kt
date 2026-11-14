@@ -50,6 +50,12 @@ class AiPromptTest {
         assertNull(AiPrompt.personal(AiSettings()))
     }
 
+    @Test fun shared_content_has_its_currency_read() {
+        val rules = AiPrompt.fixedRules(AiSettings(), english = false)
+        assertTrue(rules.contains("In screenshots, receipts and shared text, set currency on every bill"))
+        assertTrue(AiPrompt.SHARE_INTRO.contains("currency"))
+    }
+
     @Test fun chat_changes_only_how_much_is_said() {
         val quiet = AiPrompt.fixedRules(AiSettings(chat = false), english = true)
         val chatty = AiPrompt.fixedRules(AiSettings(chat = true), english = true)

@@ -121,9 +121,12 @@ class AiShareUiTest {
 
     @Test fun shared_text_is_read_once_and_the_page_closes_when_done() {
         enableAi(pictures = false)
-        drafts("""{"type":"EXPENSE","amount":"38.5","category_id":${category("food")},"account_id":$cashId,"note":"合成外卖"}""")
+        drafts("""{"type":"EXPENSE","amount":"38.5","currency":"CNY","category_id":${category("food")},"account_id":$cashId,"note":"合成外卖"}""")
         share("合成外卖 实付 38.50 元")
         waitTag("ai-draft-d1-pending")
+        // The currency read off the share is shown by name and code, and not flagged.
+        rule.onNodeWithTag("ai-draft-details").assertTextContains("人民币 CNY", substring = true)
+        rule.onNodeWithTag("ai-draft-flag-currency").assertDoesNotExist()
         rule.onNodeWithTag("ai-share-host").assertTextEquals("将发送到 ai.example.test")
         val request = ScriptedAiTransport.requests.single()!!
         assertEquals("create_bill_drafts", request["tool_choice"]!!.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
@@ -168,6 +171,8 @@ class AiShareUiTest {
         val parts = ScriptedAiTransport.requests.single()!!["messages"]!!.jsonArray.last().jsonObject["content"]!!.jsonArray
         assertEquals(listOf("text", "image_url"), parts.map { it.jsonObject["type"]!!.jsonPrimitive.content })
         rule.onNodeWithTag("ai-draft-d1-keep-images").assertIsOn()
+        // No currency read off the picture: the account's is used and the card says so.
+        rule.onNodeWithTag("ai-draft-flag-currency").assertExists()
         rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
         rule.waitUntil(8_000) { closed() }
         val bill = runBlocking { graph.bills!!.observeSearch("合成小票").first().single() }

@@ -15,6 +15,8 @@ enum class AiDraftFlag {
     TIME,
     /** No usable amount: the draft needs one before it can be saved. */
     AMOUNT,
+    /** A screenshot or share showed no currency the model could read: the account's (or base) currency is used. */
+    CURRENCY,
 }
 
 /**

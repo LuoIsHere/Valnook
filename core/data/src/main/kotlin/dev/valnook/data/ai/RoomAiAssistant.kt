@@ -127,7 +127,10 @@ class RoomAiAssistant(
         val timeout = when { thinking -> AiRules.TIMEOUT_THINKING_MS; jpegs.isNotEmpty() -> AiRules.TIMEOUT_IMAGE_MS; else -> AiRules.TIMEOUT_TEXT_MS }
         val round = Round()
         try {
-            val (reply, calls) = askForDrafts(context, round) { client.chat(context.settings.connection, it, body, thinking, timeout) }
+            // Pictures are read like a share: their currency is expected on them.
+            val (reply, calls) = askForDrafts(context, round, currencyExpected = jpegs.isNotEmpty()) {
+                client.chat(context.settings.connection, it, body, thinking, timeout)
+            }
             store(conversationId, reply, calls, round, images, drafts)
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { storeError(conversationId, null, round) }
@@ -148,7 +151,7 @@ class RoomAiAssistant(
         val round = Round()
         var force = true
         try {
-            val (reply, calls) = askForDrafts(context, round) { key ->
+            val (reply, calls) = askForDrafts(context, round, currencyExpected = true) { key ->
                 try { client.chat(context.settings.connection, key, AiPrompt.shareRequest(system, user, force), false, timeout) }
                 catch (error: AiException) {
                     // Some services refuse a required tool; asking without that is the next best thing.
@@ -170,9 +173,10 @@ class RoomAiAssistant(
      * Calls the model until its drafts can be read, asking once more when they cannot ([AiRules.FORMAT_RETRIES]).
      * Returns the reply and its readable draft calls.
      */
-    private suspend fun askForDrafts(context: Context, round: Round, call: suspend (String?) -> AiReply): Pair<AiReply, List<AiDraftCall>> {
+    private suspend fun askForDrafts(context: Context, round: Round, currencyExpected: Boolean,
+        call: suspend (String?) -> AiReply): Pair<AiReply, List<AiDraftCall>> {
         val key = savedKey()
-        val reader = context.reader()
+        val reader = context.reader(currencyExpected)
         repeat(AiRules.FORMAT_RETRIES + 1) {
             val started = clock.millis()
             val reply = call(key)
@@ -326,8 +330,8 @@ class RoomAiAssistant(
     private class Context(val settings: AiSettings, val features: AiFeatures, val choices: AiChoices, val base: String?,
         val habits: List<AiHabit>, val now: LocalDateTime) {
         fun system(english: Boolean) = AiPrompt.system(settings, choices.categories, choices.accounts, now, base, english, habits)
-        fun reader() = AiDraftReader(settings, choices.categories,
-            choices.accounts.filter { it.favorite }.ifEmpty { choices.accounts }, choices.accounts, now, base)
+        fun reader(currencyExpected: Boolean) = AiDraftReader(settings, choices.categories,
+            choices.accounts.filter { it.favorite }.ifEmpty { choices.accounts }, choices.accounts, now, base, currencyExpected)
     }
 
     /** Tokens and calls of one round so far. */

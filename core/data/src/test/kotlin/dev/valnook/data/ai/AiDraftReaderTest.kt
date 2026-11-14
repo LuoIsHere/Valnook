@@ -149,6 +149,18 @@ class AiDraftReaderTest {
         assertEquals(1000L, one("""{"type":"TRANSFER","amount":"10","currency":"USD","account_id":7,"to_account_id":9}""").amountMinor)
     }
 
+    @Test fun a_share_without_a_readable_currency_is_flagged() {
+        val share = AiDraftReader(AiSettings(), categories, sent, all, now, "CNY", currencyExpected = true)
+        val read = share.read("""{"bills":[{"type":"EXPENSE","amount":"9.9","currency":"usd"},{"type":"EXPENSE","amount":"5","account_id":9}]}""").drafts
+        assertEquals("USD", read[0].second.currencyCode)
+        assertTrue(AiDraftFlag.CURRENCY !in read[0].second.flags)
+        // Not read off the share: the account's currency, flagged to check.
+        assertEquals("JPY", read[1].second.currencyCode)
+        assertTrue(AiDraftFlag.CURRENCY in read[1].second.flags)
+        // In a conversation no currency said is the usual case and not flagged.
+        assertTrue(AiDraftFlag.CURRENCY !in one("""{"type":"EXPENSE","amount":"5"}""").flags)
+    }
+
     @Test fun an_expense_keeps_the_currency_paid_on_an_account_in_another() {
         val abroad = one("""{"type":"EXPENSE","amount":"1200","currency":"JPY","category_id":1,"account_id":7}""")
         assertEquals("JPY" to 1200L, abroad.currencyCode to abroad.amountMinor)

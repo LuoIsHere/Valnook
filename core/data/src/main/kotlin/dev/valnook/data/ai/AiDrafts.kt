@@ -37,6 +37,8 @@ class AiDraftReader(
     private val allAccounts: List<AiAccountChoice>,
     private val now: LocalDateTime,
     private val baseCurrency: String?,
+    /** Reading a screenshot or a share, where the currency is to be read off it: a missing one is flagged. */
+    private val currencyExpected: Boolean = false,
 ) {
     private val shown = categories.filter { !it.hidden }
     private val byId = categories.associateBy { it.id }
@@ -102,8 +104,9 @@ class AiDraftReader(
                 ?: settings.defaultCashAccountId?.takeIf { it in knownAccounts }
                 ?.also { flags += AiDraftFlag.ACCOUNT }
         }
-        val currency = currency(text(item, "currency"))
-            ?: account?.let { knownAccounts[it]?.currencyCode } ?: baseCurrency ?: DEFAULT_CURRENCY
+        val said = currency(text(item, "currency"))
+        if (said == null && currencyExpected) flags += AiDraftFlag.CURRENCY
+        val currency = said ?: account?.let { knownAccounts[it]?.currencyCode } ?: baseCurrency ?: DEFAULT_CURRENCY
         val amount = amount(item, "amount", currency).takeIf { it != null && it > 0 }
         if (amount == null) flags += AiDraftFlag.AMOUNT
         val discount = amount(item, "discount", currency)?.takeIf { it > 0 && amount != null && it < amount } ?: 0

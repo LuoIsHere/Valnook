@@ -191,4 +191,5 @@
     <plurals name="ai_share_saved">
         <item quantity="other">已记 %1$d 笔</item>
     </plurals>
+    <string name="ai_draft_flag_currency">币种未识别，已按账户币种</string>
 </resources>

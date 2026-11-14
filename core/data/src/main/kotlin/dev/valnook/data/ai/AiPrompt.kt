@@ -20,7 +20,7 @@ data class AiHabit(val note: String, val categoryId: Long)
 
 object AiPrompt {
     /** Raised whenever the fixed rules change. */
-    const val RULES_VERSION = 2
+    const val RULES_VERSION = 3
 
     /** The bill draft tool: the only one in bill requests. Names and descriptions are short English to save tokens. */
     val billTool: JsonObject = tool(BILL_TOOL,
@@ -74,7 +74,7 @@ object AiPrompt {
     })
 
     /** What comes before shared content, so the model reads it as bills to find rather than words to answer. */
-    const val SHARE_INTRO = "Shared from another app. Make drafts of the bills in it; if there are none, send an empty bills list and say so in message."
+    const val SHARE_INTRO = "Shared from another app. Make drafts of the bills in it, each with the currency it shows; if there are none, send an empty bills list and say so in message."
 
     const val BILL_TOOL = "create_bill_drafts"
     private const val HABIT_NOTE = 40
@@ -94,6 +94,7 @@ object AiPrompt {
         "- Use only the category and account ids listed below. Leave out a field you are unsure of. Never invent amounts; leave unreadable parts out.",
         "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up; the app does that.",
         "- currency: the ISO code of what was paid, only when the user says or shows it; otherwise leave it out and the account's currency is used. Each account's currency is listed below.",
+        "- In screenshots, receipts and shared text, set currency on every bill from what is shown: symbols, codes and words (¥, 元, RMB -> CNY, but 円 or a Japanese context -> JPY; $ -> USD unless written HK$, S$, NT$, A$, C$ or MOP$; €, £, ₩, ฿ and the like by their currency). Leave it out only when nothing there shows a currency.",
         "- account_id: the account the user says paid or received; leave it out when they do not say. Paying in another currency than the account's is fine; the app converts at its own rates.",
         "- A transfer's amount is what left account_id, in its currency; if the user only says what arrived in to_account_id's currency, give that amount with that currency.",
         "- Do not create refunds or reimbursement payments.",

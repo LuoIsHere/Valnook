@@ -192,4 +192,5 @@
         <item quantity="one">%1$d bill saved</item>
         <item quantity="other">%1$d bills saved</item>
     </plurals>
+    <string name="ai_draft_flag_currency">Currency not shown; the account\'s is used</string>
 </resources>

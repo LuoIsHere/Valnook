@@ -90,6 +90,8 @@ class AiAssistantTest {
         assertEquals(listOf("d1", "d2"), reply.drafts.map { it.label })
         assertEquals(listOf(800L, 6800L), reply.drafts.map { it.draft.amountMinor })
         assertTrue(reply.drafts[1].draft.reimbursable)
+        // Said in words without a currency: the usual case, not flagged.
+        assertTrue(reply.drafts.none { AiDraftFlag.CURRENCY in it.draft.flags })
         assertEquals(AiTurnUsage(100, 20, 120, null, 1), reply.usage)
         assertEquals("Breakfast 8, lunch 68…".take(16), assistant.observeConversations().first().single().title.take(16))
         assertTrue(assistant.observePendingDrafts().first())
@@ -159,6 +161,8 @@ class AiAssistantTest {
         val result = assistant.recognize("Paid 12.50 at a shop", emptyList())
         assertEquals("One bill", result.message)
         assertEquals(1250L, result.drafts.single().amountMinor)
+        // A share's currency is to be read off it; none given is flagged.
+        assertTrue(AiDraftFlag.CURRENCY in result.drafts.single().flags)
         assertTrue(result.toolCalled)
         // First with the tool required and thinking off, then without requiring it.
         assertEquals("create_bill_drafts", requests[0]["tool_choice"]!!.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
