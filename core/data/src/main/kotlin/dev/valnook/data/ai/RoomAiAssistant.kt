@@ -83,26 +83,27 @@ class RoomAiAssistant(
         return latest.id.takeIf { clock.millis() - latest.last_at_ms < AiRules.CONVERSATION_IDLE_MS }
     }
 
-    override suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit): Long {
-        val context = context()
-        check(context.features.chatEntry)
-        return sendMessage(conversationId, text, pictures, shared = false, context, onStored)
+    override suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>,
+        onStored: (Long, Long) -> Unit): Long {
+        check(service.observeFeatures().first().chatEntry)
+        return sendMessage(conversationId, text, pictures, shared = false, onStored)
     }
 
-    override suspend fun sendShared(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit): Long {
-        val context = context()
-        check(context.features.shareAllows(pictures.isNotEmpty()))
-        return sendMessage(conversationId, text, pictures, shared = true, context, onStored)
+    override suspend fun sendShared(conversationId: Long?, text: String, pictures: List<BillImage>,
+        onStored: (Long, Long) -> Unit): Long {
+        check(service.observeFeatures().first().shareAllows(pictures.isNotEmpty()))
+        return sendMessage(conversationId, text, pictures, shared = true, onStored)
     }
 
     /** Whether AI reads this kind of share: text by one switch, pictures by the other. */
     private fun AiFeatures.shareAllows(pictures: Boolean) = enabled && (if (pictures) shareImage else shareText)
 
+    /** Stores the message first, so the page has it at once; what the request is built from is read after. */
     private suspend fun sendMessage(conversationId: Long?, text: String, pictures: List<BillImage>, shared: Boolean,
-        context: Context, onStored: (Long) -> Unit): Long {
+        onStored: (Long, Long) -> Unit): Long {
         val now = clock.millis()
         val thumbs = pictures.map { this.pictures.thumbnail(it.key) ?: ByteArray(0) }
-        val id = chatDb.withTransaction {
+        val (id, messageId) = chatDb.withTransaction {
             val id = conversationId?.takeIf { dao.conversation(it) != null }
                 ?: dao.insertConversation(AiConversationEntity(title = AiConversations.title(text, pictures.size, english()),
                     created_at_ms = now, last_at_ms = now, tokens = 0))
@@ -111,10 +112,10 @@ class RoomAiAssistant(
                 AiPictureEntity(messageId, index, image.key, AiConversations.encodeImage(image).toString(), thumbs[index])
             })
             dao.touch(id, now, 0)
-            id
+            id to messageId
         }
-        onStored(id)
-        answer(id, context)
+        onStored(id, messageId)
+        answer(id, context())
         return id
     }
 

@@ -162,9 +162,10 @@ class AiAssistantTest {
         // The service refuses a required tool at first: asked again without requiring it.
         replies += { AiHttpResponse(400, """{"error":"tool_choice is not supported"}""") }
         replies += toolReply("""{"message":"One bill","bills":[{"type":"EXPENSE","amount":"12.5"}]}""")
-        var stored: Long? = null
-        assertEquals(id, assistant.sendShared(id, "Paid 12.50 at a shop", emptyList()) { stored = it })
-        assertEquals(id, stored)
+        var stored: Pair<Long, Long>? = null
+        assertEquals(id, assistant.sendShared(id, "Paid 12.50 at a shop", emptyList()) { c, m -> stored = c to m })
+        assertEquals(id, stored!!.first)
+        assertEquals(messages(id).first { it.shared }.id, stored!!.second)
         assertEquals("create_bill_drafts", requests[1]["tool_choice"]!!.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content)
         assertNull(requests[2]["tool_choice"])
         val sent = requests[2]["messages"]!!.jsonArray.map { it.jsonObject }

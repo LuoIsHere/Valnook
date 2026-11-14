@@ -122,10 +122,12 @@ interface AiAssistant {
     suspend fun conversationToContinue(): Long?
     /**
      * Sends [text] and [pictures] (pictures already in the bill picture library) in [conversationId], or in a new
-     * conversation when null, and stores the reply or the error. Returns the conversation's id. [onStored] gets the id
-     * as soon as the message itself is stored, before the model is asked, so the page shows it at once.
+     * conversation when null, and stores the reply or the error. Returns the conversation's id. [onStored] gets the
+     * conversation's and the message's ids as soon as the message itself is stored, before anything else is done for
+     * the request, so the page shows it at once.
      */
-    suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit = {}): Long
+    suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>,
+        onStored: (conversationId: Long, messageId: Long) -> Unit = { _, _ -> }): Long
     /** Sends the last message of [conversationId] again after an error. */
     suspend fun retry(conversationId: Long)
     /**
@@ -133,7 +135,8 @@ interface AiAssistant {
      * the chat: it is read with the draft tool required, thinking off and its currency read off it. [onStored] as for
      * [send].
      */
-    suspend fun sendShared(conversationId: Long?, text: String, pictures: List<BillImage>, onStored: (Long) -> Unit = {}): Long
+    suspend fun sendShared(conversationId: Long?, text: String, pictures: List<BillImage>,
+        onStored: (conversationId: Long, messageId: Long) -> Unit = { _, _ -> }): Long
     suspend fun confirmed(cardId: Long, billId: Long)
     suspend fun discard(cardId: Long)
     /** The saved bill was deleted again: the card waits once more. */

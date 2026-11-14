@@ -18,6 +18,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 
+/** A message just sent, shown at once until the stored one takes its place under the same [key]. */
+data class AiPendingMessage(val key: String, val text: String, val pictures: List<BillImage>, val shared: Boolean)
+
 data class AiChatUi(
     val loaded: Boolean = false,
     val conversationId: Long? = null,
@@ -42,7 +45,19 @@ data class AiChatUi(
     val aiNickname: String = "",
     /** Waiting drafts across currencies, by card. */
     val money: Map<Long, AiDraftMoney> = emptyMap(),
+    /** The message being answered is stored, so it shows: the reply can be awaited under it. */
+    val replyPending: Boolean = false,
+    val pending: AiPendingMessage? = null,
+    /** The list keys of messages sent from this page: each keeps the key its pending copy had. */
+    val keys: Map<Long, String> = emptyMap(),
 ) {
+    /** The pending copy shows until the stored message with its key is in the list. */
+    val pendingShown: Boolean get() = pending != null &&
+        keys.none { (id, key) -> key == pending.key && messages.any { it.id == id } }
+
+    /** The AI's typing bubble shows under the user's message, never before it is in the list. */
+    val typing: Boolean get() = replyPending && messages.lastOrNull()?.kind == AiMessageKind.USER
+
     /** The last message is the user's, waiting for a reply or for a retry after an error. */
     val canRetry: Boolean get() = !sending && messages.lastOrNull()?.kind == AiMessageKind.ERROR
 }
@@ -68,7 +83,8 @@ class AiChatViewModel(
     private data class Local(val loaded: Boolean = false, val sending: Boolean = false, val input: String = "",
         val pictures: List<BillImage> = emptyList(), val picturesWorking: Int = 0, val pictureFailed: Boolean = false,
         val busyCards: Set<Long> = emptySet(), val cardError: ErrorCode? = null, val cardFailed: Boolean = false,
-        val money: Map<Long, AiDraftMoney> = emptyMap())
+        val money: Map<Long, AiDraftMoney> = emptyMap(), val stored: Boolean = false,
+        val pending: AiPendingMessage? = null, val keys: Map<Long, String> = emptyMap())
 
     private val messages = conversation.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else assistant.observeMessages(id) }
     private val choices = combine(bills.observeCategories(), bills.observeAccountChoices()) { c, a ->
@@ -81,7 +97,8 @@ class AiChatViewModel(
     ) { (id, l, m), features, settings, (categories, accounts), conversations ->
         AiChatUi(l.loaded, id, conversations.firstOrNull { it.id == id }?.title, m, l.sending, l.input, l.pictures,
             l.picturesWorking, l.pictureFailed, features, settings.connection.host, categories, accounts, conversations,
-            l.busyCards, l.cardError, l.cardFailed, settings.userNickname, settings.aiNickname, l.money)
+            l.busyCards, l.cardError, l.cardFailed, settings.userNickname, settings.aiNickname, l.money, l.sending && l.stored,
+            l.pending, l.keys)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AiChatUi())
 
     init {
@@ -121,6 +138,21 @@ class AiChatViewModel(
 
     fun setInput(text: String) = updateLocal { it.copy(input = text.take(INPUT_MAX)) }
 
+    private var sent = 0
+
+    /** Shows [text] and [pictures] at once as the user's message, to be replaced by the stored one. */
+    private fun showPending(text: String, pictures: List<BillImage>, shared: Boolean): String {
+        val key = "sent-${++sent}"
+        updateLocal { it.copy(pending = AiPendingMessage(key, text, pictures, shared)) }
+        return key
+    }
+
+    /** The message is stored: the page follows its conversation, and the stored copy takes the pending one's key. */
+    private fun stored(key: String, conversationId: Long, messageId: Long) {
+        setConversation(conversationId)
+        updateLocal { it.copy(stored = true, keys = it.keys + (messageId to key)) }
+    }
+
     /** Reads, compresses and stores picked pictures, up to the limit of one message. */
     fun addPictures(sources: List<suspend () -> ByteArray>) {
         val library = images ?: return
@@ -154,10 +186,11 @@ class AiChatViewModel(
         if (current.sending || current.picturesWorking > 0 || (text.isEmpty() && current.pictures.isEmpty())) return
         if (!state.value.features.chatEntry) return
         val pictures = current.pictures
-        updateLocal { it.copy(sending = true, input = "", pictures = emptyList(), cardError = null, cardFailed = false) }
+        updateLocal { it.copy(sending = true, stored = false, input = "", pictures = emptyList(), cardError = null, cardFailed = false) }
+        // The message shows at once; the stored one takes its place, then the reply follows.
+        val key = showPending(text, pictures, shared = false)
         sendJob = viewModelScope.launch {
-            // The message shows as soon as it is stored; the reply follows.
-            try { setConversation(assistant.send(conversation.value, text, pictures) { setConversation(it) }) }
+            try { setConversation(assistant.send(conversation.value, text, pictures) { c, m -> stored(key, c, m) }) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
                 // Nothing was stored (the features went off meanwhile): the words come back to the box.
@@ -165,7 +198,7 @@ class AiChatViewModel(
             } finally {
                 // Waiting drafts hold their own pictures now; the rest go once nothing holds them.
                 images?.saved(pictures.map { it.key })
-                updateLocal { it.copy(sending = false) }
+                updateLocal { it.copy(sending = false, pending = null) }
             }
         }
     }
@@ -177,7 +210,7 @@ class AiChatViewModel(
     fun sendShared(text: String, sources: List<suspend () -> ByteArray>) {
         if (saved.get<Boolean>("sharedSent") == true || local.value.sending) return
         saved["sharedSent"] = true
-        updateLocal { it.copy(sending = true) }
+        updateLocal { it.copy(sending = true, stored = false) }
         sendJob = viewModelScope.launch {
             val stored = mutableListOf<BillImage>()
             try {
@@ -191,12 +224,13 @@ class AiChatViewModel(
                 // The page may still be choosing its conversation; a share joins the one it shows.
                 local.first { it.loaded }
                 if (text.isBlank() && stored.isEmpty()) return@launch
-                setConversation(assistant.sendShared(conversation.value, text.trim(), stored) { setConversation(it) })
+                val key = showPending(text.trim(), stored, shared = true)
+                setConversation(assistant.sendShared(conversation.value, text.trim(), stored) { c, m -> stored(key, c, m) })
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {}
             finally {
                 images?.saved(stored.map { it.key })
-                updateLocal { it.copy(sending = false) }
+                updateLocal { it.copy(sending = false, pending = null) }
             }
         }
     }
@@ -206,7 +240,8 @@ class AiChatViewModel(
     fun retry() {
         val id = conversation.value ?: return
         if (local.value.sending) return
-        updateLocal { it.copy(sending = true) }
+        // The message to send again is already there.
+        updateLocal { it.copy(sending = true, stored = true) }
         sendJob = viewModelScope.launch {
             try { assistant.retry(id) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) {}
             finally { updateLocal { it.copy(sending = false) } }

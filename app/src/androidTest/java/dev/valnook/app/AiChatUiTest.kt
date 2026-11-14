@@ -146,7 +146,11 @@ class AiChatUiTest {
         send("合成午饭 25")
         // A new conversation: the words are there before any reply, and the reply is awaited in the AI's bubble.
         waitTag("ai-chat-working")
-        rule.waitUntil(8_000) { rule.onAllNodesWithText("合成午饭 25").fetchSemanticsNodes().isNotEmpty() }
+        // The AI's bubble never comes before the user's message: by the time it shows, the message is there.
+        rule.onNode(hasText("合成午饭 25") and (hasAnyAncestor(tagStarting("ai-chat-user-")) or hasAnyAncestor(hasTestTag("ai-chat-pending")))).assertExists()
+        // Stored, it stays one message.
+        rule.waitUntil(8_000) { rule.onAllNodes(hasText("合成午饭 25") and hasAnyAncestor(tagStarting("ai-chat-user-"))).fetchSemanticsNodes().size == 1 }
+        rule.onNodeWithTag("ai-chat-pending").assertDoesNotExist()
         rule.onNodeWithTag("ai-draft-d1-pending").assertDoesNotExist()
         release.complete(Unit)
         waitTag("ai-draft-d1-pending")

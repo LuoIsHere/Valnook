@@ -70,7 +70,7 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
     Column(Modifier.fillMaxSize().testTag("ai-chat")) {
         val list = rememberLazyListState()
         // New messages, and the working line, scroll into view.
-        LaunchedEffect(ui.messages.size, ui.sending) {
+        LaunchedEffect(ui.messages.size, ui.typing, ui.pendingShown) {
             val count = list.layoutInfo.totalItemsCount
             if (count > 0) list.animateScrollToItem(count - 1)
         }
@@ -81,7 +81,8 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("ai-chat-messages"), list,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = Space.md), verticalArrangement = Arrangement.spacedBy(Space.md)) {
             if (ui.messages.isEmpty() && !ui.sending) item { Examples(vm) }
-            items(ui.messages, key = { it.id }) { message ->
+            // A message sent here keeps the key of the copy shown while it was stored: one item, no second entrance.
+            items(ui.messages, key = { ui.keys[it.id] ?: it.id }) { message ->
                 val animate = message.createdAtMs >= openedAt && arrived.add(message.id)
                 Arrive(animate, fromRight = message.kind == AiMessageKind.USER) {
                     when (message.kind) {
@@ -91,9 +92,12 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
                     }
                 }
             }
-            // The reply on its way, as the AI's own bubble.
-            if (ui.sending) item(key = "typing") {
-                Arrive(true, fromRight = false) {
+            ui.pending?.takeIf { ui.pendingShown }?.let { pending ->
+                item(key = pending.key) { Arrive(true, fromRight = true) { PendingMessage(pending, ui, avatars.user) } }
+            }
+            // The reply on its way, as the AI's own bubble: only once the user's message is in, and a beat after it.
+            if (ui.typing || (ui.pendingShown && ui.replyPending)) item(key = "typing") {
+                Arrive(true, fromRight = false, delayMs = 180) {
                     Speaker(ui.aiNickname.ifBlank { "AI" }, avatars.ai, right = false) { Typing() }
                 }
             }
@@ -110,10 +114,10 @@ private class Avatars(val user: ImageBitmap?, val ai: ImageBitmap?)
 
 /** A message coming in from its speaker's side: fading in, rising a little and growing to size, once. */
 @Composable
-private fun Arrive(animate: Boolean, fromRight: Boolean, content: @Composable () -> Unit) {
+private fun Arrive(animate: Boolean, fromRight: Boolean, delayMs: Int = 0, content: @Composable () -> Unit) {
     val progress = remember { androidx.compose.animation.core.Animatable(if (animate) 0f else 1f) }
     LaunchedEffect(Unit) {
-        if (animate) progress.animateTo(1f, androidx.compose.animation.core.tween(280,
+        if (animate) progress.animateTo(1f, androidx.compose.animation.core.tween(280, delayMillis = delayMs,
             easing = androidx.compose.animation.core.FastOutSlowInEasing))
     }
     Box(Modifier.graphicsLayer {
@@ -199,6 +203,19 @@ private fun Bubble(text: String, mine: Boolean, modifier: Modifier = Modifier) {
     Surface(modifier, shape = RoundedCornerShape(16.dp),
         color = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh) {
         Text(AiText.plain(text), Modifier.padding(horizontal = Space.md, vertical = Space.sm), style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+/** The message just sent, as it will look once stored; its pictures come from the library meanwhile. */
+@Composable
+private fun PendingMessage(pending: AiPendingMessage, ui: AiChatUi, avatar: ImageBitmap?) {
+    Speaker(ui.userNickname.ifBlank { stringResource(R.string.ai_chat_me) }, avatar, right = true) {
+        if (pending.shared) Text(stringResource(R.string.ai_chat_shared), style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (pending.pictures.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
+            pending.pictures.forEach { dev.valnook.feature.bills.BillImageThumb(it.key, 72.dp, {}) }
+        }
+        if (pending.text.isNotBlank()) Bubble(pending.text, mine = true, Modifier.testTag("ai-chat-pending"))
     }
 }
 
