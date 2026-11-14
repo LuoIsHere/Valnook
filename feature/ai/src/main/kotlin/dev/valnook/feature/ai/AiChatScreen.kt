@@ -282,7 +282,7 @@ private fun InputBar(ui: AiChatUi, vm: AiChatViewModel) {
                 val label = stringResource(R.string.ai_chat_pictures)
                 IconButton({ if (AiNotices.picturesSeen(context)) pick() else notice = true }, enabled = room > 0 && !ui.sending,
                     modifier = Modifier.semantics { contentDescription = label }.testTag("ai-chat-add-pictures")) {
-                    FaIcon(dev.valnook.core.designsystem.R.drawable.fa_camera, null, Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+                    FaIcon(FaIcons.image, null, Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             OutlinedTextField(ui.input, vm::setInput, Modifier.weight(1f).testTag("ai-chat-input"),
