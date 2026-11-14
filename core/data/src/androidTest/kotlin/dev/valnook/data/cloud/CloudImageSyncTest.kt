@@ -52,6 +52,7 @@ class CloudImageSyncTest {
     private var cash = 0L
 
     @Before fun prepare() = runBlocking {
+        context.getSharedPreferences("valnook_cloud_images", 0).edit().clear().commit()
         database = Room.inMemoryDatabaseBuilder(context, ValnookDatabase::class.java).addCallback(ValnookDatabase.seed).build()
         dir = File(context.cacheDir, "cloud-pictures-${UUID.randomUUID()}")
         store = BillImageStore(dir, database, clock)
@@ -70,6 +71,7 @@ class CloudImageSyncTest {
             listOf(CashBalanceChange("CNY", 100_000, null, name = "A")))).id
         cash = RoomOverview(database).snapshot().cash.single { it.account_id == bank }.id
         coordinator.connect(CloudAuthorizationGrant("synthetic-access-token"))
+        coordinator.acknowledgeImageNotice()
     }
 
     @After fun close() { database.close(); dir.deleteRecursively() }
@@ -100,8 +102,29 @@ class CloudImageSyncTest {
         pictures.forEach { assertArrayEquals(store.file(it.key).readBytes(), drive.pictures.getValue(ImagePool.pictureName(it.key)).first) }
         // The data went up before any picture.
         assertEquals("snapshot", drive.order.first())
-        assertEquals(CloudImageStatus(notUploaded = 0), status())
+        assertEquals(CloudImageStatus(onDevice = 2), status())
         assertTrue(database.bills().imageFiles().all { it.cloud_size != null && it.cloud_quick_xor != null })
+    }
+
+    @Test fun pictures_wait_until_the_onedrive_notice_is_read_while_the_data_backs_up() = runBlocking {
+        context.getSharedPreferences("valnook_cloud_images", 0).edit().clear().commit()
+        val unread = CloudBackupCoordinator(context, database, RoomPortabilityEngine(context, database, clock,
+            AppBuildInfo("valnook", "0.0.19", 1904, "20261114.1", "20261114.1", 27)),
+            CloudAccessProvider { CloudAccessResult.Granted("synthetic-access-token") }, drive,
+            object : BackupScheduler {
+                override suspend fun replace(nextDueAtUtcMs: Long, referenceUtcMs: Long, cycleId: String, dataGeneration: Long,
+                    connectionGeneration: Long, scheduleGeneration: Long) = Unit
+                override suspend fun cancel() = Unit
+            }, time, object : NetworkAvailability { override fun connected() = true }, store)
+        bill(stored(10))
+        assertTrue(unread.observeImages().first().noticeNeeded)
+        unread.manualBackup()
+        assertEquals(BackupAttemptState.SUCCEEDED, unread.observeState().first().attemptState)
+        assertTrue(drive.pictures.isEmpty() && !drive.noticeWritten)
+        unread.acknowledgeImageNotice()
+        assertFalse(unread.observeImages().first().noticeNeeded)
+        unread.manualBackup()
+        assertEquals(1, drive.pictures.size)
     }
 
     @Test fun later_backups_send_only_new_pictures_and_carry_on_after_a_stop() = runBlocking {
@@ -118,7 +141,7 @@ class CloudImageSyncTest {
         drive.failUploadNumber = null
         coordinator.manualBackup()
         assertEquals(4, drive.pictureUploads)
-        assertEquals(CloudImageStatus(notUploaded = 0), status())
+        assertEquals(CloudImageStatus(onDevice = 3), status())
     }
 
     @Test fun a_bill_images_folder_that_is_not_valnooks_is_left_alone_while_the_data_backs_up() = runBlocking {

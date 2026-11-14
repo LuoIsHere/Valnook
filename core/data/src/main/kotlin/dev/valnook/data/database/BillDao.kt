@@ -24,7 +24,7 @@ data class BillAccountRow(
 )
 
 /** Pictures bills hold that are only on this device, and those only in OneDrive. */
-data class BillImageCounts(val not_uploaded: Int, val only_in_cloud: Int)
+data class BillImageCounts(val not_uploaded: Int, val only_in_cloud: Int, val on_device: Int, val missing: Int)
 
 /** A bill with what came back for it so far (in its own currency) and, for a refund or reimbursement, its bill's note. */
 data class BillRow(
@@ -178,7 +178,11 @@ interface BillDao {
         (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
             WHERE f.local_saved_at_ms IS NOT NULL AND f.cloud_size IS NULL) AS not_uploaded,
         (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
-            WHERE f.local_saved_at_ms IS NULL AND f.cloud_size IS NOT NULL) AS only_in_cloud""")
+            WHERE f.local_saved_at_ms IS NULL AND f.cloud_size IS NOT NULL) AS only_in_cloud,
+        (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a JOIN bill_image_files f ON f.image_key=a.image_key
+            WHERE f.local_saved_at_ms IS NOT NULL) AS on_device,
+        (SELECT COUNT(DISTINCT a.image_key) FROM bill_attachments a LEFT JOIN bill_image_files f ON f.image_key=a.image_key
+            WHERE f.image_key IS NULL OR (f.local_saved_at_ms IS NULL AND f.cloud_size IS NULL)) AS missing""")
     fun observeImageCounts(): Flow<BillImageCounts>
 
     /** Pictures bills hold, put on them since [sinceMs] (all when null). */

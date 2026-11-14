@@ -81,9 +81,17 @@ class BackupScreenUiTest {
         val settings = object : SettingsRepository { override fun observeSettings() = flowOf(AppSettings()) }
         val vm = BackupViewModel(UnavailableDataPortability, settings, false, cloud, auth)
         rule.setContent { ValnookTheme { BackupScreen(vm, false) } }
+        // The notice comes first; turning it down does not connect.
         rule.onNodeWithTag("cloud-connect").performScrollTo().performClick()
+        rule.onNodeWithTag("cloud-notice").assertExists()
+        rule.onNodeWithTag("cloud-notice-cancel").performClick()
+        rule.waitForIdle()
+        org.junit.Assert.assertEquals(0, connections)
+        rule.onNodeWithTag("cloud-connect").performScrollTo().performClick()
+        rule.onNodeWithTag("cloud-notice-accept").performClick()
         rule.onNodeWithTag("cloud-disconnect").performScrollTo().performClick()
         rule.onNodeWithTag("cloud-connect").performScrollTo().performClick()
+        rule.onNodeWithTag("cloud-notice-accept").performClick()
         rule.waitForIdle()
         org.junit.Assert.assertEquals(2, connections)
         org.junit.Assert.assertEquals(1, signOuts)
@@ -215,6 +223,74 @@ class BackupScreenUiTest {
         cloudState.value = cloudState.value.copy(attemptState = dev.valnook.domain.cloud.BackupAttemptState.WAITING_NETWORK,
             latestError = dev.valnook.domain.cloud.CloudBackupError.NO_NETWORK)
         rule.onNodeWithTag("cloud-latest-reason").assertDoesNotExist()
+    }
+
+    @Test fun pictures_on_the_backup_page_wait_for_the_notice_and_ask_before_moving_many() {
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+            .getSharedPreferences("valnook_backup_prompts", 0).edit().clear().commit()
+        val images = MutableStateFlow(dev.valnook.domain.cloud.CloudImageStatus(noticeNeeded = true, onDevice = 3, notUploaded = 3))
+        var read = 0; var backups = 0; var fetched = 0; var stopped = 0; var disconnected = 0
+        val cloud = object : CloudBackupService by UnavailableCloudBackupService {
+            override val cloudAllowed = true
+            override fun observeState() = flowOf(CloudBackupRuntimeState(connected = true, accountDisplay = "Test account",
+                folderName = "Valnook_backup"))
+            override fun observeImages() = images
+            override fun acknowledgeImageNotice() { read++; images.value = images.value.copy(noticeNeeded = false) }
+            override suspend fun manualBackup() { backups++ }
+            override suspend fun fetchMissingImages(attachedSinceMs: Long?): Int { fetched++; return 0 }
+            override fun stopImageTransfer() { stopped++ }
+            override suspend fun disconnect() { disconnected++ }
+        }
+        val vm = BackupViewModel(FakePortability(), emptySettings, demo = false, cloudBackup = cloud)
+        rule.setContent { ValnookTheme { BackupScreen(vm, demoMode = false) } }
+        // Pictures wait for the notice, which can be read from the line saying so.
+        rule.onNodeWithTag("cloud-images-notice-needed").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("cloud-images-read-notice").performClick()
+        rule.onNodeWithTag("cloud-notice-accept").performClick()
+        rule.waitUntil(5_000) { read == 1 }
+        rule.onNodeWithTag("cloud-images-pending").performScrollTo().assertIsDisplayed()
+
+        // Many pictures to send: first a reminder to keep the screen on; cancelling sends nothing.
+        images.value = images.value.copy(onDevice = 30, notUploaded = 30)
+        rule.onNodeWithTag("cloud-backup-now").performScrollTo().performClick()
+        rule.onNodeWithTag("cloud-foreground-reminder").assertExists()
+        rule.onNodeWithTag("cloud-foreground-cancel").performClick()
+        rule.waitForIdle()
+        org.junit.Assert.assertEquals(0, backups)
+        rule.onNodeWithTag("cloud-backup-now").performScrollTo().performClick()
+        rule.onNodeWithTag("cloud-foreground-skip").performClick()
+        rule.onNodeWithTag("cloud-foreground-continue").performClick()
+        rule.waitUntil(5_000) { backups == 1 }
+        // Not reminded again.
+        rule.onNodeWithTag("cloud-backup-now").performScrollTo().performClick()
+        rule.waitUntil(5_000) { backups == 2 }
+        rule.onNodeWithTag("cloud-foreground-reminder").assertDoesNotExist()
+
+        images.value = images.value.copy(uploading = 3 to 30)
+        rule.onNodeWithTag("cloud-images-uploading").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("cloud-images-stop").performClick()
+        org.junit.Assert.assertEquals(1, stopped)
+        images.value = dev.valnook.domain.cloud.CloudImageStatus(problem = dev.valnook.domain.cloud.CloudImageProblem.FOLDER_CONFLICT,
+            onDevice = 30, notUploaded = 30)
+        rule.onNodeWithTag("cloud-images-conflict").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("cloud-images-pending").assertDoesNotExist()
+
+        images.value = dev.valnook.domain.cloud.CloudImageStatus(onlyInCloud = 40, missing = 2)
+        rule.onNodeWithTag("cloud-images-missing").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithTag("cloud-images-fetch-all").performScrollTo().performClick()
+        rule.waitUntil(5_000) { fetched == 1 }
+        // Disconnecting with pictures only in OneDrive asks first.
+        rule.onNodeWithTag("cloud-disconnect").performScrollTo().performClick()
+        rule.onNodeWithTag("cloud-disconnect-pictures").assertExists()
+        rule.onNodeWithTag("cloud-disconnect-anyway").performClick()
+        rule.waitUntil(5_000) { disconnected == 1 }
+
+        // A data backup saved to a file says it holds no pictures; its restore preview says what happens to them.
+        images.value = dev.valnook.domain.cloud.CloudImageStatus(onDevice = 5)
+        rule.runOnIdle { vm.createBackup(vm.backupRequest(), { java.io.ByteArrayOutputStream() }) }
+        rule.onNodeWithTag("backup-no-pictures").performScrollTo().assertTextContains("5", substring = true)
+        rule.runOnIdle { vm.prepareRestore("ok.val_backup") { java.io.ByteArrayInputStream(ByteArray(0)) } }
+        rule.onNodeWithTag("backup-preview-pictures").performScrollTo().assertIsDisplayed()
     }
 
     private val emptySettings = object : SettingsRepository { override fun observeSettings() = flowOf(AppSettings()) }

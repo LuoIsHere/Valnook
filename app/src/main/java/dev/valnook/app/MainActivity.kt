@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import dev.valnook.domain.webadmin.WebAdminPhase
 import android.view.WindowManager
 @AndroidEntryPoint
@@ -33,8 +34,14 @@ class MainActivity:ComponentActivity() {
         window.isNavigationBarContrastEnforced=false
         val appearance = ThemePreferences(this)
         lifecycleScope.launch {
-            webAdmin.state.collectLatest { state ->
-                if (state.phase == WebAdminPhase.ACTIVE) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            // The screen stays on while the web admin serves, and while a OneDrive backup or a picture transfer runs:
+            // the app has no background service, so turning the screen off would stop them.
+            kotlinx.coroutines.flow.combine(webAdmin.state, sessions.observeCloudState(), sessions.observeCloudImages()) { web, cloud, images ->
+                web.phase == WebAdminPhase.ACTIVE || images.uploading != null || images.fetching != null ||
+                    cloud.attemptState in setOf(dev.valnook.domain.cloud.BackupAttemptState.PREPARING,
+                        dev.valnook.domain.cloud.BackupAttemptState.UPLOADING, dev.valnook.domain.cloud.BackupAttemptState.VERIFYING)
+            }.distinctUntilChanged().collectLatest { keepOn ->
+                if (keepOn) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
         }

@@ -176,4 +176,7 @@
     <string name="bill_image_remove">移除图片</string>
     <string name="bill_image_missing">图片缺失</string>
     <string name="bill_image_close">关闭</string>
+    <string name="bill_image_in_cloud">在云端</string>
+    <string name="bill_image_fetch">从 OneDrive 取回</string>
+    <string name="bill_image_fetch_failed">没能从 OneDrive 取回，请稍后再试。</string>
 </resources>

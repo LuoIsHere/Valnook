@@ -87,6 +87,7 @@ class AppSessionManager @Inject internal constructor(
         }
     }
     fun observeCloudState() = cloudCoordinator.observeState()
+    fun observeCloudImages() = cloudCoordinator.observeImages()
     suspend fun consumeCloudBanner(eventId: String) = cloudCoordinator.consumeBanner(eventId)
     suspend fun reconcileCloudSchedule() = cloudCoordinator.reconcileSchedule()
 
@@ -325,7 +326,11 @@ class AppSessionManager @Inject internal constructor(
         cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator),
         fxSync = SessionFxSync(sessionId, mode),
         bills = source.bills,
-        billImages = source.billImages,
+        billImages = object : dev.valnook.domain.repository.BillImageLibrary by source.billImages {
+            // Pictures come back from OneDrive only for the real data, through this session's checks.
+            override suspend fun fetch(keys: Collection<String>): Int = if (mode != DataMode.REAL) 0 else
+                runCatching { SessionCloudBackup(sessionId, mode, cloudCoordinator).fetchImages(keys) }.getOrDefault(0)
+        },
         wallet = object : dev.valnook.domain.repository.WalletRepository {
             private val delegate = dev.valnook.data.repository.RoomWallet(source.database,source.clock)
             override fun observeCards() = delegate.observeCards()
@@ -414,6 +419,8 @@ class AppSessionManager @Inject internal constructor(
         override suspend fun fetchImages(keys: Collection<String>): Int { check(); return delegate.fetchImages(keys) }
         override suspend fun fetchMissingImages(attachedSinceMs: Long?): Int { check(); return delegate.fetchMissingImages(attachedSinceMs) }
         override fun stopImageTransfer() = delegate.stopImageTransfer()
+        override fun acknowledgeImageNotice() { if (mode == DataMode.REAL) delegate.acknowledgeImageNotice() }
+        override suspend fun refreshImages() { check(); delegate.refreshImages() }
     }
 
     private fun clearAbandonedDemoDatabases() {
@@ -583,6 +590,10 @@ class AppSessionManager @Inject internal constructor(
                 pendingRestore = null
                 publishRealSession()
                 cloudCoordinator.reconcileSchedule()
+            }
+            // Which of the restored bills' pictures OneDrive holds, so they show as there to fetch, not as missing.
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO).launch {
+                runCatching { cloudCoordinator.refreshImages() }
             }
             result
         }

@@ -190,6 +190,29 @@ class BillImagesUiTest {
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("bill-image-viewer").fetchSemanticsNodes().isEmpty() }
     }
 
+    @Test fun a_picture_only_in_onedrive_shows_as_there_and_comes_back_when_tapped() {
+        val image = runBlocking { library.store(BillImageCodecSample.webp(picture(50))) }
+        val id = bill(listOf(image))
+        library.saved(listOf(image.key))
+        var here = false
+        var fetches = 0
+        val cloudOnly = object : BillImageLibrary by library {
+            override suspend fun read(key: String) = if (here) library.read(key) else null
+            override suspend fun place(key: String) = if (here) dev.valnook.domain.repository.BillImagePlace.DEVICE
+                else dev.valnook.domain.repository.BillImagePlace.CLOUD
+            override suspend fun fetch(keys: Collection<String>): Int { fetches++; here = true; return keys.size }
+        }
+        val vm = rule.runOnUiThread { BillDetailViewModel(id, graph.bills!!, graph.commands) }
+        show(images = cloudOnly) { BillDetailScreen(vm, {}, {}, {}) }
+        waitTag("bill-image-in-cloud")
+        rule.onNodeWithTag("bill-image-0").performClick()
+        rule.waitUntil(5_000) { fetches == 1 }
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("bill-image-in-cloud", useUnmergedTree = true).fetchSemanticsNodes().isEmpty() }
+        // Now it is here, a tap opens it.
+        rule.onNodeWithTag("bill-image-0").performClick()
+        waitTag("bill-image-viewer")
+    }
+
     @Test fun the_list_counts_a_bill_s_pictures() {
         val images = listOf(picture(30), picture(90)).map { runBlocking { library.store(BillImageCodecSample.webp(it)) } }
         val withPictures = bill(images)

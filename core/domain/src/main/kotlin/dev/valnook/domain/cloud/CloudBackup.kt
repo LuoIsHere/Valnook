@@ -132,6 +132,12 @@ data class CloudImageStatus(
     val notUploaded: Int = 0,
     /** Pictures bills hold that are only in OneDrive, not on this device. */
     val onlyInCloud: Int = 0,
+    /** Pictures bills hold that are on this device. */
+    val onDevice: Int = 0,
+    /** Pictures bills hold that are neither here nor known to be in OneDrive. */
+    val missing: Int = 0,
+    /** Connected, but the OneDrive notice has not been read yet: pictures wait for it. */
+    val noticeNeeded: Boolean = false,
 )
 
 interface BackupScheduler {
@@ -170,6 +176,10 @@ interface CloudBackupService {
     suspend fun fetchMissingImages(attachedSinceMs: Long?): Int = 0
     /** Stops an upload or fetch of pictures; what arrived stays, the rest waits for next time. */
     fun stopImageTransfer() = Unit
+    /** The OneDrive notice was read: pictures go up from the next backup. */
+    fun acknowledgeImageNotice() = Unit
+    /** Finds what OneDrive's picture folder holds, without fetching anything. */
+    suspend fun refreshImages() = Unit
 }
 
 object UnavailableCloudBackupService : CloudBackupService {

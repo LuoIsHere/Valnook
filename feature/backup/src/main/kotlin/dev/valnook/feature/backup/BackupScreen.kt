@@ -96,6 +96,17 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         if (uri != null) vm.prepareRestore(displayName(context, uri)) { context.contentResolver.openInputStream(uri) }
     }
 
+    // Dialogs about OneDrive and pictures; "don't remind me" for the keep-the-screen-on reminder stays on this device.
+    var notice by rememberSaveable { mutableStateOf<String?>(null) }
+    var reminder by rememberSaveable { mutableStateOf<String?>(null) }
+    var disconnecting by rememberSaveable { mutableStateOf(false) }
+    val prompts = remember(context) { context.getSharedPreferences("valnook_backup_prompts", android.content.Context.MODE_PRIVATE) }
+    fun withReminder(kind: String, count: Int, action: () -> Unit) {
+        if (count > FOREGROUND_REMINDER_ABOVE && !prompts.getBoolean("foreground_reminder_off", false)) reminder = kind else action()
+    }
+    val backupNow = { withReminder("upload", if (state.images.noticeNeeded) 0 else state.images.notUploaded, vm::backupToCloud) }
+    val fetchAll = { withReminder("fetch", state.images.onlyInCloud, vm::fetchAllImages) }
+
     val listState = rememberLazyListState()
     // Local feedback follows the description, the create/restore buttons (non-demo) and the Excel button.
     val feedbackIndex = if (demoMode) 2 else 4
@@ -140,6 +151,10 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
         state.completedFile?.let { result -> item(key = "feedback-completed") { Text(stringResource(
             if (result.outputVerified) R.string.backup_saved_verified else R.string.backup_saved_unverified,
             result.fileName), Modifier.testTag("backup-completed"), color = MaterialTheme.colorScheme.primary) } }
+        if (state.completedFile != null && state.completedBackup && state.images.onDevice > 0) item(key = "feedback-no-pictures") {
+            Text(stringResource(R.string.backup_local_no_pictures, state.images.onDevice), Modifier.testTag("backup-no-pictures"),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         state.preview?.let { preview ->
             item(key = "feedback-preview-divider") { HorizontalDivider() }
             item(key = "feedback-preview-title") { Text(stringResource(R.string.backup_restore_preview), Modifier.testTag("backup-restore-preview"),
@@ -153,6 +168,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
             item(key = "feedback-preview-warning") { Text(stringResource(R.string.backup_overwrite_warning), color = MaterialTheme.colorScheme.error) }
             item(key = "feedback-preview-fx") { Text(stringResource(R.string.backup_fx_switch_kept),
                 Modifier.testTag("backup-preview-fx"), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item(key = "feedback-preview-pictures") { Text(stringResource(R.string.backup_preview_pictures),
+                Modifier.testTag("backup-preview-pictures"), color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (!preview.auditCoverageComplete) item(key = "feedback-preview-audit") { Text(stringResource(R.string.backup_audit_incomplete),
                 color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (state.challenge == null) item(key = "feedback-preview-actions") { Row(Modifier.fillMaxWidth(),
@@ -195,7 +212,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                 }
             }
             if (!state.cloud.connected) {
-                item { Button({ activity?.let(vm::connect) },
+                item { Button({ notice = "connect" },
                     enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth().testTag("cloud-connect")) {
                     Text(stringResource(R.string.cloud_connect))
                 } }
@@ -206,9 +223,11 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(state.cloud.folderName.orEmpty(), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    TextButton({ notice = "read" }, Modifier.testTag("cloud-notice-open"),
+                        contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.cloud_notice_open)) }
                 } }
                 item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    Button(vm::backupToCloud, enabled = !state.cloudBusy,
+                    Button(backupNow, enabled = !state.cloudBusy,
                         modifier = Modifier.weight(1f).testTag("cloud-backup-now")) {
                         Text(stringResource(R.string.cloud_backup_now))
                     }
@@ -247,6 +266,8 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                 }
                 item { CloudStatus(state.cloud.attemptState, state.cloud.latestError, state.cloud.lastSuccessAtUtc,
                     state.cloud.nextDueAtUtc, state.cloud.cleanupIncomplete) }
+                item { CloudImagesSection(state.images, state.cloudBusy, onNotice = { notice = "read" },
+                    onStop = vm::stopImageTransfer, onFetchAll = fetchAll) }
                 item { HorizontalDivider() }
                 item { Text(stringResource(R.string.cloud_backups), style = MaterialTheme.typography.titleMedium) }
                 state.cloud.backupsRefreshedAtUtc?.let { refreshed -> item {
@@ -276,7 +297,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                         onRestore = { vm.prepareCloudRestore(value) }
                     )
                 }
-                item { TextButton({ vm.disconnect() }, enabled = !state.cloudBusy,
+                item { TextButton({ if (state.images.onlyInCloud > 0) disconnecting = true else vm.disconnect() }, enabled = !state.cloudBusy,
                     modifier = Modifier.fillMaxWidth().testTag("cloud-disconnect")) { Text(stringResource(R.string.cloud_disconnect)) } }
                 item { TextButton({ vm.manageAuthorization { url -> context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }, enabled = !state.cloudBusy,
                     modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.cloud_revoke)) } }
@@ -296,6 +317,25 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
+    notice?.let { kind ->
+        OneDriveNoticeDialog(connecting = kind == "connect", onCancel = { notice = null }, onAccept = {
+            notice = null
+            vm.acknowledgeImageNotice()
+            if (kind == "connect") activity?.let(vm::connect)
+        })
+    }
+    reminder?.let { kind ->
+        ForegroundReminderDialog(if (kind == "fetch") state.images.onlyInCloud else state.images.notUploaded, fetching = kind == "fetch",
+            onCancel = { reminder = null }, onContinue = { off ->
+                if (off) prompts.edit().putBoolean("foreground_reminder_off", true).apply()
+                reminder = null
+                if (kind == "fetch") vm.fetchAllImages() else vm.backupToCloud()
+            })
+    }
+    if (disconnecting) DisconnectPicturesDialog(state.images.onlyInCloud,
+        onFetch = { disconnecting = false; vm.fetchThenDisconnect() },
+        onDisconnect = { disconnecting = false; vm.disconnect() },
+        onCancel = { disconnecting = false })
 }
 
 @Composable private fun CloudBackupItem(value: CloudBackupDescriptor, expanded: Boolean, busy: Boolean,

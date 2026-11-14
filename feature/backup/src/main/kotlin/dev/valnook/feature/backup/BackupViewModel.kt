@@ -39,7 +39,10 @@ data class BackupUiState(
     val cloudBusy: Boolean = false,
     val cloudError: CloudBackupError? = null,
     val intervalDraft: String = DEFAULT_BACKUP_INTERVAL_HOURS.toString(),
-    val selectedCloudBackupId: String? = null
+    val selectedCloudBackupId: String? = null,
+    val images: CloudImageStatus = CloudImageStatus(),
+    /** The file just saved is a data backup (not a workbook), which holds no pictures. */
+    val completedBackup: Boolean = false
 )
 
 class BackupViewModel(
@@ -53,6 +56,7 @@ class BackupViewModel(
     val state = mutable.asStateFlow()
 
     init {
+        viewModelScope.launch { cloudBackup.observeImages().collect { mutable.value = state.value.copy(images = it) } }
         viewModelScope.launch {
             cloudBackup.observeState().collect { cloud ->
                 val current = state.value
@@ -79,6 +83,15 @@ class BackupViewModel(
     }
 
     fun backupToCloud() = runCloudJob { cloudBackup.manualBackup() }
+    fun acknowledgeImageNotice() = cloudBackup.acknowledgeImageNotice()
+    fun stopImageTransfer() = cloudBackup.stopImageTransfer()
+    /** Brings back every picture bills hold that is only in OneDrive. */
+    fun fetchAllImages() = runCloudJob { cloudBackup.fetchMissingImages(null) }
+    /** Fetches what is only in OneDrive, then disconnects. */
+    fun fetchThenDisconnect() = runCloudJob {
+        cloudBackup.fetchMissingImages(null)
+        cloudBackup.disconnect()
+    }
     fun refreshCloudBackups() = runCloudJob { cloudBackup.refresh() }
     fun setAutomatic(enabled: Boolean) = runCloudJob { cloudBackup.setAutomatic(enabled) }
     fun updateIntervalDraft(value: String) {
@@ -155,7 +168,7 @@ class BackupViewModel(
         result = result.copy(outputVerified = withContext(Dispatchers.IO) {
             verifyProviderCopy(result, openInput)
         }, fileName = savedName?.takeIf { it.isNotBlank() } ?: result.fileName)
-        mutable.value = state.value.copy(busy = false, stage = null, completedFile = result,
+        mutable.value = state.value.copy(busy = false, stage = null, completedFile = result, completedBackup = true,
             preview = null, challenge = null, restoreResult = null, error = null)
     }
 
@@ -233,7 +246,7 @@ class BackupViewModel(
     private fun runJob(block: suspend () -> Unit) {
         if (state.value.busy || cloudRestoring) return
         viewModelScope.launch {
-            mutable.value = state.value.copy(busy = true, error = null, completedFile = null, restoreResult = null)
+            mutable.value = state.value.copy(busy = true, error = null, completedFile = null, completedBackup = false, restoreResult = null)
             try {
                 block()
             } catch (cancelled: CancellationException) {

@@ -49,6 +49,8 @@ class CloudBackupCoordinator internal constructor(
     /** One picture transfer at a time: a backup's upload or a fetch. */
     private val imageTransfer = kotlinx.coroutines.sync.Mutex()
     @Volatile private var imageStop = false
+    private val imagePrefs = appContext.getSharedPreferences("valnook_cloud_images", Context.MODE_PRIVATE)
+    private val noticeRead = kotlinx.coroutines.flow.MutableStateFlow(imagePrefs.getBoolean("notice_read", false))
     private val cloudRoot = File(appContext.cacheDir, "valnook-cloud").also(::secureDirectory)
     // One coordinator per process, made before anything runs: a download staged for a restore by a process that
     // died is never released, so it goes now.
@@ -131,11 +133,26 @@ class CloudBackupCoordinator internal constructor(
     // Bill pictures
 
     override fun observeImages(): Flow<CloudImageStatus> =
-        combine(imageProgress, database.bills().observeImageCounts()) { progress, counts ->
-            progress.copy(notUploaded = counts.not_uploaded, onlyInCloud = counts.only_in_cloud)
+        combine(imageProgress, database.bills().observeImageCounts(), noticeRead, store.observe()) { progress, counts, read, state ->
+            progress.copy(notUploaded = counts.not_uploaded, onlyInCloud = counts.only_in_cloud, onDevice = counts.on_device,
+                missing = counts.missing, noticeNeeded = state.folder_id != null && !read)
         }
 
     override fun stopImageTransfer() { imageStop = true }
+
+    override fun acknowledgeImageNotice() {
+        imagePrefs.edit().putBoolean("notice_read", true).apply()
+        noticeRead.value = true
+    }
+
+    override suspend fun refreshImages() {
+        if (images == null) return
+        val state = store.state()
+        if (state.folder_id == null || state.account_reference == null || !network.connected()) return
+        val token = requireAccess(state.account_reference)
+        val folder = drive.findImageFolder(token, state.folder_id) ?: return
+        recordCloud(listAllImages(token, folder).values, complete = true)
+    }
 
     private fun imageProblem(problem: CloudImageProblem?) =
         imageProgress.update { it.copy(problem = problem, uploading = null) }
@@ -146,7 +163,8 @@ class CloudBackupCoordinator internal constructor(
      */
     private suspend fun prepareImages(token: String, folderId: String, backupId: String, archive: File,
         generation: Generation, cycleId: String, automatic: Boolean): String? {
-        if (images == null) return null
+        // Pictures wait until the OneDrive notice, which says they go up too, has been read.
+        if (images == null || !noticeRead.value) return null
         return try {
             val keys = withContext(Dispatchers.IO) { archiveImageKeys(archive) }
             // Never a folder in OneDrive for someone who has not used pictures.

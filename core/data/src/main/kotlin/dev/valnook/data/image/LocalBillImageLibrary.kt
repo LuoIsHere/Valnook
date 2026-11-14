@@ -16,6 +16,11 @@ class LocalBillImageLibrary(private val store: BillImageStore, private val scope
         if (keys.isEmpty()) return
         scope.launch { runCatching { store.discard(keys) } }
     }
+    override suspend fun place(key: String): dev.valnook.domain.repository.BillImagePlace = when {
+        store.has(key) -> dev.valnook.domain.repository.BillImagePlace.DEVICE
+        store.inCloud(key) -> dev.valnook.domain.repository.BillImagePlace.CLOUD
+        else -> dev.valnook.domain.repository.BillImagePlace.MISSING
+    }
     override suspend fun read(key: String): ByteArray? = withContext(Dispatchers.IO) {
         if (!store.has(key)) null else runCatching { store.file(key).readBytes() }.getOrNull()
     }

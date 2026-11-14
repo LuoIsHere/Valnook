@@ -177,4 +177,7 @@
     <string name="bill_image_remove">Remove picture</string>
     <string name="bill_image_missing">Picture missing</string>
     <string name="bill_image_close">Close</string>
+    <string name="bill_image_in_cloud">In OneDrive</string>
+    <string name="bill_image_fetch">Fetch from OneDrive</string>
+    <string name="bill_image_fetch_failed">Could not fetch it from OneDrive. Try again later.</string>
 </resources>

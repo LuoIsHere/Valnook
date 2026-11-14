@@ -41,18 +41,27 @@ import dev.valnook.designsystem.FaIcon
 import dev.valnook.designsystem.FaIcons
 import dev.valnook.domain.repository.BillImageLibrary
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 
 /** The device's bill pictures, provided by the app; null where pictures are not available (previews, tests). */
 val LocalBillImages = staticCompositionLocalOf<BillImageLibrary?> { null }
 
-/** A picture as a page shows it: still loading, there, or not on this device. */
+/** A picture as a page shows it: still loading, there, only in OneDrive, or nowhere known. */
 internal sealed interface LoadedImage {
     data object Loading : LoadedImage
     data class Shown(val bitmap: ImageBitmap) : LoadedImage
+    data object InCloud : LoadedImage
     data object Missing : LoadedImage
 }
+
+/** Bumped when pictures come back from OneDrive, so every page showing them looks again. */
+internal object BillImageArrivals { val version = kotlinx.coroutines.flow.MutableStateFlow(0) }
+
+/** Fetches [keys] from OneDrive for a page; true when any arrived. */
+internal suspend fun BillImageLibrary.fetchAndShow(keys: Collection<String>): Boolean =
+    (runCatching { fetch(keys) }.getOrDefault(0) > 0).also { if (it) BillImageArrivals.version.value++ }
 
 /** Decoded pictures, shared by every page; sized by what they hold, about 16 MB. */
 private object BillImageCache {
@@ -66,9 +75,13 @@ private object BillImageCache {
 /** Picture [key] decoded to about [longSidePx] on its long side: thumbnails stay small, the viewer gets it whole. */
 @Composable internal fun rememberBillImage(key: String, longSidePx: Int): LoadedImage {
     val library = LocalBillImages.current
-    return produceState<LoadedImage>(LoadedImage.Loading, key, longSidePx, library) {
+    val arrivals by BillImageArrivals.version.collectAsState()
+    return produceState<LoadedImage>(LoadedImage.Loading, key, longSidePx, library, arrivals) {
         value = withContext(Dispatchers.Default) {
-            val bytes = library?.read(key) ?: return@withContext LoadedImage.Missing
+            val bytes = library?.read(key) ?: return@withContext when (library?.place(key)) {
+                dev.valnook.domain.repository.BillImagePlace.CLOUD -> LoadedImage.InCloud
+                else -> LoadedImage.Missing
+            }
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
             if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@withContext LoadedImage.Missing
@@ -84,18 +97,40 @@ private object BillImageCache {
     }.value
 }
 
-/** A square thumbnail of picture [key]; a picture not on this device shows as missing. */
+/**
+ * A square thumbnail of picture [key]. One only in OneDrive is fetched when tapped; one nowhere known shows as missing.
+ * Tapping a picture that is here calls [onClick].
+ */
 @Composable internal fun BillImageThumb(key: String, size: Dp, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val colors = MaterialTheme.colorScheme
     val px = with(LocalDensity.current) { size.roundToPx() } * 2
     val image = rememberBillImage(key, px)
-    Box(modifier.size(size).clip(RoundedCornerShape(10.dp)).background(colors.surfaceContainerHigh).clickable(onClick = onClick),
-        contentAlignment = Alignment.Center) {
-        when (image) {
-            is LoadedImage.Shown -> Image(image.bitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            LoadedImage.Missing -> MissingImage(compact = true)
-            LoadedImage.Loading -> Unit
+    val library = LocalBillImages.current
+    val scope = rememberCoroutineScope()
+    var fetching by remember(key) { mutableStateOf(false) }
+    Box(modifier.size(size).clip(RoundedCornerShape(10.dp)).background(colors.surfaceContainerHigh).clickable {
+        if (image == LoadedImage.InCloud && library != null && !fetching) scope.launch {
+            fetching = true
+            try { library.fetchAndShow(listOf(key)) } finally { fetching = false }
+        } else if (image is LoadedImage.Shown) onClick()
+    }, contentAlignment = Alignment.Center) {
+        when {
+            fetching -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            image is LoadedImage.Shown -> Image(image.bitmap, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            image == LoadedImage.InCloud -> CloudImage(compact = true)
+            image == LoadedImage.Missing -> MissingImage(compact = true)
         }
+    }
+}
+
+/** What stands in for a picture that is only in OneDrive: tapping it fetches it. */
+@Composable internal fun CloudImage(compact: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    Column(Modifier.padding(4.dp).testTag("bill-image-in-cloud"), horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FaIcon(FaIcons.cloud, null, Modifier.size(if (compact) 14.dp else 28.dp), tint = colors.onSurfaceVariant)
+        Text(stringResource(R.string.bill_image_in_cloud), style = if (compact) MaterialTheme.typography.labelSmall
+            else MaterialTheme.typography.bodyMedium, color = colors.onSurfaceVariant, maxLines = 1)
     }
 }
 
@@ -159,6 +194,26 @@ private object BillImageCache {
                 scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y
             }.semantics { contentDescription = key }, contentScale = ContentScale.Fit)
             LoadedImage.Missing -> Box(Modifier.clip(CircleShape)) { MissingImage(compact = false) }
+            LoadedImage.InCloud -> {
+                val library = LocalBillImages.current
+                val scope = rememberCoroutineScope()
+                var fetching by remember { mutableStateOf(false) }
+                var failed by remember { mutableStateOf(false) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(Modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                        CloudImage(compact = false)
+                    }
+                    if (fetching) CircularProgressIndicator(color = Color.White)
+                    else Button({
+                        if (library != null) scope.launch {
+                            fetching = true; failed = false
+                            try { failed = !library.fetchAndShow(listOf(key)) } finally { fetching = false }
+                        }
+                    }, Modifier.testTag("bill-image-fetch")) { Text(stringResource(R.string.bill_image_fetch)) }
+                    if (failed) Text(stringResource(R.string.bill_image_fetch_failed), color = Color.White,
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
             LoadedImage.Loading -> CircularProgressIndicator(color = Color.White)
         }
     }

@@ -88,6 +88,9 @@ class BillImageStore(private val dir: File, private val db: ValnookDatabase, pri
         inspect(runCatching { target.readBytes() }.getOrNull() ?: return@withContext null)?.takeIf { it.key == key }
     }
 
+    /** Whether OneDrive was last seen holding picture [key]. */
+    suspend fun inCloud(key: String): Boolean = dao.imageFile(key)?.cloud_size != null
+
     /** Keeps [keys] from being deleted while a form holds them unsaved. */
     fun pin(keys: Collection<String>) = keys.forEach { pinned.merge(it, 1, Int::plus) }
 
