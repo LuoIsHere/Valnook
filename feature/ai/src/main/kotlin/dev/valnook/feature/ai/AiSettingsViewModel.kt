@@ -19,9 +19,9 @@ data class AiConnectionForm(
     val thinkingOffParams: String,
     val thinkingOnParams: String,
 ) {
-    /** The preset is whichever one has this address; another address is a custom connection. */
-    fun connection() = AiConnection(AiPresets.all.firstOrNull { it.baseUrl == AiConnection.normalizeBaseUrl(baseUrl) }?.id,
-        AiConnection.normalizeBaseUrl(baseUrl), model.trim(), extraParams.trim(), thinkingOffParams.trim(), thinkingOnParams.trim())
+    /** One connection, filled in by the user; there are no presets. */
+    fun connection() = AiConnection(null, AiConnection.normalizeBaseUrl(baseUrl), model.trim(), extraParams.trim(),
+        thinkingOffParams.trim(), thinkingOnParams.trim())
 
     companion object {
         fun of(connection: AiConnection) = AiConnectionForm(connection.baseUrl, model = connection.model,
@@ -131,12 +131,6 @@ class AiSettingsViewModel(private val service: AiService, val avatars: AiAvatars
     }
 
     fun editConnection(change: (AiConnectionForm) -> AiConnectionForm) = mutable.update { it.copy(form = change(it.form), saveFailed = false) }
-
-    fun choosePreset(preset: AiPreset?) = editConnection { form ->
-        if (preset == null) form
-        else form.copy(baseUrl = preset.baseUrl, model = preset.model, extraParams = preset.extraParams,
-            thinkingOffParams = preset.thinkingOffParams, thinkingOnParams = preset.thinkingOnParams)
-    }
 
     fun editPersonal(change: (AiPersonalForm) -> AiPersonalForm) = mutable.update { it.copy(personal = change(it.personal), saveFailed = false) }
 

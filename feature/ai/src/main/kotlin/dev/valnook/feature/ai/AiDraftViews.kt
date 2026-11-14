@@ -67,7 +67,9 @@ fun AiDraftCardView(card: AiDraftCard, categories: Map<Long, BillCategory>, acco
             if (draft.note.isNotBlank()) Text(draft.note, style = MaterialTheme.typography.bodyMedium, maxLines = 3,
                 overflow = TextOverflow.Ellipsis)
             DraftFlags(draft)
-            if (card.images.isNotEmpty() && card.state != AiDraftState.REPLACED) DraftPictures(card, actions)
+            // A discarded or replaced card let its pictures go; the message it came from still shows them.
+            if (card.images.isNotEmpty() && (card.state == AiDraftState.PENDING || card.state == AiDraftState.CONFIRMED))
+                DraftPictures(card, actions)
             when (card.state) {
                 AiDraftState.PENDING -> PendingButtons(card, busy, actions, money?.missingRate == true)
                 AiDraftState.CONFIRMED -> Row(verticalAlignment = Alignment.CenterVertically) {

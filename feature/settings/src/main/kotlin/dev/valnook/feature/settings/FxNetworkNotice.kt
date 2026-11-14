@@ -26,37 +26,13 @@ import dev.valnook.designsystem.GlassCard
  */
 @Composable
 fun FxNetworkNoticeDialog(onCancel: () -> Unit, onAccept: (dontShowAgain: Boolean) -> Unit) {
-    var skip by remember { mutableStateOf(false) }
-    val maximumHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } * .8f
-    AnimatedGlassDialog(true, onCancel) {
-        GlassCard {
-            // Only the text scrolls: on a short screen or with large fonts the title and the buttons stay in view.
-            Column(Modifier.heightIn(max = maximumHeight).padding(22.dp).testTag("fx-notice"),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.settings_fx_notice_title), style = MaterialTheme.typography.titleLarge)
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).testTag("fx-notice-text"),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    listOf(R.string.settings_fx_notice_source, R.string.settings_fx_notice_when, R.string.settings_fx_notice_sent,
-                        R.string.settings_fx_notice_not_sent, R.string.settings_fx_notice_storage, R.string.settings_fx_notice_replace)
-                        .forEach { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
-                    Text(stringResource(R.string.settings_fx_notice_disclaimer), style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold)
-                }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onCancel, Modifier.testTag("fx-notice-cancel")) { Text(stringResource(R.string.settings_fx_notice_cancel)) }
-                    Spacer(Modifier.weight(1f))
-                    Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(skip, onValueChange = { skip = it })
-                        .testTag("fx-notice-skip"), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(skip, null)
-                        Text(stringResource(R.string.settings_fx_notice_skip), style = MaterialTheme.typography.labelMedium)
-                    }
-                    TextButton({ onAccept(skip) }, Modifier.testTag("fx-notice-accept")) {
-                        Text(stringResource(R.string.settings_fx_notice_accept))
-                    }
-                }
-            }
-        }
-    }
+    dev.valnook.designsystem.PolicyNoticeDialog(stringResource(R.string.settings_fx_notice_title),
+        listOf(R.string.settings_fx_notice_source, R.string.settings_fx_notice_when, R.string.settings_fx_notice_sent,
+            R.string.settings_fx_notice_not_sent, R.string.settings_fx_notice_storage, R.string.settings_fx_notice_replace)
+            .map { stringResource(it) },
+        stringResource(R.string.settings_fx_notice_disclaimer), stringResource(R.string.settings_fx_notice_cancel),
+        stringResource(R.string.settings_fx_notice_skip), stringResource(R.string.settings_fx_notice_accept), onCancel, onAccept,
+        dev.valnook.designsystem.PolicyNoticeTags("fx-notice", "fx-notice-text", "fx-notice-cancel", "fx-notice-skip", "fx-notice-accept"))
 }
 
 @Composable

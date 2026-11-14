@@ -58,34 +58,19 @@ private fun Context.activity(): Activity? = when(this) {
 private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPolicy.SecureOn)
 
 @Composable internal fun WalletPrivateDialogs(state:WalletPrivateState) {
-    val maximumHeight=with(LocalDensity.current){LocalWindowInfo.current.containerSize.height.toDp()}*.8f
     // The text is in res/values and res/values-b+zh+Hans (wallet_*): edit both translations together. Keep the encryption
     // algorithm and exclusions aligned with docs/PRIVACY_POLICY_{CN,EN}.md and feature/settings/src/main/res/raw*/privacy_policy.txt.
     // 英文在 values、中文在 values-b+zh+Hans。风险提示保留 Keystore / AES-GCM，不写“及背面、侧面配色”；
     // 配色仍不备份。免责声明两种语言都必须加粗，且与 PrivacyPolicyScreen 加粗的句子一致；“不再显示”只影响本机提示。
     if(state.warning) {
-        var skip by remember { mutableStateOf(false) }
-        AnimatedGlassDialog(true,state::cancelWarning,properties=PrivateDialogProperties) {
-            GlassCard { Column(Modifier.heightIn(max=maximumHeight)
-                .verticalScroll(rememberScrollState()).padding(22.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
-                Text(stringResource(R.string.wallet_private_card_details),style=MaterialTheme.typography.titleLarge)
-                Text(stringResource(R.string.wallet_card_numbers_cardholder_names_expiry))
-                Text(stringResource(R.string.wallet_details_entered_here_are_encrypted))
-                Text(stringResource(R.string.wallet_uninstalling_clearing_app_data_successfully))
-                Text(stringResource(R.string.wallet_copying_field_places_system_clipboard))
-                Text(stringResource(R.string.wallet_fullest_extent_permitted_by_applicable),fontWeight=FontWeight.Bold)
-                Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                    TextButton(state::cancelWarning){Text(stringResource(R.string.wallet_cancel))}
-                    Spacer(Modifier.weight(1f))
-                    Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(skip,onValueChange={skip=it})
-                        .testTag("wallet-private-warning-skip"),verticalAlignment=Alignment.CenterVertically) {
-                        Checkbox(skip,null)
-                        Text(stringResource(R.string.wallet_don_t_show_again),style=MaterialTheme.typography.labelMedium)
-                    }
-                    TextButton({state.confirmWarning(skip)},Modifier.testTag("wallet-private-warning-confirm")){Text(stringResource(R.string.wallet_ok))}
-                }
-            } }
-        }
+        dev.valnook.designsystem.PolicyNoticeDialog(stringResource(R.string.wallet_private_card_details),
+            listOf(R.string.wallet_card_numbers_cardholder_names_expiry, R.string.wallet_details_entered_here_are_encrypted,
+                R.string.wallet_uninstalling_clearing_app_data_successfully, R.string.wallet_copying_field_places_system_clipboard)
+                .map { stringResource(it) },
+            stringResource(R.string.wallet_fullest_extent_permitted_by_applicable), stringResource(R.string.wallet_cancel),
+            stringResource(R.string.wallet_don_t_show_again), stringResource(R.string.wallet_ok), state::cancelWarning,
+            state::confirmWarning, dev.valnook.designsystem.PolicyNoticeTags("wallet-private-warning", skip = "wallet-private-warning-skip",
+                confirm = "wallet-private-warning-confirm"), properties = PrivateDialogProperties)
     }
     state.draft?.let { value -> PrivateEditor(state,value) }
     if(state.discard) AnimatedGlassDialog(true,{state.discard=false},properties=PrivateDialogProperties) {

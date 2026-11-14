@@ -95,7 +95,7 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
         rule.onNodeWithText("Android Keystore",substring=true).assertExists()
         rule.onNodeWithText("AES-GCM",substring=true).assertExists()
-        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
         rule.onNodeWithTag("wallet-private-number").performScrollTo().performTextInput("0000****----1234")
         rule.onNodeWithTag("wallet-private-expiry").performScrollTo().performTextInput("01/29")
         rule.onNodeWithTag("wallet-private-cvv1").performScrollTo().performTextInput("001")
@@ -118,10 +118,10 @@ class WalletUiTest {
             PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-private-back.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
         }
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
-        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().assertExists()
+        rule.onNodeWithTag("wallet-private-warning-confirm").assertExists()
         // Close this dialog explicitly: a global Back may be consumed by Android's clipboard overlay.
         // 明确取消应用提示；系统复制浮层可能先消费全局返回，不能据此假定应用弹窗已关闭。
-        rule.onNode(hasText("Cancel") or hasText("取消")).performScrollTo().performClick()
+        rule.onNode(hasText("Cancel") or hasText("取消")).performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-warning-confirm").fetchSemanticsNodes().isEmpty()}
         rule.onNodeWithContentDescription(rule.activity.getString(R.string.nav_back)).assertIsEnabled().performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isEmpty()}
@@ -134,7 +134,7 @@ class WalletUiTest {
         rule.onNodeWithText("CVV1",useUnmergedTree=true).assertDoesNotExist()
         rule.onNodeWithText("CVV2",useUnmergedTree=true).assertDoesNotExist()
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
-        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
         rule.onNodeWithTag("wallet-private-number").performScrollTo().performTextInput("0000****----1234")
         rule.onNodeWithTag("wallet-private-spacing").performScrollTo().assertIsOn().performClick()
         rule.onNodeWithTag("wallet-private-spacing").assertIsOff()
@@ -167,7 +167,7 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-flip").performClick();rule.waitForIdle()
         rule.onNodeWithText("0000****----1234",useUnmergedTree=true).assertExists()
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
-        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
         rule.onNodeWithTag("wallet-private-spacing").performScrollTo().assertIsOff().performClick()
         cvv.performScrollTo().performTextReplacement("")
         rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
@@ -179,7 +179,7 @@ class WalletUiTest {
     @Test fun private_palette_cancel_opt_out_and_reentry_preserve_saved_values() {
         val id=openPrivateCard()
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
-        rule.onNodeWithTag("wallet-private-warning-skip").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-warning-skip").performClick()
         rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
         rule.onNodeWithTag("wallet-private-number").performScrollTo().performClick().assertIsFocused()
         rule.onNodeWithTag("wallet-private-palette").performClick()
@@ -253,7 +253,7 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
         rule.onNodeWithText("Android Keystore",substring=true).assertExists()
         rule.onNodeWithText("在适用法律允许的最大范围内，开发者不对卡片信息泄露造成的财产损失承担责任。").assertExists()
-        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
         rule.onNodeWithTag("wallet-private-number").performScrollTo().assertExists()
     }
     @Test fun private_holder_sits_bottom_left_and_lifts_other_fields_on_a_narrow_large_type_card() {
@@ -313,7 +313,7 @@ class WalletUiTest {
     @Test fun private_holder_is_limited_to_26_characters_saved_encrypted_and_copyable() {
         val id=openPrivateCard()
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
-        rule.onNodeWithTag("wallet-private-warning-confirm").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
         val input=rule.onNodeWithTag("wallet-private-holder").performScrollTo()
         input.performTextInput("A".repeat(27)) // Rejected as a whole: the field stays empty.
         input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText,

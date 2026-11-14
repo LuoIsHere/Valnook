@@ -83,6 +83,8 @@ class UnsavedLeaveUiTest {
         openSettings()
         rule.onNodeWithTag("settings-ai").performScrollTo().assertTextContains("未检测", substring = true).performClick()
         rule.waitUntil(10_000) { rule.onAllNodesWithTag("ai-base-url").fetchSemanticsNodes().isNotEmpty() }
+        // A new setup has nothing filled in: the address and the model.
+        rule.onNodeWithTag("ai-base-url").performTextReplacement("https://ai.example.test/v1")
         rule.onNodeWithTag("ai-model").performTextReplacement("synthetic-model")
         rule.waitForIdle()
         systemBack()

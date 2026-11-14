@@ -35,6 +35,7 @@ object FaIcons {
     val rotate = R.drawable.fa_rotate
     val trash = R.drawable.fa_trash_can
     val image = R.drawable.fa_image
+    val sparkles = R.drawable.fa_wand_magic_sparkles
     val xmark = R.drawable.fa_xmark
     // Bottom navigation: one per page.
     val buildingColumns = R.drawable.fa_building_columns

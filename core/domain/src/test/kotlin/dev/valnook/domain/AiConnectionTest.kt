@@ -5,7 +5,6 @@ import dev.valnook.domain.ai.AiCheckItem
 import dev.valnook.domain.ai.AiCheckReport
 import dev.valnook.domain.ai.AiCheckState
 import dev.valnook.domain.ai.AiConnection
-import dev.valnook.domain.ai.AiPresets
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -32,16 +31,19 @@ class AiConnectionTest {
     }
 
     @Test fun any_change_to_the_address_model_or_parameters_voids_a_check() {
-        val base = AiPresets.DEEPSEEK.connection()
+        val base = AiConnection(null, "https://api.example.test/v1", "model-a", "",
+            """{"thinking": {"type": "disabled"}}""", """{"thinking": {"type": "enabled"}}""")
         assertTrue(base.usable)
         assertFalse(base.cleartext)
-        assertEquals("api.deepseek.com", base.host)
+        assertEquals("api.example.test", base.host)
+        // Nothing is filled in until the user does.
+        assertFalse(dev.valnook.domain.ai.AiSettings().connection.usable)
         listOf(base.copy(baseUrl = "https://other.test"), base.copy(model = "other"), base.copy(extraParams = "{}"),
             base.copy(thinkingOffParams = ""), base.copy(thinkingOnParams = "")).forEach {
             assertNotEquals(base.fingerprint, it.fingerprint)
         }
-        // The preset's name is not part of what was checked.
-        assertEquals(base.fingerprint, base.copy(presetId = null).fingerprint)
+        // The stored preset id (no longer used) is not part of what was checked.
+        assertEquals(base.fingerprint, base.copy(presetId = "old").fingerprint)
     }
 
     @Test fun the_features_need_the_two_required_checks() {

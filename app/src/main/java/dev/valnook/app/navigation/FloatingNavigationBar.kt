@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -61,17 +60,14 @@ internal fun FloatingNavigationBar(current: NavKey, items: List<NavigationItemId
     }
 }
 
-/** One size smaller than "+" and outlined, so the two read apart; a dot while AI drafts wait. */
+/** The same glass button as "+", one size smaller so "+" stays the main action; a dot while AI drafts wait. */
 @Composable private fun AiChatButton(onClick: () -> Unit, pending: Boolean, backdrop: GlassBackdrop?) {
     val label = stringResource(if (pending) dev.valnook.feature.ai.R.string.ai_chat_entry_pending else dev.valnook.feature.ai.R.string.ai_chat_entry)
     Box(Modifier.padding(end = 4.dp)) {
-        GlassSurface(Modifier.size(48.dp).clip(CircleShape)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
-            .clickable(role = Role.Button, onClick = onClick)
+        GlassSurface(Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
             .semantics { contentDescription = label }.testTag("ai-chat-entry"), shape = CircleShape, backdrop = backdrop) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                androidx.compose.material3.Text("AI", style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                FaIcon(FaIcons.sparkles, null, Modifier.size(20.dp), MaterialTheme.colorScheme.onSurface)
             }
         }
         if (pending) Box(Modifier.align(Alignment.TopEnd).size(10.dp).clip(CircleShape)

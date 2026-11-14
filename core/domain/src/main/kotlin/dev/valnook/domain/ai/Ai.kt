@@ -82,29 +82,10 @@ data class AiConnection(
     }
 }
 
-/** A ready-made connection without a key; vendor details live here as data, never in the request code. */
-data class AiPreset(
-    val id: String,
-    val name: String,
-    val baseUrl: String,
-    val model: String,
-    val extraParams: String,
-    val thinkingOffParams: String,
-    val thinkingOnParams: String,
-) {
-    fun connection() = AiConnection(id, baseUrl, model, extraParams, thinkingOffParams, thinkingOnParams)
-}
-
-object AiPresets {
-    val DEEPSEEK = AiPreset("deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash", "",
-        """{"thinking": {"type": "disabled"}}""", """{"thinking": {"type": "enabled"}}""")
-    val all = listOf(DEEPSEEK)
-    fun of(id: String?): AiPreset? = all.firstOrNull { it.id == id }
-}
-
 /** The AI settings that travel with backups; the key, check results and conversations stay on the device. */
 data class AiSettings(
-    val connection: AiConnection = AiPresets.DEEPSEEK.connection(),
+    /** Nothing filled in: the user enters the service of their choice; no vendor is assumed. */
+    val connection: AiConnection = AiConnection(null, "", ""),
     val enabled: Boolean = false,
     val billChat: Boolean = true,
     val shareText: Boolean = true,

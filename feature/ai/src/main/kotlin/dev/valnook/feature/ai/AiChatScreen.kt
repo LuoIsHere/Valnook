@@ -132,9 +132,12 @@ private fun Speaker(name: String, image: ImageBitmap?, right: Boolean, content: 
         verticalAlignment = Alignment.Top) {
         if (!right) AiAvatarImage(image, name, Modifier.size(32.dp).clip(CircleShape))
         Column(Modifier.weight(1f, fill = false).padding(horizontal = Space.sm),
-            horizontalAlignment = if (right) Alignment.End else Alignment.Start, verticalArrangement = Arrangement.spacedBy(Space.xs)) {
+            horizontalAlignment = if (right) Alignment.End else Alignment.Start) {
+            // The name sits close above what was said; the parts of a reply keep their own spacing.
             Text(name, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            content()
+            Spacer(Modifier.height(2.dp))
+            Column(horizontalAlignment = if (right) Alignment.End else Alignment.Start,
+                verticalArrangement = Arrangement.spacedBy(Space.xs), content = content)
         }
         if (right) AiAvatarImage(image, name, Modifier.size(32.dp).clip(CircleShape))
     }
@@ -215,8 +218,9 @@ private fun ManualButton(ui: AiChatUi, vm: AiChatViewModel, message: AiChatMessa
 @Composable
 private fun Thinking(text: String, ms: Long?) {
     var open by remember { mutableStateOf(false) }
+    // No room above: it sits right under the name, as a reply's first line does; the tap area reaches down instead.
     Column(Modifier.clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button) { open = !open }.testTag("ai-chat-thinking")
-        .padding(vertical = Space.xs)) {
+        .padding(bottom = Space.xs)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (ms != null) stringResource(R.string.ai_chat_thinking_time, ((ms + 500) / 1000).toString())
                 else stringResource(R.string.ai_chat_thinking), style = MaterialTheme.typography.labelMedium,
@@ -299,14 +303,12 @@ private fun InputBar(ui: AiChatUi, vm: AiChatViewModel) {
     if (notice) PictureNotice({ notice = false }) { AiNotices.markPicturesSeen(context); notice = false; pick() }
 }
 
-/** The one-time reminder before the first picture goes to the model. */
+/** The one-time reminder before the first picture goes to the model, in the same notice as the other AI one. */
 @Composable
 fun PictureNotice(onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    AlertDialog(onDismiss, confirmButton = { TextButton(onConfirm, Modifier.testTag("ai-picture-notice-ok")) {
-        Text(stringResource(R.string.ai_notice_ok)) } },
-        dismissButton = { TextButton(onDismiss) { Text(stringResource(R.string.ai_chat_cancel)) } },
-        title = { Text(stringResource(R.string.ai_picture_notice_title)) },
-        text = { Text(stringResource(R.string.ai_picture_notice)) }, modifier = Modifier.testTag("ai-picture-notice"))
+    PolicyNoticeDialog(stringResource(R.string.ai_picture_notice_title), listOf(stringResource(R.string.ai_picture_notice)), null,
+        stringResource(R.string.ai_chat_cancel), null, stringResource(R.string.ai_notice_ok), onDismiss, { onConfirm() },
+        PolicyNoticeTags("ai-picture-notice", cancel = "ai-picture-notice-cancel", confirm = "ai-picture-notice-ok"))
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

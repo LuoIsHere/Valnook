@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -85,7 +86,10 @@ private fun SwitchRow(title: String, summary: String?, checked: Boolean, enabled
     }
 }
 
-/** The master switch: off by default, and only on once the required checks passed; the first time it explains. */
+/**
+ * The master switch: off by default, and only on once the required checks passed. Turning it on shows the notice,
+ * worded like the privacy policy, every time until "Don't show again", as the rates and card details notices do.
+ */
 @Composable
 private fun EnableCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
     val context = LocalContext.current
@@ -96,12 +100,33 @@ private fun EnableCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
             if (on && !AiNotices.seen(context, AiNotices.ENABLE)) notice = true else vm.setEnabled(on)
         }
     }
-    if (notice) AlertDialog({ notice = false },
-        confirmButton = { TextButton({ AiNotices.mark(context, AiNotices.ENABLE); notice = false; vm.setEnabled(true) },
-            Modifier.testTag("ai-enable-notice-ok")) { Text(stringResource(R.string.ai_notice_ok)) } },
-        dismissButton = { TextButton({ notice = false }) { Text(stringResource(R.string.ai_chat_cancel)) } },
-        title = { Text(stringResource(R.string.ai_enable_notice_title)) },
-        text = { Text(stringResource(R.string.ai_enable_notice)) }, modifier = Modifier.testTag("ai-enable-notice"))
+    if (notice) AiEnableNotice({ notice = false }) { skip ->
+        if (skip) AiNotices.mark(context, AiNotices.ENABLE)
+        notice = false
+        vm.setEnabled(true)
+    }
+}
+
+/** What turning AI on means, worded like the privacy policy (keep the two in step, both languages). */
+@Composable
+fun AiEnableNotice(onCancel: () -> Unit, onAccept: (dontShowAgain: Boolean) -> Unit) {
+    PolicyNoticeDialog(stringResource(R.string.ai_enable_notice_title),
+        listOf(R.string.ai_notice_provider, R.string.ai_notice_when, R.string.ai_notice_sent, R.string.ai_notice_not_sent,
+            R.string.ai_notice_storage, R.string.ai_notice_cost, R.string.ai_notice_local).map { stringResource(it) },
+        stringResource(R.string.ai_notice_disclaimer), stringResource(R.string.ai_chat_cancel), stringResource(R.string.ai_notice_skip),
+        stringResource(R.string.ai_notice_enable), onCancel, onAccept,
+        PolicyNoticeTags("ai-enable-notice", "ai-enable-notice-text", "ai-enable-notice-cancel", "ai-enable-notice-skip",
+            "ai-enable-notice-ok"))
+}
+
+/** A secondary action on the AI page: a filled button, in red for one that deletes. */
+@Composable
+private fun SecondaryButton(label: String, onClick: () -> Unit, tag: String, modifier: Modifier = Modifier,
+    enabled: Boolean = true, destructive: Boolean = false) {
+    FilledTonalButton(onClick, modifier.testTag(tag), enabled = enabled) {
+        Text(label, color = if (destructive && enabled) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+    }
 }
 
 @Composable
@@ -147,9 +172,8 @@ private fun DataCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag("ai-usage"))
         }
-        TextButton({ confirm = true }, Modifier.testTag("ai-clear-conversations")) {
-            Text(stringResource(R.string.ai_clear_conversations))
-        }
+        SecondaryButton(stringResource(R.string.ai_clear_conversations), { confirm = true }, "ai-clear-conversations",
+            Modifier.fillMaxWidth(), destructive = true)
     }
     if (confirm) AlertDialog({ confirm = false },
         confirmButton = { TextButton({ confirm = false; vm.clearConversations() }, Modifier.testTag("ai-clear-confirm")) {
@@ -199,17 +223,8 @@ private fun ConnectionCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
     val enabled = !ui.busy
     var advanced by rememberSaveable { mutableStateOf(false) }
     Section(stringResource(R.string.ai_section_connection)) {
-        val presetId = form.connection().presetId
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-            AiPresets.all.forEach { preset ->
-                FilterChip(presetId == preset.id, { vm.choosePreset(preset) }, { Text(preset.name) }, enabled = enabled,
-                    modifier = Modifier.testTag("ai-preset-${preset.id}"))
-            }
-            FilterChip(presetId == null, { vm.choosePreset(null) }, { Text(stringResource(R.string.ai_preset_custom)) },
-                enabled = enabled, modifier = Modifier.testTag("ai-preset-custom"))
-        }
         TextBox(stringResource(R.string.ai_base_url), form.baseUrl, { text -> vm.editConnection { it.copy(baseUrl = text) } },
-            "ai-base-url", enabled,
+            "ai-base-url", enabled, placeholder = stringResource(R.string.ai_base_url_hint),
             error = if (form.baseUrl.isNotBlank() && !ui.urlValid) stringResource(R.string.ai_base_url_invalid) else null,
             supporting = if (ui.urlValid && form.connection().cleartext) stringResource(R.string.ai_cleartext) else null)
         TextBox(stringResource(R.string.ai_api_key), form.apiKey, { text -> vm.editConnection { it.copy(apiKey = text.trim(), removeKey = false) } },
@@ -221,8 +236,6 @@ private fun ConnectionCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
                 ui.keySaved -> stringResource(R.string.ai_api_key_saved)
                 else -> stringResource(R.string.ai_api_key_none)
             })
-        if (ui.keySaved && !form.removeKey && form.apiKey.isEmpty()) TextButton({ vm.editConnection { it.copy(removeKey = true) } },
-            enabled = enabled, modifier = Modifier.testTag("ai-api-key-remove")) { Text(stringResource(R.string.ai_api_key_remove)) }
         ModelField(ui, vm, enabled)
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button) { advanced = !advanced }
             .testTag("ai-advanced").padding(vertical = Space.sm), verticalAlignment = Alignment.CenterVertically) {
@@ -258,7 +271,8 @@ private fun ModelField(ui: AiSettingsUi, vm: AiSettingsViewModel, enabled: Boole
     LaunchedEffect(models) { if (!models.isNullOrEmpty()) open = true }
     Box {
         TextBox(stringResource(R.string.ai_model), ui.form.model, { text -> vm.editConnection { it.copy(model = text) } },
-            "ai-model", enabled, error = if (ui.form.model.isBlank()) stringResource(R.string.ai_model_required) else null)
+            "ai-model", enabled, placeholder = stringResource(R.string.ai_model_hint),
+            error = if (ui.form.model.isBlank() && ui.form.baseUrl.isNotBlank()) stringResource(R.string.ai_model_required) else null)
         DropdownMenu(open && !models.isNullOrEmpty(), { open = false }, Modifier.testTag("ai-models")) {
             models.orEmpty().forEach { model ->
                 DropdownMenuItem({ Text(model) }, { vm.editConnection { it.copy(model = model) }; open = false },
@@ -266,11 +280,14 @@ private fun ModelField(ui: AiSettingsUi, vm: AiSettingsViewModel, enabled: Boole
             }
         }
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        TextButton({ if (!models.isNullOrEmpty()) open = true else vm.fetchModels() }, enabled = enabled && ui.urlValid && !ui.modelsLoading,
-            modifier = Modifier.testTag("ai-models-fetch")) {
-            Text(stringResource(if (ui.modelsLoading) R.string.ai_models_loading else R.string.ai_models_fetch))
-        }
+    // Side by side: the model list, and deleting the saved key while there is one.
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = Alignment.CenterVertically) {
+        SecondaryButton(stringResource(if (ui.modelsLoading) R.string.ai_models_loading else R.string.ai_models_fetch),
+            { if (!models.isNullOrEmpty()) open = true else vm.fetchModels() }, "ai-models-fetch", Modifier.weight(1f),
+            enabled = enabled && ui.urlValid && !ui.modelsLoading)
+        if (ui.keySaved && !ui.form.removeKey && ui.form.apiKey.isEmpty())
+            SecondaryButton(stringResource(R.string.ai_api_key_remove), { vm.editConnection { it.copy(removeKey = true) } },
+                "ai-api-key-remove", Modifier.weight(1f), enabled = enabled, destructive = true)
     }
     val problem = ui.modelsProblem
     when {
@@ -298,12 +315,7 @@ private fun ChecksCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
                     Spacer(Modifier.width(Space.sm))
                     Text(stringResource(if (running) R.string.ai_state_running else stateName(item, check.state)),
                         Modifier.testTag("ai-check-state-${item.name}"), style = MaterialTheme.typography.bodyMedium,
-                        color = when {
-                            running -> MaterialTheme.colorScheme.onSurfaceVariant
-                            check.state == AiCheckState.PASSED -> MaterialTheme.colorScheme.primary
-                            check.state == AiCheckState.FAILED -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        })
+                        color = if (running) MaterialTheme.colorScheme.onSurfaceVariant else checkColor(check.state))
                 }
                 val problem = check.problem
                 if (!running && problem != null && check.state != AiCheckState.PASSED)
@@ -432,6 +444,21 @@ private fun itemName(item: AiCheckItem) = when (item) {
     AiCheckItem.TOOLS -> R.string.ai_check_tools
     AiCheckItem.IMAGE -> R.string.ai_check_image
     AiCheckItem.THINKING -> R.string.ai_check_thinking
+}
+
+/**
+ * A check result's colour. Fixed green for passed, whatever the gain and loss colours are set to: with red for gains a
+ * passed check must still not read as red.
+ */
+@Composable
+internal fun checkColor(state: AiCheckState): androidx.compose.ui.graphics.Color {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    return when (state) {
+        AiCheckState.PASSED -> androidx.compose.ui.graphics.Color(if (dark) 0xFF49C996 else 0xFF168457)
+        AiCheckState.FAILED -> MaterialTheme.colorScheme.error
+        AiCheckState.UNKNOWN -> androidx.compose.ui.graphics.Color(if (dark) 0xFFF2B84B else 0xFFB26A00)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
 }
 
 private fun stateName(item: AiCheckItem, state: AiCheckState) = when (state) {

@@ -23,7 +23,8 @@ import java.io.File
 class AiSettingsScreenUiTest {
     @get:Rule val rule = createComposeRule()
 
-    private val settings = MutableStateFlow(AiSettings())
+    /** A connection already filled in, as after the user entered one; nothing is filled in for a new user. */
+    private val settings = MutableStateFlow(AiSettings(connection = AiConnection(null, "https://api.example.test/v1", "synthetic-small")))
     private val keySaved = MutableStateFlow(false)
     private val report = MutableStateFlow<AiCheckReport?>(null)
     private val savedKeys = mutableListOf<String?>()
@@ -81,10 +82,22 @@ class AiSettingsScreenUiTest {
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("ai-settings").fetchSemanticsNodes().isNotEmpty() }
     }
 
-    @Test fun the_preset_is_filled_in_and_a_key_saves_without_staying_in_the_form() {
+    @Test fun a_new_setup_has_one_empty_connection_and_no_vendor() {
+        settings.value = AiSettings()
         show()
-        rule.onNodeWithTag("ai-base-url").assertTextContains("https://api.deepseek.com")
-        rule.onNodeWithTag("ai-model").assertTextContains("deepseek-flash")
+        rule.onNodeWithTag("ai-preset-custom").assertDoesNotExist()
+        rule.onNodeWithText("DeepSeek", substring = true).assertDoesNotExist()
+        // The hint shows once the empty field is in use (the label holds the place before).
+        rule.onNodeWithTag("ai-base-url").performClick()
+        rule.onNodeWithText("例如 https://api.example.com/v1", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("ai-check").performScrollTo().assertIsNotEnabled()
+        rule.onNodeWithTag("ai-api-key-remove").assertDoesNotExist()
+    }
+
+    @Test fun a_key_saves_without_staying_in_the_form() {
+        show()
+        rule.onNodeWithTag("ai-base-url").assertTextContains("https://api.example.test/v1")
+        rule.onNodeWithTag("ai-model").assertTextContains("synthetic-small")
         rule.onNodeWithTag("ai-check-state-CONNECT").assertTextEquals("未检测")
         rule.onNodeWithTag("ai-api-key").performTextInput("synthetic-test-key")
         rule.waitUntil(5_000) { dirty }
@@ -96,6 +109,9 @@ class AiSettingsScreenUiTest {
         rule.onNodeWithTag("ai-api-key").assertTextContains("已保存", substring = true)
         rule.onNodeWithText("synthetic-test-key", substring = true).assertDoesNotExist()
         rule.onNodeWithTag("ai-connection-save").assertDoesNotExist()
+        // With a key saved, deleting it sits beside the model list.
+        rule.onNodeWithTag("ai-api-key-remove").assertExists()
+        rule.onNodeWithTag("ai-models-fetch").assertExists()
     }
 
     @Test fun a_wrong_address_or_parameters_cannot_be_saved() {
@@ -104,10 +120,10 @@ class AiSettingsScreenUiTest {
         rule.onNodeWithText("请填写以 http:// 或 https:// 开头的地址").assertExists()
         rule.onNodeWithTag("ai-connection-save").assertIsNotEnabled()
         rule.onNodeWithTag("ai-base-url").performTextReplacement("http://192.0.2.10:11434/v1/chat/completions")
-        rule.onNodeWithText("该地址使用未加密连接，仅在可信网络中使用").assertExists()
+        rule.onNodeWithText("该地址未加密，请仅在可信网络中使用").assertExists()
         rule.onNodeWithTag("ai-advanced").performScrollTo().performClick()
         rule.onNodeWithTag("ai-extra-params").performScrollTo().performTextReplacement("[1]")
-        rule.onNodeWithText("需要是一个 JSON 对象，或者留空").assertExists()
+        rule.onNodeWithText("须为一个 JSON 对象或留空").assertExists()
         rule.onNodeWithTag("ai-connection-save").performScrollTo().assertIsNotEnabled()
         rule.onNodeWithTag("ai-extra-params").performTextReplacement("")
         rule.onNodeWithTag("ai-connection-save").performScrollTo().assertIsEnabled().performClick()
@@ -126,15 +142,15 @@ class AiSettingsScreenUiTest {
 
     @Test fun checks_save_first_and_show_each_result_with_its_reason() {
         show()
-        rule.onNodeWithTag("ai-model").performTextReplacement("synthetic-small")
+        rule.onNodeWithTag("ai-model").performTextReplacement("synthetic-medium")
         rule.onNodeWithTag("ai-check").performScrollTo().assertTextEquals("保存并检测").performClick()
         rule.waitUntil(5_000) { checks == 1 }
-        assertEquals("synthetic-small", settings.value.connection.model)
+        assertEquals("synthetic-medium", settings.value.connection.model)
         rule.waitUntil(5_000) { rule.onAllNodesWithText("通过").fetchSemanticsNodes().size == 2 }
         rule.onNodeWithTag("ai-check-state-IMAGE").assertTextEquals("不支持")
-        rule.onNodeWithText("回答不正确").assertExists()
+        rule.onNodeWithText("回答有误").assertExists()
         rule.onNodeWithTag("ai-check-state-THINKING").assertTextEquals("无法判断")
-        rule.onNodeWithText("等待超时，可以重试").assertExists()
+        rule.onNodeWithText("请求超时，请重试").assertExists()
         rule.onNodeWithTag("ai-check").assertTextEquals("重新检测")
         // Changing the connection voids the report.
         rule.onNodeWithTag("ai-model").performScrollTo().performTextReplacement("synthetic-large")
@@ -165,25 +181,38 @@ class AiSettingsScreenUiTest {
         rule.onNodeWithTag("ai-disclaimer").performScrollTo().assertExists()
     }
 
-    @Test fun the_master_switch_waits_for_the_checks_and_explains_itself_once() {
+    @Test fun the_master_switch_waits_for_the_checks_and_explains_itself_until_told_not_to() {
         show()
         rule.onNodeWithTag("ai-enable").assertIsNotEnabled().assertIsOff()
-        rule.onNodeWithText("连通和工具调用检测都通过后才能打开").assertExists()
+        rule.onNodeWithText("连通与工具调用检测通过后方可开启").assertExists()
         rule.onNodeWithTag("ai-check").performScrollTo().performClick()
         rule.waitUntil(5_000) { checks == 1 }
         rule.onNodeWithTag("ai-enable").performScrollTo().assertIsEnabled().performClick()
-        // The first time it says where the data goes before switching on.
+        // It says where the data goes, as the privacy policy does; cancelling leaves it off.
         rule.onNodeWithTag("ai-enable-notice").assertExists()
+        rule.onNodeWithTag("ai-enable-notice-text").assertExists()
+        rule.onNodeWithTag("ai-enable-notice-cancel").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("ai-enable-notice").fetchSemanticsNodes().isEmpty() }
+        assertTrue(!settings.value.enabled)
+        rule.onNodeWithTag("ai-enable").performClick()
+        rule.onNodeWithTag("ai-enable-notice-ok").performClick()
+        rule.waitUntil(5_000) { settings.value.enabled }
+        // Every time it is switched on again, until "Don't show again".
+        rule.onNodeWithTag("ai-enable").performClick()
+        rule.waitUntil(5_000) { !settings.value.enabled }
+        rule.onNodeWithTag("ai-enable").performClick()
+        rule.onNodeWithTag("ai-enable-notice-skip").performClick()
         rule.onNodeWithTag("ai-enable-notice-ok").performClick()
         rule.waitUntil(5_000) { settings.value.enabled }
         rule.onNodeWithTag("ai-enable").performClick()
         rule.waitUntil(5_000) { !settings.value.enabled }
         rule.onNodeWithTag("ai-enable").performClick()
+        rule.waitForIdle()
         rule.onNodeWithTag("ai-enable-notice").assertDoesNotExist()
         rule.waitUntil(5_000) { settings.value.enabled }
         // Features follow; those whose check did not pass stay off and say why.
         rule.onNodeWithTag("ai-feature-share-image").performScrollTo().assertIsNotEnabled()
-        rule.onNodeWithText("图像检测通过后才能打开").assertExists()
+        rule.onNodeWithText("需通过图像检测").assertExists()
         rule.onNodeWithTag("ai-feature-thinking").performScrollTo().assertIsNotEnabled()
         rule.onNodeWithTag("ai-feature-chat").performScrollTo().assertIsOff().performClick()
         rule.waitUntil(5_000) { settings.value.chat }

@@ -46,12 +46,16 @@ object AiText {
     }
 }
 
-/** One-time reminders, remembered on this device: the first picture in a chat, and turning on shared pictures. */
+/**
+ * Reminders remembered on this device: the first picture in a chat and turning on shared pictures (once each), and
+ * the AI notice, shown on every switch-on until "Don't show again" ([ENABLE]).
+ */
 object AiNotices {
     private const val FILE = "valnook_ai_notices"
     const val CHAT_PICTURES = "chat_pictures"
     const val SHARE_PICTURES = "share_pictures"
-    const val ENABLE = "enable"
+    // Renamed when it changed from "seen once" to "Don't show again", so an old mark does not hide the notice.
+    const val ENABLE = "enable_skip"
 
     fun seen(context: Context, key: String): Boolean = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).getBoolean(key, false)
 

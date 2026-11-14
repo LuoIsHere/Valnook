@@ -8,7 +8,6 @@ import dev.valnook.data.ai.AiClient
 import dev.valnook.data.ai.EncryptedAiKeyStore
 import dev.valnook.domain.ai.AiCheckItem
 import dev.valnook.domain.ai.AiCheckState
-import dev.valnook.domain.ai.AiPresets
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assume.assumeTrue
@@ -33,8 +32,10 @@ class AiLiveTest {
         val key = try { file.takeIf { it.isFile }?.readText()?.trim().orEmpty() } finally { file.delete() }
         if (key.isEmpty()) throw AssertionError("NO_TEST_KEY")
         if (arguments.getString("liveAiStore") == "true") EncryptedAiKeyStore(context).write(key)
-        val connection = AiPresets.DEEPSEEK.connection().let { preset ->
-            arguments.getString("liveAiBaseUrl")?.let { preset.copy(presetId = null, baseUrl = it) } ?: preset
+        // DeepSeek's own service unless told otherwise: the official pass at the end of the version uses it.
+        val connection = dev.valnook.domain.ai.AiConnection(null, "https://api.deepseek.com", "deepseek-flash", "",
+            """{"thinking": {"type": "disabled"}}""", """{"thinking": {"type": "enabled"}}""").let { official ->
+            arguments.getString("liveAiBaseUrl")?.let { official.copy(baseUrl = it) } ?: official
         }.let { connection -> arguments.getString("liveAiThinkingOff")?.let { connection.copy(thinkingOffParams = it) } ?: connection }
         if (arguments.getString("liveAiStore") == "true") android.database.sqlite.SQLiteDatabase.openDatabase(
             context.getDatabasePath("valnook.db").path, null, android.database.sqlite.SQLiteDatabase.OPEN_READWRITE).use { db ->
