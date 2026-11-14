@@ -259,9 +259,21 @@ internal class OneDriveRestApi(
         withContext(Dispatchers.IO) {
             val (drive, item) = file.id.split('|').also { require(it.size == 2) }
             if (ImagePool.keyOf(file.name) == null && ImagePool.backupOf(file.name) == null) denied()
+            val url = "$GRAPH/drives/${segment(drive)}/items/${segment(item)}"
             beforeRemoteSideEffect()
-            request("DELETE", "$GRAPH/drives/${segment(drive)}/items/${segment(item)}", accessToken,
-                headers = file.version?.let { mapOf("If-Match" to it) } ?: emptyMap(), guard = beforeRemoteSideEffect)
+            try {
+                request("DELETE", url, accessToken, headers = file.version?.let { mapOf("If-Match" to it) } ?: emptyMap(),
+                    guard = beforeRemoteSideEffect)
+            } catch (error: DriveRequestException) {
+                if (error.statusCode != 412) throw error
+                // OneDrive changes a file's version on its own soon after an upload. The name is the content's hash,
+                // so the same name and size is still the same file: delete it as it is now, and nothing else.
+                val current = json(request("GET", url, accessToken))
+                if (current.getString("name") != file.name || current.optLong("size", -1) != file.size) throw error
+                beforeRemoteSideEffect()
+                request("DELETE", url, accessToken, headers = mapOf("If-Match" to current.getString("eTag")),
+                    guard = beforeRemoteSideEffect)
+            }
             Unit
         }
 

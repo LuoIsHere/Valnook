@@ -20,11 +20,13 @@ class OneDriveImagePoolTest {
         data class Item(val id: String, val name: String, val parent: String, val folder: Boolean, var bytes: ByteArray = ByteArray(0))
         val items = linkedMapOf("root" to Item("root", "Valnook_backup", "", true))
         val calls = mutableListOf<String>()
+        /** Bumps every file's version once, as OneDrive does by itself soon after an upload. */
+        var versionBump = 0
         private var next = 0
         fun add(parent: String, name: String, folder: Boolean, bytes: ByteArray = ByteArray(0)) =
             Item("n${next++}", name, parent, folder, bytes).also { items[it.id] = it }
         fun child(parent: String, name: String) = items.values.firstOrNull { it.parent == parent && it.name == name }
-        private fun json(item: Item) = JSONObject().put("id", item.id).put("name", item.name).put("eTag", "e-${item.id}")
+        private fun json(item: Item) = JSONObject().put("id", item.id).put("name", item.name).put("eTag", "e-${item.id}-$versionBump")
             .put("createdDateTime", "2026-10-03T06:00:00Z").put("size", item.bytes.size).apply {
                 if (item.folder) put("folder", JSONObject().put("childCount", items.values.count { it.parent == item.id }))
                 else put("file", JSONObject().put("hashes", JSONObject().put("quickXorHash", QuickXorHash.of(item.bytes))))
@@ -55,7 +57,11 @@ class OneDriveImagePoolTest {
                 }
                 request.method == "GET" && content -> target?.let { output!!.write(it.bytes); CloudHttpResponse(200, emptyMap(), ByteArray(0)) } ?: missing()
                 request.method == "GET" -> target?.let { ok(json(it)) } ?: missing()
-                request.method == "DELETE" -> { items.remove(id); CloudHttpResponse(204, emptyMap(), ByteArray(0)) }
+                request.method == "DELETE" -> {
+                    val wanted = request.headers["If-Match"]
+                    if (wanted != null && wanted != "e-$id-$versionBump") CloudHttpResponse(412, emptyMap(), ByteArray(0))
+                    else { items.remove(id); CloudHttpResponse(204, emptyMap(), ByteArray(0)) }
+                }
                 else -> error("Unexpected ${request.method} $raw")
             }
         }
@@ -121,5 +127,20 @@ class OneDriveImagePoolTest {
         val out = java.io.ByteArrayOutputStream()
         api.downloadImage("synthetic", folder, ImagePool.pictureName(key), out)
         assertArrayEquals(bytes, out.toByteArray())
+        // OneDrive changed its version after the upload: still deleted, as the same name and size are the same file.
+        graph.versionBump++
+        api.deleteImageFile("synthetic", first) {}
+        assertNull(graph.items.values.firstOrNull { it.name == ImagePool.pictureName(key) })
+    }
+
+    @Test fun a_file_replaced_under_the_same_name_is_not_deleted() = runBlocking {
+        val graph = Graph(); val api = OneDriveRestApi(graph)
+        val folder = api.claimImageFolder("synthetic", "drive|root") {}
+        val first = api.uploadImage("synthetic", folder, ImagePool.pictureName(key), byteArrayOf(5, 6, 7)) {}
+        graph.items.values.single { it.name == ImagePool.pictureName(key) }.bytes = byteArrayOf(1, 2, 3, 4)
+        graph.versionBump++
+        val error = runCatching { api.deleteImageFile("synthetic", first) {} }.exceptionOrNull() as? DriveRequestException
+        assertEquals(412, error?.statusCode)
+        assertNotNull(graph.items.values.firstOrNull { it.name == ImagePool.pictureName(key) })
     }
 }

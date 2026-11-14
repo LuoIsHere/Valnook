@@ -76,6 +76,28 @@ class OneDriveLiveTest {
         assertEquals(summary, result.directories - result.emptied, result.asked)
     }
 
+    /** Writes to the connected OneDrive: the picture folder, two made-up files and a list, deleted again at the end. */
+    @Test fun picture_folder_round_trips_against_onedrive() = runBlocking {
+        assumeTrue(InstrumentationRegistry.getArguments().getString("liveOneDrivePictures") == "true")
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val (reference, folder) = SQLiteDatabase.openDatabase(context.getDatabasePath("valnook.db").path,
+            null, SQLiteDatabase.OPEN_READONLY).use { db ->
+            db.rawQuery("SELECT account_reference,folder_id FROM cloud_backup_state WHERE id=1 AND provider='ONEDRIVE' AND folder_id IS NOT NULL", null).use {
+                if (!it.moveToFirst() || it.isNull(0)) throw AssertionError("CONNECT_VALNOOK_FIRST")
+                it.getString(0) to it.getString(1)
+            }
+        }
+        val access = MicrosoftAuthorizationGateway(context).access(reference)
+        if (access !is CloudAccessResult.Granted) throw AssertionError("MICROSOFT_REAUTH_REQUIRED")
+        val result = try { dev.valnook.data.cloud.LiveOneDriveImageProbe(folder,
+                InstrumentationRegistry.getArguments().getString("liveOneDrivePicturesFresh") == "true").run(access.accessToken) }
+            catch (error: Throwable) { throw AssertionError("PICTURE_PROBE_FAILED ${error.message}") }
+        instrumentation.sendStatus(0, Bundle().apply { putString("live_pictures", result.toString()) })
+        assertEquals(result.toString(), dev.valnook.data.cloud.LiveOneDriveImageProbe.Result(true, true, true, 2, 2, true, 2, 2,
+            true, true, 3, true), result.copy(otherPictures = 0))
+    }
+
     @Test fun disconnect_current_device_clears_msal_session_and_cancels_backup_schedule() = runBlocking {
         assumeTrue(InstrumentationRegistry.getArguments().getString("liveOneDriveAuth") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
