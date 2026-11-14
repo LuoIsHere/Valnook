@@ -182,4 +182,13 @@
     <string name="ai_draft_no_rate">缺少 %1$s → %2$s 汇率</string>
     <string name="ai_draft_rate_settings">汇率设置</string>
     <string name="ai_draft_add_rate">填写汇率</string>
+    <string name="ai_share_label">Valnook 记账</string>
+    <string name="ai_share_title">分享记账</string>
+    <string name="ai_share_new_bill">记一笔</string>
+    <string name="ai_share_back">返回</string>
+    <string name="ai_share_sent_to">将发送到 %1$s</string>
+    <string name="ai_share_nothing">没有可以记账的内容</string>
+    <plurals name="ai_share_saved">
+        <item quantity="other">已记 %1$d 笔</item>
+    </plurals>
 </resources>

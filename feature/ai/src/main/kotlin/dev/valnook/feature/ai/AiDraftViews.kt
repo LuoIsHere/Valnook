@@ -39,7 +39,8 @@ class AiDraftActions(
     val onEdit: (AiDraftCard) -> Unit,
     val onDiscard: (AiDraftCard) -> Unit,
     val onUndo: (AiDraftCard) -> Unit,
-    val onOpenBill: (Long) -> Unit,
+    /** Null where a saved bill cannot be opened (the share page). */
+    val onOpenBill: ((Long) -> Unit)?,
     val onKeepImages: (AiDraftCard, Boolean) -> Unit,
     /** Opens the exchange rate settings, for a draft across currencies without a rate. */
     val onRates: (() -> Unit)? = null,
@@ -72,7 +73,8 @@ fun AiDraftCardView(card: AiDraftCard, categories: Map<Long, BillCategory>, acco
                 AiDraftState.CONFIRMED -> Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.ai_draft_saved), Modifier.weight(1f), color = colors.primary,
                         style = MaterialTheme.typography.labelLarge)
-                    card.billId?.let { id -> TextButton({ actions.onOpenBill(id) }, Modifier.testTag("ai-draft-${card.label}-view")) {
+                    val open = actions.onOpenBill
+                    if (open != null) card.billId?.let { id -> TextButton({ open(id) }, Modifier.testTag("ai-draft-${card.label}-view")) {
                         Text(stringResource(R.string.ai_chat_view_bill)) } }
                     TextButton({ actions.onUndo(card) }, enabled = !busy, modifier = Modifier.testTag("ai-draft-${card.label}-undo")) {
                         Text(stringResource(R.string.ai_draft_undo)) }
