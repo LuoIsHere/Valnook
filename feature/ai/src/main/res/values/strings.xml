@@ -116,8 +116,8 @@
     <string name="ai_chat_thinking">Thinking</string>
     <string name="ai_chat_thinking_time">Thinking (%1$s s)</string>
     <string name="ai_chat_usage">This round %1$s tokens · in %2$s · out %3$s</string>
-    <string name="ai_chat_usage_cached"> · %1$s cached</string>
-    <string name="ai_chat_usage_calls"> · %1$d calls</string>
+    <string name="ai_chat_usage_cached">%1$s cached</string>
+    <string name="ai_chat_usage_calls">%1$d calls</string>
     <string name="ai_chat_usage_unknown">Tokens of this round unknown</string>
     <string name="ai_chat_cancelled">Cancelled</string>
     <string name="ai_chat_retry">Try again</string>

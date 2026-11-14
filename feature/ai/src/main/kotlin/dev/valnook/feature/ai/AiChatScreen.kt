@@ -234,8 +234,9 @@ private fun Usage(usage: AiTurnUsage?) {
     fun n(value: Long?) = value?.let(number::format) ?: "?"
     val text = if (usage == null || !usage.known) stringResource(R.string.ai_chat_usage_unknown) else buildString {
         append(stringResource(R.string.ai_chat_usage, n(usage.total ?: ((usage.input ?: 0) + (usage.output ?: 0))), n(usage.input), n(usage.output)))
-        usage.cached?.takeIf { it > 0 }?.let { append(stringResource(R.string.ai_chat_usage_cached, number.format(it))) }
-        if (usage.calls > 1) append(stringResource(R.string.ai_chat_usage_calls, usage.calls))
+        // Resource strings lose leading spaces, so the separator is added here.
+        usage.cached?.takeIf { it > 0 }?.let { append(" · ").append(stringResource(R.string.ai_chat_usage_cached, number.format(it))) }
+        if (usage.calls > 1) append(" · ").append(stringResource(R.string.ai_chat_usage_calls, usage.calls))
     }
     Text(text, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.testTag("ai-chat-usage"))
