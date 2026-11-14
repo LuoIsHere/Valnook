@@ -246,7 +246,7 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-account").performClick()
         waitTag("bill-account-picker")
         rule.onNodeWithTag("bill-account-$cashId").performClick()
-        rule.onNodeWithTag("bill-reimbursable").performClick()
+        rule.onNodeWithTag("bill-reimbursable").performScrollTo().performClick()
         rule.onNodeWithTag("bill-count-in-stats").assertTextEquals("不计入收支")
         rule.onNodeWithTag("bill-payer").performTextInput("合成公司")
         rule.onNodeWithTag("bill-amount").performClick()

@@ -42,7 +42,8 @@ class AppGraph(
     val walletPrivate: WalletPrivateRepository? = null,
     val fxSync: dev.valnook.domain.fx.FxRateSync = dev.valnook.domain.fx.UnavailableFxRateSync,
     /** Reads only; bills are written through [commands]. */
-    val bills: BillRepository? = null
+    val bills: BillRepository? = null,
+    val billImages: dev.valnook.domain.repository.BillImageLibrary? = null
 )
 
 /** Raw database capabilities stay inside the session manager and are never handed to UI code. */
@@ -65,7 +66,8 @@ internal data class DatabaseGraph(
     val webAdminReads: dev.valnook.domain.webadmin.WebAdminReadRepository,
     val walletPrivate: LocalWalletPrivateRepository,
     val bills: dev.valnook.domain.repository.BillRepository,
-    val images: dev.valnook.data.image.BillImageStore
+    val images: dev.valnook.data.image.BillImageStore,
+    val billImages: dev.valnook.domain.repository.BillImageLibrary
 )
 
 internal fun createDatabaseGraph(
@@ -104,7 +106,9 @@ internal fun createDatabaseGraph(
             deposits, RoomInvestments(database)),
         walletPrivate = LocalWalletPrivateRepository(context, database, persistentPrivateCards),
         bills = dev.valnook.data.repository.RoomBills(database),
-        images = images
+        images = images,
+        billImages = dev.valnook.data.image.LocalBillImageLibrary(images,
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO))
     )
 }
 

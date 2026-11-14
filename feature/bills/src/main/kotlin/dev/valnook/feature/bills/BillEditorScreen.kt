@@ -1,5 +1,9 @@
 package dev.valnook.feature.bills
 
+import android.content.ActivityNotFoundException
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -9,15 +13,19 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -31,13 +39,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.BillCategory
 import dev.valnook.domain.model.BillCategoryKind
+import dev.valnook.domain.model.BillImageRules
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.money.DecimalRules
 import dev.valnook.domain.repository.BillAccountChoice
+import java.io.File
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalTime
@@ -60,6 +71,7 @@ import java.time.format.DateTimeFormatter
     val density = LocalDensity.current
     val keyboardOpen = WindowInsets.ime.getBottom(density) > 0
     val accounts = remember(state.accounts) { state.accounts.associateBy { it.cashAccountId } }
+    val pictures = rememberPicturePicker(state, vm)
     // No bottom padding here: the keypad paints under the navigation bar and keeps its room inside.
     Column(Modifier.fillMaxSize().testTag("bill-editor")) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
@@ -71,9 +83,11 @@ import java.time.format.DateTimeFormatter
                 f.tab, vm::selectTab, optionModifier = { Modifier.testTag("bill-tab-${it.name}") }) { Text(stringResource(it.label)) }
             if (f.tab == BillTab.TRANSFER) TransferFields(state, accounts, vm, onPick = { picking = it })
             else SpendingFields(state, vm, onManageCategories)
+            if (pictures.available && (f.images.isNotEmpty() || state.imagesWorking > 0 || state.imageFailed))
+                EditorImages(state, vm, onAdd = { pictures.menu = true })
             Spacer(Modifier.height(Space.sm))
         }
-        BottomBlock(state, accounts, vm, onAccount = { picking = AccountPickTarget.OWN }, onTime = { timeOpen = true })
+        BottomBlock(state, accounts, vm, onAccount = { picking = AccountPickTarget.OWN }, onTime = { timeOpen = true }, pictures = pictures)
         if (!keyboardOpen) BillKeypad(
             confirmLabel = if (currentField(f).hasOperator) "=" else stringResource(if (state.editing) R.string.bill_save else R.string.bill_confirm),
             confirmEnabled = state.phase != BillSavePhase.WORKING,
@@ -314,7 +328,7 @@ private const val CATEGORY_COLUMNS = 5
  * before with this category.
  */
 @Composable private fun BottomBlock(state: BillEditorState, accounts: Map<Long, BillAccountChoice>, vm: BillEditorViewModel,
-    onAccount: () -> Unit, onTime: () -> Unit) {
+    onAccount: () -> Unit, onTime: () -> Unit, pictures: PicturePicker) {
     val f = state.form
     // The side padding of the scrolling rows sits inside the scroll, so they scroll out to the screen edges.
     Column(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -324,6 +338,13 @@ private const val CATEGORY_COLUMNS = 5
             if (f.tab != BillTab.TRANSFER) Pill(f.cashAccountId?.let { id -> accounts[id]?.label() }
                 ?: stringResource(R.string.bill_no_account), selected = f.cashAccountId != null, onClick = onAccount, tag = "bill-account")
             Pill(timeText(f.occurredAt), selected = false, onClick = onTime, tag = "bill-time")
+            // Pictures come right after the time, so a receipt can be added without scrolling the row.
+            if (pictures.available) Box {
+                Pill(if (f.images.isEmpty()) stringResource(R.string.bill_images_pill)
+                    else stringResource(R.string.bill_images_count, f.images.size, BillImageRules.MAX_PER_BILL),
+                    selected = f.images.isNotEmpty(), onClick = { pictures.menu = true }, tag = "bill-images-pill")
+                PictureMenu(pictures)
+            }
             if (f.tab != BillTab.TRANSFER) Pill(stringResource(if (f.countInStats) R.string.bill_counted_pill else R.string.bill_not_counted_pill),
                 selected = f.countInStats, onClick = { vm.setCountInStats(!f.countInStats) }, tag = "bill-count-in-stats")
             if (f.tab == BillTab.EXPENSE) Pill(stringResource(if (f.reimbursable) R.string.bill_reimbursable_pill else R.string.bill_not_reimbursable_pill),
@@ -470,4 +491,117 @@ private const val CATEGORY_COLUMNS = 5
             }
         }
     }
+}
+
+/** What the form needs to pick pictures: whether pictures can be added here, the source menu and the pickers. */
+internal class PicturePicker {
+    var available = false
+    var room = 0
+    var fromPhotos: () -> Unit = {}
+    var takePhoto: () -> Unit = {}
+    var menu by mutableStateOf(false)
+    var noCamera by mutableStateOf(false)
+}
+
+/**
+ * The photo picker (several at once while there is room for more than one) and the system camera, which needs no
+ * camera permission. The camera writes to a file in the cache, kept across the app being ended, read and then deleted.
+ */
+@Composable private fun rememberPicturePicker(state: BillEditorState, vm: BillEditorViewModel): PicturePicker {
+    val context = LocalContext.current
+    val resolver = context.contentResolver
+    val room = BillImageRules.MAX_PER_BILL - state.form.images.size - state.imagesWorking
+    fun read(uri: android.net.Uri): suspend () -> ByteArray = { BillImageCodec.prepare(resolver, uri) }
+    val several = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(room.coerceAtLeast(2))) { uris ->
+        vm.addPictures(uris.map(::read))
+    }
+    val one = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let { vm.addPictures(listOf(read(it))) } }
+    var cameraFile by rememberSaveable { mutableStateOf<String?>(null) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { taken ->
+        val file = cameraFile?.let(::File)
+        cameraFile = null
+        if (file != null) {
+            if (taken) vm.addPictures(listOf { try { BillImageCodec.prepare(resolver, android.net.Uri.fromFile(file)) } finally { file.delete() } })
+            else file.delete()
+        }
+    }
+    val picker = remember { PicturePicker() }
+    picker.available = LocalBillImages.current != null
+    picker.room = room
+    picker.fromPhotos = {
+        val request = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+        if (room >= 2) several.launch(request) else if (room == 1) one.launch(request)
+    }
+    picker.takePhoto = {
+        if (room > 0) {
+            val dir = File(context.cacheDir, "bill_camera").apply { mkdirs() }
+            val file = File(dir, "${java.util.UUID.randomUUID()}.jpg")
+            cameraFile = file.path
+            try {
+                camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.billcamera", file))
+            } catch (_: ActivityNotFoundException) {
+                cameraFile = null
+                file.delete()
+                picker.noCamera = true
+            }
+        }
+    }
+    return picker
+}
+
+/** Where a picture comes from: the photo picker or the camera. */
+@Composable private fun PictureMenu(pictures: PicturePicker) {
+    DropdownMenu(pictures.menu, { pictures.menu = false }) {
+        if (pictures.room <= 0) Text(stringResource(R.string.bill_images_full, BillImageRules.MAX_PER_BILL),
+            Modifier.padding(horizontal = 16.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        DropdownMenuItem({ Text(stringResource(R.string.bill_image_from_photos)) }, { pictures.menu = false; pictures.fromPhotos() },
+            Modifier.testTag("bill-image-from-photos"), enabled = pictures.room > 0)
+        DropdownMenuItem({ Text(stringResource(R.string.bill_image_take_photo)) }, { pictures.menu = false; pictures.takePhoto() },
+            Modifier.testTag("bill-image-take-photo"), enabled = pictures.room > 0)
+    }
+    if (pictures.noCamera) AlertDialog({ pictures.noCamera = false },
+        confirmButton = { TextButton({ pictures.noCamera = false }) { Text(stringResource(R.string.bill_done)) } },
+        text = { Text(stringResource(R.string.bill_image_no_camera)) })
+}
+
+/** The form's pictures: tap to view, the cross to take one off, the last tile to add more while there is room. */
+@Composable private fun EditorImages(state: BillEditorState, vm: BillEditorViewModel, onAdd: () -> Unit) {
+    val f = state.form
+    var viewing by rememberSaveable { mutableStateOf<Int?>(null) }
+    val colors = MaterialTheme.colorScheme
+    // The row sits at the end of the form; a picture just picked brings it into view.
+    val bring = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    val shown = f.images.size + state.imagesWorking
+    var seen by remember { mutableIntStateOf(0) }
+    LaunchedEffect(shown) { if (shown > seen) bring.bringIntoView(); seen = shown }
+    Column(Modifier.bringIntoViewRequester(bring), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.testTag("bill-editor-images"), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            f.images.forEachIndexed { index, image ->
+                Box(Modifier.size(64.dp)) {
+                    BillImageThumb(image.key, 64.dp, { viewing = index }, Modifier.testTag("bill-editor-image-$index"))
+                    Box(Modifier.align(Alignment.TopEnd).padding(3.dp).size(20.dp).clip(CircleShape)
+                        .background(colors.scrim.copy(alpha = 0.6f)).clickable { vm.removeImage(image.key) }
+                        .testTag("bill-editor-image-remove-$index").semantics { contentDescription = "remove" },
+                        contentAlignment = Alignment.Center) {
+                        FaIcon(FaIcons.xmark, stringResource(R.string.bill_image_remove), Modifier.size(10.dp), tint = androidx.compose.ui.graphics.Color.White)
+                    }
+                }
+            }
+            repeat(state.imagesWorking) {
+                Box(Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(colors.surfaceContainerHigh)
+                    .testTag("bill-editor-image-working"), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                }
+            }
+            if (f.images.size + state.imagesWorking < BillImageRules.MAX_PER_BILL)
+                Box(Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(colors.surfaceContainerHigh)
+                    .clickable(onClick = onAdd).testTag("bill-editor-image-add"), contentAlignment = Alignment.Center) {
+                    FaIcon(FaIcons.plus, stringResource(R.string.bill_image_add), Modifier.size(18.dp), tint = colors.onSurfaceVariant)
+                }
+        }
+        if (state.imageFailed) Text(stringResource(R.string.bill_image_failed), Modifier.testTag("bill-image-failed"),
+            style = MaterialTheme.typography.bodySmall, color = colors.error)
+    }
+    viewing?.let { start -> BillImageViewer(f.images.map { it.key }, start) { viewing = null } }
 }

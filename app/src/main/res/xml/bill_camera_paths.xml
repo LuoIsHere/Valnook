@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Only the folder the camera writes a bill photo into before it is compressed and deleted. -->
+<paths>
+    <cache-path name="bill_camera" path="bill_camera/" />
+</paths>

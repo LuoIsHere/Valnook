@@ -166,4 +166,15 @@
     <string name="bills_scope_year">Year</string>
     <string name="bills_scope_year_value">%1$d</string>
     <string name="bills_scope_all">All</string>
+    <string name="bill_images_pill">Pictures</string>
+    <string name="bill_images_count">Pictures %1$d/%2$d</string>
+    <string name="bill_images_full">Up to %1$d pictures</string>
+    <string name="bill_image_from_photos">Choose from photos</string>
+    <string name="bill_image_take_photo">Take a photo</string>
+    <string name="bill_image_no_camera">No camera app is available.</string>
+    <string name="bill_image_failed">A picture could not be read.</string>
+    <string name="bill_image_add">Add a picture</string>
+    <string name="bill_image_remove">Remove picture</string>
+    <string name="bill_image_missing">Picture missing</string>
+    <string name="bill_image_close">Close</string>
 </resources>

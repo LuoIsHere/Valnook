@@ -29,6 +29,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Lets the system camera write a bill photo into the app's cache; nothing else is shared. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.billcamera"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/bill_camera_paths" />
+        </provider>
         <activity android:name="com.microsoft.identity.client.BrowserTabActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />

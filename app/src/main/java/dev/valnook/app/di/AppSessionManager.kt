@@ -73,6 +73,11 @@ class AppSessionManager @Inject internal constructor(
             runCatching { writeMutex.withLock { realDatabaseGraph.walletPrivate.cleanup() } }
             // Bill pictures left by a form a crash closed, and records of files that are gone.
             runCatching { realDatabaseGraph.images.sweep() }
+            // Camera shots a closed form never read; a day old, so a photo taken just before the app was ended stays.
+            runCatching {
+                val dayAgo = System.currentTimeMillis() - 24L * 60 * 60 * 1000
+                java.io.File(context.cacheDir, "bill_camera").listFiles()?.filter { it.lastModified() < dayAgo }?.forEach { it.delete() }
+            }
             // Staging left by a process that died during a restore or an export: plain copies of the data, never
             // used again. Not while a preview waits for confirmation or a file job runs.
             runCatching { writeMutex.withLock {
@@ -320,6 +325,7 @@ class AppSessionManager @Inject internal constructor(
         cloudBackup = SessionCloudBackup(sessionId, mode, cloudCoordinator),
         fxSync = SessionFxSync(sessionId, mode),
         bills = source.bills,
+        billImages = source.billImages,
         wallet = object : dev.valnook.domain.repository.WalletRepository {
             private val delegate = dev.valnook.data.repository.RoomWallet(source.database,source.clock)
             override fun observeCards() = delegate.observeCards()

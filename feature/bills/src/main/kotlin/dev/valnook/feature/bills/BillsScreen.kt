@@ -224,7 +224,15 @@ private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTo
             if (transfer) CategoryIcon(if (bill.transferKind == TransferKind.INTERNAL) "repeat" else "globe", "grey", size = 38.dp)
             else CategoryIcon(shownCategory?.iconKey ?: "circle-question", shownCategory?.colorKey ?: "grey", size = 38.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // A bill with pictures shows how many beside its title, which gives way first when space runs out.
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(title, Modifier.weight(1f, fill = false), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    if (bill.imageCount > 0) Row(Modifier.testTag("bill-row-images-${bill.id}"),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        FaIcon(dev.valnook.designsystem.BillIcons.resource("paperclip"), null, Modifier.size(11.dp), tint = colors.onSurfaceVariant)
+                        Text("${bill.imageCount}", style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+                    }
+                }
                 Text(details.joinToString(" · "), maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
             }

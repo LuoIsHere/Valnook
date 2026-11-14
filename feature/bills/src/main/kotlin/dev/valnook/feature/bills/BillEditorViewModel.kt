@@ -68,7 +68,13 @@ data class BillForm(
     /** An expense someone is to pay back, and who ([payer], optional); kept apart from a transfer's other side. */
     val reimbursable: Boolean = false,
     val payer: String = "",
+    /** The bill's pictures in order. */
+    val images: List<BillImage> = emptyList(),
+    /** The pictures the bill had when the form opened; the others were added here and go if it closes unsaved. */
+    val savedImages: List<String> = emptyList(),
 ) {
+    /** Pictures added in this form, not yet on the bill. */
+    val addedImages: List<String> get() = images.map { it.key }.filter { it !in savedImages }
     val categoryId: Long? get() = if (tab == BillTab.INCOME) incomeCategoryId else expenseCategoryId
     val subCategoryId: Long? get() = if (tab == BillTab.INCOME) incomeSubId else expenseSubId
 }
@@ -111,6 +117,10 @@ data class BillEditorState(
     val savedCount: Int = 0,
     /** Confirm was pressed while something was missing: the page says what. */
     val attempted: Boolean = false,
+    /** Pictures still being read and compressed. */
+    val imagesWorking: Int = 0,
+    /** A picked picture could not be read or brought within the limits. */
+    val imageFailed: Boolean = false,
 )
 
 /**
@@ -128,6 +138,8 @@ class BillEditorViewModel(
     fx: Flow<FxContext>,
     private val clock: Clock,
     private val saved: SavedStateHandle,
+    /** The device's bill pictures; without it (tests) pictures cannot be added. */
+    private val images: BillImageLibrary? = null,
 ) : ViewModel() {
     private var operationId: String = saved.get<String>("operation") ?: newOperation()
     private val form = MutableStateFlow(saved.get<String>("form")?.let(::decode) ?: BillForm(tab = initialTab, occurredAt = now()))
@@ -142,7 +154,7 @@ class BillEditorViewModel(
 
     private data class Meta(val loaded: Boolean, val revision: Long?, val failed: Boolean = false,
         val phase: BillSavePhase = BillSavePhase.IDLE, val error: ErrorCode? = null, val savedCount: Int = 0,
-        val attempted: Boolean = false)
+        val attempted: Boolean = false, val imagesWorking: Int = 0, val imageFailed: Boolean = false)
 
     private val categories = bills.observeCategories().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     private val accounts = bills.observeAccountChoices().stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -159,11 +171,14 @@ class BillEditorViewModel(
         @Suppress("UNCHECKED_CAST") val a = parts[3] as List<BillAccountChoice>
         @Suppress("UNCHECKED_CAST") val n = parts[4] as List<String>
         BillEditorState(m.loaded, m.failed, billId != null, f, preview(f, a, settingsValue, fxValue, day), c, a, n,
-            settingsValue?.baseCurrency, fxValue.autoEnabled, m.phase, m.error, m.savedCount, m.attempted)
+            settingsValue?.baseCurrency, fxValue.autoEnabled, m.phase, m.error, m.savedCount, m.attempted,
+            m.imagesWorking, m.imageFailed)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BillEditorState(form = form.value,
         preview = preview(form.value, emptyList(), null, FxContext(), emptyMap())))
 
     init {
+        // A form put back after the app was ended holds the pictures it had added again.
+        images?.hold(form.value.addedImages)
         // A new bill starts on no account; choosing a category brings the account it was last used with.
         if (!meta.value.loaded) viewModelScope.launch { load() }
         // The stored rates of the bill's day, for its suggested rate.
@@ -184,7 +199,9 @@ class BillEditorViewModel(
         try {
             val bill = bills.observeBill(billId ?: copyFromId ?: return).first() ?: throw DomainException(ErrorCode.NOT_FOUND)
             val copy = billId == null
-            setForm(formOf(bill, copy))
+            // A copy starts without pictures: a receipt belongs to one purchase.
+            val held = if (copy) emptyList() else bills.observeImages(bill.id).first()
+            setForm(formOf(bill, copy).copy(images = held, savedImages = held.map { it.key }))
             setMeta(meta.value.copy(loaded = true, revision = if (copy) null else bill.revision))
         } catch (cancelled: CancellationException) { throw cancelled }
         catch (_: Exception) { setMeta(meta.value.copy(failed = true)) }
@@ -409,6 +426,49 @@ class BillEditorViewModel(
     /** Back to the suggested rate and the amount it gives. */
     fun resetRate() = update { touched(it.copy(rate = null, accountAmount = null), TransferFigure.RATE) }
 
+    // Pictures
+
+    /**
+     * Reads, compresses and stores each picked picture, up to the room left on the bill, adding it in order. A picture
+     * already on the form is not added twice.
+     */
+    fun addPictures(sources: List<suspend () -> ByteArray>) {
+        val library = images ?: return
+        if (!editable) return
+        val room = BillImageRules.MAX_PER_BILL - form.value.images.size - meta.value.imagesWorking
+        val picked = sources.take(room.coerceAtLeast(0))
+        if (picked.isEmpty()) return
+        setMeta(meta.value.copy(imagesWorking = meta.value.imagesWorking + picked.size, imageFailed = false))
+        viewModelScope.launch {
+            picked.forEach { source ->
+                try {
+                    val image = library.store(source())
+                    val current = form.value
+                    if (editable && current.images.none { it.key == image.key } && current.images.size < BillImageRules.MAX_PER_BILL)
+                        setForm(current.copy(images = current.images + image))
+                    else if (current.images.none { it.key == image.key }) library.drop(listOf(image.key))
+                    else library.saved(listOf(image.key))
+                } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { setMeta(meta.value.copy(imageFailed = true)) }
+                finally { setMeta(meta.value.copy(imagesWorking = meta.value.imagesWorking - 1)) }
+            }
+        }
+    }
+
+    /** Takes picture [key] off the form; one added here is deleted unless a bill holds it. */
+    fun removeImage(key: String) {
+        val current = form.value
+        if (!editable || current.images.none { it.key == key }) return
+        setForm(current.copy(images = current.images.filter { it.key != key }))
+        if (key !in current.savedImages) images?.drop(listOf(key))
+    }
+
+    override fun onCleared() {
+        // Closed without saving: pictures added here go, unless a bill holds them after all (a save whose outcome
+        // was unknown may have gone through).
+        if (meta.value.phase != BillSavePhase.SAVED) images?.drop(form.value.addedImages)
+    }
+
     // Saving
 
     fun save(again: Boolean = false) {
@@ -424,10 +484,12 @@ class BillEditorViewModel(
             try {
                 if (reconcile) commands.operationResult(command.operation_id) ?: commands.execute(command)
                 else commands.execute(command)
+                images?.saved(current.form.addedImages)
                 if (again && billId == null) {
                     operationId = newOperation()
                     setForm(current.form.copy(amount = BillExpression(), discount = BillExpression(), fee = BillExpression(),
-                        toAmount = BillExpression(), accountAmount = null, note = "", target = BillField.AMOUNT))
+                        toAmount = BillExpression(), accountAmount = null, note = "", target = BillField.AMOUNT,
+                        images = emptyList(), savedImages = emptyList()))
                     setMeta(meta.value.copy(phase = BillSavePhase.IDLE, savedCount = meta.value.savedCount + 1))
                 } else setMeta(meta.value.copy(phase = BillSavePhase.SAVED))
                 setMeta(meta.value.copy(attempted = false))
@@ -456,13 +518,14 @@ class BillEditorViewModel(
                 if (kind == TransferKind.FROM_EXTERNAL) null else f.cashAccountId, amount, p.rate ?: BigDecimal.ONE,
                 p.rateSource ?: BillRateSource.SAME, kind, if (kind == TransferKind.TO_EXTERNAL) null else f.toCashAccountId,
                 when (kind) { TransferKind.TO_EXTERNAL -> null; TransferKind.FROM_EXTERNAL -> amount; else -> p.convertedMinor },
-                fee, if (kind == TransferKind.INTERNAL) "" else f.counterparty, countInStats = false, note = f.note)
+                fee, if (kind == TransferKind.INTERNAL) "" else f.counterparty, countInStats = false, note = f.note,
+                images = f.images)
         }
         return BillDraft(if (f.tab == BillTab.INCOME) BillType.INCOME else BillType.EXPENSE, time, amount, p.currency!!.code,
             p.discountMinor, f.cashAccountId, p.convertedMinor!!, p.rate ?: BigDecimal.ONE, p.rateSource ?: BillRateSource.SAME,
             categoryId = f.categoryId, subCategoryId = f.subCategoryId, countInStats = f.countInStats, note = f.note,
             reimbursable = f.tab == BillTab.EXPENSE && f.reimbursable,
-            counterparty = if (f.tab == BillTab.EXPENSE && f.reimbursable) f.payer else "")
+            counterparty = if (f.tab == BillTab.EXPENSE && f.reimbursable) f.payer else "", images = f.images)
     }
 
     companion object {
@@ -573,6 +636,8 @@ class BillEditorViewModel(
             putOpt("income", f.incomeCategoryId); putOpt("incomeSub", f.incomeSubId); put("time", f.occurredAt.toString())
             put("count", f.countInStats); put("note", f.note); put("target", f.target.name)
             put("reimbursable", f.reimbursable); put("payer", f.payer)
+            put("images", JSONArray(f.images.map { JSONObject().put("k", it.key).put("s", it.byteSize).put("w", it.width).put("h", it.height) }))
+            put("savedImages", JSONArray(f.savedImages))
         }.toString()
 
         internal fun decode(text: String): BillForm? = runCatching {
@@ -587,7 +652,10 @@ class BillEditorViewModel(
                 o.getJSONArray("edits").let { a -> (0 until a.length()).map { TransferFigure.valueOf(a.getString(it)) } },
                 long("expense"), long("expenseSub"), long("income"), long("incomeSub"),
                 LocalDateTime.parse(o.getString("time")), o.getBoolean("count"), o.getString("note"), BillField.valueOf(o.getString("target")),
-                o.optBoolean("reimbursable", false), o.optString("payer", ""))
+                o.optBoolean("reimbursable", false), o.optString("payer", ""),
+                o.optJSONArray("images")?.let { a -> (0 until a.length()).map { a.getJSONObject(it) }
+                    .map { BillImage(it.getString("k"), it.getLong("s"), it.getInt("w"), it.getInt("h")) } }.orEmpty(),
+                o.optJSONArray("savedImages")?.let { a -> (0 until a.length()).map { a.getString(it) } }.orEmpty())
         }.getOrNull()
     }
 }

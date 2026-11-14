@@ -165,4 +165,15 @@
     <string name="bills_scope_year">按年</string>
     <string name="bills_scope_year_value">%1$d年</string>
     <string name="bills_scope_all">全部</string>
+    <string name="bill_images_pill">图片</string>
+    <string name="bill_images_count">图片 %1$d/%2$d</string>
+    <string name="bill_images_full">最多 %1$d 张</string>
+    <string name="bill_image_from_photos">从相册选择</string>
+    <string name="bill_image_take_photo">拍照</string>
+    <string name="bill_image_no_camera">没有可用的相机应用。</string>
+    <string name="bill_image_failed">有图片无法读取。</string>
+    <string name="bill_image_add">添加图片</string>
+    <string name="bill_image_remove">移除图片</string>
+    <string name="bill_image_missing">图片缺失</string>
+    <string name="bill_image_close">关闭</string>
 </resources>

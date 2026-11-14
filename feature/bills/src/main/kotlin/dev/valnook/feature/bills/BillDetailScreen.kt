@@ -34,12 +34,14 @@ data class BillDetailState(
     val deleting: Boolean = false,
     val deleted: Boolean = false,
     val error: ErrorCode? = null,
+    val images: List<BillImage> = emptyList(),
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class BillDetailViewModel(billId: Long, bills: BillRepository, private val commands: FinancialCommands) : ViewModel() {
     private val action = MutableStateFlow(Triple(false, false, null as ErrorCode?))
     private val bill = bills.observeBill(billId)
+    private val pictures = bills.observeImages(billId)
     private val related = bill.flatMapLatest { b ->
         when {
             b == null -> flowOf(emptyList<Bill>() to null)
@@ -48,10 +50,10 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
             else -> flowOf(emptyList<Bill>() to null)
         }
     }
-    val state: StateFlow<BillDetailState> = combine(bill, related, bills.observeCategories(),
-        bills.observeAccountChoices(), action) { b, (children, parent), categories, accounts, (deleting, deleted, error) ->
+    val state: StateFlow<BillDetailState> = combine(combine(bill, pictures) { b, p -> b to p }, related, bills.observeCategories(),
+        bills.observeAccountChoices(), action) { (b, images), (children, parent), categories, accounts, (deleting, deleted, error) ->
         BillDetailState(true, b, children, parent, categories.associateBy { it.id }, accounts.associateBy { it.cashAccountId },
-            deleting, deleted, error)
+            deleting, deleted, error, images)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BillDetailState())
 
     private fun run(command: FinancialCommand, leaves: Boolean) {
@@ -98,6 +100,7 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
     }
     val owed = bill.reimburseState == ReimburseState.PENDING || bill.reimburseState == ReimburseState.PARTIAL
     RecordDetailLayout(title, rows) {
+        if (state.images.isNotEmpty()) BillImageStrip(state.images.map { it.key }, Modifier.fillMaxWidth())
         if (state.children.isNotEmpty()) SettlementList(state.children, state, onOpen) { undoing = it }
         ErrorMessage(state.error?.name)
         if (bill.isSettlement) {

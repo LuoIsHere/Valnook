@@ -443,6 +443,7 @@ private fun SessionRoot(
             }
         }) { padding ->
             CompositionLocalProvider(dev.valnook.designsystem.LocalAccountImageLoader provides accountImages,
+                dev.valnook.feature.bills.LocalBillImages provides graph.billImages,
                 LocalPageBottomSpace provides bottomSpace,
                 LocalPageTopSpace provides if (glassTop) padding.calculateTopPadding() else 0.dp,
                 dev.valnook.designsystem.LocalPageTopBarHeight provides barHeight,
@@ -491,7 +492,7 @@ private fun SessionRoot(
                                     dev.valnook.feature.bills.BillEditorViewModel(route.billId, route.copyFromId,
                                         dev.valnook.feature.bills.BillTab.valueOf(route.tab), requireNotNull(graph.bills),
                                         graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(),
-                                        graph.clock, createSavedStateHandle())
+                                        graph.clock, createSavedStateHandle(), graph.billImages)
                                 }, onDone = pop, onManageCategories = { open(BillCategoriesKey) })
                             }
                             entry<BillDetailKey> { route ->
