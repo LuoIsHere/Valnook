@@ -49,6 +49,17 @@ class AiPromptTest {
         assertEquals((1L..100L).toList(), AiPrompt.sentAccounts(many.filter { it.id <= 100 }).map { it.id })
     }
 
+    @Test fun the_rules_say_what_amount_and_discount_mean_and_leave_refunds_to_the_bill() {
+        val rules = AiPrompt.fixedRules(AiSettings(), english = false)
+        assertTrue(rules.contains("set amount to the price and discount to everything taken off"))
+        assertTrue(rules.contains("do not make a draft for the purchase they belong to"))
+        assertTrue(rules.contains("make two drafts: the user's own share, not reimbursable"))
+        assertTrue(rules.contains("evening (晚上) 19:00"))
+        val tool = AiPrompt.billTool.toString()
+        assertTrue(tool.contains("price before any discount"))
+        assertFalse(tool.contains("amount paid"))
+    }
+
     @Test fun the_parts_come_in_a_fixed_order_with_the_time_last() {
         val settings = AiSettings(myRules = "Coffee shops are drinks.", userNickname = "Sam", aiNickname = "Penny")
         val system = AiPrompt.system(settings, categories, accounts, LocalDateTime.of(2026, 11, 14, 8, 30), "CNY", english = false)

@@ -20,7 +20,7 @@ data class AiHabit(val note: String, val categoryId: Long)
 
 object AiPrompt {
     /** Raised whenever the fixed rules change. */
-    const val RULES_VERSION = 5
+    const val RULES_VERSION = 6
 
     /** The most accounts a request lists; past it the frequent and the most recently used are kept. */
     const val ACCOUNT_LIMIT = 100
@@ -36,9 +36,9 @@ object AiPrompt {
                     "draft_id" to prop("string", "Id of an unconfirmed draft to replace"),
                     "type" to JsonObject(mapOf("type" to JsonPrimitive("string"),
                         "enum" to JsonArray(listOf("EXPENSE", "INCOME", "TRANSFER").map(::JsonPrimitive)))),
-                    "amount" to prop("string", "Decimal amount paid, e.g. \"35.50\""),
+                    "amount" to prop("string", "Decimal price before any discount, e.g. \"35.50\"; what was paid when no discount is known"),
                     "currency" to prop("string", "ISO 4217 code"),
-                    "discount" to prop("string", "Decimal discount, if any"),
+                    "discount" to prop("string", "Decimal total taken off the price; the app takes it from amount to get what was paid"),
                     "rate" to prop("string", "Only a rate the user gave: 1 currency = rate account currency (transfer: to account's)"),
                     "account_amount" to prop("string", "Only if the user said it: what the account was charged in its own currency (transfer: what arrived)"),
                     "category_id" to prop("integer", null),
@@ -48,7 +48,7 @@ object AiPrompt {
                     "occurred_at" to prop("string", "Local YYYY-MM-DDTHH:MM, or YYYY-MM-DD without a time"),
                     "note" to prop("string", null),
                     "counterparty" to prop("string", "Who pays back, or the other side of a transfer"),
-                    "reimbursable" to prop("boolean", "Someone is to pay this expense back"),
+                    "reimbursable" to prop("boolean", "Someone is to pay all of this expense back"),
                 ),
                 "required" to JsonArray(listOf(JsonPrimitive("type"))),
             ))))),
@@ -92,14 +92,16 @@ object AiPrompt {
         "You are the bookkeeping assistant in Valnook, a personal finance app. Rules v$RULES_VERSION:",
         "- Turn what the user says or shows into bill drafts by calling create_bill_drafts. You never save anything; the user confirms every draft in the app.",
         "- Use only the category and account ids listed below. Leave out a field you are unsure of. Never invent amounts; leave unreadable parts out.",
-        "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up yourself; the app does that.",
+        "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up yourself; the app does that. The only sums you work out are the shares when splitting an expense, below.",
+        "- amount and discount: when the user gives a price and what was taken off it (coupons, deals) or what was finally paid, set amount to the price and discount to everything taken off; the app records amount minus discount as paid. When only what was paid is known, set amount to that and leave discount out.",
+        "- When someone pays back only part of an expense (sharing a bill, paying for others), make two drafts: the user's own share, not reimbursable, and the part to be paid back, reimbursable, with counterparty set. Work the shares out from what the user says, such as an equal split. When all of it is paid back, make one reimbursable draft.",
         "- currency: the ISO code of what was paid, only when the user says or shows it; otherwise leave it out and the account's currency is used. Each account's currency is listed below.",
         "- In screenshots, receipts and shared text, set currency on every bill from what is shown: symbols, codes and words (¥, 元, RMB -> CNY, but 円 or a Japanese context -> JPY; $ -> USD unless written HK$, S$, NT$, A$, C$ or MOP$; €, £, ₩, ฿ and the like by their currency). Leave it out only when nothing there shows a currency.",
         "- account_id: the account the user says paid or received, matched by name among all accounts listed below. When a name fits several, prefer one marked frequent. When they do not say which, leave it out unless the message clearly points to one (a card's last digits, a payment app); if unsure, leave it out and the user picks. Paying in another currency than the account's is fine; the app converts at its own rates.",
         "- When the user gives an exchange rate, set rate (1 unit of currency = rate units of the account's currency; for a transfer, of to_account_id's). When they say what the account was actually charged or credited in its own currency, set account_amount; for a transfer, account_amount is what arrived. Never look up or guess a rate, and do not put it in note.",
         "- A transfer's amount is what left account_id, in its currency; if the user only says what arrived in to_account_id's currency, give that amount with that currency.",
-        "- Do not create refunds or reimbursement payments.",
-        "- occurred_at: local \"YYYY-MM-DDTHH:MM\"; only \"YYYY-MM-DD\" when a day but no time was said; leave it out when nothing about time was said.",
+        "- Do not record a refund of a purchase or money paid back for an expense, and do not make a draft for the purchase they belong to, which is usually recorded already: tell the user to open that bill in the app to record the refund or the payment back. Money coming back from savings, investments or loans is not a refund: record it, such as a transfer into the account.",
+        "- occurred_at: local \"YYYY-MM-DDTHH:MM\"; only \"YYYY-MM-DD\" when a day but no time was said; leave it out when nothing about time was said. A part of the day counts as a time: morning (早上, 上午) 08:00, noon (中午) 12:00, afternoon (下午) 15:00, evening (晚上) 19:00, late night (深夜, 半夜) 22:00.",
         "- When something needed is missing, such as the amount, ask in message, or make a draft without it.",
         "- Never give investment or financial advice.",
         "- You cannot look up the user's bills, balances, investments or cards. If asked about their bills, say that turning on \"${if (english) "Ask about bills" else "对话查询"}\" in Settings lets you answer; other data cannot be asked about.",
