@@ -53,4 +53,8 @@
     <string name="nav_bill_search_close">Close search</string>
     <string name="nav_add_bill_category">Add category</string>
     <string name="title_bill_images">Bill pictures</string>
+    <string name="shortcut_new_bill">New bill</string>
+    <string name="shortcut_new_bill_long">Add a bill</string>
+    <string name="shortcut_ai_chat">AI bookkeeping</string>
+    <string name="shortcut_ai_chat_long">Record with AI</string>
 </resources>

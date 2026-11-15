@@ -41,13 +41,14 @@ class QuickEntryPreferences private constructor(context: Context) {
     }
 
     /**
-     * Where to open when the activity starts afresh from the launcher (no saved state: the app was cleared from
-     * recents or never ran); null to open as usual.
+     * Where to open when the activity starts afresh (no saved state: the app was cleared from recents or never ran):
+     * the page a shortcut asks for, else the setting's when started from the icon; null to open as usual.
      */
     fun launchTarget(intent: Intent?, restored: Boolean): QuickLaunchTarget? {
         if (restored || intent == null) return null
-        if (intent.action != Intent.ACTION_MAIN || !intent.hasCategory(Intent.CATEGORY_LAUNCHER)) return null
         if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return null
+        QuickShortcuts.target(intent)?.let { return it }
+        if (intent.action != Intent.ACTION_MAIN || !intent.hasCategory(Intent.CATEGORY_LAUNCHER)) return null
         val current = read()
         return if (current.launch) current.target else null
     }

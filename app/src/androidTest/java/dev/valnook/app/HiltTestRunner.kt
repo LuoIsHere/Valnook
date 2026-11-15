@@ -40,6 +40,9 @@ class HiltTestRunner:AndroidJUnitRunner() {
             arrived.await(10, TimeUnit.SECONDS)
         }
         resources.forEach(::useChinese)
+        // Tests start the app as the launcher does; with "open to a new bill" on, each would open on the bill page.
+        // Tests of that setting switch it on themselves.
+        dev.valnook.app.quick.QuickEntryPreferences.of(target).setLaunch(false)
         super.onStart()
     }
 

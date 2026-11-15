@@ -53,4 +53,8 @@
     <string name="nav_bill_search_close">关闭搜索</string>
     <string name="nav_add_bill_category">添加分类</string>
     <string name="title_bill_images">账单图片</string>
+    <string name="shortcut_new_bill">记一笔</string>
+    <string name="shortcut_new_bill_long">手动记一笔</string>
+    <string name="shortcut_ai_chat">AI 记账</string>
+    <string name="shortcut_ai_chat_long">用 AI 记账</string>
 </resources>

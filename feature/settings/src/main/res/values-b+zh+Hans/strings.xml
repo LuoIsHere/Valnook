@@ -139,7 +139,8 @@
     <string name="quick_summary_share_on">分享记账已开启</string>
     <string name="quick_summary_share_off">分享记账已关闭</string>
     <string name="quick_launch">打开时直接记账</string>
-    <string name="quick_launch_summary">清理后台后从桌面图标打开时，直接进入记账页面</string>
+    <string name="quick_launch_summary">从桌面图标打开、且 App 不在后台时，直接进入记账页面</string>
+    <string name="quick_launch_shortcuts">也可以长按桌面图标，选择“记一笔”或“AI 记账”。</string>
     <string name="quick_target_manual">手动记账</string>
     <string name="quick_target_ai">AI 对话</string>
     <string name="quick_target_ai_unavailable">需先开启 AI 记账并通过检测；不可用时进入手动记账</string>

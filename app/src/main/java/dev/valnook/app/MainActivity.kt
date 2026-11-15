@@ -28,11 +28,14 @@ class MainActivity:ComponentActivity() {
         // Apply before resources or views are created, including native date/time dialogs.
         ThemePreferences(newBase).read().configurationOverride()?.let(::applyOverrideConfiguration)
     }
-    /** Where this start opens, until the root takes it: set only on a fresh start from the launcher icon. */
-    private var launchTarget: dev.valnook.feature.settings.QuickLaunchTarget? = null
+    /** Bill pages asked for by a fresh start or a shortcut, until the root opens them. */
+    private val launchRequests = dev.valnook.app.quick.LaunchRequests()
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
-        launchTarget = dev.valnook.app.quick.QuickEntryPreferences.of(this).launchTarget(intent, savedInstanceState != null)
+        dev.valnook.app.quick.QuickEntryPreferences.of(this).launchTarget(intent, savedInstanceState != null)?.let { target ->
+            launchRequests.request(target)
+            if (dev.valnook.app.quick.QuickShortcuts.target(intent) != null) dev.valnook.app.quick.QuickShortcuts.reportUsed(this, target)
+        }
         enableEdgeToEdge()
         window.isNavigationBarContrastEnforced=false
         val appearance = ThemePreferences(this)
@@ -53,13 +56,21 @@ class MainActivity:ComponentActivity() {
                 val saved = appearance.save(mode)
                 if (saved) withContext(Dispatchers.Main.immediate) { recreate() }
                 saved
-            }, launchTarget = { launchTarget.also { launchTarget = null } }) {
+            }, launchRequests = launchRequests) {
                 lifecycleScope.launch {
                     webAdmin.stop()
                     sessions.exitDemo()
                     finish()
                 }
             }
+        }
+    }
+    /** A shortcut used while the app runs: its page opens above the current one. */
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        dev.valnook.app.quick.QuickShortcuts.target(intent)?.let { target ->
+            launchRequests.request(target)
+            dev.valnook.app.quick.QuickShortcuts.reportUsed(this, target)
         }
     }
     override fun onStart() {

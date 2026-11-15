@@ -65,17 +65,22 @@ fun QuickEntrySettingsScreen(settings: QuickEntrySettings, aiChat: Boolean, onLa
                 }
             }
         }
+        item { Note(stringResource(R.string.quick_launch_shortcuts), "quick-launch-shortcuts") }
         item {
             GlassCard {
                 SwitchLine(stringResource(R.string.quick_share), stringResource(R.string.quick_share_summary),
                     settings.share, "quick-share", onShare)
             }
         }
-        item {
-            Text(stringResource(R.string.quick_share_note), Modifier.padding(horizontal = Space.xs).testTag("quick-share-note"),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        item { Note(stringResource(R.string.quick_share_note), "quick-share-note") }
     }
+}
+
+/** Small print under a card. */
+@Composable
+private fun Note(text: String, tag: String) {
+    Text(text, Modifier.padding(horizontal = Space.xs).testTag(tag),
+        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 /** A line that toggles as a whole, as on the exchange rate page. */

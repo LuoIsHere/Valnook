@@ -97,6 +97,7 @@ import dev.valnook.feature.statistics.StatisticsViewModel
 import dev.valnook.feature.wallet.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -107,8 +108,8 @@ fun ValnookRoot(
     webAdmin: dev.valnook.domain.webadmin.WebAdminService,
     themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     onThemeChange: suspend (AppThemeMode) -> Boolean = { false },
-    /** Where a fresh start from the icon opens, taken once; null opens as usual. */
-    launchTarget: () -> dev.valnook.feature.settings.QuickLaunchTarget? = { null },
+    /** Bill pages asked for by a fresh start or a shortcut, each opened once. */
+    launchRequests: dev.valnook.app.quick.LaunchRequests = remember { dev.valnook.app.quick.LaunchRequests() },
     onExit: () -> Unit = {}
 ) {
     val active by sessions.session.collectAsState()
@@ -137,7 +138,7 @@ fun ValnookRoot(
                     active.graph.fxSync) {
                     // The gate's AnimatedContent passes full-screen min constraints; this Box loosens them for the banner.
                     Box(Modifier.fillMaxSize()) {
-                        SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, launchTarget, onExit)
+                        SessionRoot(active, loadedSettings, sessions, webAdmin, themeMode, onThemeChange, launchRequests, onExit)
                         val fxNotice by remember(active.id) { active.graph.fxSync.observeNotice() }
                             .collectAsStateWithLifecycle(null)
                         val noticeScope = rememberCoroutineScope()
@@ -209,7 +210,7 @@ private fun SessionRoot(
     webAdmin: dev.valnook.domain.webadmin.WebAdminService,
     themeMode: AppThemeMode,
     onThemeChange: suspend (AppThemeMode) -> Boolean,
-    launchTarget: () -> dev.valnook.feature.settings.QuickLaunchTarget?,
+    launchRequests: dev.valnook.app.quick.LaunchRequests,
     onExit: () -> Unit
 ) {
     val graph = active.graph
@@ -310,14 +311,25 @@ private fun SessionRoot(
         .collectAsStateWithLifecycle(false)
     val quickEntry = remember { dev.valnook.app.quick.QuickEntryPreferences.of(appContext) }
     val quickSettings by quickEntry.settings.collectAsStateWithLifecycle()
-    // Started afresh from the icon with "open to a new bill" on: once, on real data, the bill page or the AI chat
-    // (the bill page while the chat cannot be used).
+    // A fresh start with "open to a new bill" on, or a shortcut: on real data, the bill page or the AI chat (the bill
+    // page while the chat cannot be used), above the current page. Demo data drops it and stays where it is.
     LaunchedEffect(graph.sessionId) {
-        val target = launchTarget() ?: return@LaunchedEffect
+        launchRequests.requests.collect {
+            val target = launchRequests.take() ?: return@collect
+            if (active.mode != DataMode.REAL || graph.bills == null) return@collect
+            val chat = target == dev.valnook.feature.settings.QuickLaunchTarget.AI && graph.assistant != null &&
+                graph.ai?.observeFeatures()?.first()?.chatEntry == true
+            open(if (chat) AiChatKey else BillEditorKey())
+        }
+    }
+    // The icon's long-press menu follows real data: "AI bookkeeping" only while the chat can be used.
+    val shortcutContext = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(graph.sessionId) {
         if (active.mode != DataMode.REAL || graph.bills == null) return@LaunchedEffect
-        val chat = target == dev.valnook.feature.settings.QuickLaunchTarget.AI && graph.assistant != null &&
-            graph.ai?.observeFeatures()?.first()?.chatEntry == true
-        open(if (chat) AiChatKey else BillEditorKey())
+        (graph.ai?.observeFeatures() ?: kotlinx.coroutines.flow.flowOf(dev.valnook.domain.ai.AiFeatures()))
+            .map { it.chatEntry && graph.assistant != null }
+            .distinctUntilChanged()
+            .collect { ai -> dev.valnook.app.quick.QuickShortcuts.publish(shortcutContext, ai) }
     }
     val pop: () -> Unit = {
         if (stack.last() == BackupKey) scope.launch { sessions.cancelPendingRestore(active.id) }
