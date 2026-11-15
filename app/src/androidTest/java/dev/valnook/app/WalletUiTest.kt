@@ -100,7 +100,7 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-private-expiry").performScrollTo().performTextInput("01/29")
         rule.onNodeWithTag("wallet-private-cvv1").performScrollTo().performTextInput("001")
         rule.onNodeWithTag("wallet-private-cvv2").performScrollTo().performTextInput("002")
-        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-save").performClick()
         rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==1L}
         val actual=runBlocking{graph.walletPrivate!!.read(id)}
         assertEquals("0000****----1234",actual.number);assertEquals("001",actual.cvv1)
@@ -142,7 +142,7 @@ class WalletUiTest {
         cvv.performScrollTo().performTextReplacement("0004")
         cvv.performTextReplacement("12345");cvv.assertTextContains("0004")
         cvv.performTextReplacement("a12");cvv.assertTextContains("0004")
-        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-save").performClick()
         rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==1L}
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-number").fetchSemanticsNodes().isEmpty()}
         assertFalse(runBlocking{graph.walletPrivate!!.read(id)}.showNumberSpacing)
@@ -170,7 +170,7 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-private-warning-confirm").performClick()
         rule.onNodeWithTag("wallet-private-spacing").performScrollTo().assertIsOff().performClick()
         cvv.performScrollTo().performTextReplacement("")
-        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-save").performClick()
         rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==2L}
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-number").fetchSemanticsNodes().isEmpty()}
         rule.onNodeWithText("0000 **** ---- 1234",useUnmergedTree=true).assertExists()
@@ -186,14 +186,14 @@ class WalletUiTest {
         // The palette button must clear focus inside the editor dialog window, not the activity window.
         rule.onNodeWithTag("wallet-private-number").assertIsNotFocused()
         rule.onNodeWithTag("wallet-private-color").performScrollTo().performTextReplacement("556677")
-        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-save").performClick()
         rule.waitUntil(10000){runBlocking{graph.walletPrivate!!.read(id)}.revision==1L}
         assertEquals(0xff556677L,runBlocking{graph.walletPrivate!!.read(id)}.backColor)
         rule.onNodeWithTag("wallet-private-edit",useUnmergedTree=true).performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-number").fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithTag("wallet-private-warning-confirm").assertDoesNotExist()
         rule.onNodeWithTag("wallet-private-number").performScrollTo().performTextInput("DISCARD")
-        rule.onNodeWithTag("wallet-private-cancel").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-cancel").performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-discard").fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithTag("wallet-private-discard").performClick()
         assertEquals("",runBlocking{graph.walletPrivate!!.read(id)}.number)
@@ -319,7 +319,7 @@ class WalletUiTest {
         input.assert(SemanticsMatcher.expectValue(androidx.compose.ui.semantics.SemanticsProperties.EditableText,
             androidx.compose.ui.text.AnnotatedString("")))
         input.performTextInput("LI LEI")
-        rule.onNodeWithTag("wallet-private-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-private-save").performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-private-holder").fetchSemanticsNodes().isEmpty()}
         rule.onNodeWithText("LI LEI",useUnmergedTree=true).assertExists()
         rule.onNodeWithText("CARDHOLDER",useUnmergedTree=true).assertExists()
@@ -346,7 +346,7 @@ class WalletUiTest {
         save("wallet-empty")
         rule.onNodeWithTag("wallet-add-empty").performClick()
         rule.onNodeWithTag("wallet-name").performTextInput("Collection")
-        rule.onNodeWithTag("wallet-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-save").performClick()
         rule.waitUntil(10000){runBlocking{wallet.observeCards().first()}.size==1}
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-detail").fetchSemanticsNodes().isNotEmpty()}
         rule.onAllNodesWithTag("root-toolbar").assertCountEquals(1)
@@ -363,7 +363,7 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-name").performClick().assertIsFocused()
         rule.waitForIdle()
         rule.onNodeWithTag("wallet-name").performTextReplacement("Renamed")
-        rule.onNodeWithTag("wallet-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-save").performClick()
         rule.waitUntil(10000){runBlocking{wallet.observeCards().first()}.single().name=="Renamed"}
         rule.onNodeWithContentDescription(rule.activity.getString(dev.valnook.app.R.string.nav_back)).performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}
@@ -786,7 +786,7 @@ class WalletUiTest {
             rule.onNodeWithTag("wallet-rotate").performClick();rule.waitForIdle();save("wallet-crop-dark")
             rule.onNodeWithTag("wallet-crop-confirm").performClick()
             rule.waitUntil(10000){vm.draft.value?.image!=null}
-            rule.onNodeWithTag("wallet-save").performScrollTo().performClick()
+            rule.onNodeWithTag("wallet-save").performClick()
             rule.waitUntil(10000){vm.draft.value==null&&vm.cards.value?.size==1}
             assertTrue(file.delete())
             val card=runBlocking{wallet.observeCards().first()}.single()
@@ -862,7 +862,7 @@ class WalletUiTest {
         save("wallet-face-picker")
         rule.onNodeWithTag("wallet-face-pick-${spare.key}").performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-face-pick-${spare.key}").fetchSemanticsNodes().isEmpty()}
-        rule.onNodeWithTag("wallet-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-save").performClick()
         rule.waitUntil(10000){runBlocking{wallet.observeCards().first()}.single().imageKey==spare.key}
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-name").fetchSemanticsNodes().isEmpty()}
         rule.onNodeWithContentDescription(rule.activity.getString(dev.valnook.app.R.string.nav_back)).performClick()

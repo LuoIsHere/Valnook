@@ -49,9 +49,14 @@ import kotlinx.coroutines.*
         // The dialog is its own window: only its focus manager and keyboard controller reach the name field.
         val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
         val focus=androidx.compose.ui.platform.LocalFocusManager.current
-        // The buttons scroll with the form, below everything it holds.
+        // Only the form scrolls; the title and the buttons stay in view.
         DialogCard(if(value.id==null)stringResource(R.string.wallet_add_card)else stringResource(R.string.wallet_edit_card),
-            Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)) {
+            Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp),buttons={
+            TextButton({vm.draft.value=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
+            PrimaryButton({focus.clearFocus();keyboard?.hide();vm.save()},enabled=!busy&&runCatching{WalletRules.name(value.name)}.isSuccess,modifier=Modifier.testTag("wallet-save")){
+                Text(if(busy)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))
+            }
+        }) {
         Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             WalletCardView(WalletCard(value.id?:0,value.name,value.imageKey,value.boundId,0,0,0,0,faceStyle=value.faceStyle),cache,preview=value.image)
             ValnookTextField(value.name,{vm.draft.value=value.copy(name=it)},label=stringResource(R.string.wallet_card_name),
@@ -72,12 +77,6 @@ import kotlinx.coroutines.*
                 Text(stringResource(R.string.wallet_these_cards_show_all_records),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(error) HintMessage(if(failure==ErrorCode.WALLET_FACE_LIBRARY_FULL)faceErrorText(failure)
                 else stringResource(R.string.wallet_could_not_save_your_draft),isError=true)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End)) {
-                TextButton({vm.draft.value=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
-                PrimaryButton({focus.clearFocus();keyboard?.hide();vm.save()},enabled=!busy&&runCatching{WalletRules.name(value.name)}.isSuccess,modifier=Modifier.testTag("wallet-save")){
-                    Text(if(busy)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))
-                }
-            }
         } }
     }
     if(choosing)AnimatedGlassDialog(true,{choosing=false}) {

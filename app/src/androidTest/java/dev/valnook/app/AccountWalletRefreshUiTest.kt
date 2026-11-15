@@ -84,7 +84,7 @@ class AccountWalletRefreshUiTest {
         chooseFace("wallet-face-background",if(zh)"柔光"else"Glow")
         chooseFace("wallet-face-geometry",if(zh)"方块"else"Blocks")
         capture("wallet-style-editor")
-        rule.onNodeWithTag("wallet-save").performScrollTo().performClick()
+        rule.onNodeWithTag("wallet-save").performClick()
         rule.waitUntil(15000){rule.onAllNodesWithTag("wallet-save").fetchSemanticsNodes().isEmpty()}
         runBlocking { val card=wallet.observeCards().first().single()
             assertEquals(WalletFaceBackground.RADIAL,card.faceStyle!!.background)

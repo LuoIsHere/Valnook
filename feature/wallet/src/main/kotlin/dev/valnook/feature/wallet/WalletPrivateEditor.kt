@@ -99,8 +99,12 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
         // The dialog is its own window: only its focus manager and keyboard controller reach the fields.
         val keyboard=LocalSoftwareKeyboardController.current
         val focus=LocalFocusManager.current
-        // The title carries the colour button; the buttons scroll with the form, below everything it holds.
-        DialogCard(Modifier.heightIn(max=maximumHeight),title={
+        // The title carries the colour button; only the form scrolls, the buttons stay in view.
+        DialogCard(Modifier.heightIn(max=maximumHeight),buttons={
+            TextButton(state::cancelEdit,enabled=!state.saving,modifier=Modifier.testTag("wallet-private-cancel")){Text(stringResource(R.string.wallet_cancel))}
+            PrimaryButton({focus.clearFocus();keyboard?.hide();state.save()},enabled=!state.saving&&!tooLong&&walletCvvValid(value.cvv1)&&walletCvvValid(value.cvv2),
+                modifier=Modifier.testTag("wallet-private-save")){Text(if(state.saving)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))}
+        },title={
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
                 Text(stringResource(R.string.wallet_private_card_details_2),Modifier.weight(1f))
                 IconButton({focus.clearFocus();keyboard?.hide();palette=!palette},Modifier.testTag("wallet-private-palette")
@@ -128,11 +132,6 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
                 maxCodePoints=WALLET_HOLDER_MAX){state.updateDraft(value.copy(holder=it))}
             Text(stringResource(R.string.wallet_encrypted_device_only_excluded_from),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End)) {
-                TextButton(state::cancelEdit,enabled=!state.saving,modifier=Modifier.testTag("wallet-private-cancel")){Text(stringResource(R.string.wallet_cancel))}
-                TextButton({focus.clearFocus();keyboard?.hide();state.save()},enabled=!state.saving&&!tooLong&&walletCvvValid(value.cvv1)&&walletCvvValid(value.cvv2),
-                    modifier=Modifier.testTag("wallet-private-save")){Text(if(state.saving)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))}
-            }
         } }
     }
 }
