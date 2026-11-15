@@ -75,7 +75,7 @@ class AiChecker(
 
     /** With the thinking parameters on, the reply must carry its thinking. */
     private suspend fun thinking(connection: AiConnection, apiKey: String?): AiCheck {
-        val reply = client.chat(connection, apiKey, body(listOf(user("What is 17 + 25? Answer with the number only.")), 2048),
+        val reply = client.chat(connection, apiKey, body(listOf(user("What is 17 + 25? Answer with the number only.")), AiRules.MAX_TOKENS_THINKING),
             true, AiRules.TIMEOUT_THINKING_MS)
         return if (!reply.reasoning.isNullOrBlank()) AiCheck(AiCheckState.PASSED) else AiCheck(AiCheckState.FAILED, AiProblem.NO_THINKING)
     }
@@ -98,7 +98,7 @@ class AiChecker(
          * Room for an answer after thinking the service was asked not to do: some relays think anyway (seen on
          * pictures), and a tight limit leaves an empty answer. Only what is written is billed.
          */
-        const val ANSWER_TOKENS = AiRules.MAX_TOKENS_BILLS
+        const val ANSWER_TOKENS = AiRules.MAX_TOKENS
     }
 
     private fun code() = (1..AiRules.CODE_DIGITS).joinToString("") { random.nextInt(10).toString() }

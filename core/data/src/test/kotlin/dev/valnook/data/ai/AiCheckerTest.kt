@@ -57,7 +57,7 @@ class AiCheckerTest {
         assertEquals(JsonArray(emptyList()), parameters["required"])
         // Tool and picture checks leave room for an answer after unwanted thinking.
         requests.filter { it["tools"] != null || it["messages"]!!.jsonArray.last().jsonObject["content"] is JsonArray }
-            .forEach { assertEquals(1024, it["max_tokens"]!!.jsonPrimitive.int) }
+            .forEach { assertEquals(4096, it["max_tokens"]!!.jsonPrimitive.int) }
     }
 
     @Test fun no_tool_call_or_a_wrong_reading_fails_that_check_only() = runTest {

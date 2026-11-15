@@ -80,7 +80,7 @@ object AiPrompt {
         JsonObject(buildMap {
             put("messages", JsonArray(listOf(message("system", system)) + conversation))
             put("tools", JsonArray(listOf(billTool)))
-            put("max_tokens", JsonPrimitive(if (thinking) AiRules.MAX_TOKENS_THINKING else AiRules.MAX_TOKENS_BILLS))
+            put("max_tokens", JsonPrimitive(if (thinking) AiRules.MAX_TOKENS_THINKING else AiRules.MAX_TOKENS))
             // A share is always bookkeeping: the tool is required, unless a service refuses that.
             if (forceTool) put("tool_choice", JsonObject(mapOf("type" to JsonPrimitive("function"),
                 "function" to JsonObject(mapOf("name" to JsonPrimitive(BILL_TOOL))))))

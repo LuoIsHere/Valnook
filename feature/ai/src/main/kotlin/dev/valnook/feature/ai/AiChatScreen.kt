@@ -1,11 +1,13 @@
 package dev.valnook.feature.ai
 
 import android.graphics.BitmapFactory
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.graphicsLayer
@@ -21,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -364,12 +367,31 @@ private fun InputBar(ui: AiChatUi, vm: AiChatViewModel) {
             else AiPrimaryButton(stringResource(R.string.ai_chat_send), vm::send, Modifier.testTag("ai-chat-send"),
                 enabled = (ui.input.isNotBlank() || ui.pictures.isNotEmpty()) && ui.picturesWorking == 0)
         }
-        // At the very bottom, under the box, as small print.
-        Text(stringResource(R.string.ai_disclaimer), Modifier.fillMaxWidth().testTag("ai-disclaimer"),
-            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        // At the very bottom, under the box: the thinking switch, and the small print beside it.
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+            ThinkingSwitch(ui, vm)
+            Text(stringResource(R.string.ai_disclaimer), Modifier.weight(1f).testTag("ai-disclaimer"),
+                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
     if (notice) PictureNotice({ notice = false }) { AiNotices.markPicturesSeen(context); notice = false; pick() }
+}
+
+/** Deep thinking for the next messages. Greyed out while it cannot be used or a message is on its way; a tap then says why. */
+@Composable
+private fun ThinkingSwitch(ui: AiChatUi, vm: AiChatViewModel) {
+    val context = LocalContext.current
+    val usable = ui.thinkingAvailable && !ui.sending
+    val why = stringResource(R.string.ai_chat_thinking_unavailable)
+    val color = MaterialTheme.colorScheme.onSurfaceVariant.let { if (usable) it else it.copy(alpha = 0.38f) }
+    Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(ui.thinking, role = Role.Switch) { on ->
+            if (!ui.thinkingAvailable) Toast.makeText(context, why, Toast.LENGTH_SHORT).show() else vm.setThinking(on)
+        }.testTag("ai-chat-thinking").padding(start = Space.xs),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(stringResource(R.string.ai_chat_thinking_switch), style = MaterialTheme.typography.labelSmall, color = color)
+        // A smaller switch: drawn at three quarters of its size in the room that takes.
+        Switch(ui.thinking, null, Modifier.size(39.dp, 24.dp).scale(0.75f), enabled = usable)
+    }
 }
 
 /** The one-time reminder before the first picture goes to the model, in the same notice as the other AI one. */

@@ -92,6 +92,8 @@
     <string name="ai_disclaimer">AI-generated content may be wrong; check it before confirming. It does not represent Valnook and is not investment or financial advice.</string>
 
     <string name="ai_problem_unreadable_drafts">The drafts could not be read; try again or record the bill manually</string>
+    <string name="ai_problem_truncated">The reply reached the length limit before it was finished; try again, or raise max_tokens under Advanced parameters in AI settings</string>
+    <string name="ai_problem_empty_reply">The AI gave no result; try again or record the bill manually</string>
 
     <string name="ai_chat_title">AI bookkeeping</string>
     <string name="ai_chat_entry">AI bookkeeping</string>
@@ -114,6 +116,8 @@
     <string name="ai_chat_me">Me</string>
     <string name="ai_chat_thinking">Thinking</string>
     <string name="ai_chat_thinking_time">Thinking (%1$s s)</string>
+    <string name="ai_chat_thinking_switch">Deep thinking</string>
+    <string name="ai_chat_thinking_unavailable">Deep thinking needs the thinking-on parameters and a passed deep thinking check in AI settings</string>
     <string name="ai_chat_usage">This round %1$s tokens · in %2$s · out %3$s</string>
     <string name="ai_chat_usage_cached">%1$s cached</string>
     <string name="ai_chat_usage_calls">%1$d calls</string>
@@ -157,8 +161,8 @@
     <string name="ai_section_features">Features</string>
     <string name="ai_feature_bill_chat">Bookkeeping by chat</string>
     <string name="ai_feature_bill_chat_summary">Opened from the button above + on the bills page</string>
-    <string name="ai_feature_thinking">Deep thinking</string>
-    <string name="ai_feature_thinking_summary">The model reasons before replying, which increases token usage and waiting time. Bookkeeping by chat only</string>
+    <string name="ai_feature_thinking">Deep thinking on by default</string>
+    <string name="ai_feature_thinking_summary">New conversations start with deep thinking; switch it on the chat page at any time. Reasoning increases token usage and waiting time. Shares never use it</string>
     <string name="ai_feature_thinking_unavailable">Requires the deep thinking check</string>
     <string name="ai_feature_chat">Chat</string>
     <string name="ai_feature_chat_summary">When on, replies are fuller; when off, replies are brief and limited to bookkeeping. No investment or financial advice either way</string>
@@ -236,7 +240,7 @@
     <string name="ai_guide_model_note">This model supports tool calls and image understanding, which bookkeeping and picture recognition need.</string>
     <string name="ai_guide_params_title">Advanced parameters</string>
     <string name="ai_guide_params_body">Advanced parameters are JSON, merged into requests as written, for options specific to a provider. Tap \"Advanced parameters\" in Settings to show them.</string>
-    <string name="ai_guide_params_extra">Extra request parameters: sent with every request. Not needed in the DeepSeek example.</string>
+    <string name="ai_guide_params_extra">Extra request parameters: sent with every request. Not needed in the DeepSeek example. When replies stop at the length limit, a larger limit can be set here, such as {\"max_tokens\": 16384}.</string>
     <string name="ai_guide_params_off">Thinking-off parameters: used while deep thinking is off. DeepSeek thinks by default, so enter:</string>
     <string name="ai_guide_params_on">Thinking-on parameters: used while deep thinking is on:</string>
     <string name="ai_guide_params_note">Deep thinking cannot be turned on while the thinking-on parameters are empty. It takes longer and costs more, so Valnook leaves it off by default.</string>

@@ -288,4 +288,35 @@ class AiChatUiTest {
         ai.saveConnection(AiConnection(null, "https://ai.example.test", "another-model"), null)
         gone("ai-chat-entry")
     }
+
+    @Test fun the_thinking_switch_waits_for_its_check_and_goes_with_this_conversation_only() {
+        openChat()
+        waitTag("ai-chat-thinking")
+        // Not checked: greyed out, and a tap leaves it off.
+        rule.onNodeWithTag("ai-chat-thinking").assertIsOff().performClick().assertIsOff()
+        runBlocking {
+            val ai = graph.ai!!
+            ai.saveConnection(AiConnection(null, "https://ai.example.test", "synthetic-model", "", """{"thinking":"off"}""",
+                """{"thinking":"on"}"""), "synthetic-key")
+            val fingerprint = ai.observeSettings().first().connection.fingerprint
+            TestGraphs.real.aiChecks.save(AiCheckReport(fingerprint, 0, AiCheckItem.entries.associateWith { AiCheck(AiCheckState.PASSED) }))
+        }
+        // Once the check is in, a tap turns it on.
+        rule.waitUntil(8_000) {
+            rule.onNodeWithTag("ai-chat-thinking").performClick()
+            rule.waitForIdle()
+            runCatching { rule.onNodeWithTag("ai-chat-thinking").assertIsOn() }.isSuccess
+        }
+        drafts("One bill", """{"type":"EXPENSE","amount":"12"}""")
+        send("Lunch 12")
+        waitTag("ai-draft-d1-pending")
+        val request = ScriptedAiTransport.requests.last()!!
+        assertEquals("on", request["thinking"]!!.jsonPrimitive.content)
+        assertEquals(AiRules.MAX_TOKENS_THINKING, request["max_tokens"]!!.jsonPrimitive.content.toInt())
+        rule.onNodeWithTag("ai-chat-thinking").assertIsOn()
+        // A new conversation starts from the setting, which is still off.
+        rule.onNodeWithTag("ai-chat-new").performClick()
+        rule.waitUntil(8_000) { runCatching { rule.onNodeWithTag("ai-chat-thinking").assertIsOff() }.isSuccess }
+        runBlocking { assertTrue(!graph.ai!!.observeSettings().first().thinking) }
+    }
 }

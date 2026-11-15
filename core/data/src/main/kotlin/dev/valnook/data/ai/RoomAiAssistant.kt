@@ -83,16 +83,16 @@ class RoomAiAssistant(
         return latest.id.takeIf { clock.millis() - latest.last_at_ms < AiRules.CONVERSATION_IDLE_MS }
     }
 
-    override suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>,
+    override suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, thinking: Boolean?,
         onStored: (Long, Long) -> Unit): Long {
         check(service.observeFeatures().first().chatEntry)
-        return sendMessage(conversationId, text, pictures, shared = false, onStored)
+        return sendMessage(conversationId, text, pictures, shared = false, thinking, onStored)
     }
 
     override suspend fun sendShared(conversationId: Long?, text: String, pictures: List<BillImage>,
         onStored: (Long, Long) -> Unit): Long {
         check(service.observeFeatures().first().shareAllows(pictures.isNotEmpty()))
-        return sendMessage(conversationId, text, pictures, shared = true, onStored)
+        return sendMessage(conversationId, text, pictures, shared = true, null, onStored)
     }
 
     /** Whether AI reads this kind of share: text by one switch, pictures by the other. */
@@ -100,7 +100,7 @@ class RoomAiAssistant(
 
     /** Stores the message first, so the page has it at once; what the request is built from is read after. */
     private suspend fun sendMessage(conversationId: Long?, text: String, pictures: List<BillImage>, shared: Boolean,
-        onStored: (Long, Long) -> Unit): Long {
+        thinking: Boolean?, onStored: (Long, Long) -> Unit): Long {
         val now = clock.millis()
         val thumbs = pictures.map { this.pictures.thumbnail(it.key) ?: ByteArray(0) }
         val (id, messageId) = chatDb.withTransaction {
@@ -115,11 +115,11 @@ class RoomAiAssistant(
             id to messageId
         }
         onStored(id, messageId)
-        answer(id, context())
+        answer(id, context(), thinking)
         return id
     }
 
-    override suspend fun retry(conversationId: Long) {
+    override suspend fun retry(conversationId: Long, thinking: Boolean?) {
         val messages = dao.messages(conversationId)
         val last = messages.lastOrNull { it.kind == AiMessageKind.USER.name } ?: return
         // Only an unanswered message is sent again: everything after it is an error or a cancel.
@@ -128,11 +128,11 @@ class RoomAiAssistant(
         val context = context()
         check(if (last.shared) context.features.shareAllows(dao.pictures(last.id).isNotEmpty()) else context.features.chatEntry)
         dao.deleteMessages(after.map { it.id })
-        answer(conversationId, context)
+        answer(conversationId, context, thinking)
     }
 
-    /** Asks about the conversation's last message and stores what came back. */
-    private suspend fun answer(conversationId: Long, context: Context) {
+    /** Asks about the conversation's last message and stores what came back; [asked] as for [send]'s thinking. */
+    private suspend fun answer(conversationId: Long, context: Context, asked: Boolean?) {
         val messages = dao.messages(conversationId)
         val user = messages.last { it.kind == AiMessageKind.USER.name }
         val drafts = dao.drafts(conversationId)
@@ -145,7 +145,7 @@ class RoomAiAssistant(
         val history = AiConversations.history(messages.filter { it.id < user.id }, drafts, counts)
         // A share is always bookkeeping: thinking off and the draft tool required, as before it joined the chat.
         val shared = user.shared
-        val thinking = !shared && context.features.thinking
+        val thinking = !shared && context.features.thinkingAvailable && (asked ?: context.features.thinking)
         val words = (if (shared) AiPrompt.SHARE_INTRO + "\n\n" else "") + AiConversations.userText(user.text, jpegs.size, earlier = false)
         val conversation = history + AiConversations.userMessage(words, jpegs)
         val system = context.system(english())
@@ -176,7 +176,8 @@ class RoomAiAssistant(
 
     /**
      * Calls the model until its drafts can be read, asking once more when they cannot ([AiRules.FORMAT_RETRIES]).
-     * Returns the reply and its readable draft calls.
+     * Returns the reply and its readable draft calls. A reply the output limit cut short is not asked for again, as
+     * the same limit would cut it again; one with neither words nor drafts is an error, not an answer.
      */
     private suspend fun askForDrafts(context: Context, round: Round, currencyExpected: Boolean,
         call: suspend (String?) -> AiReply): Pair<AiReply, List<AiDraftCall>> {
@@ -188,7 +189,9 @@ class RoomAiAssistant(
             round.calls++
             round.add(reply.usage)
             round.thinkingMs = if (reply.reasoning != null) clock.millis() - started else null
+            if (reply.finishReason == "length") throw AiException(AiProblem.TRUNCATED)
             val calls = reply.toolCalls.filter { it.name == AiPrompt.BILL_TOOL }
+            if (calls.isEmpty() && reply.content.isBlank()) throw AiException(AiProblem.EMPTY_REPLY)
             val read = calls.map { runCatching { reader.read(it.arguments) }.getOrNull() }
             if (read.none { it == null }) return reply to read.filterNotNull()
         }

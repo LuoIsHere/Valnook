@@ -15,9 +15,14 @@ object AiRules {
     const val PARAMS_MAX = 4000
     const val CONTEXT_TURNS = 6
     const val HABITS = 20
-    const val MAX_TOKENS_BILLS = 1024
+    /**
+     * The one output limit of a request (`max_tokens`), thinking included: services count reasoning against it, even
+     * reasoning they were asked not to do. Only what is written is billed. Advanced parameters may set another.
+     */
+    const val MAX_TOKENS = 4096
     const val MAX_TOKENS_QUERY = 2048
-    const val MAX_TOKENS_THINKING = 8192
+    /** The output limit with deep thinking on, which writes much more before it answers. */
+    const val MAX_TOKENS_THINKING = 16384
     const val TIMEOUT_TEXT_MS = 30_000
     const val TIMEOUT_IMAGE_MS = 60_000
     const val TIMEOUT_THINKING_MS = 120_000
@@ -120,6 +125,8 @@ data class AiFeatures(
     val chat: Boolean = false,
     /** Pictures can be sent in a conversation. */
     val pictures: Boolean = false,
+    /** Deep thinking can be turned on in a conversation; [thinking] is whether a new conversation starts with it. */
+    val thinkingAvailable: Boolean = false,
 ) {
     /** The chat page has something to offer. */
     val chatEntry: Boolean get() = enabled && billChat
@@ -133,7 +140,7 @@ data class AiFeatures(
                 settings.connection.thinkingOnParams.isNotBlank()
             // A share goes to the AI whenever it is on; pictures once the model has passed the picture check.
             return AiFeatures(true, settings.billChat, true, image,
-                settings.thinking && thinking, settings.chat, image)
+                settings.thinking && thinking, settings.chat, image, thinking)
         }
     }
 }
@@ -157,7 +164,11 @@ enum class AiProblem {
     /** The service still thinks with thinking off and wants that thinking back: the thinking off parameters do not work there. */
     THINKING_STILL_ON,
     /** The drafts the model wrote could not be read, even after asking again. */
-    UNREADABLE_DRAFTS;
+    UNREADABLE_DRAFTS,
+    /** The output limit ended the reply before it was finished; asking the same again would end the same way. */
+    TRUNCATED,
+    /** The reply had neither words nor drafts. */
+    EMPTY_REPLY;
 
     /** Whether trying again later could give another answer, so the capability is left undecided. */
     val transient: Boolean get() = this in setOf(OFFLINE, TIMEOUT, UNAUTHORIZED, PAYMENT, RATE_LIMITED, SERVER, NO_KEY_STORAGE)

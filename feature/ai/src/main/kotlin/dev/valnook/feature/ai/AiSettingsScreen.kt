@@ -510,6 +510,8 @@ internal fun problemText(problem: AiProblem, host: String): String = when (probl
     AiProblem.NO_KEY_STORAGE -> stringResource(R.string.ai_problem_no_key_storage)
     AiProblem.THINKING_STILL_ON -> stringResource(R.string.ai_problem_thinking_still_on)
     AiProblem.UNREADABLE_DRAFTS -> stringResource(R.string.ai_problem_unreadable_drafts)
+    AiProblem.TRUNCATED -> stringResource(R.string.ai_problem_truncated)
+    AiProblem.EMPTY_REPLY -> stringResource(R.string.ai_problem_empty_reply)
 }
 
 /** The settings entry's summary line. */

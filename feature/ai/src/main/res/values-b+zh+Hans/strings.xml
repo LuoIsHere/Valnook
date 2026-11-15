@@ -92,6 +92,8 @@
     <string name="ai_disclaimer">AI 生成的内容可能有误，请核对后确认；不代表 Valnook 立场，不构成投资或理财建议。</string>
 
     <string name="ai_problem_unreadable_drafts">无法识别生成的草稿，请重试或手动记账</string>
+    <string name="ai_problem_truncated">回复超出长度上限，未能写完。请重试，或在 AI 设置的高级参数中调大 max_tokens</string>
+    <string name="ai_problem_empty_reply">AI 没有给出结果，请重试或手动记账</string>
 
     <string name="ai_chat_title">AI 记账</string>
     <string name="ai_chat_entry">AI 记账</string>
@@ -114,6 +116,8 @@
     <string name="ai_chat_me">我</string>
     <string name="ai_chat_thinking">思考过程</string>
     <string name="ai_chat_thinking_time">思考过程（用时 %1$s 秒）</string>
+    <string name="ai_chat_thinking_switch">深度思考</string>
+    <string name="ai_chat_thinking_unavailable">需在 AI 设置中填写思考开参数并通过深度思考检测</string>
     <string name="ai_chat_usage">本轮 %1$s tokens · 输入 %2$s · 输出 %3$s</string>
     <string name="ai_chat_usage_cached">其中缓存 %1$s</string>
     <string name="ai_chat_usage_calls">%1$d 次调用</string>
@@ -157,8 +161,8 @@
     <string name="ai_section_features">功能</string>
     <string name="ai_feature_bill_chat">对话记账</string>
     <string name="ai_feature_bill_chat_summary">入口位于记账页“+”按钮上方</string>
-    <string name="ai_feature_thinking">深度思考</string>
-    <string name="ai_feature_thinking_summary">回复前先进行推理，将增加 token 消耗与等待时间。仅适用于对话记账</string>
+    <string name="ai_feature_thinking">默认开启深度思考</string>
+    <string name="ai_feature_thinking_summary">新对话默认开启深度思考，对话页可随时切换。推理会增加 token 消耗与等待时间；分享识别不使用</string>
     <string name="ai_feature_thinking_unavailable">需通过深度思考检测</string>
     <string name="ai_feature_chat">闲聊</string>
     <string name="ai_feature_chat_summary">开启后回复内容更完整；关闭后回复简短，仅围绕记账。均不提供投资或理财建议</string>
@@ -236,7 +240,7 @@
     <string name="ai_guide_model_note">该模型支持工具调用和图像理解，能够满足记账和图片识别的需要。</string>
     <string name="ai_guide_params_title">高级参数</string>
     <string name="ai_guide_params_body">高级参数为 JSON 格式，会原样合并到请求中，用于设置各服务方特有的选项。在设置页点击“高级参数”即可展开填写。</string>
-    <string name="ai_guide_params_extra">附加请求参数：每次请求都会带上。DeepSeek 示例中无需填写。</string>
+    <string name="ai_guide_params_extra">附加请求参数：每次请求都会带上。DeepSeek 示例中无需填写。如果回复因超出长度上限而中断，可以在这里调大上限，例如 {\"max_tokens\": 16384}。</string>
     <string name="ai_guide_params_off">思考关参数：关闭深度思考时使用。DeepSeek 默认开启思考，因此需要填写：</string>
     <string name="ai_guide_params_on">思考开参数：开启深度思考时使用：</string>
     <string name="ai_guide_params_note">思考开参数为空时，无法开启深度思考。深度思考会增加等待时间和费用，Valnook 默认不开启。</string>

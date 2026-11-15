@@ -129,12 +129,13 @@ interface AiAssistant {
      * Sends [text] and [pictures] (pictures already in the bill picture library) in [conversationId], or in a new
      * conversation when null, and stores the reply or the error. Returns the conversation's id. [onStored] gets the
      * conversation's and the message's ids as soon as the message itself is stored, before anything else is done for
-     * the request, so the page shows it at once.
+     * the request, so the page shows it at once. [thinking] turns deep thinking on or off for this message where it is
+     * available; null follows the setting.
      */
-    suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>,
+    suspend fun send(conversationId: Long?, text: String, pictures: List<BillImage>, thinking: Boolean? = null,
         onStored: (conversationId: Long, messageId: Long) -> Unit = { _, _ -> }): Long
-    /** Sends the last message of [conversationId] again after an error. */
-    suspend fun retry(conversationId: Long)
+    /** Sends the last message of [conversationId] again after an error; [thinking] as for [send]. */
+    suspend fun retry(conversationId: Long, thinking: Boolean? = null)
     /**
      * Sends what another app shared as the user's message in [conversationId] (a new one when null), as if sent in
      * the chat: it is read with the draft tool required, thinking off and its currency read off it. [onStored] as for

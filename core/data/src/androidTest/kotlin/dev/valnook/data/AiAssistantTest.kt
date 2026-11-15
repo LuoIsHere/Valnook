@@ -276,4 +276,52 @@ class AiAssistantTest {
         assertThrows(IllegalStateException::class.java) { runBlocking { assistant.sendShared(null, "Lunch", emptyList()) } }
         assertTrue(requests.isEmpty())
     }
+
+    @Test fun a_reply_cut_off_by_the_output_limit_is_an_error_and_not_asked_again() = runBlocking {
+        replies += { AiHttpResponse(200, """{"choices":[{"finish_reason":"length","message":{"role":"assistant","content":"",
+            "reasoning_content":"thinking on and on","tool_calls":[{"id":"c1","type":"function","function":{"name":"create_bill_drafts",
+            "arguments":"{\"bills\":[{\"type\":"}}]}}],"usage":{"prompt_tokens":100,"completion_tokens":4096,"total_tokens":4196}}""") }
+        val id = assistant.send(null, "Lunch 30", emptyList())
+        val error = messages(id).last()
+        assertEquals(AiProblem.TRUNCATED, error.problem)
+        assertEquals(1, requests.size)
+        assertEquals(1, error.usage!!.calls)
+        // Sent again by the user, it may finish.
+        replies += toolReply("""{"bills":[{"type":"EXPENSE","amount":"30"}]}""")
+        assistant.retry(id)
+        assertEquals(AiMessageKind.ASSISTANT, messages(id).last().kind)
+    }
+
+    @Test fun a_reply_with_neither_words_nor_drafts_is_an_error() = runBlocking {
+        replies += { AiHttpResponse(200, """{"choices":[{"finish_reason":"stop","message":{"role":"assistant","content":"",
+            "reasoning_content":"only thought"}}]}""") }
+        val id = assistant.send(null, "Lunch 30", emptyList())
+        assertEquals(AiProblem.EMPTY_REPLY, messages(id).last().problem)
+        assertEquals(1, requests.size)
+    }
+
+    @Test fun thinking_can_be_switched_for_a_message_where_it_is_available() = runBlocking {
+        fun sent() = requests.last()["thinking"]?.jsonPrimitive?.content to requests.last()["max_tokens"]!!.jsonPrimitive.int
+        // Not available yet: asking for it changes nothing.
+        replies += textReply("Hi")
+        val id = assistant.send(null, "Hello", emptyList(), thinking = true)
+        assertEquals(null to AiRules.MAX_TOKENS, sent())
+
+        service.saveConnection(AiConnection(null, "https://api.example.test", "model-a", "", """{"thinking":"off"}""",
+            """{"thinking":"on"}"""), null)
+        val connection = service.observeSettings().first().connection
+        checks.save(AiCheckReport(connection.fingerprint, nowMs, AiCheckItem.entries.associateWith { AiCheck(AiCheckState.PASSED) }))
+        replies += textReply("Hi"); assistant.send(id, "Hello", emptyList())
+        assertEquals("off" to AiRules.MAX_TOKENS, sent())
+        replies += textReply("Hi"); assistant.send(id, "Hello", emptyList(), thinking = true)
+        assertEquals("on" to AiRules.MAX_TOKENS_THINKING, sent())
+        // On by default: a message can still go without it, and so can its retry.
+        service.saveFeatures(billChat = true, shareText = true, shareImage = true, thinking = true, chat = false, sendHabits = false)
+        replies += textReply("Hi"); assistant.send(id, "Hello", emptyList())
+        assertEquals("on" to AiRules.MAX_TOKENS_THINKING, sent())
+        replies += { AiHttpResponse(401, "") }; assistant.send(id, "Hello", emptyList(), thinking = false)
+        assertEquals("off" to AiRules.MAX_TOKENS, sent())
+        replies += textReply("Hi"); assistant.retry(id, thinking = false)
+        assertEquals("off" to AiRules.MAX_TOKENS, sent())
+    }
 }

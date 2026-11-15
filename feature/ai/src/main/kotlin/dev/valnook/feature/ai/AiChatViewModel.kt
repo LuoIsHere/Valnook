@@ -50,6 +50,9 @@ data class AiChatUi(
     val pending: AiPendingMessage? = null,
     /** The list keys of messages sent from this page: each keeps the key its pending copy had. */
     val keys: Map<Long, String> = emptyMap(),
+    val thinkingAvailable: Boolean = false,
+    /** Whether the next message goes with deep thinking. */
+    val thinking: Boolean = false,
 ) {
     /** The pending copy shows until the stored message with its key is in the list. */
     val pendingShown: Boolean get() = pending != null &&
@@ -77,14 +80,16 @@ class AiChatViewModel(
 ) : ViewModel() {
     private val conversation = MutableStateFlow(saved.get<Long>("conversation"))
     private val local = MutableStateFlow(Local(input = saved.get<String>("input").orEmpty(),
-        pictures = saved.get<String>("pictures")?.let(::decodePictures).orEmpty()))
+        pictures = saved.get<String>("pictures")?.let(::decodePictures).orEmpty(), thinking = saved.get<Boolean>("thinking")))
     private var sendJob: Job? = null
 
     private data class Local(val loaded: Boolean = false, val sending: Boolean = false, val input: String = "",
         val pictures: List<BillImage> = emptyList(), val picturesWorking: Int = 0, val pictureFailed: Boolean = false,
         val busyCards: Set<Long> = emptySet(), val cardError: ErrorCode? = null, val cardFailed: Boolean = false,
         val money: Map<Long, AiDraftMoney> = emptyMap(), val stored: Boolean = false,
-        val pending: AiPendingMessage? = null, val keys: Map<Long, String> = emptyMap())
+        val pending: AiPendingMessage? = null, val keys: Map<Long, String> = emptyMap(),
+        /** Deep thinking as switched on this page for the conversation; null follows the setting. */
+        val thinking: Boolean? = null)
 
     private val messages = conversation.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else assistant.observeMessages(id) }
     private val choices = combine(bills.observeCategories(), bills.observeAccountChoices()) { c, a ->
@@ -98,7 +103,7 @@ class AiChatViewModel(
         AiChatUi(l.loaded, id, conversations.firstOrNull { it.id == id }?.title, m, l.sending, l.input, l.pictures,
             l.picturesWorking, l.pictureFailed, features, settings.connection.host, categories, accounts, conversations,
             l.busyCards, l.cardError, l.cardFailed, settings.userNickname, settings.aiNickname, l.money, l.sending && l.stored,
-            l.pending, l.keys)
+            l.pending, l.keys, features.thinkingAvailable, features.thinkingAvailable && (l.thinking ?: features.thinking))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AiChatUi())
 
     init {
@@ -134,9 +139,16 @@ class AiChatViewModel(
         local.update(change)
         saved["input"] = local.value.input
         saved["pictures"] = encodePictures(local.value.pictures)
+        saved["thinking"] = local.value.thinking
     }
 
     fun setInput(text: String) = updateLocal { it.copy(input = text.take(INPUT_MAX)) }
+
+    /** Deep thinking for the messages sent next in this conversation; the setting stays as it is. */
+    fun setThinking(on: Boolean) {
+        if (local.value.sending || !state.value.thinkingAvailable) return
+        updateLocal { it.copy(thinking = on) }
+    }
 
     private var sent = 0
 
@@ -190,7 +202,7 @@ class AiChatViewModel(
         // The message shows at once; the stored one takes its place, then the reply follows.
         val key = showPending(text, pictures, shared = false)
         sendJob = viewModelScope.launch {
-            try { setConversation(assistant.send(conversation.value, text, pictures) { c, m -> stored(key, c, m) }) }
+            try { setConversation(assistant.send(conversation.value, text, pictures, current.thinking) { c, m -> stored(key, c, m) }) }
             catch (cancelled: CancellationException) { throw cancelled }
             catch (_: Exception) {
                 // Nothing was stored (the features went off meanwhile): the words come back to the box.
@@ -243,25 +255,28 @@ class AiChatViewModel(
         // The message to send again is already there.
         updateLocal { it.copy(sending = true, stored = true) }
         sendJob = viewModelScope.launch {
-            try { assistant.retry(id) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) {}
+            try { assistant.retry(id, local.value.thinking) } catch (cancelled: CancellationException) { throw cancelled } catch (_: Exception) {}
             finally { updateLocal { it.copy(sending = false) } }
         }
     }
 
+    // Another conversation starts from the setting again.
     fun newConversation() {
         if (local.value.sending) return
         setConversation(null)
+        updateLocal { it.copy(thinking = null) }
     }
 
     fun openConversation(id: Long) {
         if (local.value.sending) return
+        if (id != conversation.value) updateLocal { it.copy(thinking = null) }
         setConversation(id)
     }
 
     fun deleteConversation(id: Long) {
         viewModelScope.launch {
             runCatching { assistant.deleteConversation(id) }
-            if (conversation.value == id) setConversation(null)
+            if (conversation.value == id) { setConversation(null); updateLocal { it.copy(thinking = null) } }
         }
     }
 

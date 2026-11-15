@@ -91,8 +91,8 @@ class AiPromptTest {
         val request = AiPrompt.billRequest("system", listOf(AiPrompt.message("user", "lunch 25")), thinking = false)
         assertEquals("create_bill_drafts", request["tools"]!!.jsonArray.single().jsonObject["function"]!!
             .jsonObject["name"]!!.jsonPrimitive.content)
-        assertEquals(1024, request["max_tokens"]!!.jsonPrimitive.int)
-        assertEquals(8192, AiPrompt.billRequest("s", emptyList(), thinking = true)["max_tokens"]!!.jsonPrimitive.int)
+        assertEquals(4096, request["max_tokens"]!!.jsonPrimitive.int)
+        assertEquals(16384, AiPrompt.billRequest("s", emptyList(), thinking = true)["max_tokens"]!!.jsonPrimitive.int)
         assertEquals("system", request["messages"]!!.jsonArray.first().jsonObject["role"]!!.jsonPrimitive.content)
     }
 }
