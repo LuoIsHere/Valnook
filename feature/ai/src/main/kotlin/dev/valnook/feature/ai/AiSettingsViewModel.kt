@@ -132,6 +132,12 @@ class AiSettingsViewModel(private val service: AiService, val avatars: AiAvatars
 
     fun editConnection(change: (AiConnectionForm) -> AiConnectionForm) = mutable.update { it.copy(form = change(it.form), saveFailed = false) }
 
+    /** Whether the quick start's example would replace an address, model or parameters typed in now. */
+    fun exampleReplaces(): Boolean = AiGuideExample.replaces(mutable.value.form)
+
+    /** The quick start's example in the form, the key left as it is; saved only when the user saves. */
+    fun fillExample() = editConnection(AiGuideExample::fill)
+
     fun editPersonal(change: (AiPersonalForm) -> AiPersonalForm) = mutable.update { it.copy(personal = change(it.personal), saveFailed = false) }
 
     fun fetchModels() {

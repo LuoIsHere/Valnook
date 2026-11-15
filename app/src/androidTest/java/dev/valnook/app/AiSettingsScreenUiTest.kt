@@ -31,6 +31,9 @@ class AiSettingsScreenUiTest {
     private var checks = 0
     private var dirty = false
     private var prompts = 0
+    private var guides = 0
+    /** The quick start's request to enter its example, as the root passes it. */
+    private val fill = androidx.compose.runtime.mutableStateOf(false)
 
     private val service = object : AiService {
         override fun observeSettings() = settings
@@ -78,7 +81,8 @@ class AiSettingsScreenUiTest {
         dev.valnook.feature.ai.AiNotices.clear(InstrumentationRegistry.getInstrumentation().targetContext)
         val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.cacheDir, "ai-avatars-test").apply { deleteRecursively() }
         val vm = AiSettingsViewModel(service, AiAvatars(directory))
-        rule.setContent { ValnookTheme(dark_theme = false) { AiSettingsScreen(vm, onPrompt = { prompts++ }, onDirtyChange = { dirty = it }) } }
+        rule.setContent { ValnookTheme(dark_theme = false) { AiSettingsScreen(vm, onPrompt = { prompts++ }, onDirtyChange = { dirty = it },
+            onGuide = { guides++ }, fillExample = fill.value, onFillHandled = { fill.value = false }) } }
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("ai-settings").fetchSemanticsNodes().isNotEmpty() }
     }
 
@@ -92,6 +96,54 @@ class AiSettingsScreenUiTest {
         rule.onNodeWithText("例如 https://api.example.com/v1", useUnmergedTree = true).assertExists()
         rule.onNodeWithTag("ai-check").performScrollTo().assertIsNotEnabled()
         rule.onNodeWithTag("ai-api-key-remove").assertDoesNotExist()
+    }
+
+    @Test fun an_empty_connection_points_to_the_quick_start_and_takes_its_example_unsaved() {
+        settings.value = AiSettings()
+        show()
+        rule.onNodeWithTag("ai-guide-hint").assertTextEquals("不清楚如何填写？查看快速入门").performClick()
+        assertEquals(1, guides)
+        fill.value = true
+        rule.waitUntil(5_000) { !fill.value }
+        // Nothing typed yet, so nothing to ask about.
+        rule.onNodeWithTag("ai-guide-replace").assertDoesNotExist()
+        rule.onNodeWithTag("ai-base-url").assertTextContains("https://api.deepseek.com")
+        rule.onNodeWithTag("ai-model").assertTextContains("deepseek-flash")
+        rule.onNodeWithTag("ai-api-key").assertTextContains("已填入示例参数。请填写 API Key，然后点击“保存并检测”。")
+        rule.onNodeWithTag("ai-guide-hint").assertDoesNotExist()
+        rule.onNodeWithTag("ai-advanced").performClick()
+        rule.onNodeWithTag("ai-thinking-off-params").assertTextContains("""{"thinking": {"type": "disabled"}}""")
+        rule.onNodeWithTag("ai-thinking-on-params").assertTextContains("""{"thinking": {"type": "enabled"}}""")
+        // Entered, not saved: the user adds the key and saves.
+        assertTrue(savedKeys.isEmpty())
+        assertEquals("", settings.value.connection.baseUrl)
+        rule.onNodeWithTag("ai-api-key").performTextInput("synthetic-test-key")
+        rule.onNodeWithTag("ai-connection-save").performScrollTo().performClick()
+        rule.waitUntil(5_000) { savedKeys.isNotEmpty() }
+        assertEquals(AiConnection(null, "https://api.deepseek.com", "deepseek-flash", "",
+            """{"thinking": {"type": "disabled"}}""", """{"thinking": {"type": "enabled"}}"""), settings.value.connection)
+        rule.waitUntil(5_000) { !dirty }
+        rule.onNodeWithText("已填入示例参数", substring = true).assertDoesNotExist()
+    }
+
+    @Test fun the_example_asks_before_replacing_a_connection_and_leaves_the_key() {
+        keySaved.value = true
+        show()
+        rule.onNodeWithTag("ai-guide-hint").assertDoesNotExist()
+        fill.value = true
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("ai-guide-replace").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("ai-guide-replace-cancel").performClick()
+        rule.onNodeWithTag("ai-base-url").assertTextContains("https://api.example.test/v1")
+        fill.value = true
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("ai-guide-replace").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("当前填写的接口地址、模型和高级参数将替换为示例参数，API Key 保持不变。").assertExists()
+        rule.onNodeWithTag("ai-guide-replace-confirm").performClick()
+        rule.onNodeWithTag("ai-base-url").assertTextContains("https://api.deepseek.com")
+        rule.onNodeWithTag("ai-model").assertTextContains("deepseek-flash")
+        // The saved key may be another service's: the field says so.
+        rule.onNodeWithTag("ai-api-key").assertTextContains("已保存的 Key 如不属于该服务", substring = true)
+        assertTrue(savedKeys.isEmpty())
+        assertEquals("https://api.example.test/v1", settings.value.connection.baseUrl)
     }
 
     @Test fun a_key_saves_without_staying_in_the_form() {

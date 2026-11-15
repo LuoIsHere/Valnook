@@ -33,6 +33,7 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     AiSettingsKey -> stringResource(dev.valnook.feature.ai.R.string.ai_title)
     QuickEntryKey -> stringResource(dev.valnook.feature.settings.R.string.settings_quick_entry)
     AiPromptKey -> stringResource(dev.valnook.feature.ai.R.string.ai_prompt_title)
+    AiGuideKey -> stringResource(dev.valnook.feature.ai.R.string.ai_guide_title)
     AiChatKey -> aiChatTitle ?: stringResource(dev.valnook.feature.ai.R.string.ai_chat_title)
     AccountsKey, HiddenAccountsKey -> stringResource(R.string.nav_accounts)
     InvestmentsKey, HiddenInvestmentsKey -> stringResource(R.string.nav_investments)
@@ -105,6 +106,12 @@ internal fun RootTopBarActions(current: NavKey, walletDetail: Boolean, wallet: W
             val historyLabel = stringResource(dev.valnook.feature.ai.R.string.ai_chat_history)
             IconButton(chat.onHistory, Modifier.testTag("ai-chat-history-open").semantics { contentDescription = historyLabel }) {
                 dev.valnook.designsystem.FaIcon(dev.valnook.core.designsystem.R.drawable.fa_bars, null, Modifier.size(20.dp))
+            }
+        }
+        AiSettingsKey -> {
+            val guideLabel = stringResource(dev.valnook.feature.ai.R.string.ai_guide_title)
+            IconButton({ open(AiGuideKey) }, Modifier.testTag("ai-guide-open").semantics { contentDescription = guideLabel }) {
+                dev.valnook.designsystem.FaIcon(dev.valnook.designsystem.FaIcons.circleQuestion, null, Modifier.size(20.dp))
             }
         }
         BillCategoriesKey -> {

@@ -303,6 +303,8 @@ private fun SessionRoot(
     var leavePrompt by remember(graph.sessionId) { mutableStateOf(false) }
     // The AI settings page keeps drafts saved with its buttons; leaving with changes asks first.
     var aiDirty by remember(graph.sessionId) { mutableStateOf(false) }
+    // The quick start asked the AI settings below it to enter its example.
+    var aiGuideFill by remember(graph.sessionId) { mutableStateOf(false) }
     val toolbars = remember(graph.sessionId) { RootToolbars() }
     // The AI button above "+": only while a conversation feature is usable, with a dot while drafts wait.
     val aiFeatures by remember(graph.ai) { graph.ai?.observeFeatures() ?: kotlinx.coroutines.flow.flowOf(dev.valnook.domain.ai.AiFeatures()) }
@@ -643,7 +645,11 @@ private fun SessionRoot(
                                     dev.valnook.feature.ai.AiSettingsViewModel(ai,
                                         dev.valnook.feature.ai.AiAvatars(dev.valnook.feature.ai.AiAvatars.directory(appContext)),
                                         graph.assistant)
-                                }, onPrompt = { open(AiPromptKey) }, onDirtyChange = { aiDirty = it })
+                                }, onPrompt = { open(AiPromptKey) }, onDirtyChange = { aiDirty = it },
+                                    onGuide = { open(AiGuideKey) }, fillExample = aiGuideFill, onFillHandled = { aiGuideFill = false })
+                            }
+                            entry<AiGuideKey> {
+                                dev.valnook.feature.ai.AiGuideScreen(onFill = { aiGuideFill = true; pop() })
                             }
                             entry<QuickEntryKey> {
                                 dev.valnook.feature.settings.QuickEntrySettingsScreen(quickSettings, aiFeatures.chatEntry,

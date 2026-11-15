@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -34,23 +35,51 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.ai.*
 import dev.valnook.domain.model.BillCategoryKind
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
-/** Settings → AI: connection, checks, defaults and what is personal. [onDirtyChange] lets the root ask before leaving. */
+/**
+ * Settings → AI: connection, checks, defaults and what is personal. [onDirtyChange] lets the root ask before leaving.
+ * [onGuide] opens the quick start; [fillExample] is its request to enter the example, taken with [onFillHandled].
+ */
 @Composable
-fun AiSettingsScreen(vm: AiSettingsViewModel, onPrompt: () -> Unit, onDirtyChange: (Boolean) -> Unit = {}) {
+fun AiSettingsScreen(vm: AiSettingsViewModel, onPrompt: () -> Unit, onDirtyChange: (Boolean) -> Unit = {},
+    onGuide: (() -> Unit)? = null, fillExample: Boolean = false, onFillHandled: () -> Unit = {}) {
     val ui by vm.state.collectAsStateWithLifecycle()
     LaunchedEffect(ui.dirty) { onDirtyChange(ui.dirty) }
     // Leaving drops the drafts, so nothing is unsaved any more.
     DisposableEffect(Unit) { onDispose { onDirtyChange(false) } }
     if (!ui.loaded) return
-    LazyColumn(Modifier.fillMaxSize().testTag("ai-settings"), contentPadding = pageContentPadding(),
+    val list = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    // The example was just entered: the key field says what is left to do until the connection is saved.
+    var filled by rememberSaveable { mutableStateOf(false) }
+    var replacing by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(ui.connectionDirty) { if (!ui.connectionDirty) filled = false }
+    val fill: () -> Unit = {
+        vm.fillExample()
+        filled = true
+        scope.launch { list.animateScrollToItem(CONNECTION_ITEM) }
+    }
+    LaunchedEffect(fillExample) {
+        if (!fillExample) return@LaunchedEffect
+        onFillHandled()
+        if (vm.exampleReplaces()) replacing = true else fill()
+    }
+    if (replacing) AlertDialog({ replacing = false }, modifier = Modifier.testTag("ai-guide-replace"),
+        title = { Text(stringResource(R.string.ai_guide_replace_title)) },
+        text = { Text(stringResource(R.string.ai_guide_replace_body)) },
+        confirmButton = { TextButton({ replacing = false; fill() }, Modifier.testTag("ai-guide-replace-confirm")) {
+            Text(stringResource(R.string.ai_guide_replace_confirm)) } },
+        dismissButton = { TextButton({ replacing = false }, Modifier.testTag("ai-guide-replace-cancel")) {
+            Text(stringResource(R.string.ai_guide_replace_cancel)) } })
+    LazyColumn(Modifier.fillMaxSize().testTag("ai-settings"), state = list, contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item { EnableCard(ui, vm) }
-        item { ConnectionCard(ui, vm) }
+        item { ConnectionCard(ui, vm, onGuide, filled) }
         item { ChecksCard(ui, vm) }
         if (ui.settings.enabled && ui.canEnable) item { FeaturesCard(ui, vm) }
         item { DefaultsCard(ui, vm) }
@@ -202,13 +231,22 @@ private fun TextBox(label: String, value: String, onChange: (String) -> Unit, ta
         }, autoCorrectEnabled = false))
 }
 
+/** The connection card's place in the page, scrolled to after the example is entered. */
+private const val CONNECTION_ITEM = 1
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ConnectionCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
+private fun ConnectionCard(ui: AiSettingsUi, vm: AiSettingsViewModel, onGuide: (() -> Unit)?, filled: Boolean) {
     val form = ui.form
     val enabled = !ui.busy
     var advanced by rememberSaveable { mutableStateOf(false) }
     Section(stringResource(R.string.ai_section_connection)) {
+        // Nothing entered yet: the way to the quick start.
+        if (onGuide != null && form.baseUrl.isBlank() && form.model.isBlank()) {
+            Text(stringResource(R.string.ai_guide_hint), Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                .clickable(role = Role.Button, onClick = onGuide).testTag("ai-guide-hint").padding(vertical = Space.xs),
+                style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+        }
         TextBox(stringResource(R.string.ai_base_url), form.baseUrl, { text -> vm.editConnection { it.copy(baseUrl = text) } },
             "ai-base-url", enabled, placeholder = stringResource(R.string.ai_base_url_hint),
             error = if (form.baseUrl.isNotBlank() && !ui.urlValid) stringResource(R.string.ai_base_url_invalid) else null,
@@ -219,6 +257,7 @@ private fun ConnectionCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
             supporting = when {
                 form.removeKey -> stringResource(R.string.ai_api_key_removing)
                 form.apiKey.isNotEmpty() -> null
+                filled -> stringResource(if (ui.keySaved) R.string.ai_guide_filled else R.string.ai_guide_filled_key)
                 ui.keySaved -> stringResource(R.string.ai_api_key_saved)
                 else -> stringResource(R.string.ai_api_key_none)
             })

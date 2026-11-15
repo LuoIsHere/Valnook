@@ -133,6 +133,26 @@ class AiChatUiTest {
         }
     }
 
+    @Test fun the_quick_start_opens_from_ai_settings_and_enters_its_example() {
+        rule.onNodeWithTag("nav-settings").performClick()
+        rule.onNodeWithTag("settings-list").performScrollToNode(hasTestTag("settings-ai"))
+        rule.onNodeWithTag("settings-ai").performClick()
+        waitTag("ai-settings")
+        rule.onNodeWithTag("ai-guide-open").performClick()
+        waitTag("ai-guide")
+        rule.onNodeWithTag("ai-guide-page-0").assertExists()
+        repeat(7) { rule.onNodeWithTag("ai-guide-next").performClick(); rule.waitForIdle() }
+        rule.onNodeWithTag("ai-guide-step").assertTextEquals("8 / 8")
+        rule.onNodeWithTag("ai-guide-fill").performScrollTo().performClick()
+        // Back on the settings, which ask before replacing the connection there.
+        waitTag("ai-guide-replace")
+        rule.onNodeWithTag("ai-guide-replace-confirm").performClick()
+        rule.onNodeWithTag("ai-base-url").assertTextContains("https://api.deepseek.com")
+        rule.onNodeWithTag("ai-guide").assertDoesNotExist()
+        // Entered only: the saved connection is unchanged until the user saves.
+        assertEquals("https://ai.example.test", runBlocking { graph.ai!!.observeSettings().first().connection.baseUrl })
+    }
+
     @Test fun a_sentence_becomes_a_draft_that_is_saved_and_taken_back() {
         openChat()
         waitTag("ai-chat-examples")

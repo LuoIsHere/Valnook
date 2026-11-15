@@ -21,6 +21,7 @@ import dev.valnook.core.designsystem.R
 object FaIcons {
     val check = R.drawable.fa_check
     val chevronDown = R.drawable.fa_chevron_down
+    val circleQuestion = R.drawable.fa_circle_question
     val chevronLeft = R.drawable.fa_chevron_left
     val chevronRight = R.drawable.fa_chevron_right
     val cloud = R.drawable.fa_cloud
