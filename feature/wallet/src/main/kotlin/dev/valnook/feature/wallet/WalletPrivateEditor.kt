@@ -74,20 +74,17 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
     }
     state.draft?.let { value -> PrivateEditor(state,value) }
     if(state.discard) AnimatedGlassDialog(true,{state.discard=false},properties=PrivateDialogProperties) {
-        GlassCard { Column(Modifier.padding(22.dp)) {
-            Text(stringResource(R.string.wallet_discard_unsaved_changes),style=MaterialTheme.typography.titleMedium)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({state.discard=false}){Text(stringResource(R.string.wallet_keep_editing))}
-                TextButton(state::discardEdit,Modifier.testTag("wallet-private-discard")){Text(stringResource(R.string.wallet_discard))}
-            }
-        } }
+        DialogCard(stringResource(R.string.wallet_discard_unsaved_changes),buttons={
+            TextButton({state.discard=false}){Text(stringResource(R.string.wallet_keep_editing))}
+            TextButton(state::discardEdit,Modifier.testTag("wallet-private-discard")){Text(stringResource(R.string.wallet_discard))}
+        }) {}
     }
     if(state.error) AnimatedGlassDialog(true,{state.error=false},properties=PrivateDialogProperties) {
-        GlassCard { Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.wallet_private_details_unavailable),style=MaterialTheme.typography.titleMedium)
+        DialogCard(stringResource(R.string.wallet_private_details_unavailable),buttons={
+            TextButton({state.error=false}){Text(stringResource(R.string.wallet_ok_2))}
+        }) {
             Text(stringResource(R.string.wallet_could_not_securely_read_save))
-            TextButton({state.error=false},Modifier.align(Alignment.End)){Text(stringResource(R.string.wallet_ok_2))}
-        } }
+        }
     }
 }
 
@@ -102,29 +99,26 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
         // The dialog is its own window: only its focus manager and keyboard controller reach the fields.
         val keyboard=LocalSoftwareKeyboardController.current
         val focus=LocalFocusManager.current
-        GlassCard { Column(Modifier.heightIn(max=maximumHeight)
-            .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        // The title carries the colour button; the buttons scroll with the form, below everything it holds.
+        DialogCard(Modifier.heightIn(max=maximumHeight),title={
             Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-                Text(stringResource(R.string.wallet_private_card_details_2),Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.wallet_private_card_details_2),Modifier.weight(1f))
                 IconButton({focus.clearFocus();keyboard?.hide();palette=!palette},Modifier.testTag("wallet-private-palette")
                     .semantics{contentDescription=editLabel},enabled=!state.saving){WalletPaletteIcon()}
             }
+        }) { Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             WalletCardBack(value,Modifier.fillMaxWidth().aspectRatio(WalletRules.ASPECT).clip(RoundedCornerShape(18.dp)))
             if(palette) PrivatePalette(value,state::updateDraft,!state.saving)
-            OutlinedTextField(value.number,{text->
+            ValnookTextField(value.number,{text->
                 val cleaned=text.filterNot{it.isISOControl()}
                 tooLong=cleaned.codePointCount(0,cleaned.length)>38
                 if(!tooLong)state.updateDraft(value.copy(number=cleaned))
-            },Modifier.fillMaxWidth().testTag("wallet-private-number"),label={Text(stringResource(R.string.wallet_card_number))},
-                singleLine=true,enabled=!state.saving,isError=tooLong,
-                supportingText={Text(if(tooLong)stringResource(R.string.wallet_up_38_characters)else stringResource(R.string.wallet_up_38_characters_symbols_allowed))})
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .toggleable(value.showNumberSpacing,enabled=!state.saving,role=Role.Switch,
-                    onValueChange={state.updateDraft(value.copy(showNumberSpacing=it))})
-                .testTag("wallet-private-spacing").padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
-                Text(stringResource(R.string.wallet_show_card_number_spacing),Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
-                Switch(value.showNumberSpacing,null,enabled=!state.saving)
-            }
+            },label=stringResource(R.string.wallet_card_number),enabled=!state.saving,
+                error=if(tooLong)stringResource(R.string.wallet_up_38_characters)else null,
+                supporting=stringResource(R.string.wallet_up_38_characters_symbols_allowed),tag="wallet-private-number")
+            SwitchRow(stringResource(R.string.wallet_show_card_number_spacing),value.showNumberSpacing,
+                {state.updateDraft(value.copy(showNumberSpacing=it))},Modifier.testTag("wallet-private-spacing"),
+                enabled=!state.saving,contentPadding=PaddingValues(horizontal=4.dp))
             PrivateInput(stringResource(R.string.wallet_expiry_mm_yy),value.expiry,"wallet-private-expiry",!state.saving){state.updateDraft(value.copy(expiry=it))}
             Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.weight(1f)){PrivateInput("CVV1",value.cvv1,"wallet-private-cvv1",!state.saving,cvv=true){state.updateDraft(value.copy(cvv1=it))}}
@@ -134,7 +128,7 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
                 maxCodePoints=WALLET_HOLDER_MAX){state.updateDraft(value.copy(holder=it))}
             Text(stringResource(R.string.wallet_encrypted_device_only_excluded_from),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End)) {
                 TextButton(state::cancelEdit,enabled=!state.saving,modifier=Modifier.testTag("wallet-private-cancel")){Text(stringResource(R.string.wallet_cancel))}
                 TextButton({focus.clearFocus();keyboard?.hide();state.save()},enabled=!state.saving&&!tooLong&&walletCvvValid(value.cvv1)&&walletCvvValid(value.cvv2),
                     modifier=Modifier.testTag("wallet-private-save")){Text(if(state.saving)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))}
@@ -147,18 +141,17 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
 @Composable private fun PrivateInput(label:String,value:String,tag:String,enabled:Boolean,cvv:Boolean=false,
     maxCodePoints:Int?=null,change:(String)->Unit) {
     val invalid=cvv&&!walletCvvValid(value)
-    OutlinedTextField(value,{
+    ValnookTextField(value,{
         val cleaned=it.filterNot(Char::isISOControl)
         if(cvv) { if(walletCvvValid(it))change(it) }
         else if(maxCodePoints!=null) { if(cleaned.codePointCount(0,cleaned.length)<=maxCodePoints)change(cleaned) }
         else if(it.length<=16)change(cleaned)
-    },Modifier.fillMaxWidth().testTag(tag),label={Text(label)},singleLine=true,enabled=enabled,
-        keyboardOptions=KeyboardOptions(keyboardType=if(cvv)KeyboardType.NumberPassword else KeyboardType.Text),
-        isError=invalid,supportingText=when {
-            cvv -> {{Text(stringResource(R.string.wallet_up_4_digits_optional))}}
-            maxCodePoints!=null -> {{Text(stringResource(R.string.wallet_up_characters_optional, maxCodePoints))}}
+    },label=label,enabled=enabled,keyboardType=if(cvv)KeyboardType.NumberPassword else KeyboardType.Text,isError=invalid,
+        supporting=when {
+            cvv -> stringResource(R.string.wallet_up_4_digits_optional)
+            maxCodePoints!=null -> stringResource(R.string.wallet_up_characters_optional, maxCodePoints)
             else -> null
-        })
+        },tag=tag)
 }
 
 @Composable private fun PrivatePalette(value:WalletPrivateContent,change:(WalletPrivateContent)->Unit,enabled:Boolean) {
@@ -178,12 +171,12 @@ private val PrivateDialogProperties=DialogProperties(securePolicy=SecureFlagPoli
                 .clickable(enabled=enabled){pick(color)}.semantics{contentDescription=description;selected=color==current})
         }
     }
-    OutlinedTextField(hex,{text->
+    ValnookTextField(hex,{text->
         val cleaned=text.removePrefix("#").uppercase()
         if(cleaned.length<=6&&cleaned.all{it in '0'..'9'||it in 'A'..'F'}) {
             hex=cleaned
             if(cleaned.length==6)pick(0xff000000L or cleaned.toLong(16))
         }
-    },Modifier.fillMaxWidth().testTag("wallet-private-color"),label={Text(stringResource(R.string.wallet_custom_color_hex))},prefix={Text("#")},
-        singleLine=true,enabled=enabled,supportingText={Text(stringResource(R.string.wallet_six_hexadecimal_digits))})
+    },label=stringResource(R.string.wallet_custom_color_hex),prefix="#",enabled=enabled,
+        supporting=stringResource(R.string.wallet_six_hexadecimal_digits),tag="wallet-private-color")
 }

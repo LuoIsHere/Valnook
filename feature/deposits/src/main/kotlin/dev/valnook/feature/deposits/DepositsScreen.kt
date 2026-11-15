@@ -64,12 +64,12 @@ import kotlinx.coroutines.delay
         }}
         if(closed&&rows.isEmpty()){val top=gap();item(key="empty"){Box(Modifier.padding(top=top)){EmptyState(stringResource(R.string.empty_settled_deposits))}}}
         if(!closed||rows.isNotEmpty())glassCardItems(rows,{it.id},"deposit",gap(),Modifier.testTag("deposit-card"),
-            divider={DepositDivider()},
+            divider={FormDivider(inset=0.dp)},
             footer=if(closed)null else ({
                 if(rows.isEmpty())Text(stringResource(R.string.empty_deposits),Modifier.fillMaxWidth().padding(12.dp),
                     style=MaterialTheme.typography.bodyMedium,color=muted)
                 // The last piece: after the deposits, a divider and then the row to open another.
-                DepositDivider()
+                FormDivider(inset=0.dp)
                 Row(Modifier.fillMaxWidth().heightIn(min=52.dp).testTag("deposit-open").clickable(role=Role.Button,onClick=on_form)
                     .padding(horizontal=12.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically) {
                     Text(stringResource(R.string.open_deposit),style=MaterialTheme.typography.bodyLarge,color=muted)
@@ -87,7 +87,6 @@ import kotlinx.coroutines.delay
     }
 }
 
-@Composable private fun DepositDivider() { HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer) }
 
 /** Its term and state, the principal with the interest it earns, then how far along the term is. */
 @Composable private fun DepositRow(deposit:TermDeposit,today:Long,on_open:()->Unit) {

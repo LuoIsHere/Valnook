@@ -46,39 +46,37 @@ internal fun AccountIconEditor(state: AccountEditUiState, enabled: Boolean,
         }
     }
     AnimatedGlassDialog(expanded, { expanded = false }) {
-        GlassCard(Modifier.testTag("account-icon-dialog")) {
-            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(stringResource(R.string.account_icon_title), style = MaterialTheme.typography.titleLarge)
-                Button({ expanded = false; onPickImage() }, enabled = expanded && enabled,
-                    modifier = Modifier.fillMaxWidth().testTag("account-icon-photo")) {
-                    Text(stringResource(R.string.account_icon_photo))
-                }
-                val symbols = AccountSymbols.keys.toList()
-                val labels = stringResource(R.string.account_icon_labels).split("|")
-                LazyVerticalGrid(GridCells.Adaptive(56.dp), Modifier.fillMaxWidth()
-                    .heightIn(max = (LocalConfiguration.current.screenHeightDp * .42f).dp)) {
-                    itemsIndexed(symbols, key = { _, symbol -> symbol }) { index, symbol ->
-                        val selected = state.icon.type == AccountIconType.SYMBOL && state.icon.value == symbol
-                        Box(Modifier.padding(3.dp).sizeIn(minHeight = 56.dp).clip(CircleShape)
-                            .testTag("account-symbol-$symbol")
-                            .selectable(selected, enabled = expanded && enabled, role = Role.RadioButton) {
-                                onSymbol(symbol); expanded = false
-                            }.semantics { contentDescription = labels.getOrElse(index) { symbol } },
-                            contentAlignment = Alignment.Center) {
-                            Surface(shape = CircleShape, color = if (selected) MaterialTheme.colorScheme.secondaryContainer
-                                else MaterialTheme.colorScheme.surfaceContainerLow) {
-                                Box(Modifier.padding(7.dp)) { AccountAvatar(symbol, size = 34.dp) }
-                            }
-                            if (selected) SelectedIcon(Modifier.align(Alignment.BottomEnd).size(12.dp))
+        DialogCard(stringResource(R.string.account_icon_title), Modifier.testTag("account-icon-dialog")) {
+            PrimaryButton({ expanded = false; onPickImage() }, enabled = expanded && enabled,
+                modifier = Modifier.fillMaxWidth().testTag("account-icon-photo")) {
+                Text(stringResource(R.string.account_icon_photo))
+            }
+            val symbols = AccountSymbols.keys.toList()
+            val labels = stringResource(R.string.account_icon_labels).split("|")
+            LazyVerticalGrid(GridCells.Adaptive(56.dp), Modifier.fillMaxWidth()
+                .heightIn(max = (LocalConfiguration.current.screenHeightDp * .42f).dp)) {
+                itemsIndexed(symbols, key = { _, symbol -> symbol }) { index, symbol ->
+                    val selected = state.icon.type == AccountIconType.SYMBOL && state.icon.value == symbol
+                    Box(Modifier.padding(3.dp).sizeIn(minHeight = 56.dp).clip(CircleShape)
+                        .testTag("account-symbol-$symbol")
+                        .selectable(selected, enabled = expanded && enabled, role = Role.RadioButton) {
+                            onSymbol(symbol); expanded = false
+                        }.semantics { contentDescription = labels.getOrElse(index) { symbol } },
+                        contentAlignment = Alignment.Center) {
+                        Surface(shape = CircleShape, color = if (selected) MaterialTheme.colorScheme.secondaryContainer
+                            else MaterialTheme.colorScheme.surfaceContainerLow) {
+                            Box(Modifier.padding(7.dp)) { AccountAvatar(symbol, size = 34.dp) }
                         }
+                        if (selected) SelectedIcon(Modifier.align(Alignment.BottomEnd).size(12.dp))
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton({ onSymbol("account_balance"); expanded = false }, enabled = expanded && enabled) {
-                        Text(stringResource(R.string.account_icon_reset))
-                    }
-                    TextButton({ expanded = false }) { Text(stringResource(R.string.account_order_cancel)) }
+            }
+            // Reset sits at the start, apart from Cancel.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                TextButton({ onSymbol("account_balance"); expanded = false }, enabled = expanded && enabled) {
+                    Text(stringResource(R.string.account_icon_reset))
                 }
+                TextButton({ expanded = false }) { Text(stringResource(R.string.account_order_cancel)) }
             }
         }
     }

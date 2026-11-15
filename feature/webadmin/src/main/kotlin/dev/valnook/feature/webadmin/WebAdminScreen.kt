@@ -1,5 +1,7 @@
 package dev.valnook.feature.webadmin
 
+import dev.valnook.designsystem.PrimaryButton
+import dev.valnook.designsystem.SecondaryButton
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
@@ -49,7 +51,7 @@ fun WebAdminScreen(vm: WebAdminViewModel, demoMode: Boolean = false) {
         state.error?.let { HintMessage(errorText(it), isError = true,
             modifier = Modifier.testTag("webadmin-error")) }
         when (state.phase) {
-            WebAdminPhase.CLOSED -> Button(vm::start, Modifier.fillMaxWidth().testTag("webadmin-start")) {
+            WebAdminPhase.CLOSED -> PrimaryButton(vm::start, Modifier.fillMaxWidth().testTag("webadmin-start")) {
                 Text(stringResource(R.string.webadmin_start))
             }
             WebAdminPhase.WAITING -> {
@@ -73,14 +75,14 @@ fun WebAdminScreen(vm: WebAdminViewModel, demoMode: Boolean = false) {
                     modifier = Modifier.fillMaxWidth().testTag("webadmin-code"), textAlign = TextAlign.Center) }
                 Text(stringResource(R.string.webadmin_timeout), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedButton(vm::stop, Modifier.fillMaxWidth().testTag("webadmin-stop")) {
+                SecondaryButton(vm::stop, Modifier.fillMaxWidth().testTag("webadmin-stop")) {
                     Text(stringResource(R.string.webadmin_stop))
                 }
             }
             WebAdminPhase.ACTIVE -> {
                 Text(stringResource(R.string.webadmin_active), style = MaterialTheme.typography.titleLarge)
                 ClientDetails(state.client)
-                Button(vm::stop, Modifier.fillMaxWidth().testTag("webadmin-stop")) {
+                PrimaryButton(vm::stop, Modifier.fillMaxWidth().testTag("webadmin-stop")) {
                     Text(stringResource(R.string.webadmin_end))
                 }
             }
@@ -103,7 +105,7 @@ fun WebAdminLockScreen(client: WebAdminClient?, onEnd: () -> Unit) {
             Spacer(Modifier.height(Space.lg))
             ClientDetails(client)
             Spacer(Modifier.height(Space.xl))
-            Button(onEnd, Modifier.fillMaxWidth().testTag("webadmin-lock-end")) {
+            PrimaryButton(onEnd, Modifier.fillMaxWidth().testTag("webadmin-lock-end")) {
                 Text(stringResource(R.string.webadmin_end))
             }
         }

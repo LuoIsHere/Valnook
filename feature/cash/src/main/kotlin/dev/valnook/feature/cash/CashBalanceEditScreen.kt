@@ -78,8 +78,8 @@ data class CashBalanceToolbarState(val busy:Boolean,val enabled:Boolean,val labe
                 style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Text(stringResource(R.string.cash_balance_change,preview?:"—"),style=MaterialTheme.typography.titleMedium)
         } }
-        OutlinedTextField(state.entryNote,vm::changeNote,enabled=submission.editable,modifier=Modifier.fillMaxWidth().testTag("cash-balance-note"),
-            label={Text(stringResource(R.string.cash_note))},minLines=2,maxLines=5,shape=MaterialTheme.shapes.medium)
+        ValnookTextField(state.entryNote,vm::changeNote,label=stringResource(R.string.cash_note),enabled=submission.editable,
+            minLines=2,maxLines=5,tag="cash-balance-note")
         // Counted, the change is kept as an expense or income and listed on the bills page.
         if(state.billsAvailable) GlassCard {
             FormSwitchRow(stringResource(R.string.cash_count_in_stats),state.countInStats,vm::changeCountInStats,

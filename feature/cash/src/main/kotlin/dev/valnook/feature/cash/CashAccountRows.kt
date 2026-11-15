@@ -42,18 +42,6 @@ import kotlin.math.roundToInt
 /** A bill this close gets the attention color. */
 internal const val BILL_ATTENTION_DAYS = 3L
 
-@Composable internal fun CashSection(label: String, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, Modifier.padding(start = 4.dp), style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        GlassCard(content = content)
-    }
-}
-
-@Composable internal fun CashRowDivider() {
-    HorizontalDivider(color = MaterialTheme.colorScheme.surfaceContainer)
-}
-
 @Composable private fun AccountName(account: CashAccount, modifier: Modifier = Modifier) {
     Text(account.name.ifBlank { account.currency.code }, modifier, maxLines = 2, overflow = TextOverflow.Ellipsis,
         style = MaterialTheme.typography.bodyMedium)

@@ -94,16 +94,16 @@ enum class PickerOption { NO_ACCOUNT, EXTERNAL }
                         Box(Modifier.size(36.dp, 4.dp).clip(RoundedCornerShape(2.dp))
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)))
                     }
-                    Row(Modifier.draggable(rememberDraggableState { dragBy(it) }, Orientation.Vertical),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        if (expanded) IconButton({ expanded = false; query = ""; animateTo(SHEET_MIN) }, Modifier.testTag("bill-accounts-collapse")) {
-                            FaIcon(FaIcons.chevronDown, stringResource(R.string.bill_favorites), Modifier.size(16.dp))
-                        }
-                        Text(stringResource(when {
+                    SheetHeader(stringResource(when {
                             arranging -> R.string.bill_arrange_favorites
                             expanded -> R.string.bill_all_accounts
                             else -> R.string.bill_choose_account
-                        }), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        }), Modifier.draggable(rememberDraggableState { dragBy(it) }, Orientation.Vertical),
+                        leading = if (expanded) ({
+                            IconButton({ expanded = false; query = ""; animateTo(SHEET_MIN) }, Modifier.testTag("bill-accounts-collapse")) {
+                                FaIcon(FaIcons.chevronDown, stringResource(R.string.bill_favorites), Modifier.size(16.dp))
+                            }
+                        }) else null) {
                         if (!expanded && favorites.size > 1) TextButton({ arranging = !arranging }, Modifier.testTag("bill-arrange-favorites")) {
                             Text(stringResource(if (arranging) R.string.bill_done else R.string.bill_arrange))
                         }
@@ -118,7 +118,6 @@ enum class PickerOption { NO_ACCOUNT, EXTERNAL }
                                 { keys -> onFavorites(keys.map(String::toLong)) }, stringResource(R.string.bill_arrange),
                                 stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down), Modifier.weight(1f),
                                 leadingContent = { item -> byKey[item.key]?.let { AccountAvatar(it.iconSymbol, it.iconImageKey, size = 36.dp) } },
-                                rowColor = Color.Transparent, draggedColor = MaterialTheme.colorScheme.surfaceContainerHighest,
                                 dividerInset = 56.dp)
                         }
                         expanded -> {

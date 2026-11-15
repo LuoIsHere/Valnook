@@ -35,7 +35,7 @@ import dev.valnook.designsystem.*
 import dev.valnook.domain.model.*
 import java.math.BigDecimal
 
-private val RateFieldShape = RoundedCornerShape(10.dp)
+private val RateFieldShape = RoundedCornerShape(12.dp)
 
 /**
  * Shared financial form; navigation, draft storage and saving belong to the caller. The base currency and the rates

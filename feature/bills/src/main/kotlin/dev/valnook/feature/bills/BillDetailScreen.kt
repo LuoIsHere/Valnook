@@ -124,7 +124,7 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
                 enabled = !state.deleting)
         }
     }
-    if (confirming) AlertDialog({ confirming = false },
+    if (confirming) ValnookDialog({ confirming = false },
         confirmButton = { TextButton({ confirming = false; vm.delete() }, Modifier.testTag("bill-delete-confirm")) {
             Text(stringResource(if (bill.isSettlement) R.string.bill_undo else R.string.bill_delete)) } },
         dismissButton = { TextButton({ confirming = false }) { Text(stringResource(R.string.bill_cancel)) } },
@@ -135,7 +135,7 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
             else -> stringResource(R.string.bill_delete_message)
         }) })
     undoing?.let { child ->
-        AlertDialog({ undoing = null },
+        ValnookDialog({ undoing = null },
             confirmButton = { TextButton({ undoing = null; vm.undo(child) }, Modifier.testTag("bill-undo-confirm")) {
                 Text(stringResource(R.string.bill_undo)) } },
             dismissButton = { TextButton({ undoing = null }) { Text(stringResource(R.string.bill_cancel)) } },

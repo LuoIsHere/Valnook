@@ -24,10 +24,9 @@ internal fun SubaccountOrderSheet(rows: List<CashAccountRowDraft>, orderedKeys: 
                 (96.dp + 64.dp * rows.size) * LocalDensity.current.fontScale.coerceAtLeast(1f))
             Column(Modifier.fillMaxWidth().height(contentHeight).padding(horizontal = Space.md)
                 .testTag("subaccount-sort-sheet")) {
-                Text(stringResource(R.string.account_order_children), style = MaterialTheme.typography.titleMedium)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                SheetHeader(stringResource(R.string.account_order_children)) {
                     TextButton(onDismiss) { Text(stringResource(R.string.account_order_cancel)) }
-                    Button(onConfirm, Modifier.testTag("subaccount-order-confirm")) {
+                    PrimaryButton(onConfirm, Modifier.testTag("subaccount-order-confirm")) {
                         Text(stringResource(R.string.account_order_confirm))
                     }
                 }

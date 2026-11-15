@@ -1,5 +1,7 @@
 package dev.valnook.feature.backup
 
+import dev.valnook.designsystem.SwitchRow
+import dev.valnook.designsystem.PrimaryButton
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -125,18 +127,18 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Un
         item { Text(if (demoMode) stringResource(R.string.backup_demo_description)
             else stringResource(R.string.backup_description), style = MaterialTheme.typography.bodyMedium) }
         if (!demoMode) {
-            item { Button(onClick = {
+            item { PrimaryButton(onClick = {
                 vm.backupRequest().also { backupRequest = it; backupLauncher.launch(it.fileName) }
             }, enabled = !state.busy, modifier = Modifier.fillMaxWidth().testTag("backup-create")) {
                 Text(stringResource(R.string.backup_create_local))
             } }
-            item { Button(onClick = {
+            item { PrimaryButton(onClick = {
                 restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*"))
             }, enabled = !state.busy, modifier = Modifier.fillMaxWidth().testTag("backup-restore")) {
                 Text(stringResource(R.string.backup_restore))
             } }
         }
-        item { Button(onClick = {
+        item { PrimaryButton(onClick = {
             vm.workbookRequest().also { workbookRequest = it; workbookLauncher.launch(it.fileName) }
         }, enabled = !state.busy, modifier = Modifier.fillMaxWidth().testTag("backup-export-excel")) {
             Text(if (demoMode) stringResource(R.string.backup_export_demo_excel)
@@ -179,7 +181,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Un
                 horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 TextButton(vm::cancelRestore, enabled = !state.busy, modifier = Modifier.testTag("backup-cancel-restore")) {
                     Text(stringResource(R.string.backup_cancel)) }
-                Button(vm::requestChallenge, enabled = !state.busy, modifier = Modifier.testTag("backup-continue")) {
+                PrimaryButton(vm::requestChallenge, enabled = !state.busy, modifier = Modifier.testTag("backup-continue")) {
                     Text(stringResource(R.string.backup_continue))
                 }
             } }
@@ -193,7 +195,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Un
             item(key = "feedback-challenge-actions") { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 TextButton(vm::cancelRestore, enabled = !state.busy, modifier = Modifier.testTag("backup-cancel-restore")) {
                     Text(stringResource(R.string.backup_cancel)) }
-                Button(vm::commitRestore, enabled = !state.busy && state.confirmation.length == 6,
+                PrimaryButton(vm::commitRestore, enabled = !state.busy && state.confirmation.length == 6,
                     modifier = Modifier.testTag("backup-confirm-restore")) {
                     Text(stringResource(R.string.backup_confirm_restore))
                 }
@@ -215,7 +217,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Un
                 }
             }
             if (!state.cloud.connected) {
-                item { Button({ notice = "connect" },
+                item { PrimaryButton({ notice = "connect" },
                     enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth().testTag("cloud-connect")) {
                     Text(stringResource(R.string.cloud_connect))
                 } }
@@ -230,26 +232,22 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Un
                         contentPadding = PaddingValues(0.dp)) { Text(stringResource(R.string.cloud_notice_open)) }
                 } }
                 item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    Button(backupNow, enabled = !state.cloudBusy,
+                    PrimaryButton(backupNow, enabled = !state.cloudBusy,
                         modifier = Modifier.weight(1f).testTag("cloud-backup-now")) {
                         Text(stringResource(R.string.cloud_backup_now))
                     }
                     TextButton(vm::refreshCloudBackups, enabled = !state.cloudBusy,
                         modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cloud_refresh)) }
                 } }
-                item { Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.cloud_automatic))
-                        if (state.cloud.pauseReason == BackupPauseReason.AFTER_RESTORE) Text(
-                            stringResource(R.string.cloud_paused_after_restore),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    }
-                    Switch(state.cloud.automaticEnabled, vm::setAutomatic,
-                        enabled = !state.cloudBusy && state.cloud.pauseReason == BackupPauseReason.NONE)
+                item { SwitchRow(stringResource(R.string.cloud_automatic), state.cloud.automaticEnabled, vm::setAutomatic,
+                    enabled = !state.cloudBusy && state.cloud.pauseReason == BackupPauseReason.NONE,
+                    contentPadding = PaddingValues(vertical = Space.xs)) {
+                    if (state.cloud.pauseReason == BackupPauseReason.AFTER_RESTORE) Text(
+                        stringResource(R.string.cloud_paused_after_restore),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 } }
                 if (state.cloud.pauseReason == BackupPauseReason.AFTER_RESTORE) item {
-                    Button(vm::resumeAutomatic, enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth()) {
+                    PrimaryButton(vm::resumeAutomatic, enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.cloud_resume_automatic))
                     }
                 }
@@ -258,12 +256,12 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Un
                     GlassTextField(state.intervalDraft, vm::updateIntervalDraft,
                         stringResource(R.string.cloud_interval_hours), Modifier.weight(1f),
                         enabled = !state.cloudBusy, keyboardType = KeyboardType.Number)
-                    Button(vm::saveInterval, enabled = !state.cloudBusy) {
+                    PrimaryButton(vm::saveInterval, enabled = !state.cloudBusy) {
                         Text(stringResource(R.string.cloud_save_interval))
                     }
                 } }
                 if (state.cloud.latestError == CloudBackupError.AUTH_REQUIRED || state.cloudError == CloudBackupError.AUTH_REQUIRED) item {
-                    Button({ activity?.let(vm::connect) }, enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth()) {
+                    PrimaryButton({ activity?.let(vm::connect) }, enabled = !state.cloudBusy, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.cloud_connect))
                     }
                 }
@@ -392,7 +390,7 @@ fun BackupScreen(vm: BackupViewModel, demoMode: Boolean, onBillImages: (() -> Un
             TextButton(onDownload, enabled = !busy, modifier = Modifier.weight(1f)) {
                 Text(stringResource(R.string.cloud_download))
             }
-            Button(onRestore,
+            PrimaryButton(onRestore,
                 enabled = !busy && value.compatible && value.verificationState == "verified",
                 modifier = Modifier.weight(1f)) { Text(stringResource(R.string.cloud_restore)) }
         }

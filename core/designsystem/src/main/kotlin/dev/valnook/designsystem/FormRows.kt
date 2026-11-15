@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -30,6 +31,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.valnook.core.designsystem.R
 import kotlinx.coroutines.delay
@@ -46,9 +48,10 @@ fun FormSection(label: String?, modifier: Modifier = Modifier, content: @Composa
     }
 }
 
+/** The line between rows of a card; [inset] leaves room on the left, 0 runs it edge to edge. */
 @Composable
-fun FormDivider(modifier: Modifier = Modifier) {
-    HorizontalDivider(modifier.padding(start = 16.dp), color = MaterialTheme.colorScheme.surfaceContainer)
+fun FormDivider(modifier: Modifier = Modifier, inset: Dp = 16.dp) {
+    HorizontalDivider(modifier.padding(start = inset), color = MaterialTheme.colorScheme.surfaceContainer)
 }
 
 /** Keeps the caller's text and this field's cursor apart, so ± can move the cursor with the sign. */
@@ -98,19 +101,59 @@ fun FormTextRow(label: String, value: String, onChange: (String) -> Unit, modifi
     }
 }
 
-/** A setting that is on or off; the whole line toggles it. */
+/**
+ * A setting that is on or off: [title], an optional [summary] under it, and anything else in [extra]; the whole line
+ * toggles it. A test tag on [modifier] reads as the switch itself. [contentPadding] fits it to a card or a column.
+ */
 @Composable
-fun FormSwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier,
-    enabled: Boolean = true, contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-    Row(modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("switch-$label")
+fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier,
+    summary: String? = null, enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+    extra: (@Composable ColumnScope.() -> Unit)? = null) {
+    val colors = MaterialTheme.colorScheme
+    Row(modifier.fillMaxWidth().heightIn(min = 52.dp).clip(RoundedCornerShape(12.dp))
         .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
         .padding(contentPadding),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = .38f))
+            if (summary != null) Text(summary, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+            extra?.invoke(this)
+        }
         Switch(checked, onCheckedChange = null, enabled = enabled)
     }
 }
+
+/**
+ * One option of a single choice: the radio first, then [leading] (an icon), [title] and an optional [summary]. The
+ * whole line selects it. Put the options of one choice in a column with `Modifier.selectableGroup()`.
+ */
+@Composable
+fun RadioRow(title: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
+    summary: String? = null, enabled: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+    leading: (@Composable () -> Unit)? = null) {
+    val colors = MaterialTheme.colorScheme
+    Row(modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
+        .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
+        .padding(contentPadding),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RadioButton(selected, onClick = null, enabled = enabled)
+        leading?.invoke()
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge,
+                color = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = .38f))
+            if (summary != null) Text(summary, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
+        }
+    }
+}
+
+/** [SwitchRow] with its title alone, tagged "switch-" and the title. */
+@Composable
+fun FormSwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier,
+    enabled: Boolean = true, contentPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) =
+    SwitchRow(label, checked, onChange, modifier.testTag("switch-$label"), enabled = enabled, contentPadding = contentPadding)
 
 @Composable
 private fun filledMinimumHeight(label: Boolean) =
@@ -141,7 +184,7 @@ private fun FilledFrame(label: String?, error: Boolean, enabled: Boolean, traili
 /**
  * The text input of the app: a light fill with no outline, an optional small [label] in its top-left corner, and
  * [placeholder] while empty. One line unless [maxLines] allows more; [trailing] sits at its right end. [error] and
- * [supporting] are messages shown under it. The input node carries [tag].
+ * [supporting] are messages shown under it; [isError] marks it red without a message. The input node carries [tag].
  */
 @Composable
 fun ValnookTextField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, label: String? = null,
@@ -149,7 +192,8 @@ fun ValnookTextField(value: String, onChange: (String) -> Unit, modifier: Modifi
     numeric: Boolean = false, signed: Boolean = false, minLines: Int = 1, maxLines: Int = 1,
     password: Boolean = false, monospace: Boolean = false, keyboardType: KeyboardType? = null,
     autoCorrect: Boolean = true, shape: Shape = FieldShape, trailing: (@Composable () -> Unit)? = null,
-    tag: String? = label?.let { "input-$it" }, requestAttention: Boolean = false) {
+    tag: String? = label?.let { "input-$it" }, requestAttention: Boolean = false, readOnly: Boolean = false,
+    isError: Boolean = error != null, prefix: String? = null) {
     val colors = MaterialTheme.colorScheme
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -178,7 +222,7 @@ fun ValnookTextField(value: String, onChange: (String) -> Unit, modifier: Modifi
         BasicTextField(shown, { cursor = it; if (it.text != value) onChange(it.text) },
             Modifier.fillMaxWidth().then(if (tag != null) Modifier.testTag(tag) else Modifier)
                 .semantics(mergeDescendants = true) { if (error != null) error(error) },
-            enabled = enabled, singleLine = singleLine, minLines = if (singleLine) 1 else minLines,
+            enabled = enabled, readOnly = readOnly, singleLine = singleLine, minLines = if (singleLine) 1 else minLines,
             maxLines = if (singleLine) 1 else maxOf(minLines, maxLines),
             textStyle = style.copy(color = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = .6f)),
             cursorBrush = SolidColor(colors.primary),
@@ -189,11 +233,14 @@ fun ValnookTextField(value: String, onChange: (String) -> Unit, modifier: Modifi
             // The message under the fill belongs to the field, as in a Material text field: one node reads both.
             decorationBox = { inner ->
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    FilledFrame(label, error != null, enabled, end, shape) {
-                        Box {
-                            if (value.isEmpty() && placeholder.isNotEmpty())
-                                Text(placeholder, style = style, color = colors.onSurfaceVariant.copy(alpha = .6f))
-                            inner()
+                    FilledFrame(label, isError, enabled, end, shape) {
+                        Row {
+                            if (prefix != null) Text(prefix, style = style, color = colors.onSurfaceVariant)
+                            Box {
+                                if (value.isEmpty() && placeholder.isNotEmpty())
+                                    Text(placeholder, style = style, color = colors.onSurfaceVariant.copy(alpha = .6f))
+                                inner()
+                            }
                         }
                     }
                     if (note != null) Text(note, Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.bodySmall,
@@ -230,6 +277,28 @@ fun FilledChoiceField(label: String, value: String, onSelect: () -> Unit, modifi
             Text(value, style = MaterialTheme.typography.bodyLarge, color = if (enabled) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurface.copy(alpha = .6f))
         }
+    }
+}
+
+/**
+ * The filled look of [FilledChoiceField] with the semantics a read-only text field has: the label and value stay text
+ * (found by text, read in order), and a layer over them takes the tap and reads as "label: value". [SelectorField] and
+ * the pickers built on it use it.
+ */
+@Composable
+internal fun FilledSelector(label: String, value: String, onSelect: () -> Unit, enabled: Boolean) {
+    val focus = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    Box(Modifier.fillMaxWidth().testTag("input-$label")) {
+        FilledFrame(label, false, enabled, {
+            FaIcon(FaIcons.chevronDown, null, Modifier.padding(end = 8.dp).size(14.dp), MaterialTheme.colorScheme.onSurfaceVariant)
+        }) {
+            Text(value, style = MaterialTheme.typography.bodyLarge, color = if (enabled) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = .6f))
+        }
+        Box(Modifier.matchParentSize().clip(FieldShape)
+            .clickable(enabled = enabled, role = Role.Button) { focus.clearFocus(); keyboard?.hide(); onSelect() }
+            .semantics { contentDescription = "$label: $value" })
     }
 }
 

@@ -248,7 +248,8 @@ private fun GroupRow(index: Int, count: Int, raised: Boolean, modifier: Modifier
     val bottom = if (index == count - 1 || raised) GROUP_CORNER else 0.dp
     val shape = RoundedCornerShape(top, top, bottom, bottom)
     Surface(modifier.fillMaxWidth(), shape = shape,
-        color = if (raised) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.surfaceContainerLow,
+        // Raised as a row of the shared sort list is.
+        color = if (raised) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.surfaceContainerLow,
         shadowElevation = if (raised) 6.dp else 0.dp) {
         Column {
             if (index > 0 && !raised) HorizontalDivider(Modifier.padding(start = 56.dp),

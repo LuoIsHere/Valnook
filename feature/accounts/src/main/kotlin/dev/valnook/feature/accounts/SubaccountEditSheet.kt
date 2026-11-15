@@ -40,9 +40,7 @@ internal fun SubaccountEditSheet(row: CashAccountRowDraft, state: AccountEditUiS
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("subaccount-sheet")
             .padding(start = Space.md, end = Space.md, bottom = Space.lg),
             verticalArrangement = Arrangement.spacedBy(Space.md)) {
-            Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(row.nameInput.ifBlank { stringResource(R.string.account_new_subaccount) }, Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            SheetHeader(row.nameInput.ifBlank { stringResource(R.string.account_new_subaccount) }) {
                 TextButton(::close, Modifier.testTag("subaccount-sheet-done")) { Text(stringResource(R.string.account_sheet_done)) }
             }
             GlassCard {
@@ -104,9 +102,9 @@ internal fun SubaccountEditSheet(row: CashAccountRowDraft, state: AccountEditUiS
                 }
             }
             val saved = row.cashAccountId
-            if (saved != null) ActionButton({ onDelete(saved) }, Modifier.fillMaxWidth().testTag("account-delete-$saved"),
-                enabled = editable, destructive = true) { Text(stringResource(R.string.account_delete_balance_account)) }
-            else ActionButton({ vm.removeRow(row.key); onDismiss() }, Modifier.fillMaxWidth().testTag("subaccount-cancel"),
+            if (saved != null) DangerButton({ onDelete(saved) }, Modifier.fillMaxWidth().testTag("account-delete-$saved"),
+                enabled = editable) { Text(stringResource(R.string.account_delete_balance_account)) }
+            else SecondaryButton({ vm.removeRow(row.key); onDismiss() }, Modifier.fillMaxWidth().testTag("subaccount-cancel"),
                 enabled = editable) { Text(stringResource(R.string.account_cancel_balance_account)) }
         }
     }

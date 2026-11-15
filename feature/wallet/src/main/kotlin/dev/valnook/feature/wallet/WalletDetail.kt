@@ -125,7 +125,7 @@ import java.time.*
                             item("unbound") {
                                 Text(if(card.bindingLost)stringResource(R.string.wallet_linked_account_was_deleted) else stringResource(R.string.wallet_no_linked_account),style=MaterialTheme.typography.titleMedium)
                                 Spacer(Modifier.height(8.dp));Text(stringResource(R.string.wallet_keep_card_as_collection_link),color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                Button(edit,Modifier.padding(top=20.dp)){Text(stringResource(R.string.wallet_link_account))}
+                                PrimaryButton(edit,Modifier.padding(top=20.dp)){Text(stringResource(R.string.wallet_link_account))}
                             }
                         } else if(account==null) item { CircularProgressIndicator(Modifier.size(22.dp)) }
                         else {
@@ -180,12 +180,14 @@ import java.time.*
 
 @Composable private fun WalletMonthPicker(selected:YearMonth,min:YearMonth,max:YearMonth,choose:(YearMonth)->Unit,dismiss:()->Unit) {
     var year by rememberSaveable { mutableStateOf(selected.year.toString()) }
-    AnimatedGlassDialog(true,dismiss){GlassCard{Column(Modifier.padding(20.dp)){
-        Text(stringResource(R.string.wallet_choose_month),style=MaterialTheme.typography.titleLarge)
-        OutlinedTextField(year,{year=it.filter(Char::isDigit).take(4)},label={Text(stringResource(R.string.wallet_year))},singleLine=true)
-        for(row in 0..3)Row {for(column in 1..3){val m=row*3+column;val target=year.toIntOrNull()?.takeIf{it in 1..9999}?.let{YearMonth.of(it,m)}
-            TextButton({target?.let(choose)},Modifier.weight(1f),enabled=target!=null&&target>=min&&target<=max){Text(m.toString())}
-        }}
+    AnimatedGlassDialog(true,dismiss){DialogCard(stringResource(R.string.wallet_choose_month),buttons={
         TextButton(dismiss){Text(stringResource(R.string.wallet_cancel))}
-    }}}
+    }){
+        ValnookTextField(year,{year=it.filter(Char::isDigit).take(4)},label=stringResource(R.string.wallet_year),
+            keyboardType=androidx.compose.ui.text.input.KeyboardType.Number,tag=null)
+        // The month grid keeps its rows together.
+        Column{for(row in 0..3)Row {for(column in 1..3){val m=row*3+column;val target=year.toIntOrNull()?.takeIf{it in 1..9999}?.let{YearMonth.of(it,m)}
+            TextButton({target?.let(choose)},Modifier.weight(1f),enabled=target!=null&&target>=min&&target<=max){Text(m.toString())}
+        }}}
+    }}
 }

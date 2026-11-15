@@ -163,7 +163,7 @@ fun PageFailure(message: String, onRetry: () -> Unit) {
     Box(Modifier.fillMaxSize().padding(pageContentPadding()), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HintMessage(message, isError = true)
-            ActionButton(onClick = onRetry) { Text(stringResource(R.string.retry_loading)) }
+            SecondaryButton(onClick = onRetry) { Text(stringResource(R.string.retry_loading)) }
         }
     }
 }

@@ -292,7 +292,7 @@ fun pendingText(summary: ReimbursementSummary): String {
             }
             item { Spacer(Modifier.height(72.dp)) }
         }
-        if (state.selecting) Button(vm::confirmBatch, Modifier.align(Alignment.BottomCenter)
+        if (state.selecting) PrimaryButton(vm::confirmBatch, Modifier.align(Alignment.BottomCenter)
             .padding(bottom = LocalPageBottomSpace.current + 16.dp).testTag("reimbursements-batch-next"), enabled = state.selected.isNotEmpty()) {
             Text(stringResource(R.string.reimbursements_batch_next, state.selected.size))
         }
@@ -364,7 +364,7 @@ fun pendingText(summary: ReimbursementSummary): String {
             ErrorMessage(state.error?.name)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 TextButton(vm::cancelBatch, Modifier.weight(1f)) { Text(stringResource(R.string.bill_cancel)) }
-                Button(vm::submit, Modifier.weight(1f).testTag("reimbursements-batch-confirm"), enabled = state.batchReady) {
+                PrimaryButton(vm::submit, Modifier.weight(1f).testTag("reimbursements-batch-confirm"), enabled = state.batchReady) {
                     Text(stringResource(R.string.bill_confirm))
                 }
             }

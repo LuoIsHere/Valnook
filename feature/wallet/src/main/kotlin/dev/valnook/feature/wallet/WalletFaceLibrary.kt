@@ -169,17 +169,13 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
     }
 
     list?.firstOrNull { it.key==deleting }?.let { face->
-        AnimatedGlassDialog(true,{if(!busy)deleting=null}) { GlassCard { Column(Modifier.padding(24.dp)) {
-            Text(stringResource(R.string.wallet_delete_card_face),style=MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.wallet_removed_from_library_from_later),
-                Modifier.padding(vertical=16.dp))
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({deleting=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
-                TextButton({deleting=null;vm.delete(face.key)},enabled=!busy,modifier=Modifier.testTag("wallet-face-delete-confirm")) {
-                    Text(stringResource(R.string.wallet_delete),color=MaterialTheme.colorScheme.error)
-                }
-            }
-        } } }
+        AnimatedGlassDialog(true,{if(!busy)deleting=null}) { DialogCard(stringResource(R.string.wallet_delete_card_face),buttons={
+            TextButton({deleting=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
+            ValnookTextButton(stringResource(R.string.wallet_delete),{deleting=null;vm.delete(face.key)},
+                Modifier.testTag("wallet-face-delete-confirm"),enabled=!busy,danger=true)
+        }) {
+            Text(stringResource(R.string.wallet_removed_from_library_from_later))
+        } }
     }
     uri?.let { selected->WalletCrop(selected,vm::cropped) {
         runCatching{context.contentResolver.releasePersistableUriPermission(Uri.parse(selected),Intent.FLAG_GRANT_READ_URI_PERMISSION)};uri=null
@@ -213,21 +209,17 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
         // Read inside the dialog window, whose focus holds the name field.
         val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
         val focus=androidx.compose.ui.platform.LocalFocusManager.current
-        GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)
-            .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.wallet_add_card_faces),style=MaterialTheme.typography.titleLarge)
-            WalletCardView(WalletCard(0,name,image.key,null,0,0,0,0),cache,preview=image)
-            OutlinedTextField(name,{name=it},label={Text(stringResource(R.string.wallet_card_face_name))},
-                singleLine=true,enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("wallet-face-name"),
-                supportingText={Text(stringResource(R.string.wallet_1_40_characters_only_shown_2))})
-            error?.let { HintMessage(faceErrorText(it),isError=true) }
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({vm.cancelAdd()},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
-                Button({focus.clearFocus();keyboard?.hide();vm.add(name)},enabled=!busy&&runCatching{WalletRules.name(name)}.isSuccess,
-                    modifier=Modifier.testTag("wallet-face-save")) {
-                    Text(if(busy)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))
-                }
+        DialogCard(stringResource(R.string.wallet_add_card_faces),Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp),buttons={
+            TextButton({vm.cancelAdd()},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
+            PrimaryButton({focus.clearFocus();keyboard?.hide();vm.add(name)},enabled=!busy&&runCatching{WalletRules.name(name)}.isSuccess,
+                modifier=Modifier.testTag("wallet-face-save")) {
+                Text(if(busy)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))
             }
+        }) { Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            WalletCardView(WalletCard(0,name,image.key,null,0,0,0,0),cache,preview=image)
+            ValnookTextField(name,{name=it},label=stringResource(R.string.wallet_card_face_name),enabled=!busy,
+                supporting=stringResource(R.string.wallet_1_40_characters_only_shown_2),tag="wallet-face-name")
+            error?.let { HintMessage(faceErrorText(it),isError=true) }
         } }
     }
 }
@@ -236,9 +228,9 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
 @Composable internal fun WalletFacePickerDialog(faces: List<WalletFace>?, cache: WalletImageCache, selected: String?,
     onPick: (WalletFace) -> Unit, onDismiss: () -> Unit) {
     AnimatedGlassDialog(true,onDismiss) {
-        GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.8f).dp).padding(20.dp),
-            verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.wallet_card_faces),style=MaterialTheme.typography.titleLarge)
+        DialogCard(stringResource(R.string.wallet_card_faces),Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.8f).dp),buttons={
+            TextButton(onDismiss){Text(stringResource(R.string.wallet_cancel))}
+        }) {
             when {
                 faces==null -> CircularProgressIndicator()
                 faces.isEmpty() -> Text(stringResource(R.string.wallet_no_card_faces_yet_faces),
@@ -260,10 +252,7 @@ data class WalletFaceLibraryToolbar(val enabled: Boolean, val add: () -> Unit)
                     }
                 }
             }
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton(onDismiss){Text(stringResource(R.string.wallet_cancel))}
-            }
-        } }
+        }
     }
 }
 

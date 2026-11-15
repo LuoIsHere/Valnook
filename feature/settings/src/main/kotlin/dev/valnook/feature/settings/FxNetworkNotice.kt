@@ -17,7 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.valnook.designsystem.AnimatedGlassDialog
-import dev.valnook.designsystem.GlassCard
+import dev.valnook.designsystem.DialogCard
 
 /**
  * Shown every time automatic exchange rates are switched on, in onboarding and in Settings, until the user ticks
@@ -52,17 +52,13 @@ fun UnsavedChangesDialog(onKeep: () -> Unit, onDiscard: () -> Unit) {
 private fun DiscardDialog(body: String, confirm: String, confirmTag: String, onKeep: () -> Unit, onDiscard: () -> Unit,
     keepTag: String? = null) {
     AnimatedGlassDialog(true, onKeep) {
-        GlassCard {
-            Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.settings_fx_discard_title), style = MaterialTheme.typography.titleMedium)
-                Text(body, style = MaterialTheme.typography.bodyMedium)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onKeep, if (keepTag != null) Modifier.testTag(keepTag) else Modifier) {
-                        Text(stringResource(R.string.settings_fx_discard_keep))
-                    }
-                    TextButton(onDiscard, Modifier.testTag(confirmTag)) { Text(confirm) }
-                }
+        DialogCard(stringResource(R.string.settings_fx_discard_title), buttons = {
+            TextButton(onKeep, if (keepTag != null) Modifier.testTag(keepTag) else Modifier) {
+                Text(stringResource(R.string.settings_fx_discard_keep))
             }
+            TextButton(onDiscard, Modifier.testTag(confirmTag)) { Text(confirm) }
+        }) {
+            Text(body, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

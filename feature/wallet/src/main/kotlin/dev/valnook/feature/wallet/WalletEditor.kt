@@ -49,13 +49,13 @@ import kotlinx.coroutines.*
         // The dialog is its own window: only its focus manager and keyboard controller reach the name field.
         val keyboard=androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
         val focus=androidx.compose.ui.platform.LocalFocusManager.current
-        GlassCard { Column(Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)
-            .verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(if(value.id==null)stringResource(R.string.wallet_add_card)else stringResource(R.string.wallet_edit_card),style=MaterialTheme.typography.titleLarge)
+        // The buttons scroll with the form, below everything it holds.
+        DialogCard(if(value.id==null)stringResource(R.string.wallet_add_card)else stringResource(R.string.wallet_edit_card),
+            Modifier.heightIn(max=(LocalConfiguration.current.screenHeightDp*.85f).dp)) {
+        Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             WalletCardView(WalletCard(value.id?:0,value.name,value.imageKey,value.boundId,0,0,0,0,faceStyle=value.faceStyle),cache,preview=value.image)
-            OutlinedTextField(value.name,{vm.draft.value=value.copy(name=it)},label={Text(stringResource(R.string.wallet_card_name))},
-                singleLine=true,enabled=!busy,modifier=Modifier.fillMaxWidth().testTag("wallet-name"),
-                supportingText={Text(stringResource(R.string.wallet_1_40_characters_only_shown))})
+            ValnookTextField(value.name,{vm.draft.value=value.copy(name=it)},label=stringResource(R.string.wallet_card_name),
+                enabled=!busy,supporting=stringResource(R.string.wallet_1_40_characters_only_shown),tag="wallet-name")
             FlowRow {
                 TextButton({focus.clearFocus();keyboard?.hide();picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))},enabled=!busy,modifier=Modifier.testTag("wallet-photo")){Text(stringResource(R.string.wallet_choose_image))}
                 TextButton({focus.clearFocus();keyboard?.hide();pickingFace=true},enabled=!busy,modifier=Modifier.testTag("wallet-face-library-pick")){Text(stringResource(R.string.wallet_from_card_faces))}
@@ -72,17 +72,17 @@ import kotlinx.coroutines.*
                 Text(stringResource(R.string.wallet_these_cards_show_all_records),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if(error) HintMessage(if(failure==ErrorCode.WALLET_FACE_LIBRARY_FULL)faceErrorText(failure)
                 else stringResource(R.string.wallet_could_not_save_your_draft),isError=true)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp,Alignment.End)) {
                 TextButton({vm.draft.value=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
-                Button({focus.clearFocus();keyboard?.hide();vm.save()},enabled=!busy&&runCatching{WalletRules.name(value.name)}.isSuccess,modifier=Modifier.testTag("wallet-save")){
+                PrimaryButton({focus.clearFocus();keyboard?.hide();vm.save()},enabled=!busy&&runCatching{WalletRules.name(value.name)}.isSuccess,modifier=Modifier.testTag("wallet-save")){
                     Text(if(busy)stringResource(R.string.wallet_saving)else stringResource(R.string.wallet_save))
                 }
             }
         } }
     }
     if(choosing)AnimatedGlassDialog(true,{choosing=false}) {
-        GlassCard { Column(Modifier.heightIn(max=480.dp).verticalScroll(rememberScrollState()).padding(20.dp)) {
-            Text(stringResource(R.string.wallet_link_subaccount),style=MaterialTheme.typography.titleLarge)
+        DialogCard(stringResource(R.string.wallet_link_subaccount),Modifier.heightIn(max=480.dp)) {
+        Column(Modifier.weight(1f,fill=false).verticalScroll(rememberScrollState())) {
             TextButton({vm.draft.value=value.copy(boundId=null);choosing=false}){Text(stringResource(R.string.wallet_no_linked_account_2))}
             snapshot?.accounts?.forEach { parent->
                 val accounts=snapshot?.cash.orEmpty().filter{it.account_id==parent.id}
@@ -115,9 +115,12 @@ import kotlinx.coroutines.*
         withContext(Dispatchers.Main.immediate){source=bitmap}}
         catch(c:CancellationException){throw c}catch(_:Exception){failed=true}}
     AnimatedGlassDialog(true,{if(!busy)onClose()}) {
-        GlassCard { Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.wallet_adjust_card_face),style=MaterialTheme.typography.titleLarge)
-            val bitmap=source
+        val bitmap=source
+        DialogCard(stringResource(R.string.wallet_adjust_card_face),buttons={
+            TextButton(onClose,enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
+            PrimaryButton({scope.launch{busy=true;failed=false;try{val image=withContext(Dispatchers.Default){WalletImageCodec.encode(requireNotNull(bitmap),zoom,x,y)};onImage(image);onClose()}
+                catch(c:CancellationException){throw c}catch(_:Exception){failed=true}finally{busy=false}}},enabled=bitmap!=null&&!busy,modifier=Modifier.testTag("wallet-crop-confirm")){Text(stringResource(R.string.wallet_use_image))}
+        }) {
             if(bitmap!=null) {
                 Canvas(Modifier.fillMaxWidth().aspectRatio(WalletRules.ASPECT).clip(RoundedCornerShape(18.dp))
                     .testTag("wallet-crop").pointerInput(busy){detectTransformGestures{_,pan,scale,_->if(!busy){
@@ -128,11 +131,6 @@ import kotlinx.coroutines.*
                 TextButton({scope.launch{busy=true;try{source=withContext(Dispatchers.Default){Bitmap.createBitmap(bitmap,0,0,bitmap.width,bitmap.height,Matrix().apply{postRotate(90f)},true)};zoom=1f;x=0f;y=0f}finally{busy=false}}},enabled=!busy,modifier=Modifier.testTag("wallet-rotate")){Text(stringResource(R.string.wallet_rotate_90))}
             }else if(!failed)CircularProgressIndicator()
             if(failed)HintMessage(stringResource(R.string.wallet_unable_process_image_use_static),isError=true)
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End){
-                TextButton(onClose,enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
-                Button({scope.launch{busy=true;failed=false;try{val image=withContext(Dispatchers.Default){WalletImageCodec.encode(requireNotNull(bitmap),zoom,x,y)};onImage(image);onClose()}
-                    catch(c:CancellationException){throw c}catch(_:Exception){failed=true}finally{busy=false}}},enabled=bitmap!=null&&!busy,modifier=Modifier.testTag("wallet-crop-confirm")){Text(stringResource(R.string.wallet_use_image))}
-            }
-        } }
+        }
     }
 }

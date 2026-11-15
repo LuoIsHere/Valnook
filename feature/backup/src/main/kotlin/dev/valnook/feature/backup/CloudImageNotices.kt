@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.valnook.designsystem.AnimatedGlassDialog
-import dev.valnook.designsystem.GlassCard
+import dev.valnook.designsystem.DialogCard
 import dev.valnook.designsystem.Space
 import dev.valnook.domain.cloud.CloudImageProblem
 import dev.valnook.domain.cloud.CloudImageStatus
@@ -31,23 +31,18 @@ internal const val FOREGROUND_REMINDER_ABOVE = 20
 @Composable internal fun OneDriveNoticeDialog(connecting: Boolean, onCancel: () -> Unit, onAccept: () -> Unit) {
     val maximumHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } * .8f
     AnimatedGlassDialog(true, onCancel) {
-        GlassCard {
+        DialogCard(stringResource(R.string.cloud_notice_title), Modifier.heightIn(max = maximumHeight).testTag("cloud-notice"), buttons = {
+            if (connecting) TextButton(onCancel, Modifier.testTag("cloud-notice-cancel")) { Text(stringResource(R.string.backup_cancel)) }
+            TextButton(onAccept, Modifier.testTag("cloud-notice-accept")) {
+                Text(stringResource(if (connecting) R.string.cloud_notice_connect else R.string.cloud_notice_done))
+            }
+        }) {
             // Only the text scrolls: on a short screen or with large fonts the title and the buttons stay in view.
-            Column(Modifier.heightIn(max = maximumHeight).padding(22.dp).testTag("cloud-notice"),
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.cloud_notice_title), style = MaterialTheme.typography.titleLarge)
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    listOf(R.string.cloud_notice_what, R.string.cloud_notice_where, R.string.cloud_notice_pictures,
-                        R.string.cloud_notice_keep, R.string.cloud_notice_disconnect)
-                        .forEach { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
-                }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    if (connecting) TextButton(onCancel, Modifier.testTag("cloud-notice-cancel")) { Text(stringResource(R.string.backup_cancel)) }
-                    TextButton(onAccept, Modifier.testTag("cloud-notice-accept")) {
-                        Text(stringResource(if (connecting) R.string.cloud_notice_connect else R.string.cloud_notice_done))
-                    }
-                }
+                listOf(R.string.cloud_notice_what, R.string.cloud_notice_where, R.string.cloud_notice_pictures,
+                    R.string.cloud_notice_keep, R.string.cloud_notice_disconnect)
+                    .forEach { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
             }
         }
     }
@@ -58,22 +53,20 @@ internal const val FOREGROUND_REMINDER_ABOVE = 20
     onContinue: (dontRemind: Boolean) -> Unit) {
     var skip by remember { mutableStateOf(false) }
     AnimatedGlassDialog(true, onCancel) {
-        GlassCard {
-            Column(Modifier.padding(22.dp).testTag("cloud-foreground-reminder"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.cloud_foreground_title), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(if (fetching) R.string.cloud_foreground_fetch else R.string.cloud_foreground_upload, count),
-                    style = MaterialTheme.typography.bodyMedium)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onCancel, Modifier.testTag("cloud-foreground-cancel")) { Text(stringResource(R.string.backup_cancel)) }
-                    Spacer(Modifier.weight(1f))
-                    Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(skip, onValueChange = { skip = it })
-                        .testTag("cloud-foreground-skip"), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(skip, null)
-                        Text(stringResource(R.string.cloud_foreground_skip), style = MaterialTheme.typography.labelMedium)
-                    }
-                    TextButton({ onContinue(skip) }, Modifier.testTag("cloud-foreground-continue")) {
-                        Text(stringResource(R.string.cloud_foreground_continue))
-                    }
+        DialogCard(stringResource(R.string.cloud_foreground_title), Modifier.testTag("cloud-foreground-reminder")) {
+            Text(stringResource(if (fetching) R.string.cloud_foreground_fetch else R.string.cloud_foreground_upload, count),
+                style = MaterialTheme.typography.bodyMedium)
+            // Cancel sits at the start, apart from "Don't remind me" and Continue.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onCancel, Modifier.testTag("cloud-foreground-cancel")) { Text(stringResource(R.string.backup_cancel)) }
+                Spacer(Modifier.weight(1f))
+                Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(skip, onValueChange = { skip = it })
+                    .testTag("cloud-foreground-skip"), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(skip, null)
+                    Text(stringResource(R.string.cloud_foreground_skip), style = MaterialTheme.typography.labelMedium)
+                }
+                TextButton({ onContinue(skip) }, Modifier.testTag("cloud-foreground-continue")) {
+                    Text(stringResource(R.string.cloud_foreground_continue))
                 }
             }
         }
@@ -83,15 +76,13 @@ internal const val FOREGROUND_REMINDER_ABOVE = 20
 /** Disconnecting while pictures are only in OneDrive: they could not be fetched from the app afterwards. */
 @Composable internal fun DisconnectPicturesDialog(count: Int, onFetch: () -> Unit, onDisconnect: () -> Unit, onCancel: () -> Unit) {
     AnimatedGlassDialog(true, onCancel) {
-        GlassCard {
-            Column(Modifier.padding(22.dp).testTag("cloud-disconnect-pictures"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.cloud_disconnect_title), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.cloud_disconnect_pictures, count), style = MaterialTheme.typography.bodyMedium)
-                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-                    TextButton(onFetch, Modifier.testTag("cloud-disconnect-fetch")) { Text(stringResource(R.string.cloud_disconnect_fetch_first)) }
-                    TextButton(onDisconnect, Modifier.testTag("cloud-disconnect-anyway")) { Text(stringResource(R.string.cloud_disconnect_anyway)) }
-                    TextButton(onCancel) { Text(stringResource(R.string.backup_cancel)) }
-                }
+        DialogCard(stringResource(R.string.cloud_disconnect_title), Modifier.testTag("cloud-disconnect-pictures")) {
+            Text(stringResource(R.string.cloud_disconnect_pictures, count), style = MaterialTheme.typography.bodyMedium)
+            // Three long choices: stacked at the end rather than in one row.
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+                TextButton(onFetch, Modifier.testTag("cloud-disconnect-fetch")) { Text(stringResource(R.string.cloud_disconnect_fetch_first)) }
+                TextButton(onDisconnect, Modifier.testTag("cloud-disconnect-anyway")) { Text(stringResource(R.string.cloud_disconnect_anyway)) }
+                TextButton(onCancel) { Text(stringResource(R.string.backup_cancel)) }
             }
         }
     }

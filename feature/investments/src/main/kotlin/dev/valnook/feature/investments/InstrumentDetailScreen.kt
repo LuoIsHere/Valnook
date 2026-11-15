@@ -104,11 +104,11 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
             item("summary") { HoldingSummary(instrument, ready.totals) }
             item("actions") {
                 Row(Modifier.fillMaxWidth().padding(top = Space.md), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ActionButton(::buy, Modifier.weight(1f).testTag("instrument-buy"), enabled = ready.accounts.isNotEmpty()) {
+                    SecondaryButton(::buy, Modifier.weight(1f).testTag("instrument-buy"), enabled = ready.accounts.isNotEmpty()) {
                         Text(stringResource(R.string.investment_buy)) }
-                    ActionButton(::sell, Modifier.weight(1f).testTag("instrument-sell"), enabled = held.isNotEmpty()) {
+                    SecondaryButton(::sell, Modifier.weight(1f).testTag("instrument-sell"), enabled = held.isNotEmpty()) {
                         Text(stringResource(R.string.investment_sell)) }
-                    ActionButton(::dividend, Modifier.weight(1f).testTag("instrument-dividend"), enabled = ready.holdings.isNotEmpty()) {
+                    SecondaryButton(::dividend, Modifier.weight(1f).testTag("instrument-dividend"), enabled = ready.holdings.isNotEmpty()) {
                         Text(stringResource(R.string.investment_dividend), maxLines = 1) }
                 }
             }
@@ -162,7 +162,7 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
         MaterialTheme.colorScheme.onSurface, onTitleReserve,
         Modifier.testTag("instrument-header"), Modifier.testTag("instrument-price"),
         trailing = {
-            ActionButton(onPrice, Modifier.heightIn(min = 36.dp).testTag("instrument-price-update")) {
+            SecondaryButton(onPrice, Modifier.heightIn(min = 36.dp).testTag("instrument-price-update")) {
                 Text(stringResource(R.string.instrument_price_update_action), maxLines = 1) }
         },
         below = { fading ->
@@ -388,10 +388,18 @@ private fun dayLabel(date: LocalDate, locale: java.util.Locale): String =
     val working = submission.phase == SubmissionPhase.WORKING
     LaunchedEffect(submission.phase) { if (submission.phase == SubmissionPhase.SUCCEEDED) onDismiss() }
     AnimatedGlassDialog(true, onDismiss) {
-        GlassCard(Modifier.testTag("instrument-price-dialog")) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.instrument_price_update_action), Modifier.semantics { heading() },
-                    style = MaterialTheme.typography.titleLarge)
+        DialogCard(Modifier.testTag("instrument-price-dialog"), title = {
+            Text(stringResource(R.string.instrument_price_update_action), Modifier.semantics { heading() })
+        }, buttons = {
+            TextButton(onDismiss, Modifier.testTag("instrument-price-cancel"), enabled = !working) {
+                Text(stringResource(dev.valnook.core.designsystem.R.string.cancel)) }
+            PrimaryButton(onSave, Modifier.testTag("instrument-price-save"), enabled = !working) {
+                if (working) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                else Text(stringResource(dev.valnook.core.designsystem.R.string.save))
+            }
+        }) {
+            // Only the body scrolls; the title and the buttons stay in view.
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(listOf(instrument.name, instrument.symbol, instrument.currency.code).filter { it.isNotBlank() }.joinToString(" · "),
                         style = MaterialTheme.typography.bodyMedium)
@@ -406,15 +414,6 @@ private fun dayLabel(date: LocalDate, locale: java.util.Locale): String =
                 ErrorMessage(submission.error?.name)
                 if (submission.phase == SubmissionPhase.UNKNOWN) Text(stringResource(R.string.investment_unknown_result),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onDismiss, Modifier.testTag("instrument-price-cancel"), enabled = !working) {
-                        Text(stringResource(dev.valnook.core.designsystem.R.string.cancel)) }
-                    Button(onSave, Modifier.testTag("instrument-price-save"), enabled = !working) {
-                        if (working) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else Text(stringResource(dev.valnook.core.designsystem.R.string.save))
-                    }
-                }
             }
         }
     }

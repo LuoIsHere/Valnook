@@ -249,7 +249,7 @@ data class TypeEditToolbarState(val busy: Boolean, val canSave: Boolean, val sav
         ErrorMessage(submission.error?.name)
         ErrorMessage(deletion.error?.name)
     }
-    if (confirming) AlertDialog(onDismissRequest = { confirming = false },
+    if (confirming) ValnookDialog(onDismissRequest = { confirming = false },
         title = { Text(stringResource(R.string.instrument_type_delete)) },
         text = { Text(if (count == 0) stringResource(R.string.instrument_type_delete_empty, name)
             else pluralStringResource(R.plurals.instrument_type_delete_message, count, name, count)) },

@@ -38,23 +38,23 @@ import java.time.*
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         if(rows.isEmpty())item{EmptyState(stringResource(R.string.empty_cash))}
         if(credit.isNotEmpty())item(key="credit") {
-            CashSection(stringResource(CashR.string.cash_section_credit),Modifier.testTag("cash-section-credit")) {
+            FormSection(stringResource(CashR.string.cash_section_credit),Modifier.testTag("cash-section-credit")) {
                 credit.forEachIndexed { index,cash ->
-                    if(index>0)CashRowDivider()
+                    if(index>0)FormDivider(inset = 0.dp)
                     CreditAccountRow(cash,allAccounts,creditSourceLabels,trends[cash.id].orEmpty(),creditExpansion){on_open(cash)}
                 }
             }
         }
         if(savings.isNotEmpty())item(key="savings") {
-            CashSection(stringResource(CashR.string.cash_section_savings),Modifier.testTag("cash-section-savings")) {
+            FormSection(stringResource(CashR.string.cash_section_savings),Modifier.testTag("cash-section-savings")) {
                 savings.forEachIndexed { index,cash ->
-                    if(index>0)CashRowDivider()
+                    if(index>0)FormDivider(inset = 0.dp)
                     SavingsAccountRow(cash,trends[cash.id].orEmpty()){on_open(cash)}
                 }
             }
         }
         if(accountNote.isNotBlank())item(key="info") {
-            CashSection(stringResource(CashR.string.cash_section_info),Modifier.testTag("cash-section-info")) {
+            FormSection(stringResource(CashR.string.cash_section_info),Modifier.testTag("cash-section-info")) {
                 Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(CashR.string.cash_note_label),style=MaterialTheme.typography.bodySmall,
                         color=MaterialTheme.colorScheme.onSurfaceVariant)

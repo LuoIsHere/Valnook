@@ -38,8 +38,8 @@ import java.util.UUID
         finally { ticket?.let { withContext(NonCancellable) { runCatching { commands.cancelAccountDeletion(it) } } } }
     } }
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (!busy) onDismiss() }
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() },
-        title = { PopupBlurEffect(); Text(stringResource(R.string.account_delete_title)) },
+    ValnookDialog(onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text(stringResource(R.string.account_delete_title)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val p = preview

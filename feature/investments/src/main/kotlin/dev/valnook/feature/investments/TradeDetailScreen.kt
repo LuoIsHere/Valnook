@@ -19,11 +19,11 @@ import java.time.ZoneId
     on_edit:(Investment,Trade)->Unit,on_delete:(Investment,Trade)->Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when(val current=state) {
-        TradeDetailState.Loading->Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
+        TradeDetailState.Loading->PageLoading()
         TradeDetailState.Missing->Box(Modifier.padding(Space.lg)){EmptyState(stringResource(R.string.trade_unavailable))}
         TradeDetailState.Failed->Column(Modifier.padding(Space.lg),verticalArrangement=Arrangement.spacedBy(Space.md)) {
             Text(stringResource(R.string.record_load_error))
-            ActionButton(onClick=vm::retry){Text(stringResource(R.string.retry_load))}
+            SecondaryButton(onClick=vm::retry){Text(stringResource(R.string.retry_load))}
         }
         is TradeDetailState.Ready->TradeDetailContent(current.asset,current.trade,account_name,
             {on_edit(current.asset,current.trade)},{on_delete(current.asset,current.trade)})
@@ -43,8 +43,8 @@ import java.time.ZoneId
             stringResource(R.string.record_date) to time.toLocalDate().toString(),
             stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
         RecordDetailLayout(stringResource(R.string.dividend_detail_title),dividendRows) {
-            ActionButton(onClick=on_edit,modifier=Modifier.fillMaxWidth().testTag("dividend-edit")){Text(stringResource(R.string.edit_dividend))}
-            ActionButton(onClick=on_delete,modifier=Modifier.fillMaxWidth().testTag("dividend-delete"),destructive=true){Text(stringResource(R.string.delete_dividend))}
+            SecondaryButton(onClick=on_edit,modifier=Modifier.fillMaxWidth().testTag("dividend-edit")){Text(stringResource(R.string.edit_dividend))}
+            DangerButton(onClick=on_delete,modifier=Modifier.fillMaxWidth().testTag("dividend-delete")){Text(stringResource(R.string.delete_dividend))}
         }
         return
     }
@@ -61,7 +61,7 @@ import java.time.ZoneId
         stringResource(R.string.trade_time) to time.format(rememberClockFormatter()),
         stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
     RecordDetailLayout(stringResource(R.string.trade_detail_title),rows) {
-        ActionButton(onClick=on_edit,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.edit_trade))}
-        ActionButton(onClick=on_delete,modifier=Modifier.fillMaxWidth(),destructive=true){Text(stringResource(R.string.delete_trade))}
+        SecondaryButton(onClick=on_edit,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.edit_trade))}
+        DangerButton(onClick=on_delete,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.delete_trade))}
     }
 }

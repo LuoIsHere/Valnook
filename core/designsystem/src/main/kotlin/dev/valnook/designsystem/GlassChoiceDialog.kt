@@ -24,33 +24,21 @@ fun <T> GlassChoiceDialog(visible: Boolean, title: String, choices: List<T>, sel
     tag: String, optionTag: (T) -> String, busy: Boolean = false, error: String? = null,
     supporting: @Composable (T) -> Unit = {}) {
     AnimatedGlassDialog(visible, { if (!busy) onDismiss() }) {
-        GlassCard(Modifier.testTag(tag), prominent = true) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(Space.cardInset),
-                verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Column(Modifier.selectableGroup()) {
-                    choices.forEach { choice ->
-                        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(optionTag(choice))
-                            .clip(RoundedCornerShape(12.dp))
-                            .selectable(choice == selected, enabled = visible && !busy, role = Role.RadioButton) {
-                                onSelect(choice)
-                            }.padding(horizontal = Space.sm, vertical = Space.sm),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                            Column(Modifier.weight(1f)) {
-                                Text(label(choice), style = MaterialTheme.typography.bodyLarge)
-                                supporting(choice)
-                            }
-                            RadioButton(choice == selected, onClick = null, enabled = !busy)
-                        }
+        DialogCard(title, Modifier.testTag(tag), buttons = {
+            TextButton(onDismiss, enabled = !busy) { Text(stringResource(R.string.cancel)) }
+        }) {
+            // Only the choices scroll; the title and Cancel stay in view.
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).selectableGroup()) {
+                choices.forEach { choice ->
+                    Column {
+                        RadioRow(label(choice), choice == selected, { onSelect(choice) },
+                            Modifier.testTag(optionTag(choice)), enabled = visible && !busy)
+                        Box(Modifier.padding(start = 56.dp)) { supporting(choice) }
                     }
                 }
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                error?.let { HintMessage(it, isError = true) }
-                TextButton(onDismiss, Modifier.align(Alignment.End), enabled = !busy) {
-                    Text(stringResource(R.string.cancel))
-                }
             }
+            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+            error?.let { HintMessage(it, isError = true) }
         }
     }
 }

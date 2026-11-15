@@ -69,7 +69,7 @@ fun AiSettingsScreen(vm: AiSettingsViewModel, onPrompt: () -> Unit, onDirtyChang
         onFillHandled()
         if (vm.exampleReplaces()) replacing = true else fill()
     }
-    if (replacing) AlertDialog({ replacing = false }, modifier = Modifier.testTag("ai-guide-replace"),
+    if (replacing) ValnookDialog({ replacing = false }, modifier = Modifier.testTag("ai-guide-replace"),
         title = { Text(stringResource(R.string.ai_guide_replace_title)) },
         text = { Text(stringResource(R.string.ai_guide_replace_body)) },
         confirmButton = { TextButton({ replacing = false; fill() }, Modifier.testTag("ai-guide-replace-confirm")) {
@@ -102,19 +102,6 @@ fun AiSettingsScreen(vm: AiSettingsViewModel, onPrompt: () -> Unit, onDirtyChang
     }
 }
 
-@Composable
-private fun SwitchRow(title: String, summary: String?, checked: Boolean, enabled: Boolean, tag: String, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable(enabled = enabled, role = Role.Switch) { onChange(!checked) }
-        .padding(vertical = Space.xs), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).padding(end = Space.sm)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge,
-                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
-            summary?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-        Switch(checked, onChange, enabled = enabled, modifier = Modifier.testTag(tag))
-    }
-}
-
 /**
  * The master switch: off by default, and only on once the required checks passed. Turning it on shows the notice,
  * worded like the privacy policy, every time until "Don't show again", as the rates and card details notices do.
@@ -124,10 +111,10 @@ private fun EnableCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
     val context = LocalContext.current
     var notice by remember { mutableStateOf(false) }
     Section(stringResource(R.string.ai_section_enable)) {
-        SwitchRow(stringResource(R.string.ai_enable), if (ui.canEnable) null else stringResource(R.string.ai_enable_needs_checks),
-            ui.settings.enabled && ui.canEnable, ui.canEnable || ui.settings.enabled, "ai-enable") { on ->
+        SwitchRow(stringResource(R.string.ai_enable), ui.settings.enabled && ui.canEnable, { on ->
             if (on && !AiNotices.seen(context, AiNotices.ENABLE)) notice = true else vm.setEnabled(on)
-        }
+        }, Modifier.testTag("ai-enable"), summary = if (ui.canEnable) null else stringResource(R.string.ai_enable_needs_checks), enabled = ui.canEnable || ui.settings.enabled,
+            contentPadding = PaddingValues(vertical = Space.xs))
     }
     if (notice) AiEnableNotice({ notice = false }) { skip ->
         if (skip) AiNotices.mark(context, AiNotices.ENABLE)
@@ -153,15 +140,15 @@ fun AiEnableNotice(onCancel: () -> Unit, onAccept: (dontShowAgain: Boolean) -> U
 private fun FeaturesCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
     val s = ui.settings
     Section(stringResource(R.string.ai_section_features)) {
-        SwitchRow(stringResource(R.string.ai_feature_bill_chat), stringResource(R.string.ai_feature_bill_chat_summary),
-            s.billChat, true, "ai-feature-bill-chat") { on -> vm.setFeatures { it.copy(billChat = on) } }
-        SwitchRow(stringResource(R.string.ai_feature_thinking), stringResource(if (ui.thinkingPassed)
-            R.string.ai_feature_thinking_summary else R.string.ai_feature_thinking_unavailable),
-            s.thinking && ui.thinkingPassed, ui.thinkingPassed, "ai-feature-thinking") { on -> vm.setFeatures { it.copy(thinking = on) } }
-        SwitchRow(stringResource(R.string.ai_feature_chat), stringResource(R.string.ai_feature_chat_summary),
-            s.chat, true, "ai-feature-chat") { on -> vm.setFeatures { it.copy(chat = on) } }
-        SwitchRow(stringResource(R.string.ai_feature_habits), stringResource(R.string.ai_feature_habits_summary),
-            s.sendHabits, true, "ai-feature-habits") { on -> vm.setFeatures { it.copy(sendHabits = on) } }
+        SwitchRow(stringResource(R.string.ai_feature_bill_chat), s.billChat, { on -> vm.setFeatures { it.copy(billChat = on) } }, Modifier.testTag("ai-feature-bill-chat"), summary = stringResource(R.string.ai_feature_bill_chat_summary), enabled = true,
+            contentPadding = PaddingValues(vertical = Space.xs))
+        SwitchRow(stringResource(R.string.ai_feature_thinking), s.thinking && ui.thinkingPassed, { on -> vm.setFeatures { it.copy(thinking = on) } }, Modifier.testTag("ai-feature-thinking"), summary = stringResource(if (ui.thinkingPassed)
+            R.string.ai_feature_thinking_summary else R.string.ai_feature_thinking_unavailable), enabled = ui.thinkingPassed,
+            contentPadding = PaddingValues(vertical = Space.xs))
+        SwitchRow(stringResource(R.string.ai_feature_chat), s.chat, { on -> vm.setFeatures { it.copy(chat = on) } }, Modifier.testTag("ai-feature-chat"), summary = stringResource(R.string.ai_feature_chat_summary), enabled = true,
+            contentPadding = PaddingValues(vertical = Space.xs))
+        SwitchRow(stringResource(R.string.ai_feature_habits), s.sendHabits, { on -> vm.setFeatures { it.copy(sendHabits = on) } }, Modifier.testTag("ai-feature-habits"), summary = stringResource(R.string.ai_feature_habits_summary), enabled = true,
+            contentPadding = PaddingValues(vertical = Space.xs))
     }
 }
 
@@ -180,7 +167,7 @@ private fun DataCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
         DangerButton(stringResource(R.string.ai_clear_conversations), { confirm = true },
             Modifier.fillMaxWidth().testTag("ai-clear-conversations"))
     }
-    if (confirm) AlertDialog({ confirm = false },
+    if (confirm) ValnookDialog({ confirm = false },
         confirmButton = { ValnookTextButton(stringResource(R.string.ai_clear), { confirm = false; vm.clearConversations() },
             Modifier.testTag("ai-clear-confirm"), danger = true) },
         dismissButton = { TextButton({ confirm = false }) { Text(stringResource(R.string.ai_chat_cancel)) } },

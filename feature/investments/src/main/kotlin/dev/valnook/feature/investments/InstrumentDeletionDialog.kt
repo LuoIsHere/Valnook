@@ -44,8 +44,8 @@ import java.util.UUID
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { if (!busy) onDismiss() }
     val p = preview
     val ready = !busy && p != null && (!p.needsCode || input == p.code)
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() },
-        title = { PopupBlurEffect(); Text(stringResource(R.string.instrument_delete)) },
+    ValnookDialog(onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text(stringResource(R.string.instrument_delete)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()).testTag("instrument-delete-dialog"),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {

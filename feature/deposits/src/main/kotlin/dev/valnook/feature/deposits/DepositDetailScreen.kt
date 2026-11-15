@@ -33,11 +33,11 @@ import java.time.LocalDate
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME){vm.refresh_today()}
     LaunchedEffect(Unit){while(true){delay(30000);vm.refresh_today()}}
     when(val current=state) {
-        DepositDetailState.Loading->Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
+        DepositDetailState.Loading->PageLoading()
         DepositDetailState.Missing->Box(Modifier.padding(Space.lg)){EmptyState(stringResource(R.string.deposit_unavailable))}
         DepositDetailState.Failed->Column(Modifier.padding(Space.lg),verticalArrangement=Arrangement.spacedBy(Space.md)) {
             Text(stringResource(R.string.record_load_error))
-            ActionButton(onClick=vm::retry){Text(stringResource(R.string.retry_load))}
+            SecondaryButton(onClick=vm::retry){Text(stringResource(R.string.retry_load))}
         }
         is DepositDetailState.Ready->DepositDetailContent(current.deposit,today,account_name,
             {on_edit(current.deposit)},{on_close(current.deposit)})
@@ -103,8 +103,8 @@ import java.time.LocalDate
         item(key="actions") {
             Column(Modifier.fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(Space.sm)) {
                 if(!deposit.closed&&today>=deposit.end_epoch_day)
-                    Button(onClick=on_close,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text(stringResource(R.string.close_deposit))}
-                ActionButton(onClick=on_edit,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text(stringResource(R.string.edit_deposit))}
+                    PrimaryButton(onClick=on_close,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text(stringResource(R.string.close_deposit))}
+                SecondaryButton(onClick=on_edit,modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)){Text(stringResource(R.string.edit_deposit))}
             }
         }
     }

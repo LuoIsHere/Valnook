@@ -1,5 +1,8 @@
 package dev.valnook.feature.settings
 
+import androidx.compose.foundation.layout.PaddingValues
+import dev.valnook.designsystem.SwitchRow
+import dev.valnook.designsystem.DangerButton
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -15,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -60,7 +62,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import dev.valnook.designsystem.ActionButton
 import dev.valnook.designsystem.GlassCard
 import dev.valnook.designsystem.ChoiceField
 import dev.valnook.designsystem.CurrencyChoice
@@ -203,21 +204,13 @@ fun SettingsHome(
             }
         }
         item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = Space.md, vertical = Space.sm),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween) {
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.settings_demo_mode), style = MaterialTheme.typography.titleMedium)
-                    Text(stringResource(R.string.settings_demo_summary), style = MaterialTheme.typography.bodySmall)
-                    if (switching) Text(stringResource(R.string.settings_demo_loading),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary)
-                    if (switchFailed) Text(stringResource(R.string.settings_demo_failed),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error)
-                }
-                Switch(demoMode, { onDemoChange(it) }, enabled = !switching,
-                    modifier = Modifier.testTag("settings-demo-switch"))
+            SwitchRow(stringResource(R.string.settings_demo_mode), demoMode, { onDemoChange(it) },
+                Modifier.testTag("settings-demo-switch"), summary = stringResource(R.string.settings_demo_summary),
+                enabled = !switching, contentPadding = PaddingValues(horizontal = Space.md, vertical = Space.sm)) {
+                if (switching) Text(stringResource(R.string.settings_demo_loading),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                if (switchFailed) Text(stringResource(R.string.settings_demo_failed),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
         }
         item {
@@ -324,19 +317,9 @@ private fun AutomaticRates(state: SettingsUiState, vm: SettingsViewModel) {
     val locale = LocalConfiguration.current.locales[0]
     Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         GlassCard {
-            // The whole line toggles, as on the account edit page.
-            Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag("fx-auto-switch")
-                .toggleable(fx.autoEnabled, enabled = fx.available && !state.busy, role = Role.Switch,
-                    onValueChange = vm::requestAutomatic)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f).padding(end = Space.md), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(stringResource(R.string.settings_fx_auto), style = MaterialTheme.typography.bodyLarge)
-                    Text(stringResource(if (fx.available) R.string.settings_fx_auto_summary else R.string.settings_fx_demo),
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Switch(fx.autoEnabled, onCheckedChange = null, enabled = fx.available && !state.busy)
-            }
+            SwitchRow(stringResource(R.string.settings_fx_auto), fx.autoEnabled, vm::requestAutomatic,
+                Modifier.testTag("fx-auto-switch"), enabled = fx.available && !state.busy,
+                summary = stringResource(if (fx.available) R.string.settings_fx_auto_summary else R.string.settings_fx_demo))
             if (state.automatic) {
                 FormDivider()
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp)
@@ -438,7 +421,7 @@ fun ClearDataScreen(
             Modifier.fillMaxWidth(), enabled = !busy, keyboardType = KeyboardType.Number) }
         if (failed) item { Text(stringResource(R.string.settings_clear_failed), color = MaterialTheme.colorScheme.error) }
         item {
-            Button(onClick = {
+            DangerButton(onClick = {
                 busy = true
                 failed = false
                 scope.launch {

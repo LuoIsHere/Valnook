@@ -146,7 +146,7 @@ private fun GroupNameDialog(title: String, initial: String, confirmLabel: String
     onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var name by remember { mutableStateOf(initial) }
     val valid = runCatching { AccountGroupRules.name(name) }.isSuccess
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
+    ValnookDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = {
             GlassTextField(name, { name = it }, stringResource(R.string.account_group_name),
                 Modifier.fillMaxWidth().testTag("account-group-name"))
@@ -161,7 +161,7 @@ private fun GroupNameDialog(title: String, initial: String, confirmLabel: String
 
 @Composable
 private fun DeleteGroupDialog(section: GroupedAccounts, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.account_group_delete_title)) },
+    ValnookDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.account_group_delete_title)) },
         text = { Text(pluralStringResource(R.plurals.account_group_delete_message, section.items.size,
             section.group.name, section.items.size)) },
         confirmButton = {
@@ -178,7 +178,7 @@ private fun AddAccountsDialog(target: AccountGroup, sections: List<GroupedAccoun
     onDismiss: () -> Unit, onConfirm: (List<Long>) -> Unit) {
     val candidates = sections.filter { it.group.id != target.id }.flatMap { section -> section.items.map { it to section.group } }
     var selected by remember { mutableStateOf(emptyList<Long>()) }
-    AlertDialog(onDismissRequest = onDismiss,
+    ValnookDialog(onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.account_group_add_title, accountGroupName(target))) },
         text = {
             if (candidates.isEmpty()) Text(stringResource(R.string.account_group_add_empty))
@@ -201,7 +201,7 @@ private fun AddAccountsDialog(target: AccountGroup, sections: List<GroupedAccoun
 @Composable
 private fun SortGroupsDialog(sections: List<GroupedAccounts>, enabled: Boolean,
     onReorder: (List<Long>) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.account_group_sort)) },
+    ValnookDialog(onDismissRequest = onDismiss, title = { Text(stringResource(R.string.account_group_sort)) },
         text = {
             ReorderList(sections.map { ReorderItem(it.group.id.toString(), accountGroupName(it.group)) },
                 { keys -> onReorder(keys.map(String::toLong)) },

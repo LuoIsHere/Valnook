@@ -105,7 +105,11 @@ class UiFlowTest {
     private fun localized(resourceId: Int, vararg args: Any): String = rule.activity.getString(resourceId, *args)
     private fun save(label:String="保存"){
         finish_input()
-        rule.onNodeWithText(label).performScrollTo().assertIsDisplayed().performClick()
+        // A dialog keeps its buttons in view outside the scrolling part; only a page form has to scroll to them.
+        val button = rule.onNodeWithText(label)
+        if (button.fetchSemanticsNode().let { node -> generateSequence(node.parent) { it.parent }
+                .any { androidx.compose.ui.semantics.SemanticsActions.ScrollBy in it.config } }) button.performScrollTo()
+        button.assertIsDisplayed().performClick()
     }
     /** The instrument editor is named in the title bar and saves from there. */
     private fun wait_instrument_editor(){

@@ -1,5 +1,7 @@
 package dev.valnook.feature.settings
 
+import dev.valnook.designsystem.RadioRow
+import dev.valnook.designsystem.SwitchRow
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
@@ -53,23 +55,20 @@ fun QuickEntrySettingsScreen(settings: QuickEntrySettings, aiChat: Boolean, onLa
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item {
             GlassCard {
-                SwitchLine(stringResource(R.string.quick_launch), stringResource(R.string.quick_launch_summary),
-                    settings.launch, "quick-launch", onLaunch)
+                SwitchRow(stringResource(R.string.quick_launch), settings.launch, onLaunch, Modifier.testTag("quick-launch"), summary = stringResource(R.string.quick_launch_summary))
                 if (settings.launch) {
                     HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
-                    TargetLine(stringResource(R.string.quick_target_manual), null, settings.target == QuickLaunchTarget.MANUAL,
-                        true, "quick-target-manual") { onTarget(QuickLaunchTarget.MANUAL) }
-                    TargetLine(stringResource(R.string.quick_target_ai),
-                        if (aiChat) null else stringResource(R.string.quick_target_ai_unavailable),
-                        settings.target == QuickLaunchTarget.AI, aiChat, "quick-target-ai") { onTarget(QuickLaunchTarget.AI) }
+                    RadioRow(stringResource(R.string.quick_target_manual), settings.target == QuickLaunchTarget.MANUAL, { onTarget(QuickLaunchTarget.MANUAL) }, Modifier.testTag("quick-target-manual"), summary = null, enabled = true,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp))
+                    RadioRow(stringResource(R.string.quick_target_ai), settings.target == QuickLaunchTarget.AI, { onTarget(QuickLaunchTarget.AI) }, Modifier.testTag("quick-target-ai"), summary = if (aiChat) null else stringResource(R.string.quick_target_ai_unavailable), enabled = aiChat,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp))
                 }
             }
         }
         item { Note(stringResource(R.string.quick_launch_shortcuts), "quick-launch-shortcuts") }
         item {
             GlassCard {
-                SwitchLine(stringResource(R.string.quick_share), stringResource(R.string.quick_share_summary),
-                    settings.share, "quick-share", onShare)
+                SwitchRow(stringResource(R.string.quick_share), settings.share, onShare, Modifier.testTag("quick-share"), summary = stringResource(R.string.quick_share_summary))
             }
         }
         item { Note(stringResource(R.string.quick_share_note), "quick-share-note") }
@@ -83,30 +82,3 @@ private fun Note(text: String, tag: String) {
         style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
-/** A line that toggles as a whole, as on the exchange rate page. */
-@Composable
-private fun SwitchLine(title: String, summary: String, checked: Boolean, tag: String, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).testTag(tag)
-        .toggleable(checked, role = Role.Switch, onValueChange = onChange)
-        .padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).padding(end = Space.md), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(summary, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Switch(checked, onCheckedChange = null)
-    }
-}
-
-@Composable
-private fun TargetLine(title: String, summary: String?, selected: Boolean, enabled: Boolean, tag: String, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag(tag)
-        .selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onClick)
-        .padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected, onClick = null, enabled = enabled)
-        Column(Modifier.weight(1f).padding(start = Space.sm), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge,
-                color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f))
-            summary?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-    }
-}

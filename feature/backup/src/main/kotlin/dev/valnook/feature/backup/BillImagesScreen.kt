@@ -105,11 +105,9 @@ internal fun sizeText(bytes: Long): String = if ((bytes + 1023) / 1024 < 1000) "
         item {
             GlassCard {
                 Column(Modifier.fillMaxWidth().padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.bill_images_auto_clean), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                        Switch(state.autoCleanMonths != null, { on -> vm.setAutoClean(if (on) 3 else null) },
-                            Modifier.testTag("bill-images-auto-clean"), enabled = state.connected || state.autoCleanMonths != null)
-                    }
+                    SwitchRow(stringResource(R.string.bill_images_auto_clean), state.autoCleanMonths != null,
+                        { on -> vm.setAutoClean(if (on) 3 else null) }, Modifier.testTag("bill-images-auto-clean"),
+                        enabled = state.connected || state.autoCleanMonths != null, contentPadding = PaddingValues(0.dp))
                     Text(stringResource(if (state.connected) R.string.bill_images_auto_clean_hint else R.string.bill_images_auto_clean_needs_cloud),
                         style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
                     if (state.autoCleanMonths != null) Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -122,12 +120,12 @@ internal fun sizeText(bytes: Long): String = if ((bytes + 1023) / 1024 < 1000) "
             }
         }
         item {
-            Button({ clearing = true }, Modifier.fillMaxWidth().testTag("bill-images-clear"), enabled = !state.busy && usage.onDevice > 0) {
+            DangerButton({ clearing = true }, Modifier.fillMaxWidth().testTag("bill-images-clear"), enabled = !state.busy && usage.onDevice > 0) {
                 Text(stringResource(R.string.bill_images_clear))
             }
         }
         if (state.connected && usage.onlyInCloud > 0) item {
-            Button({
+            PrimaryButton({
                 if (usage.onlyInCloud > FOREGROUND_REMINDER_ABOVE && !prompts.getBoolean("foreground_reminder_off", false)) reminding = true
                 else vm.fetchAll()
             }, Modifier.fillMaxWidth().testTag("bill-images-fetch-all"), enabled = !state.busy && state.cloud.fetching == null) {
@@ -166,38 +164,31 @@ internal fun sizeText(bytes: Long): String = if ((bytes + 1023) / 1024 < 1000) "
     var everywhere by rememberSaveable { mutableStateOf(false) }
     val forGood = everywhere || !connected
     AnimatedGlassDialog(true, onCancel) {
-        GlassCard {
-            Column(Modifier.padding(22.dp).testTag("bill-images-clear-dialog"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.bill_images_clear), style = MaterialTheme.typography.titleMedium)
-                Text(stringResource(R.string.bill_images_clear_range), style = MaterialTheme.typography.bodyMedium)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    BILL_IMAGE_CLEANUP_MONTHS.forEach { value ->
-                        FilterChip(months == value, { months = value }, { Text(stringResource(R.string.bill_images_older_than, value)) },
-                            Modifier.testTag("bill-images-clear-$value"))
-                    }
-                    FilterChip(months == null, { months = null }, { Text(stringResource(R.string.bill_images_all)) },
-                        Modifier.testTag("bill-images-clear-all"))
+        DialogCard(stringResource(R.string.bill_images_clear), Modifier.testTag("bill-images-clear-dialog"), buttons = {
+            TextButton(onCancel) { Text(stringResource(R.string.backup_cancel)) }
+            ValnookTextButton(stringResource(if (forGood) R.string.bill_images_delete else R.string.bill_images_clear_action),
+                { onConfirm(months, everywhere) }, Modifier.testTag("bill-images-clear-confirm"), danger = forGood)
+        }) {
+            Text(stringResource(R.string.bill_images_clear_range), style = MaterialTheme.typography.bodyMedium)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                BILL_IMAGE_CLEANUP_MONTHS.forEach { value ->
+                    FilterChip(months == value, { months = value }, { Text(stringResource(R.string.bill_images_older_than, value)) },
+                        Modifier.testTag("bill-images-clear-$value"))
                 }
-                if (connected) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).toggleable(everywhere, onValueChange = { everywhere = it })
-                    .testTag("bill-images-clear-everywhere"), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(everywhere, null)
-                    Text(stringResource(R.string.bill_images_also_cloud), style = MaterialTheme.typography.bodyMedium)
-                }
-                Text(stringResource(when {
-                    !connected -> R.string.bill_images_clear_no_cloud
-                    everywhere -> R.string.bill_images_clear_everywhere
-                    else -> R.string.bill_images_clear_device
-                }), style = MaterialTheme.typography.bodySmall,
-                    color = if (forGood) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onCancel) { Text(stringResource(R.string.backup_cancel)) }
-                    TextButton({ onConfirm(months, everywhere) }, Modifier.testTag("bill-images-clear-confirm"),
-                        colors = if (forGood) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                            else ButtonDefaults.textButtonColors()) {
-                        Text(stringResource(if (forGood) R.string.bill_images_delete else R.string.bill_images_clear_action))
-                    }
-                }
+                FilterChip(months == null, { months = null }, { Text(stringResource(R.string.bill_images_all)) },
+                    Modifier.testTag("bill-images-clear-all"))
             }
+            if (connected) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).toggleable(everywhere, onValueChange = { everywhere = it })
+                .testTag("bill-images-clear-everywhere"), verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(everywhere, null)
+                Text(stringResource(R.string.bill_images_also_cloud), style = MaterialTheme.typography.bodyMedium)
+            }
+            Text(stringResource(when {
+                !connected -> R.string.bill_images_clear_no_cloud
+                everywhere -> R.string.bill_images_clear_everywhere
+                else -> R.string.bill_images_clear_device
+            }), style = MaterialTheme.typography.bodySmall,
+                color = if (forGood) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }

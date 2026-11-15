@@ -1,5 +1,6 @@
 package dev.valnook.feature.bills
 
+import dev.valnook.designsystem.PrimaryButton
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
@@ -204,7 +205,7 @@ private object BillImageCache {
                         CloudImage(compact = false)
                     }
                     if (fetching) CircularProgressIndicator(color = Color.White)
-                    else Button({
+                    else PrimaryButton({
                         if (library != null) scope.launch {
                             fetching = true; failed = false
                             try { failed = !library.fetchAndShow(listOf(key)) } finally { fetching = false }

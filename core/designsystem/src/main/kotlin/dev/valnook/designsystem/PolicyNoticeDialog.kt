@@ -46,25 +46,22 @@ fun PolicyNoticeDialog(
     var skip by remember { mutableStateOf(false) }
     val maximumHeight = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.height.toDp() } * .8f
     AnimatedGlassDialog(true, onCancel, properties = properties) {
-        GlassCard {
-            Column(Modifier.heightIn(max = maximumHeight).padding(22.dp).testTag(tags.dialog),
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(title, style = MaterialTheme.typography.titleLarge)
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
-                    .then(tags.text?.let { Modifier.testTag(it) } ?: Modifier), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    paragraphs.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                    disclaimer?.let { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
+        DialogCard(title, Modifier.heightIn(max = maximumHeight).testTag(tags.dialog)) {
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+                .then(tags.text?.let { Modifier.testTag(it) } ?: Modifier), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                paragraphs.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                disclaimer?.let { Text(it, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold) }
+            }
+            // Cancel sits at the start, apart from "Don't show again" and the confirm button.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onCancel, tags.cancel?.let { Modifier.testTag(it) } ?: Modifier) { Text(cancelLabel) }
+                Spacer(Modifier.weight(1f))
+                if (skipLabel != null) Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(skip, onValueChange = { skip = it })
+                    .then(tags.skip?.let { Modifier.testTag(it) } ?: Modifier), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(skip, null)
+                    Text(skipLabel, style = MaterialTheme.typography.labelMedium)
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onCancel, tags.cancel?.let { Modifier.testTag(it) } ?: Modifier) { Text(cancelLabel) }
-                    Spacer(Modifier.weight(1f))
-                    if (skipLabel != null) Row(Modifier.clip(RoundedCornerShape(8.dp)).toggleable(skip, onValueChange = { skip = it })
-                        .then(tags.skip?.let { Modifier.testTag(it) } ?: Modifier), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(skip, null)
-                        Text(skipLabel, style = MaterialTheme.typography.labelMedium)
-                    }
-                    TextButton({ onConfirm(skip) }, tags.confirm?.let { Modifier.testTag(it) } ?: Modifier) { Text(confirmLabel) }
-                }
+                TextButton({ onConfirm(skip) }, tags.confirm?.let { Modifier.testTag(it) } ?: Modifier) { Text(confirmLabel) }
             }
         }
     }

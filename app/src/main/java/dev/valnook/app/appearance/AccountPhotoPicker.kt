@@ -65,12 +65,27 @@ internal fun AccountPhotoPicker(onImage: (ByteArray) -> Unit, content: @Composab
             runCatching { context.contentResolver.releasePersistableUriPermission(Uri.parse(uri), Intent.FLAG_GRANT_READ_URI_PERMISSION) }
             selectedUri = null
         }) {
-            GlassCard {
-                Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .85f).dp)
-                    .verticalScroll(rememberScrollState()).padding(16.dp),
+            val source = bitmap
+            DialogCard(stringResource(R.string.account_icon_adjust),
+                Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * .85f).dp), buttons = {
+                TextButton({ open = false }, enabled = !busy) { Text(stringResource(R.string.account_order_cancel)) }
+                PrimaryButton({
+                    if (!busy && source != null) scope.launch {
+                        busy = true; failed = false
+                        try {
+                            val bytes = withContext(Dispatchers.Default) { encodeAccountPhoto(source, fit, zoom, panX, panY) }
+                            onImage(bytes); open = false
+                        } catch (cancelled: CancellationException) { throw cancelled }
+                        catch (_: Exception) { failed = true }
+                        finally { busy = false }
+                    }
+                }, enabled = open && source != null && !busy, modifier = Modifier.testTag("account-photo-confirm")) {
+                    Text(stringResource(R.string.account_icon_use))
+                }
+            }) {
+                // The crop area and its controls scroll, centred; the title and the buttons stay in view.
+                Column(Modifier.fillMaxWidth().weight(1f, fill = false).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.account_icon_adjust), style = MaterialTheme.typography.titleLarge)
-                    val source = bitmap
                     if (source != null) {
                         Canvas(Modifier.size(220.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh)
                             .testTag("account-photo-crop").pointerInput(fit, busy) {
@@ -95,22 +110,6 @@ internal fun AccountPhotoPicker(onImage: (ByteArray) -> Unit, content: @Composab
                         Slider(zoom, { zoom = it }, valueRange = 1f..4f, enabled = !busy, modifier = Modifier.testTag("account-photo-zoom"))
                     } else if (!failed) CircularProgressIndicator()
                     if (failed) HintMessage(stringResource(R.string.account_icon_failed), isError = true)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton({ open = false }, enabled = !busy) { Text(stringResource(R.string.account_order_cancel)) }
-                        Button({
-                            if (!busy && source != null) scope.launch {
-                                busy = true; failed = false
-                                try {
-                                    val bytes = withContext(Dispatchers.Default) { encodeAccountPhoto(source, fit, zoom, panX, panY) }
-                                    onImage(bytes); open = false
-                                } catch (cancelled: CancellationException) { throw cancelled }
-                                catch (_: Exception) { failed = true }
-                                finally { busy = false }
-                            }
-                        }, enabled = open && source != null && !busy, modifier = Modifier.testTag("account-photo-confirm")) {
-                            Text(stringResource(R.string.account_icon_use))
-                        }
-                    }
                 }
             }
         }

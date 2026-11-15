@@ -58,9 +58,9 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
     contentPadding: PaddingValues = PaddingValues(0.dp),
     leadingContent: (@Composable (ReorderItem) -> Unit)? = null,
     headerContent: (@Composable (ReorderItem) -> Unit)? = null,
-    /** Rows on a card or sheet pass [Color.Transparent] to take its colour; unspecified is the page surface. */
-    rowColor: Color = Color.Unspecified,
-    /** The row being dragged; it needs its own colour so it reads over its neighbours. */
+    /** Rows take the colour of what holds them (a page, card, dialog or sheet) unless given one. */
+    rowColor: Color = Color.Transparent,
+    /** The row being dragged: lighter, rounded and raised, so it reads over its neighbours anywhere. */
     draggedColor: Color = Color.Unspecified,
     dividerInset: Dp = 0.dp) {
     val listState = rememberLazyListState()
@@ -153,9 +153,10 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                         val offset = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == key }?.offset ?: 0
                         translationY = if (dragging) startOffset + distance - offset else 0f
                     }.zIndex(if (dragging) 1f else 0f)) {
-                    Surface(color = if (dragging) draggedColor.takeOrElse { MaterialTheme.colorScheme.surfaceContainerHigh }
-                        else rowColor.takeOrElse { MaterialTheme.colorScheme.surface },
-                        shape = if (dragging) RoundedCornerShape(12.dp) else RectangleShape) {
+                    Surface(color = if (dragging) draggedColor.takeOrElse { MaterialTheme.colorScheme.surfaceContainerHighest }
+                        else rowColor.takeOrElse { Color.Transparent },
+                        shape = if (dragging) RoundedCornerShape(12.dp) else RectangleShape,
+                        shadowElevation = if (dragging) 6.dp else 0.dp) {
                         Row(Modifier.fillMaxWidth().testTag("sort-row-$key").padding(start = 12.dp),
                             verticalAlignment = Alignment.CenterVertically) {
                             if (leadingContent != null) { leadingContent(item); Spacer(Modifier.width(8.dp)) }
@@ -183,7 +184,7 @@ fun ReorderList(items: List<ReorderItem>, onReorder: (List<String>) -> Unit,
                             }.padding(14.dp), handleColor)
                         }
                     }
-                    HorizontalDivider(Modifier.padding(start = dividerInset), color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(Modifier.padding(start = dividerInset), color = MaterialTheme.colorScheme.surfaceContainer)
                 }
             }
         }

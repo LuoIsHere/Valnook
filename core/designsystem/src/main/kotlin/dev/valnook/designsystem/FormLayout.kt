@@ -21,7 +21,7 @@ fun FormLayout(title: String, busy: Boolean, enabled: Boolean, onSave: () -> Uni
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         if (title != LocalPageTitle.current) Text(title, style = MaterialTheme.typography.titleLarge)
         content()
-        if (showSaveButton) Button(onClick = onSave, enabled = !busy && enabled,
+        if (showSaveButton) PrimaryButton(onClick = onSave, enabled = !busy && enabled,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             else Text(saveLabel ?: stringResource(R.string.save))

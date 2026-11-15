@@ -17,11 +17,11 @@ import java.time.ZoneId
 @Composable fun CashEntryDetailScreen(vm:CashEntryViewModel,account_name:String,on_edit:(CashEntry)->Unit) {
     val state by vm.state.collectAsStateWithLifecycle()
     when(val current=state) {
-        CashEntryState.Loading->Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){CircularProgressIndicator()}
+        CashEntryState.Loading->PageLoading()
         CashEntryState.Missing->Box(Modifier.padding(Space.lg)){EmptyState(stringResource(R.string.cash_entry_unavailable))}
         CashEntryState.Failed->Column(Modifier.padding(Space.lg),verticalArrangement=Arrangement.spacedBy(Space.md)) {
             Text(stringResource(R.string.cash_entry_load_error))
-            ActionButton(onClick=vm::retry){Text(stringResource(R.string.retry_load))}
+            SecondaryButton(onClick=vm::retry){Text(stringResource(R.string.retry_load))}
         }
         is CashEntryState.Ready->CashEntryDetailContent(current.entry,account_name,on_edit)
     }
@@ -39,7 +39,7 @@ import java.time.ZoneId
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
     RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
         // A deleted instrument's trade, or a bill deleted with its category, has nothing left to open.
-        if(entry.source!in REMOVED_SOURCES) ActionButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
+        if(entry.source!in REMOVED_SOURCES) SecondaryButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
             Text(stringResource(when(entry.source) {
                 CashSource.TRADE->R.string.view_source_trade
                 CashSource.DIVIDEND->R.string.view_source_dividend

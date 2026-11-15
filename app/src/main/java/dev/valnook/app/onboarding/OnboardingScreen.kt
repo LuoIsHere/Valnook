@@ -110,8 +110,8 @@ private fun ReadyScreen(state: OnboardingState, onStart: () -> Unit) {
             }
             Column {
                 state.error?.let { Text(stringResource(R.string.onboarding_save_error), color = MaterialTheme.colorScheme.error) }
-                Button(onStart, Modifier.fillMaxWidth().testTag("onboarding-enter"),
-                    enabled = !state.busy, shape = MaterialTheme.shapes.medium) {
+                PrimaryButton(onStart, Modifier.fillMaxWidth().testTag("onboarding-enter"),
+                    enabled = !state.busy) {
                     Text(stringResource(R.string.onboarding_start))
                 }
             }
@@ -141,8 +141,8 @@ private fun WelcomeScreen(state: OnboardingState, vm: OnboardingViewModel, onPri
                 SelectorField(stringResource(dev.valnook.feature.settings.R.string.settings_language),
                     languageLabel(state.language), { languagePicker = true }, !state.busy, glass = true)
                 state.error?.let { Text(stringResource(R.string.onboarding_save_error), color = MaterialTheme.colorScheme.error) }
-                Button(vm::start, Modifier.fillMaxWidth().testTag("onboarding-start"),
-                    enabled = state.draft.accepted && !state.busy, shape = MaterialTheme.shapes.medium) {
+                PrimaryButton(vm::start, Modifier.fillMaxWidth().testTag("onboarding-start"),
+                    enabled = state.draft.accepted && !state.busy) {
                     Text(stringResource(R.string.onboarding_start))
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -187,16 +187,9 @@ private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 // Same card as the switch on the rates page in Settings.
                 GlassCard {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = Space.cardInset, vertical = Space.md),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f).padding(end = Space.md), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-                            Text(stringResource(dev.valnook.feature.settings.R.string.settings_fx_auto),
-                                style = MaterialTheme.typography.titleMedium)
-                            Text(stringResource(dev.valnook.feature.settings.R.string.settings_fx_auto_summary),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(state.draft.autoFx, vm::autoFx, enabled = !state.busy, modifier = Modifier.testTag("onboarding-fx-auto"))
-                    }
+                    SwitchRow(stringResource(dev.valnook.feature.settings.R.string.settings_fx_auto), state.draft.autoFx,
+                        vm::autoFx, Modifier.testTag("onboarding-fx-auto"), enabled = !state.busy,
+                        summary = stringResource(dev.valnook.feature.settings.R.string.settings_fx_auto_summary))
                 }
                 Text(stringResource(if (state.draft.autoFx) R.string.onboarding_fx_auto_hint else R.string.onboarding_fx_auto_later_hint),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -213,26 +206,22 @@ private fun FinanceScreen(state: OnboardingState, vm: OnboardingViewModel) {
                     Text(settingsErrorMessage(it), color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("onboarding-error"))
                 }
             }
-            Button({ focus.clearFocus(); vm.finish() },
+            PrimaryButton({ focus.clearFocus(); vm.finish() },
                 Modifier.fillMaxWidth().padding(horizontal = Space.xl, vertical = Space.md).testTag("onboarding-finish"),
-                enabled = state.draft.base != null && !state.busy, shape = MaterialTheme.shapes.medium) {
+                enabled = state.draft.base != null && !state.busy) {
                 Text(stringResource(if (state.busy) R.string.onboarding_saving else R.string.onboarding_finish))
             }
         }
     }
     if (state.fxNotice) dev.valnook.feature.settings.FxNetworkNoticeDialog(vm::cancelFxNotice, vm::acceptFxNotice)
     AnimatedGlassDialog(pendingBase != null, { pendingBase = null }) {
-        GlassCard(prominent = true) {
-            Column(Modifier.padding(Space.cardInset), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-                Text(stringResource(R.string.onboarding_change_base), style = MaterialTheme.typography.titleLarge)
-                Text(stringResource(R.string.onboarding_change_base_hint))
-                Row(Modifier.align(Alignment.End)) {
-                    TextButton({ pendingBase = null }) { Text(stringResource(R.string.onboarding_cancel)) }
-                    TextButton({ pendingBase?.let { vm.base(Currency.of(it)) }; pendingBase = null }) {
-                        Text(stringResource(R.string.onboarding_confirm))
-                    }
-                }
+        DialogCard(stringResource(R.string.onboarding_change_base), buttons = {
+            TextButton({ pendingBase = null }) { Text(stringResource(R.string.onboarding_cancel)) }
+            TextButton({ pendingBase?.let { vm.base(Currency.of(it)) }; pendingBase = null }) {
+                Text(stringResource(R.string.onboarding_confirm))
             }
+        }) {
+            Text(stringResource(R.string.onboarding_change_base_hint))
         }
     }
 }

@@ -399,7 +399,7 @@ private const val CATEGORY_COLUMNS = 5
         .semantics { contentDescription = hint }, singleLine = true,
         textStyle = style.copy(color = colors.onSurface), cursorBrush = SolidColor(colors.primary),
         decorationBox = { field ->
-            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(colors.surfaceContainerHigh)
+            Box(Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)).background(colors.surfaceContainer)
                 .padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) Text(hint, style = style, color = colors.onSurfaceVariant)
                 field()
@@ -472,23 +472,19 @@ private const val CATEGORY_COLUMNS = 5
 @Composable internal fun TimeDialog(value: java.time.LocalDateTime, onDaysAgo: (Long) -> Unit,
     onChange: (java.time.LocalDateTime) -> Unit, onDismiss: () -> Unit) {
     AnimatedGlassDialog(true, onDismiss) {
-        GlassSurface(Modifier.fillMaxWidth().padding(16.dp), shape = RoundedCornerShape(24.dp)) {
-            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-                Text(stringResource(R.string.bill_time), style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                    listOf(0L to R.string.bill_today, 1L to R.string.bill_yesterday, 2L to R.string.bill_day_before).forEach { (days, label) ->
-                        val selected = value.toLocalDate() == LocalDate.now().minusDays(days)
-                        FilterChip(selected, { onDaysAgo(days) }, { Text(stringResource(label)) }, Modifier.testTag("bill-days-ago-$days"))
-                    }
-                }
-                DateField(stringResource(R.string.bill_date), value.toLocalDate().toString(), { day ->
-                    onChange(java.time.LocalDateTime.of(LocalDate.parse(day), value.toLocalTime())) })
-                TimeField(stringResource(R.string.bill_clock), value.toLocalTime().toString(), { time ->
-                    onChange(java.time.LocalDateTime.of(value.toLocalDate(), LocalTime.parse(time))) })
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onDismiss, Modifier.testTag("bill-time-done")) { Text(stringResource(R.string.bill_done)) }
+        DialogCard(stringResource(R.string.bill_time), Modifier.padding(16.dp), buttons = {
+            TextButton(onDismiss, Modifier.testTag("bill-time-done")) { Text(stringResource(R.string.bill_done)) }
+        }) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                listOf(0L to R.string.bill_today, 1L to R.string.bill_yesterday, 2L to R.string.bill_day_before).forEach { (days, label) ->
+                    val selected = value.toLocalDate() == LocalDate.now().minusDays(days)
+                    FilterChip(selected, { onDaysAgo(days) }, { Text(stringResource(label)) }, Modifier.testTag("bill-days-ago-$days"))
                 }
             }
+            DateField(stringResource(R.string.bill_date), value.toLocalDate().toString(), { day ->
+                onChange(java.time.LocalDateTime.of(LocalDate.parse(day), value.toLocalTime())) })
+            TimeField(stringResource(R.string.bill_clock), value.toLocalTime().toString(), { time ->
+                onChange(java.time.LocalDateTime.of(value.toLocalDate(), LocalTime.parse(time))) })
         }
     }
 }
@@ -560,7 +556,7 @@ internal class PicturePicker {
         DropdownMenuItem({ Text(stringResource(R.string.bill_image_take_photo)) }, { pictures.menu = false; pictures.takePhoto() },
             Modifier.testTag("bill-image-take-photo"), enabled = pictures.room > 0)
     }
-    if (pictures.noCamera) AlertDialog({ pictures.noCamera = false },
+    if (pictures.noCamera) ValnookDialog({ pictures.noCamera = false },
         confirmButton = { TextButton({ pictures.noCamera = false }) { Text(stringResource(R.string.bill_done)) } },
         text = { Text(stringResource(R.string.bill_image_no_camera)) })
 }

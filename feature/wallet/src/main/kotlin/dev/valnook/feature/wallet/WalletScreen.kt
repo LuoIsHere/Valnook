@@ -191,20 +191,17 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
         }
     }
     if(error && draft==null) AnimatedGlassDialog(true,{vm.operationFailed.value=false}) {
-        GlassCard { Column(Modifier.padding(24.dp)) {
+        DialogCard(null,buttons={TextButton({vm.operationFailed.value=false}){Text(stringResource(R.string.wallet_ok_2))}}) {
             Text(stringResource(R.string.wallet_changes_could_not_saved_your))
-            TextButton({vm.operationFailed.value=false}){Text(stringResource(R.string.wallet_ok_2))}
-        } }
+        }
     }
     cards?.firstOrNull{it.id==deleting}?.let { card ->
-        AnimatedGlassDialog(true,{if(!busy)deleting=null}) {GlassCard{Column(Modifier.padding(24.dp)){
-            Text(stringResource(R.string.wallet_delete_card_prompt),style=MaterialTheme.typography.titleLarge)
-            Text(stringResource(R.string.wallet_card_any_private_back_details),Modifier.padding(vertical=16.dp))
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.End) {
-                TextButton({deleting=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
-                TextButton({deleting=null;vm.delete(card)},enabled=!busy,modifier=Modifier.testTag("wallet-delete-confirm")){Text(stringResource(R.string.wallet_delete),color=MaterialTheme.colorScheme.error)}
-            }
-        }}}
+        AnimatedGlassDialog(true,{if(!busy)deleting=null}) {DialogCard(stringResource(R.string.wallet_delete_card_prompt),buttons={
+            TextButton({deleting=null},enabled=!busy){Text(stringResource(R.string.wallet_cancel))}
+            ValnookTextButton(stringResource(R.string.wallet_delete),{deleting=null;vm.delete(card)},Modifier.testTag("wallet-delete-confirm"),enabled=!busy,danger=true)
+        }){
+            Text(stringResource(R.string.wallet_card_any_private_back_details))
+        }}
     }
     draft?.let { WalletEditor(vm,cache,it) }
     WalletPrivateDialogs(privateState)
@@ -217,7 +214,7 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
         Column(Modifier.fillMaxSize().padding(pageContentPadding()).padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
             Text(stringResource(R.string.wallet_place_your_cards),style=MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp));Text(stringResource(R.string.wallet_collect_card_face_link_existing),color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp));Button(add,Modifier.testTag("wallet-add-empty")){Text(stringResource(R.string.wallet_add_card))}
+            Spacer(Modifier.height(24.dp));PrimaryButton(add,Modifier.testTag("wallet-add-empty")){Text(stringResource(R.string.wallet_add_card))}
         };return
     }
     val haptics=androidx.compose.ui.platform.LocalHapticFeedback.current

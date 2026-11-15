@@ -89,64 +89,17 @@ import java.util.Locale
 @Composable fun EmptyState(message:String) {
     Box(Modifier.fillMaxWidth().padding(vertical=Space.md)) { HintMessage(message) }
 }
-@Composable fun ActionButton(onClick:()->Unit,modifier:Modifier=Modifier,enabled:Boolean=true,
-    destructive:Boolean=false,content:@Composable RowScope.()->Unit) {
-    val colors=MaterialTheme.colorScheme
-    // Keeps Material's capsule shape and height, so it matches a Button beside it.
-    OutlinedButton(onClick=onClick,modifier=modifier,enabled=enabled,
-        border=BorderStroke(1.dp,if(destructive)colors.error else colors.outlineVariant),
-        colors=ButtonDefaults.outlinedButtonColors(
-            containerColor=if(destructive)colors.errorContainer else colors.surfaceContainerLow,
-            contentColor=if(destructive)colors.onErrorContainer else colors.primary),
-        contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp),content=content)
-}
+/** A labelled text input; its test tag sits on a box above the input, as it always has. [error] is an error code. */
 @Composable fun Field(label:String,value:String,on_change:(String)->Unit,numeric:Boolean=false,enabled:Boolean=true,
     signed:Boolean=false, error:String?=null, requestAttention:Boolean=false) {
-    val minimum_height=(64f+32f*(LocalDensity.current.fontScale.coerceAtLeast(1f)-1f)).dp
-    val focus=LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
-    val toggle_sign_description=if(numeric&&signed) stringResource(R.string.toggle_sign) else ""
-    val bringIntoView = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
-    LaunchedEffect(requestAttention) { if(requestAttention) { kotlinx.coroutines.delay(100); bringIntoView.bringIntoView() } }
-    // The caller owns the text; the cursor is kept here, as the String text fields do, so ± can move it.
-    var cursor by remember { mutableStateOf(TextFieldValue(value)) }
-    val shown=cursor.copy(text=value)
-    Box(Modifier.fillMaxWidth().bringIntoViewRequester(bringIntoView).testTag("input-$label")) {
-    OutlinedTextField(value=shown,onValueChange={cursor=it;if(it.text!=value)on_change(it.text)},label={Text(label)},singleLine=true,
-        isError=error!=null, supportingText=if(error!=null) {{ ErrorMessage(error) }} else null,
-        textStyle=MaterialTheme.typography.bodyLarge,shape=RoundedCornerShape(12.dp),
-        enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
-        trailingIcon=if(numeric&&signed) {{
-            IconButton(onClick={
-                cursor=toggleSign(shown)
-                on_change(cursor.text)
-            },enabled=enabled) { FaIcon(FaIcons.plusMinus,toggle_sign_description,Modifier.size(18.dp)) }
-        }} else null,
-        keyboardOptions=KeyboardOptions(keyboardType=if(numeric) KeyboardType.Decimal else KeyboardType.Text,imeAction=ImeAction.Done),
-        keyboardActions=KeyboardActions(onDone={focus.clearFocus();keyboard?.hide()}))
-    }
-}
-/** Selection and numeric inputs share the same outline, label baseline and width. */
-@Composable fun SelectorField(label:String,value:String,on_select:()->Unit,enabled:Boolean=true,glass:Boolean=false) {
-    val minimum_height=(64f+32f*(LocalDensity.current.fontScale.coerceAtLeast(1f)-1f)).dp
-    val focus=LocalFocusManager.current
-    val keyboard=LocalSoftwareKeyboardController.current
-    val arrow_color=MaterialTheme.colorScheme.onSurfaceVariant
-    val shape=RoundedCornerShape(12.dp)
     Box(Modifier.fillMaxWidth().testTag("input-$label")) {
-        if(glass) GlassTextField(value,{},label,Modifier.fillMaxWidth(),enabled=enabled,readOnly=true,
-            trailingIcon={ExpansionChevron(false)})
-        else OutlinedTextField(value=value,onValueChange={},readOnly=true,label={Text(label)},
-            singleLine=true,textStyle=MaterialTheme.typography.bodyLarge,shape=shape,
-            enabled=enabled,modifier=Modifier.fillMaxWidth().heightIn(min=minimum_height),
-            trailingIcon={FaIcon(FaIcons.chevronDown,null,Modifier.size(14.dp),arrow_color)},
-            colors=OutlinedTextFieldDefaults.colors(
-                disabledTextColor=MaterialTheme.colorScheme.onSurface,
-                disabledLabelColor=MaterialTheme.colorScheme.onSurfaceVariant))
-        Box(Modifier.matchParentSize().clip(shape).clickable(enabled=enabled,role=Role.Button,onClick={focus.clearFocus();keyboard?.hide();on_select()})
-            .semantics {contentDescription="$label: $value"})
+        ValnookTextField(value,on_change,label=label,enabled=enabled,error=error?.let{errorText(it)},numeric=numeric,
+            signed=signed,tag=null,requestAttention=requestAttention)
     }
 }
+/** A choice that opens a menu, a sheet or a picker: the filled look of every input. [glass] is kept for its callers. */
+@Composable fun SelectorField(label:String,value:String,on_select:()->Unit,enabled:Boolean=true,
+    @Suppress("UNUSED_PARAMETER") glass:Boolean=false) = FilledSelector(label,value,on_select,enabled)
 @Composable fun ChoiceField(label:String,selected:String,options:List<Pair<String,String>>,
     on_change:(String)->Unit,enabled:Boolean=true) {
     var expanded by remember {mutableStateOf(false)}
@@ -167,44 +120,41 @@ import java.util.Locale
     if(field!=null) field(open) else SelectorField(stringResource(R.string.currency),selected,open,enabled,glass)
     AnimatedGlassDialog(expanded,onDismissRequest={expanded=false},properties=DialogProperties(decorFitsSystemWindows=false)) {
         Box(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(12.dp)) {
-            GlassCard(prominent = true) {
-                Column(Modifier.fillMaxWidth().heightIn(max=560.dp).padding(Space.cardInset),
-                    verticalArrangement=Arrangement.spacedBy(Space.md)) {
-                    Text(stringResource(R.string.choose_currency),style=MaterialTheme.typography.titleLarge)
-                    if(pickerRates.shown) Text(pickerRates.baseCode?.let { stringResource(R.string.currency_rate_to, it) }
-                        ?: stringResource(R.string.currency_rate_no_base),
-                        style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    GlassTextField(query,{query=it},stringResource(R.string.search_currency),Modifier.fillMaxWidth())
-                    val matches=options.filter{it.first !in excluded &&
-                        (it.first.contains(query.trim(),true)||it.second.contains(query.trim(),true))}
-                    LazyColumn(Modifier.weight(1f,fill=false).fillMaxWidth().testTag("currency-list")) {
-                        if(matches.isEmpty())item{EmptyState(stringResource(R.string.no_currency_match))}
-                        items(matches,key={it.first}){(code,name)->
-                            Row(Modifier.fillMaxWidth().heightIn(min=48.dp).clip(RoundedCornerShape(12.dp))
-                                .clickable(enabled=expanded,role=Role.Button) {
-                                    if(expanded) {expanded=false;on_change(code)}
-                                }.padding(vertical=8.dp),
-                                verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.md)) {
-                                Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainer,
-                                    modifier=Modifier.width(56.dp)) {
-                                    Text(code,Modifier.padding(vertical=12.dp),style=MaterialTheme.typography.labelLarge,
-                                        textAlign=androidx.compose.ui.text.style.TextAlign.Center)
-                                }
-                                Text(name,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
-                                val configured=if(code==pickerRates.baseCode) "1" else pickerRates.rates[code]
-                                // Without a base there is nothing to convert into; a currency without a rate shows none.
-                                if(pickerRates.shown&&pickerRates.baseCode!=null) Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
-                                    Text(configured?.let(::pickerRateText) ?: "—",Modifier.testTag("currency-rate-$code"),
-                                        style=MaterialTheme.typography.bodyMedium,textAlign=androidx.compose.ui.text.style.TextAlign.End,
-                                        maxLines=1,softWrap=false)
-                                    if(configured==null)Text(stringResource(R.string.currency_rate_missing),style=MaterialTheme.typography.bodySmall,
-                                        color=MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                                if(code==selected)SelectedIcon(tint=MaterialTheme.colorScheme.primary)
+            DialogCard(stringResource(R.string.choose_currency),Modifier.heightIn(max=560.dp),buttons={
+                TextButton(onClick={expanded=false}){Text(stringResource(R.string.cancel))}
+            }) {
+                if(pickerRates.shown) Text(pickerRates.baseCode?.let { stringResource(R.string.currency_rate_to, it) }
+                    ?: stringResource(R.string.currency_rate_no_base),
+                    style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                GlassTextField(query,{query=it},stringResource(R.string.search_currency),Modifier.fillMaxWidth())
+                val matches=options.filter{it.first !in excluded &&
+                    (it.first.contains(query.trim(),true)||it.second.contains(query.trim(),true))}
+                LazyColumn(Modifier.weight(1f,fill=false).fillMaxWidth().testTag("currency-list")) {
+                    if(matches.isEmpty())item{EmptyState(stringResource(R.string.no_currency_match))}
+                    items(matches,key={it.first}){(code,name)->
+                        Row(Modifier.fillMaxWidth().heightIn(min=48.dp).clip(RoundedCornerShape(12.dp))
+                            .clickable(enabled=expanded,role=Role.Button) {
+                                if(expanded) {expanded=false;on_change(code)}
+                            }.padding(vertical=8.dp),
+                            verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(Space.md)) {
+                            Surface(shape=RoundedCornerShape(10.dp),color=MaterialTheme.colorScheme.surfaceContainer,
+                                modifier=Modifier.width(56.dp)) {
+                                Text(code,Modifier.padding(vertical=12.dp),style=MaterialTheme.typography.labelLarge,
+                                    textAlign=androidx.compose.ui.text.style.TextAlign.Center)
                             }
+                            Text(name,Modifier.weight(1f),style=MaterialTheme.typography.bodyMedium)
+                            val configured=if(code==pickerRates.baseCode) "1" else pickerRates.rates[code]
+                            // Without a base there is nothing to convert into; a currency without a rate shows none.
+                            if(pickerRates.shown&&pickerRates.baseCode!=null) Column(Modifier.widthIn(max=96.dp),horizontalAlignment=Alignment.End) {
+                                Text(configured?.let(::pickerRateText) ?: "—",Modifier.testTag("currency-rate-$code"),
+                                    style=MaterialTheme.typography.bodyMedium,textAlign=androidx.compose.ui.text.style.TextAlign.End,
+                                    maxLines=1,softWrap=false)
+                                if(configured==null)Text(stringResource(R.string.currency_rate_missing),style=MaterialTheme.typography.bodySmall,
+                                    color=MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            if(code==selected)SelectedIcon(tint=MaterialTheme.colorScheme.primary)
                         }
                     }
-                    TextButton(onClick={expanded=false},modifier=Modifier.align(Alignment.End)){Text(stringResource(R.string.cancel))}
                 }
             }
         }

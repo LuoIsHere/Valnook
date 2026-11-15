@@ -418,6 +418,7 @@ private fun HistorySheet(ui: AiChatUi, vm: AiChatViewModel, onDismiss: () -> Uni
     val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)
     val number = NumberFormat.getIntegerInstance(locale)
     ModalBottomSheet(onDismiss, Modifier.testTag("ai-chat-history")) {
+        SheetHeader(stringResource(R.string.ai_chat_history), Modifier.padding(horizontal = Space.md))
         if (ui.conversations.isEmpty()) Text(stringResource(R.string.ai_chat_history_empty), Modifier.padding(Space.cardInset),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         // Those with drafts waiting come first, the rest by time as before.

@@ -118,13 +118,11 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
     val sortIcon: @Composable (ReorderItem) -> Unit = { item ->
         byKey[item.key]?.let { CategoryIcon(it.iconKey, it.colorKey, size = 30.dp) }
     }
-    val sortRow = Color.Transparent
     // A sort list is as tall as its rows (the grip, or the name with its padding, plus the divider): a capped height
     // alone leaves the list at its cap with blank space under the last row. The last divider is left out: the card
     // ends there, or draws its own line.
     val lineHeight = with(LocalDensity.current) { MaterialTheme.typography.bodyLarge.lineHeight.toDp() }
     val sortRowHeight = maxOf(48.dp, lineHeight + 20.dp) + 1.dp
-    val sortDragged = MaterialTheme.colorScheme.surfaceContainerHighest
     val scope = rememberCoroutineScope()
     val tops = state.categories.filter { it.parentId == null }
     fun open(category: BillCategory) {
@@ -155,7 +153,7 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
             GlassCard {
                 ReorderList(tops.map { ReorderItem(it.id.toString(), categoryName(it)) }, { keys -> vm.reorder(null, keys.map(String::toLong)) },
                     stringResource(R.string.bill_arrange), stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down),
-                    Modifier.height(sortRowHeight * tops.size - 1.dp), leadingContent = sortIcon, rowColor = sortRow, draggedColor = sortDragged,
+                    Modifier.height(sortRowHeight * tops.size - 1.dp), leadingContent = sortIcon,
                     dividerInset = 50.dp)
             }
         } else tops.forEach { top ->
@@ -166,8 +164,7 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
                     if (state.arranging == top.id) ReorderList(subs.map { ReorderItem(it.id.toString(), categoryName(it)) },
                         { keys -> vm.reorder(top.id, keys.map(String::toLong)) }, stringResource(R.string.bill_arrange),
                         stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down), Modifier.height(sortRowHeight * subs.size - 1.dp),
-                        contentPadding = PaddingValues(start = 28.dp), leadingContent = sortIcon, rowColor = sortRow,
-                        draggedColor = sortDragged, dividerInset = 50.dp)
+                        contentPadding = PaddingValues(start = 28.dp), leadingContent = sortIcon, dividerInset = 50.dp)
                     else subs.forEach { sub -> FormDivider(); CategoryLine(sub, { open(sub) }, { vm.setHidden(sub, !sub.hidden) }, sub = true) }
                     FormDivider()
                     Row(Modifier.padding(horizontal = 8.dp)) {
@@ -222,11 +219,11 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
     AnimatedGlassDialog(true, onDismiss, DialogProperties(usePlatformDefaultWidth = false)) {
         GlassSurface(Modifier.fillMaxWidth().fillMaxHeight(0.9f).padding(12.dp).testTag("bill-category-editor"),
             shape = RoundedCornerShape(24.dp)) {
-            Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(Space.md)) {
+            Column(Modifier.fillMaxSize().padding(DialogDefaults.Padding), verticalArrangement = Arrangement.spacedBy(Space.md)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
                     CategoryIcon(draft.iconKey, draft.colorKey, size = 44.dp, selected = true)
                     Text(stringResource(if (draft.id == null) (if (draft.parentId == null) R.string.bill_add_category else R.string.bill_add_subcategory)
-                        else R.string.bill_edit_category), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                        else R.string.bill_edit_category), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
                     IconButton(onDismiss) { FaIcon(FaIcons.xmark, stringResource(R.string.bill_close), Modifier.size(16.dp)) }
                 }
                 GlassTextField(draft.name, { draft = draft.copy(name = it.take(BillRules.MAX_CATEGORY_NAME_LENGTH)) },
@@ -280,10 +277,8 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                     if (draft.id != null) {
                         val enabled = blocked == null && !state.busy
-                        TextButton({ deleting = true }, Modifier.testTag("bill-category-delete"), enabled = enabled) {
-                            Text(stringResource(R.string.bill_delete), color = if (enabled) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.onSurface.copy(alpha = .38f))
-                        }
+                        ValnookTextButton(stringResource(R.string.bill_delete), { deleting = true },
+                            Modifier.testTag("bill-category-delete"), enabled = enabled, danger = true)
                     }
                     Spacer(Modifier.weight(1f))
                     TextButton({ onSave(draft) }, Modifier.testTag("bill-category-save"), enabled = !state.busy &&
@@ -314,8 +309,8 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
     var deleteBills by remember { mutableStateOf<Boolean?>(null) }
     var moveTo by remember { mutableStateOf<Long?>(null) }
     val ready = !busy && (usage == 0 || deleteBills == true || (deleteBills == false && moveTo != null))
-    AlertDialog(onDismissRequest = { if (!busy) onDismiss() },
-        title = { PopupBlurEffect(); Text(stringResource(R.string.bill_category_delete_title)) },
+    ValnookDialog(onDismissRequest = { if (!busy) onDismiss() },
+        title = { Text(stringResource(R.string.bill_category_delete_title)) },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState()).testTag("bill-category-delete-dialog"),
                 verticalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -323,19 +318,15 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
                 Text(if (usage == 0) stringResource(R.string.bill_category_delete_unused)
                     else pluralStringResource(R.plurals.bill_category_delete_count, usage, usage))
                 if (usage > 0) {
-                    DeleteChoice(stringResource(R.string.bill_category_delete_move), null, deleteBills == false,
-                        Modifier.testTag("bill-category-delete-move")) { deleteBills = false }
+                    RadioRow(stringResource(R.string.bill_category_delete_move), deleteBills == false, { deleteBills = false }, Modifier.testTag("bill-category-delete-move"), summary = null, contentPadding = PaddingValues(vertical = 4.dp))
                     if (deleteBills == false) targets.forEach { (target, label) ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.RadioButton) { moveTo = target.id }
-                            .padding(start = 32.dp, top = 2.dp, bottom = 2.dp).testTag("bill-move-to-${target.builtinKey ?: target.id}"),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                            RadioButton(moveTo == target.id, null)
+                        RadioRow(label, moveTo == target.id, { moveTo = target.id },
+                            Modifier.testTag("bill-move-to-${target.builtinKey ?: target.id}"),
+                            contentPadding = PaddingValues(start = 32.dp, top = 2.dp, bottom = 2.dp)) {
                             CategoryIcon(target.iconKey, target.colorKey, size = 24.dp)
-                            Text(label, style = MaterialTheme.typography.bodyMedium)
                         }
                     }
-                    DeleteChoice(stringResource(R.string.bill_category_delete_bills), stringResource(R.string.bill_category_delete_bills_detail),
-                        deleteBills == true, Modifier.testTag("bill-category-delete-bills")) { deleteBills = true }
+                    RadioRow(stringResource(R.string.bill_category_delete_bills), deleteBills == true, { deleteBills = true }, Modifier.testTag("bill-category-delete-bills"), summary = stringResource(R.string.bill_category_delete_bills_detail), contentPadding = PaddingValues(vertical = 4.dp))
                 }
                 ErrorMessage(error?.name)
             }
@@ -350,14 +341,3 @@ data class BillCategoriesToolbarState(val add: () -> Unit)
         dismissButton = { TextButton({ if (!busy) onDismiss() }, enabled = !busy) { Text(stringResource(R.string.bill_cancel)) } })
 }
 
-@Composable private fun DeleteChoice(label: String, detail: String?, selected: Boolean, modifier: Modifier, onSelect: () -> Unit) {
-    Row(modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.RadioButton, onClick = onSelect)
-        .semantics { this.selected = selected }.padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-        RadioButton(selected, null)
-        Column(Modifier.weight(1f)) {
-            Text(label)
-            detail?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-        }
-    }
-}
