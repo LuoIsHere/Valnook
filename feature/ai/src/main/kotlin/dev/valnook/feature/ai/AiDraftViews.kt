@@ -1,5 +1,7 @@
 package dev.valnook.feature.ai
 
+import dev.valnook.designsystem.SecondaryButton
+import dev.valnook.designsystem.PrimaryButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -78,9 +80,9 @@ fun AiDraftCardView(card: AiDraftCard, categories: Map<Long, BillCategory>, acco
                     Text(stringResource(R.string.ai_draft_saved), Modifier.weight(1f), color = colors.primary,
                         style = MaterialTheme.typography.labelLarge)
                     val open = actions.onOpenBill
-                    if (open != null) card.billId?.let { id -> AiTonalButton(stringResource(R.string.ai_chat_view_bill), { open(id) },
+                    if (open != null) card.billId?.let { id -> SecondaryButton(stringResource(R.string.ai_chat_view_bill), { open(id) },
                         Modifier.padding(end = Space.xs).testTag("ai-draft-${card.label}-view")) }
-                    AiTonalButton(stringResource(R.string.ai_draft_undo), { actions.onUndo(card) },
+                    SecondaryButton(stringResource(R.string.ai_draft_undo), { actions.onUndo(card) },
                         Modifier.testTag("ai-draft-${card.label}-undo"), enabled = !busy)
                 }
                 AiDraftState.DISCARDED -> Text(stringResource(R.string.ai_draft_discarded), style = MaterialTheme.typography.labelLarge,
@@ -140,7 +142,7 @@ private fun Conversion(card: AiDraftCard, money: AiDraftMoney?, actions: AiDraft
                     color = MaterialTheme.colorScheme.onErrorContainer)
             }
             actions.onRates?.let { open ->
-                AiTonalButton(stringResource(R.string.ai_draft_rate_settings), open,
+                SecondaryButton(stringResource(R.string.ai_draft_rate_settings), open,
                     Modifier.padding(start = Space.xs).testTag("ai-draft-${card.label}-rates"))
             }
         }
@@ -236,13 +238,13 @@ private fun PendingButtons(card: AiDraftCard, busy: Boolean, actions: AiDraftAct
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xs, Alignment.End),
         verticalAlignment = Alignment.CenterVertically) {
         if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-        AiTonalButton(stringResource(R.string.ai_draft_discard), { actions.onDiscard(card) },
+        SecondaryButton(stringResource(R.string.ai_draft_discard), { actions.onDiscard(card) },
             Modifier.testTag("ai-draft-${card.label}-discard"), enabled = !busy)
-        AiTonalButton(stringResource(R.string.ai_draft_edit), { actions.onEdit(card) },
+        SecondaryButton(stringResource(R.string.ai_draft_edit), { actions.onEdit(card) },
             Modifier.testTag("ai-draft-${card.label}-edit"), enabled = !busy)
         val missing = !card.draft.hasAmount
         // Without an amount or a rate the bill page finishes it; a rate typed there is for this bill only.
-        AiPrimaryButton(stringResource(when {
+        PrimaryButton(stringResource(when {
             missing -> R.string.ai_draft_add_amount
             missingRate -> R.string.ai_draft_add_rate
             else -> R.string.ai_draft_confirm

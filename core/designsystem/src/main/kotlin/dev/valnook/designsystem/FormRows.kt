@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -24,7 +25,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.*
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import dev.valnook.core.designsystem.R
@@ -109,19 +113,21 @@ fun FormSwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit, 
 }
 
 @Composable
-private fun filledMinimumHeight() = (56f + 24f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp
+private fun filledMinimumHeight(label: Boolean) =
+    ((if (label) 56f else 48f) + 24f * (LocalDensity.current.fontScale.coerceAtLeast(1f) - 1f)).dp
 
+/** The light fill every input shares: a small label over the content when there is one, no outline. */
 @Composable
-private fun FilledFrame(label: String, error: Boolean, enabled: Boolean, trailing: (@Composable () -> Unit)?,
-    content: @Composable () -> Unit) {
+private fun FilledFrame(label: String?, error: Boolean, enabled: Boolean, trailing: (@Composable () -> Unit)?,
+    shape: Shape = FieldShape, content: @Composable () -> Unit) {
     val colors = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().heightIn(min = filledMinimumHeight()).clip(FieldShape)
+    Row(Modifier.fillMaxWidth().heightIn(min = filledMinimumHeight(label != null)).clip(shape)
         .background(colors.surfaceContainer)
-        .then(if (error) Modifier.border(1.dp, colors.error, FieldShape) else Modifier)
+        .then(if (error) Modifier.border(1.dp, colors.error, shape) else Modifier)
         .padding(start = 12.dp, end = if (trailing != null) 4.dp else 12.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = when {
+            if (label != null) Text(label, style = MaterialTheme.typography.labelMedium, color = when {
                 error -> colors.error
                 enabled -> colors.onSurfaceVariant
                 else -> colors.onSurfaceVariant.copy(alpha = .6f)
@@ -132,50 +138,78 @@ private fun FilledFrame(label: String, error: Boolean, enabled: Boolean, trailin
     }
 }
 
-/** A text input on a light fill, with its label inside, for the editing panels. */
+/**
+ * The text input of the app: a light fill with no outline, an optional small [label] in its top-left corner, and
+ * [placeholder] while empty. One line unless [maxLines] allows more; [trailing] sits at its right end. [error] and
+ * [supporting] are messages shown under it. The input node carries [tag].
+ */
 @Composable
-fun FilledField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier,
-    numeric: Boolean = false, signed: Boolean = false, enabled: Boolean = true, placeholder: String = "",
-    error: String? = null, requestAttention: Boolean = false) {
+fun ValnookTextField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, label: String? = null,
+    placeholder: String = "", enabled: Boolean = true, error: String? = null, supporting: String? = null,
+    numeric: Boolean = false, signed: Boolean = false, minLines: Int = 1, maxLines: Int = 1,
+    password: Boolean = false, monospace: Boolean = false, keyboardType: KeyboardType? = null,
+    autoCorrect: Boolean = true, shape: Shape = FieldShape, trailing: (@Composable () -> Unit)? = null,
+    tag: String? = label?.let { "input-$it" }, requestAttention: Boolean = false) {
     val colors = MaterialTheme.colorScheme
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val requester = remember { BringIntoViewRequester() }
     AttentionEffect(requestAttention, requester)
-    val message = error?.let { errorText(it) }
     var cursor by rememberCursor(value)
     val shown = cursor.copy(text = value)
     val toggle = if (numeric && signed) stringResource(R.string.toggle_sign) else ""
-    val style = MaterialTheme.typography.bodyLarge
-    Column(modifier.fillMaxWidth().bringIntoViewRequester(requester), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val singleLine = maxLines <= 1 && minLines <= 1
+    val base = if (monospace) MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+        else MaterialTheme.typography.bodyLarge
+    val style = base.copy(fontFeatureSettings = if (numeric) "tnum" else null)
+    val type = keyboardType ?: when {
+        password -> KeyboardType.Password
+        numeric -> KeyboardType.Decimal
+        else -> KeyboardType.Text
+    }
+    val end: (@Composable () -> Unit)? = if (numeric && signed) ({
+        // 40dp keeps this field as tall as a plain one beside it.
+        IconButton({ cursor = toggleSign(shown); onChange(cursor.text) }, Modifier.size(40.dp), enabled = enabled) {
+            FaIcon(FaIcons.plusMinus, toggle, Modifier.size(18.dp))
+        }
+    }) else trailing
+    val note = error ?: supporting
+    Box(modifier.fillMaxWidth().bringIntoViewRequester(requester)) {
         BasicTextField(shown, { cursor = it; if (it.text != value) onChange(it.text) },
-            Modifier.fillMaxWidth().testTag("input-$label")
-                .semantics(mergeDescendants = true) { if (message != null) error(message) },
-            enabled = enabled, singleLine = true,
-            textStyle = style.copy(fontFeatureSettings = if (numeric) "tnum" else null,
-                color = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = .6f)),
+            Modifier.fillMaxWidth().then(if (tag != null) Modifier.testTag(tag) else Modifier)
+                .semantics(mergeDescendants = true) { if (error != null) error(error) },
+            enabled = enabled, singleLine = singleLine, minLines = if (singleLine) 1 else minLines,
+            maxLines = if (singleLine) 1 else maxOf(minLines, maxLines),
+            textStyle = style.copy(color = if (enabled) colors.onSurface else colors.onSurface.copy(alpha = .6f)),
             cursorBrush = SolidColor(colors.primary),
-            keyboardOptions = KeyboardOptions(keyboardType = if (numeric) KeyboardType.Decimal else KeyboardType.Text,
-                imeAction = ImeAction.Done),
+            visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+            keyboardOptions = KeyboardOptions(keyboardType = type, autoCorrectEnabled = autoCorrect && !password,
+                imeAction = if (singleLine) ImeAction.Done else ImeAction.Default),
             keyboardActions = KeyboardActions(onDone = { focus.clearFocus(); keyboard?.hide() }),
+            // The message under the fill belongs to the field, as in a Material text field: one node reads both.
             decorationBox = { inner ->
-                FilledFrame(label, message != null, enabled, if (numeric && signed) ({
-                    // 40dp keeps this field as tall as a plain one beside it.
-                    IconButton({ cursor = toggleSign(shown); onChange(cursor.text) }, Modifier.size(40.dp), enabled = enabled) {
-                        FaIcon(FaIcons.plusMinus, toggle, Modifier.size(18.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    FilledFrame(label, error != null, enabled, end, shape) {
+                        Box {
+                            if (value.isEmpty() && placeholder.isNotEmpty())
+                                Text(placeholder, style = style, color = colors.onSurfaceVariant.copy(alpha = .6f))
+                            inner()
+                        }
                     }
-                }) else null) {
-                    Box {
-                        if (value.isEmpty() && placeholder.isNotEmpty())
-                            Text(placeholder, style = style, color = colors.onSurfaceVariant.copy(alpha = .6f))
-                        inner()
-                    }
+                    if (note != null) Text(note, Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.bodySmall,
+                        color = if (error != null) colors.error else colors.onSurfaceVariant)
                 }
             })
-        if (message != null) Text(message, Modifier.padding(horizontal = 12.dp),
-            style = MaterialTheme.typography.bodySmall, color = colors.error)
     }
 }
+
+/** A text input on a light fill, with its label inside, for the editing panels. [error] is an error code. */
+@Composable
+fun FilledField(label: String, value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier,
+    numeric: Boolean = false, signed: Boolean = false, enabled: Boolean = true, placeholder: String = "",
+    error: String? = null, requestAttention: Boolean = false) =
+    ValnookTextField(value, onChange, modifier, label, placeholder, enabled, error?.let { errorText(it) },
+        numeric = numeric, signed = signed, requestAttention = requestAttention)
 
 /** Looks like [FilledField] but opens a choice. Reads as "label: value", as [SelectorField] does. */
 @Composable

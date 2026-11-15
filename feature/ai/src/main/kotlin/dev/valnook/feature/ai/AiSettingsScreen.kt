@@ -149,16 +149,6 @@ fun AiEnableNotice(onCancel: () -> Unit, onAccept: (dontShowAgain: Boolean) -> U
             "ai-enable-notice-ok"))
 }
 
-/** A secondary action on the AI page: a filled button, in red for one that deletes. */
-@Composable
-private fun SecondaryButton(label: String, onClick: () -> Unit, tag: String, modifier: Modifier = Modifier,
-    enabled: Boolean = true, destructive: Boolean = false) {
-    FilledTonalButton(onClick, modifier.testTag(tag), enabled = enabled) {
-        Text(label, color = if (destructive && enabled) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
-            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-    }
-}
-
 @Composable
 private fun FeaturesCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
     val s = ui.settings
@@ -187,12 +177,12 @@ private fun DataCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.testTag("ai-usage"))
         }
-        SecondaryButton(stringResource(R.string.ai_clear_conversations), { confirm = true }, "ai-clear-conversations",
-            Modifier.fillMaxWidth(), destructive = true)
+        DangerButton(stringResource(R.string.ai_clear_conversations), { confirm = true },
+            Modifier.fillMaxWidth().testTag("ai-clear-conversations"))
     }
     if (confirm) AlertDialog({ confirm = false },
-        confirmButton = { TextButton({ confirm = false; vm.clearConversations() }, Modifier.testTag("ai-clear-confirm")) {
-            Text(stringResource(R.string.ai_clear), color = MaterialTheme.colorScheme.error) } },
+        confirmButton = { ValnookTextButton(stringResource(R.string.ai_clear), { confirm = false; vm.clearConversations() },
+            Modifier.testTag("ai-clear-confirm"), danger = true) },
         dismissButton = { TextButton({ confirm = false }) { Text(stringResource(R.string.ai_chat_cancel)) } },
         text = { Text(stringResource(R.string.ai_clear_conversations_confirm)) })
 }
@@ -218,17 +208,10 @@ private fun Section(title: String, content: @Composable ColumnScope.() -> Unit) 
 private fun TextBox(label: String, value: String, onChange: (String) -> Unit, tag: String, enabled: Boolean,
     singleLine: Boolean = true, password: Boolean = false, placeholder: String? = null, supporting: String? = null,
     error: String? = null, monospace: Boolean = false) {
-    OutlinedTextField(value, onChange, Modifier.fillMaxWidth().testTag(tag), enabled = enabled, singleLine = singleLine,
-        minLines = if (singleLine) 1 else 3, label = { Text(label) }, shape = RoundedCornerShape(12.dp),
-        placeholder = placeholder?.let { { Text(it) } }, isError = error != null,
-        supportingText = (error ?: supporting)?.let { { Text(it) } },
-        textStyle = if (monospace) MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace) else MaterialTheme.typography.bodyLarge,
-        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = when {
-            password -> KeyboardType.Password
-            singleLine && tag == "ai-base-url" -> KeyboardType.Uri
-            else -> KeyboardType.Text
-        }, autoCorrectEnabled = false))
+    ValnookTextField(value, onChange, label = label, placeholder = placeholder.orEmpty(), enabled = enabled, error = error,
+        supporting = supporting, minLines = if (singleLine) 1 else 3, maxLines = if (singleLine) 1 else 12,
+        password = password, monospace = monospace, autoCorrect = false, tag = tag,
+        keyboardType = if (singleLine && tag == "ai-base-url") KeyboardType.Uri else null)
 }
 
 /** The connection card's place in the page, scrolled to after the example is entered. */
@@ -284,8 +267,8 @@ private fun ConnectionCard(ui: AiSettingsUi, vm: AiSettingsViewModel, onGuide: (
         }
         if (ui.saveFailed) Text(stringResource(R.string.ai_save_failed), color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodySmall)
-        if (ui.connectionDirty) Button({ vm.saveConnection() }, Modifier.fillMaxWidth().testTag("ai-connection-save"),
-            enabled = enabled && ui.connectionValid) { Text(stringResource(R.string.ai_save)) }
+        if (ui.connectionDirty) PrimaryButton(stringResource(R.string.ai_save), { vm.saveConnection() },
+            Modifier.fillMaxWidth().testTag("ai-connection-save"), enabled = enabled && ui.connectionValid)
     }
 }
 
@@ -308,11 +291,11 @@ private fun ModelField(ui: AiSettingsUi, vm: AiSettingsViewModel, enabled: Boole
     // Side by side: the model list, and deleting the saved key while there is one.
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.sm), verticalAlignment = Alignment.CenterVertically) {
         SecondaryButton(stringResource(if (ui.modelsLoading) R.string.ai_models_loading else R.string.ai_models_fetch),
-            { if (!models.isNullOrEmpty()) open = true else vm.fetchModels() }, "ai-models-fetch", Modifier.weight(1f),
+            { if (!models.isNullOrEmpty()) open = true else vm.fetchModels() }, Modifier.weight(1f).testTag("ai-models-fetch"),
             enabled = enabled && ui.urlValid && !ui.modelsLoading)
         if (ui.keySaved && !ui.form.removeKey && ui.form.apiKey.isEmpty())
-            SecondaryButton(stringResource(R.string.ai_api_key_remove), { vm.editConnection { it.copy(removeKey = true) } },
-                "ai-api-key-remove", Modifier.weight(1f), enabled = enabled, destructive = true)
+            DangerButton(stringResource(R.string.ai_api_key_remove), { vm.editConnection { it.copy(removeKey = true) } },
+                Modifier.weight(1f).testTag("ai-api-key-remove"), enabled = enabled)
     }
     val problem = ui.modelsProblem
     when {
@@ -351,14 +334,12 @@ private fun ChecksCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
         if (report != null && ui.checking == null) Text(stringResource(R.string.ai_checked_at, Instant.ofEpochMilli(report.checkedAtMs)
             .atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT))),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(vm::check, Modifier.fillMaxWidth().testTag("ai-check"),
-            enabled = !ui.busy && (if (ui.connectionDirty) ui.connectionValid else ui.settings.connection.usable)) {
-            Text(stringResource(when {
+        PrimaryButton(stringResource(when {
                 ui.connectionDirty -> R.string.ai_check_save_and_run
                 report == null -> R.string.ai_check_run
                 else -> R.string.ai_check_rerun
-            }))
-        }
+            }), vm::check, Modifier.fillMaxWidth().testTag("ai-check"),
+            enabled = !ui.busy && (if (ui.connectionDirty) ui.connectionValid else ui.settings.connection.usable))
     }
 }
 
@@ -401,7 +382,7 @@ private fun PersonalCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
         TextBox(stringResource(R.string.ai_my_rules), personal.myRules, { text -> vm.editPersonal { it.copy(myRules = text.take(AiRules.MY_RULES_MAX)) } },
             "ai-my-rules", enabled, singleLine = false, placeholder = stringResource(R.string.ai_my_rules_hint),
             supporting = stringResource(R.string.ai_my_rules_count, personal.myRules.length, AiRules.MY_RULES_MAX))
-        if (personal.myRules.isNotEmpty()) AiTonalButton(stringResource(R.string.ai_my_rules_reset),
+        if (personal.myRules.isNotEmpty()) SecondaryButton(stringResource(R.string.ai_my_rules_reset),
             { vm.editPersonal { it.copy(myRules = "") } }, Modifier.testTag("ai-my-rules-reset"), enabled = enabled)
         Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
             Box(Modifier.weight(1f)) {
@@ -419,8 +400,8 @@ private fun PersonalCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
         }
         Text(stringResource(R.string.ai_personal_note), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (ui.personalDirty) Button(vm::savePersonal, Modifier.fillMaxWidth().testTag("ai-personal-save"),
-            enabled = enabled && ui.personalValid) { Text(stringResource(R.string.ai_save)) }
+        if (ui.personalDirty) PrimaryButton(stringResource(R.string.ai_save), vm::savePersonal,
+            Modifier.fillMaxWidth().testTag("ai-personal-save"), enabled = enabled && ui.personalValid)
     }
 }
 
@@ -444,7 +425,7 @@ private fun AvatarPicker(vm: AiSettingsViewModel, who: AiAvatar, name: String, m
         }.testTag("ai-avatar-${who.name}"))
         Text(stringResource(if (who == AiAvatar.USER) R.string.ai_avatar_user else R.string.ai_avatar_ai),
             style = MaterialTheme.typography.bodySmall)
-        if (image != null) AiTonalButton(stringResource(R.string.ai_avatar_reset), { vm.clearAvatar(who) },
+        if (image != null) SecondaryButton(stringResource(R.string.ai_avatar_reset), { vm.clearAvatar(who) },
             Modifier.testTag("ai-avatar-reset-${who.name}"))
         if (failed) Text(stringResource(R.string.ai_avatar_failed), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.error)

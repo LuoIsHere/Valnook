@@ -105,27 +105,23 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
         ErrorMessage(state.error?.name)
         if (bill.isSettlement) {
             bill.parentId?.let { parentId ->
-                ActionButton({ onOpen(parentId) }, Modifier.fillMaxWidth().testTag("bill-open-parent")) {
-                    Text(stringResource(R.string.bill_open_parent)) }
+                SecondaryButton(stringResource(R.string.bill_open_parent), { onOpen(parentId) }, Modifier.fillMaxWidth().testTag("bill-open-parent"))
             }
-            ActionButton({ confirming = true }, Modifier.fillMaxWidth().testTag("bill-delete"), enabled = !state.deleting, destructive = true) {
-                Text(stringResource(R.string.bill_undo)) }
+            DangerButton(stringResource(R.string.bill_undo), { confirming = true }, Modifier.fillMaxWidth().testTag("bill-delete"), enabled = !state.deleting)
         } else {
-            ActionButton({ onEdit(bill.id) }, Modifier.fillMaxWidth().testTag("bill-edit")) { Text(stringResource(R.string.bill_edit)) }
+            SecondaryButton(stringResource(R.string.bill_edit), { onEdit(bill.id) }, Modifier.fillMaxWidth().testTag("bill-edit"))
             if (bill.type == BillType.EXPENSE && bill.remainingMinor > 0) {
-                ActionButton({ onSettle(bill.id, BillType.REFUND) }, Modifier.fillMaxWidth().testTag("bill-refund")) {
-                    Text(stringResource(R.string.bill_refund)) }
-                if (owed) ActionButton({ onSettle(bill.id, BillType.REIMBURSEMENT) }, Modifier.fillMaxWidth().testTag("bill-reimburse")) {
-                    Text(stringResource(R.string.bill_reimbursement)) }
+                SecondaryButton(stringResource(R.string.bill_refund), { onSettle(bill.id, BillType.REFUND) }, Modifier.fillMaxWidth().testTag("bill-refund"))
+                if (owed) SecondaryButton(stringResource(R.string.bill_reimbursement), { onSettle(bill.id, BillType.REIMBURSEMENT) },
+                    Modifier.fillMaxWidth().testTag("bill-reimburse"))
             }
-            if (owed) ActionButton({ vm.waive(true) }, Modifier.fillMaxWidth().testTag("bill-waive"), enabled = !state.deleting) {
-                Text(stringResource(R.string.bill_waive)) }
-            if (bill.reimburseState == ReimburseState.WAIVED) ActionButton({ vm.waive(false) }, Modifier.fillMaxWidth().testTag("bill-unwaive"),
-                enabled = !state.deleting) { Text(stringResource(R.string.bill_unwaive)) }
-            ActionButton({ onCopy(bill.id) }, Modifier.fillMaxWidth().testTag("bill-copy")) { Text(stringResource(R.string.bill_copy)) }
-            ActionButton({ confirming = true }, Modifier.fillMaxWidth().testTag("bill-delete"), enabled = !state.deleting, destructive = true) {
-                Text(stringResource(R.string.bill_delete))
-            }
+            if (owed) SecondaryButton(stringResource(R.string.bill_waive), { vm.waive(true) }, Modifier.fillMaxWidth().testTag("bill-waive"),
+                enabled = !state.deleting)
+            if (bill.reimburseState == ReimburseState.WAIVED) SecondaryButton(stringResource(R.string.bill_unwaive), { vm.waive(false) },
+                Modifier.fillMaxWidth().testTag("bill-unwaive"), enabled = !state.deleting)
+            SecondaryButton(stringResource(R.string.bill_copy), { onCopy(bill.id) }, Modifier.fillMaxWidth().testTag("bill-copy"))
+            DangerButton(stringResource(R.string.bill_delete), { confirming = true }, Modifier.fillMaxWidth().testTag("bill-delete"),
+                enabled = !state.deleting)
         }
     }
     if (confirming) AlertDialog({ confirming = false },

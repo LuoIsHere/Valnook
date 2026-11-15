@@ -1,5 +1,7 @@
 package dev.valnook.feature.ai
 
+import dev.valnook.designsystem.SecondaryButton
+import dev.valnook.designsystem.PrimaryButton
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -95,14 +97,14 @@ fun AiGuideScreen(onFill: () -> Unit) {
             }
         }
         Row(Modifier.fillMaxWidth().padding(top = Space.md), verticalAlignment = Alignment.CenterVertically) {
-            AiTonalButton(stringResource(R.string.ai_guide_previous), { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } },
+            SecondaryButton(stringResource(R.string.ai_guide_previous), { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } },
                 Modifier.testTag("ai-guide-previous"), enabled = pager.currentPage > 0)
             Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Dots(pager.currentPage)
                 Text(stringResource(R.string.ai_guide_step, pager.currentPage + 1, PAGES), Modifier.testTag("ai-guide-step"),
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            AiPrimaryButton(stringResource(R.string.ai_guide_next), { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
+            PrimaryButton(stringResource(R.string.ai_guide_next), { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
                 Modifier.testTag("ai-guide-next"), enabled = pager.currentPage < PAGES - 1)
         }
     }
@@ -250,6 +252,6 @@ private fun FillPage(onFill: () -> Unit) {
     Value(stringResource(R.string.ai_thinking_off_params), AiGuideExample.THINKING_OFF_PARAMS, "ai-guide-fill-thinking-off")
     Value(stringResource(R.string.ai_thinking_on_params), AiGuideExample.THINKING_ON_PARAMS, "ai-guide-fill-thinking-on")
     Small(stringResource(R.string.ai_guide_fill_after))
-    AiPrimaryButton(stringResource(R.string.ai_guide_fill), onFill, Modifier.fillMaxWidth().testTag("ai-guide-fill"))
+    PrimaryButton(stringResource(R.string.ai_guide_fill), onFill, Modifier.fillMaxWidth().testTag("ai-guide-fill"))
     Link(stringResource(R.string.ai_guide_link_platform), AiGuideExample.PLATFORM, "ai-guide-fill-platform")
 }
