@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -47,7 +48,9 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
 /** What the chat page puts in the title bar. */
-data class AiChatToolbarState(val title: String?, val onNew: () -> Unit, val onHistory: () -> Unit, val canNew: Boolean)
+/** [pendingElsewhere]: another conversation has drafts waiting, so the history button carries a dot. */
+data class AiChatToolbarState(val title: String?, val onNew: () -> Unit, val onHistory: () -> Unit, val canNew: Boolean,
+    val pendingElsewhere: Boolean = false)
 
 /**
  * The AI chat page. [onEdit] opens the bill page with a draft filled in, saved under the draft's operation;
@@ -60,8 +63,10 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
     var history by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) { vm.refresh(); onPauseOrDispose { } }
     val canNew = ui.conversationId != null && !ui.sending
-    LaunchedEffect(ui.title, canNew) {
-        onToolbar(AiChatToolbarState(ui.title, vm::newConversation, { history = true }, canNew))
+    // Drafts waiting in other conversations: shown on the history button, and on an empty page.
+    val pendingElsewhere = ui.conversations.filter { it.id != ui.conversationId }.sumOf { it.pending }
+    LaunchedEffect(ui.title, canNew, pendingElsewhere > 0) {
+        onToolbar(AiChatToolbarState(ui.title, vm::newConversation, { history = true }, canNew, pendingElsewhere > 0))
     }
     DisposableEffect(Unit) { onDispose { onToolbar(null) } }
     if (!ui.loaded) return
@@ -83,7 +88,13 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
         val arrived = remember { mutableSetOf<Long>() }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("ai-chat-messages"), list,
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = Space.md), verticalArrangement = Arrangement.spacedBy(Space.md)) {
-            if (ui.messages.isEmpty() && !ui.sending) item { Examples(vm) }
+            if (ui.messages.isEmpty() && !ui.sending && pendingElsewhere > 0) item {
+                Box(Modifier.fillMaxWidth().padding(top = Space.lg), contentAlignment = Alignment.Center) {
+                    TextButton({ history = true }, Modifier.testTag("ai-chat-pending-elsewhere")) {
+                        Text(pluralStringResource(R.plurals.ai_chat_pending_elsewhere, pendingElsewhere, pendingElsewhere))
+                    }
+                }
+            }
             // A message sent here keeps the key of the copy shown while it was stored: one item, no second entrance.
             items(ui.messages, key = { ui.keys[it.id] ?: it.id }) { message ->
                 val animate = message.createdAtMs >= openedAt && arrived.add(message.id)
@@ -105,6 +116,8 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
                 }
             }
         }
+        // On an empty page, the examples sit just above the box, on the left.
+        if (ui.messages.isEmpty() && !ui.sending) Examples(vm)
         if (ui.cardFailed) Text(stringResource(R.string.ai_chat_save_failed), Modifier.fillMaxWidth()
             .padding(horizontal = 16.dp).clickable { vm.dismissCardError() }.testTag("ai-chat-save-failed"),
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -168,18 +181,14 @@ private fun rememberAvatars(): Avatars {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Examples(vm: AiChatViewModel) {
-    Column(Modifier.fillMaxWidth().padding(top = Space.lg).testTag("ai-chat-examples"),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-        Text(stringResource(R.string.ai_chat_examples), style = MaterialTheme.typography.bodyMedium,
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("ai-chat-examples")) {
+        Text(stringResource(R.string.ai_chat_examples), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm, Alignment.CenterHorizontally)) {
-            listOf(R.string.ai_chat_example_1, R.string.ai_chat_example_2, R.string.ai_chat_example_3).forEach { id ->
-                val text = stringResource(id)
-                SuggestionChip({ vm.setInput(text) }, { Text(text) })
-            }
+        listOf(R.string.ai_chat_example_1, R.string.ai_chat_example_2, R.string.ai_chat_example_3).forEach { id ->
+            val text = stringResource(id)
+            SuggestionChip({ vm.setInput(text) }, { Text(text) })
         }
     }
 }
@@ -411,8 +420,10 @@ private fun HistorySheet(ui: AiChatUi, vm: AiChatViewModel, onDismiss: () -> Uni
     ModalBottomSheet(onDismiss, Modifier.testTag("ai-chat-history")) {
         if (ui.conversations.isEmpty()) Text(stringResource(R.string.ai_chat_history_empty), Modifier.padding(Space.cardInset),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        // Those with drafts waiting come first, the rest by time as before.
+        val ordered = remember(ui.conversations) { ui.conversations.sortedByDescending { it.pending > 0 } }
         LazyColumn(contentPadding = PaddingValues(bottom = Space.xl)) {
-            items(ui.conversations, key = { it.id }) { conversation ->
+            items(ordered, key = { it.id }) { conversation ->
                 Row(Modifier.fillMaxWidth().clickable { vm.openConversation(conversation.id); onDismiss() }
                     .testTag("ai-chat-history-${conversation.id}").padding(horizontal = Space.cardInset, vertical = Space.sm),
                     verticalAlignment = Alignment.CenterVertically) {
@@ -422,6 +433,9 @@ private fun HistorySheet(ui: AiChatUi, vm: AiChatViewModel, onDismiss: () -> Uni
                         Text(Instant.ofEpochMilli(conversation.lastAtMs).atZone(ZoneId.systemDefault()).format(format) + " · " +
                             stringResource(R.string.ai_chat_tokens, number.format(conversation.tokens)),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (conversation.pending > 0) Text(pluralStringResource(R.plurals.ai_chat_history_pending,
+                            conversation.pending, conversation.pending), Modifier.testTag("ai-chat-history-pending-${conversation.id}"),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                     }
                     val delete = stringResource(R.string.ai_chat_delete)
                     IconButton({ vm.deleteConversation(conversation.id) }, Modifier.semantics { contentDescription = delete }

@@ -319,4 +319,26 @@ class AiChatUiTest {
         rule.waitUntil(8_000) { runCatching { rule.onNodeWithTag("ai-chat-thinking").assertIsOff() }.isSuccess }
         runBlocking { assertTrue(!graph.ai!!.observeSettings().first().thinking) }
     }
+
+    @Test fun drafts_waiting_in_another_conversation_can_be_found_from_a_new_one() {
+        openChat()
+        drafts("One bill", """{"type":"EXPENSE","amount":"12"}""")
+        send("Lunch 12")
+        waitTag("ai-draft-d1-pending")
+        rule.onNodeWithTag("ai-chat-pending-elsewhere").assertDoesNotExist()
+        rule.onNodeWithTag("ai-chat-history-dot", useUnmergedTree = true).assertDoesNotExist()
+        // A new conversation points back to it: on the empty page and on the history button.
+        rule.onNodeWithTag("ai-chat-new").performClick()
+        waitTag("ai-chat-pending-elsewhere")
+        rule.onNodeWithTag("ai-chat-history-dot", useUnmergedTree = true).assertExists()
+        rule.onNodeWithTag("ai-chat-examples").assertExists()
+        rule.onNodeWithTag("ai-chat-pending-elsewhere").performClick()
+        waitTag("ai-chat-history")
+        rule.onNode(tagStarting("ai-chat-history-pending-"), useUnmergedTree = true).assertTextContains("1", substring = true)
+        val row = rule.onNode(tagStarting("ai-chat-history-pending-"), useUnmergedTree = true).fetchSemanticsNode()
+            .config[SemanticsProperties.TestTag].removePrefix("ai-chat-history-pending-")
+        rule.onNodeWithTag("ai-chat-history-$row").performClick()
+        waitTag("ai-draft-d1-pending")
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("ai-chat-history-dot", useUnmergedTree = true).fetchSemanticsNodes().isEmpty() }
+    }
 }

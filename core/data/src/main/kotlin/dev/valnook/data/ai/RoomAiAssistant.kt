@@ -47,9 +47,11 @@ class RoomAiAssistant(
 ) : AiAssistant {
     private val dao = chatDb.chat()
 
-    override fun observeConversations(): Flow<List<AiConversation>> = dao.observeConversations().map { list ->
-        list.map { AiConversation(it.id, it.title, it.created_at_ms, it.last_at_ms, it.tokens) }
-    }
+    override fun observeConversations(): Flow<List<AiConversation>> =
+        combine(dao.observeConversations(), dao.observePendingConversations()) { list, pending ->
+            val counts = pending.groupingBy { it }.eachCount()
+            list.map { AiConversation(it.id, it.title, it.created_at_ms, it.last_at_ms, it.tokens, counts[it.id] ?: 0) }
+        }
 
     override fun observeMessages(conversationId: Long): Flow<List<AiChatMessage>> = combine(
         dao.observeMessages(conversationId), dao.observePictures(conversationId), dao.observeDrafts(conversationId),

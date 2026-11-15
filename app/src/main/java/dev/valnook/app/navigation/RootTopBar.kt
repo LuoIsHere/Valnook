@@ -1,6 +1,8 @@
 package dev.valnook.app.navigation
 
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.Composable
@@ -105,7 +107,10 @@ internal fun RootTopBarActions(current: NavKey, walletDetail: Boolean, wallet: W
                 enabled = chat.canNew) { dev.valnook.designsystem.AddIcon(enabled = chat.canNew) }
             val historyLabel = stringResource(dev.valnook.feature.ai.R.string.ai_chat_history)
             IconButton(chat.onHistory, Modifier.testTag("ai-chat-history-open").semantics { contentDescription = historyLabel }) {
-                dev.valnook.designsystem.FaIcon(dev.valnook.core.designsystem.R.drawable.fa_bars, null, Modifier.size(20.dp))
+                // A dot, as on the AI button, while drafts wait in another conversation.
+                BadgedBox({ if (chat.pendingElsewhere) Badge(Modifier.testTag("ai-chat-history-dot")) }) {
+                    dev.valnook.designsystem.FaIcon(dev.valnook.core.designsystem.R.drawable.fa_bars, null, Modifier.size(20.dp))
+                }
             }
         }
         AiSettingsKey -> {

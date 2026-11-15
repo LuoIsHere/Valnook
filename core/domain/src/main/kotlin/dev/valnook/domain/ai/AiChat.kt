@@ -111,7 +111,9 @@ data class AiChatMessage(
     val images: List<BillImage> = emptyList(),
 )
 
-data class AiConversation(val id: Long, val title: String, val createdAtMs: Long, val lastAtMs: Long, val tokens: Long)
+/** A conversation in the history; [pending] is how many of its drafts wait to be confirmed. */
+data class AiConversation(val id: Long, val title: String, val createdAtMs: Long, val lastAtMs: Long, val tokens: Long,
+    val pending: Int = 0)
 
 /** This month's requests and tokens, chat and shares together. */
 data class AiUsageSummary(val requests: Int = 0, val tokens: Long = 0, val input: Long = 0, val output: Long = 0)

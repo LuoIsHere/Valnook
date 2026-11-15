@@ -111,6 +111,12 @@
     <string name="ai_chat_picture_failed">部分图片无法读取</string>
     <string name="ai_chat_working">正在识别…</string>
     <string name="ai_chat_examples">可以这样说</string>
+    <plurals name="ai_chat_pending_elsewhere">
+        <item quantity="other">另有 %d 笔草稿待确认，查看</item>
+    </plurals>
+    <plurals name="ai_chat_history_pending">
+        <item quantity="other">%d 笔待确认</item>
+    </plurals>
     <string name="ai_chat_example_1">午饭 25</string>
     <string name="ai_chat_example_2">昨天打车 32，需要报销</string>
     <string name="ai_chat_me">我</string>

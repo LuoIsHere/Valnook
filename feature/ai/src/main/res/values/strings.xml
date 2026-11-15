@@ -111,6 +111,14 @@
     <string name="ai_chat_picture_failed">Some pictures could not be read</string>
     <string name="ai_chat_working">Reading…</string>
     <string name="ai_chat_examples">Try saying</string>
+    <plurals name="ai_chat_pending_elsewhere">
+        <item quantity="one">%d draft waiting in another conversation. View</item>
+        <item quantity="other">%d drafts waiting in other conversations. View</item>
+    </plurals>
+    <plurals name="ai_chat_history_pending">
+        <item quantity="one">%d draft to confirm</item>
+        <item quantity="other">%d drafts to confirm</item>
+    </plurals>
     <string name="ai_chat_example_1">Lunch 25</string>
     <string name="ai_chat_example_2">Taxi 32 yesterday, to be reimbursed</string>
     <string name="ai_chat_me">Me</string>

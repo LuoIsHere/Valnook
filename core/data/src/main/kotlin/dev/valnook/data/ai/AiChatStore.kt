@@ -172,6 +172,10 @@ interface AiChatDao {
     @Query("SELECT * FROM drafts WHERE state='PENDING' AND conversation_id IN (:conversationIds)")
     suspend fun pendingDraftsIn(conversationIds: List<Long>): List<AiDraftEntity>
 
+    /** One row per waiting draft: the conversation it is in. */
+    @Query("SELECT conversation_id FROM drafts WHERE state='PENDING'")
+    fun observePendingConversations(): Flow<List<Long>>
+
     @Query("SELECT EXISTS(SELECT 1 FROM drafts WHERE state='PENDING')")
     fun observeAnyPending(): Flow<Boolean>
 
