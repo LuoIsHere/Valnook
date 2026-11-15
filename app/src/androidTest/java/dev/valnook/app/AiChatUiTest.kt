@@ -117,6 +117,8 @@ class AiChatUiTest {
             "category_id":${category("food")},"account_id":$cashId,"rate":"0.14","note":"合成矿泉水"}""")
         send("可乐 3 美元，汇率 7.1；矿泉水 2 美元，汇率 0.14")
         waitTag("ai-draft-d2-pending")
+        // The cards settle in as they arrive: wait for the line itself.
+        waitTag("ai-draft-d1-converted")
         rule.onNodeWithTag("ai-draft-d1-converted").assertTextEquals("扣款 ≈ 21.30 CNY（按提供的汇率 7.1）")
         rule.onNodeWithTag("ai-draft-d1-rate-far").assertDoesNotExist()
         // Far from the app's 7.2, perhaps said the other way round: the card asks to check it.

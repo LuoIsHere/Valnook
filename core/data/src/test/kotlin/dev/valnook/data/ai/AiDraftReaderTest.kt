@@ -22,9 +22,9 @@ class AiDraftReaderTest {
         category(3, null, hidden = true), category(31, 3),
         category(5, null, BillCategoryKind.INCOME, key = "income.other"), category(6, null, BillCategoryKind.INCOME, last = 8),
     )
-    private val all = listOf(AiAccountChoice(7, "Card", "CNY", true), AiAccountChoice(8, "Wallet", "USD", false),
-        AiAccountChoice(9, "Yen", "JPY", true))
-    private val sent = all.filter { it.favorite }
+    private val all = listOf(AiAccountChoice(7, "Card", "CNY", true), AiAccountChoice(8, "Wallet", "USD", false, hidden = true),
+        AiAccountChoice(9, "Yen", "JPY", false))
+    private val sent = AiPrompt.sentAccounts(all)
     private val now = LocalDateTime.of(2026, 11, 14, 9, 30)
 
     private fun reader(settings: AiSettings = AiSettings()) = AiDraftReader(settings, categories, sent, all, now, "CNY")
@@ -71,7 +71,7 @@ class AiDraftReaderTest {
     }
 
     @Test fun accounts_fall_back_like_the_bill_form_then_to_the_default() {
-        // Only sent accounts count: 8 exists but was not sent.
+        // Only sent accounts count: 8 exists but is hidden, so it was not sent.
         val unsent = one("""{"type":"EXPENSE","amount":"1","category_id":1,"account_id":8}""")
         assertNull(unsent.cashAccountId)
         assertTrue(AiDraftFlag.ACCOUNT in unsent.flags)

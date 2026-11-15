@@ -25,6 +25,9 @@ data class BillAccountRow(
     val limit_source_account_id: Long?,
 )
 
+/** A sub-account's latest bill, paying or receiving. */
+data class AccountUseRow(val id: Long, val last_ms: Long)
+
 /** Pictures bills hold that are only on this device, and those only in OneDrive. */
 data class BillImageCounts(val not_uploaded: Int, val only_in_cloud: Int, val on_device: Int, val missing: Int)
 
@@ -265,6 +268,13 @@ interface BillDao {
         LEFT JOIN credit_account_profiles p ON p.account_id=c.id
         ORDER BY g.display_order,g.id,a.display_order,a.id,c.display_order,c.id""")
     fun observeAccountRows(): Flow<List<BillAccountRow>>
+
+    @Query("""SELECT id,MAX(t) AS last_ms FROM (
+        SELECT cash_account_id AS id,occurred_at_ms AS t FROM bill_entries WHERE is_deleted=0 AND cash_account_id IS NOT NULL
+        UNION ALL
+        SELECT to_cash_account_id AS id,occurred_at_ms AS t FROM bill_entries WHERE is_deleted=0 AND to_cash_account_id IS NOT NULL
+        ) GROUP BY id""")
+    suspend fun accountLastUse(): List<AccountUseRow>
 
     @Query("UPDATE cash_accounts SET is_favorite=0,favorite_order=0 WHERE is_favorite<>0")
     suspend fun clearFavorites(): Int

@@ -324,7 +324,7 @@ class RoomAiAssistant(
 
     private suspend fun context(): Context {
         val settings = service.observeSettings().first()
-        val choices = service.observeChoices().first()
+        val choices = db.withAccountUse(service.observeChoices().first())
         val habits = if (settings.sendHabits) db.bills().recentHabits(AiRules.HABITS).map { AiHabit(it.note, it.category_id) }
             else emptyList()
         return Context(settings, service.observeFeatures().first(), choices, db.overview().settings()?.base_currency,
@@ -336,7 +336,7 @@ class RoomAiAssistant(
         val habits: List<AiHabit>, val now: LocalDateTime) {
         fun system(english: Boolean) = AiPrompt.system(settings, choices.categories, choices.accounts, now, base, english, habits)
         fun reader(currencyExpected: Boolean) = AiDraftReader(settings, choices.categories,
-            choices.accounts.filter { it.favorite }.ifEmpty { choices.accounts }, choices.accounts, now, base, currencyExpected)
+            AiPrompt.sentAccounts(choices.accounts), choices.accounts, now, base, currencyExpected)
     }
 
     /** Tokens and calls of one round so far. */

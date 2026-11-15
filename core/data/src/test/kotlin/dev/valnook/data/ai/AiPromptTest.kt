@@ -19,8 +19,9 @@ class AiPromptTest {
         category(13, null, "Old", hidden = true), category(131, 13, "Gone"),
         category(30, null, "Salary", BillCategoryKind.INCOME),
     )
-    private val accounts = listOf(AiAccountChoice(9, "Synthetic Bank · Card", "USD", false),
-        AiAccountChoice(4, "Synthetic Bank · Savings", "CNY", true))
+    private val accounts = listOf(AiAccountChoice(9, "Synthetic Bank · Card", "USD", false, credit = true),
+        AiAccountChoice(4, "Synthetic Bank · Savings", "CNY", true),
+        AiAccountChoice(5, "Synthetic Bank · Hidden", "CNY", true, hidden = true))
 
     @Test fun categories_are_compact_by_id_without_hidden_ones() {
         val text = AiPrompt.categoryList(categories, english = true)
@@ -30,11 +31,22 @@ class AiPromptTest {
         assertFalse(text.contains("Gone"))
     }
 
-    @Test fun only_favourite_accounts_go_unless_there_are_none() {
-        assertEquals("Accounts (id name currency):\n4 Synthetic Bank · Savings CNY", AiPrompt.accountList(accounts))
-        assertEquals("Accounts (id name currency):\n4 Synthetic Bank · Savings CNY\n9 Synthetic Bank · Card USD",
-            AiPrompt.accountList(accounts.map { it.copy(favorite = false) }))
+    @Test fun every_shown_account_goes_with_favourites_marked_frequent() {
+        assertEquals("Accounts (id name currency type, then \"frequent\" for the user's frequently used ones):\n" +
+            "4 Synthetic Bank · Savings CNY cash frequent\n9 Synthetic Bank · Card USD credit", AiPrompt.accountList(accounts))
         assertEquals("Accounts: none.", AiPrompt.accountList(emptyList()))
+        assertEquals("Accounts: none.", AiPrompt.accountList(accounts.filter { it.hidden }))
+    }
+
+    @Test fun a_long_list_keeps_the_favourites_then_the_most_recently_used() {
+        // 105 shown accounts: 1 is a favourite used longest ago, 2 was never used, the rest were used in id order.
+        val many = (1L..105L).map { AiAccountChoice(it, "Synthetic $it", "CNY", it == 1L, lastUsedMs = if (it == 2L) null else it) } +
+            AiAccountChoice(200, "Synthetic hidden", "CNY", true, hidden = true, lastUsedMs = 999)
+        val sent = AiPrompt.sentAccounts(many).map { it.id }
+        assertEquals(AiPrompt.ACCOUNT_LIMIT, sent.size)
+        assertEquals(listOf(1L) + (7L..105L), sent)
+        // Up to the limit nothing is dropped.
+        assertEquals((1L..100L).toList(), AiPrompt.sentAccounts(many.filter { it.id <= 100 }).map { it.id })
     }
 
     @Test fun the_parts_come_in_a_fixed_order_with_the_time_last() {

@@ -100,7 +100,7 @@ class RoomAiService(
 
     override suspend fun promptPreview(): String {
         val settings = observeSettings().first()
-        val choices = observeChoices().first()
+        val choices = db.withAccountUse(observeChoices().first())
         val base = db.overview().settings()?.base_currency
         val habits = if (settings.sendHabits) db.bills().recentHabits(AiRules.HABITS).map { AiHabit(it.note, it.category_id) }
             else emptyList()
@@ -123,7 +123,14 @@ class RoomAiService(
     }
 
     private fun BillAccountRow.choice() =
-        AiAccountChoice(id, if (account_name == name || name.isBlank()) account_name else "$account_name · $name", currency_code, is_favorite)
+        AiAccountChoice(id, if (account_name == name || name.isBlank()) account_name else "$account_name · $name", currency_code,
+            is_favorite, credit = is_credit, hidden = !show_on_accounts_page)
+}
+
+/** The choices with when each account was last used, read for a request only: it changes with every bill. */
+internal suspend fun ValnookDatabase.withAccountUse(choices: AiChoices): AiChoices {
+    val used = bills().accountLastUse().associate { it.id to it.last_ms }
+    return choices.copy(accounts = choices.accounts.map { it.copy(lastUsedMs = used[it.id]) })
 }
 
 internal fun AiSettingsEntity.toModel() = AiSettings(

@@ -172,8 +172,12 @@ data class AiCheckReport(val fingerprint: String, val checkedAtMs: Long, val res
     val usable: Boolean get() = of(AiCheckItem.CONNECT).state == AiCheckState.PASSED && of(AiCheckItem.TOOLS).state == AiCheckState.PASSED
 }
 
-/** A sub-account offered as the default account, and sent to the model by id. */
-data class AiAccountChoice(val id: Long, val name: String, val currencyCode: String, val favorite: Boolean)
+/**
+ * A sub-account offered as the default account, and sent to the model by id. [credit] is a credit card's; [hidden]
+ * ones (not shown on the accounts page) are not sent; [lastUsedMs], its latest bill, decides what a long list keeps.
+ */
+data class AiAccountChoice(val id: Long, val name: String, val currencyCode: String, val favorite: Boolean,
+    val credit: Boolean = false, val hidden: Boolean = false, val lastUsedMs: Long? = null)
 
 data class AiChoices(val accounts: List<AiAccountChoice> = emptyList(), val categories: List<BillCategory> = emptyList())
 

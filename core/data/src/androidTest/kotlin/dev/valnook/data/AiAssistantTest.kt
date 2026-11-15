@@ -124,6 +124,35 @@ class AiAssistantTest {
         assertEquals(AiUsageSummary(3, 240, 200, 40), assistant.observeUsage().first())
     }
 
+    @Test fun every_shown_account_is_offered_and_one_named_is_read_whether_a_favourite_or_not() = runBlocking {
+        val commands = dev.valnook.data.transaction.RoomFinancialCommands(db, clock)
+        fun uuid() = java.util.UUID.randomUUID().toString()
+        commands.execute(dev.valnook.domain.repository.SaveAccount(uuid(), null, null, "Synthetic Bank", "", listOf(
+            dev.valnook.domain.repository.CashBalanceChange("CNY", 1_234_567, null, name = "Debit"),
+            dev.valnook.domain.repository.CashBalanceChange("CNY", 0, null, name = "Spare"))))
+        commands.execute(dev.valnook.domain.repository.SaveAccount(uuid(), null, null, "Synthetic Wallet", "", listOf(
+            dev.valnook.domain.repository.CashBalanceChange("CNY", 5_000, null, name = "Pocket"))))
+        val cash = dev.valnook.data.repository.RoomOverview(db).snapshot().cash
+        val debit = cash.single { it.name == "Debit" }.id
+        val spare = cash.single { it.name == "Spare" }.id
+        val pocket = cash.single { it.name == "Pocket" }.id
+        commands.execute(dev.valnook.domain.repository.SaveBillFavorites(uuid(), listOf(debit)))
+        // Spare is hidden from the accounts page.
+        db.openHelper.writableDatabase.execSQL("UPDATE cash_accounts SET show_on_accounts_page=0 WHERE id=?", arrayOf(spare))
+        replies += toolReply("""{"message":"ok","bills":[{"type":"EXPENSE","amount":"5","note":"Coffee","account_id":$pocket},
+            {"type":"EXPENSE","amount":"6","note":"Tea","account_id":$spare}]}""")
+        val id = assistant.send(null, "Coffee 5 from the pocket, tea 6 from spare", emptyList())
+        val lines = requests.last()["messages"]!!.jsonArray[0].jsonObject["content"]!!.jsonPrimitive.content.lines()
+        assertTrue(lines.toString(), "$debit Synthetic Bank · Debit CNY cash frequent" in lines)
+        // Not a favourite, still offered and read.
+        assertTrue(lines.toString(), "$pocket Synthetic Wallet · Pocket CNY cash" in lines)
+        assertTrue(lines.none { it.contains("Spare") || it.contains("12345") })
+        val drafts = messages(id).last().drafts.map { it.draft }
+        assertEquals(pocket, drafts[0].cashAccountId)
+        // A hidden account was not offered, so its id is not taken.
+        assertNotEquals(spare, drafts[1].cashAccountId)
+    }
+
     @Test fun drafts_that_cannot_be_read_are_asked_for_once_more() = runBlocking {
         replies += toolReply("""{"bills":[{"type":""")
         replies += toolReply("""{"bills":[{"type":"INCOME","amount":"100"}]}""")
