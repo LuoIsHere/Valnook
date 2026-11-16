@@ -22,6 +22,7 @@ node_modules/
 **/build/
 /app/release/
 .idea/
+.vscode/
 .env
 .env.*
 *.jks
