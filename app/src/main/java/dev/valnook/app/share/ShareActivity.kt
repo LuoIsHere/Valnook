@@ -26,7 +26,9 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.valnook.app.appearance.ThemePreferences
 import dev.valnook.app.appearance.configurationOverride
 import dev.valnook.app.di.AppSessionManager
+import dev.valnook.designsystem.AccountImageLoader
 import dev.valnook.designsystem.BackButton
+import dev.valnook.designsystem.LocalAccountImageLoader
 import dev.valnook.designsystem.LocalPageBottomSpace
 import dev.valnook.designsystem.ValnookTheme
 import dev.valnook.domain.ai.AiBillDraft
@@ -122,6 +124,8 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
             AiDraftSaver(bills, graph.commands, graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
                 graph.billImages)
         }
+        // Accounts with a picture of their own show it in the account picker, as in the app.
+        val accountImages = remember(graph.sessionId) { AccountImageLoader(graph.overview::accountIconImage) }
         // Decided once, when the page opens: with AI on, the AI chat (pictures once the model reads them), otherwise
         // straight to the bill page.
         val ai = graph.ai
@@ -162,7 +166,7 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
         }) { padding ->
             val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             CompositionLocalProvider(dev.valnook.feature.bills.LocalBillImages provides graph.billImages,
-                LocalPageBottomSpace provides bottom) {
+                LocalAccountImageLoader provides accountImages, LocalPageBottomSpace provides bottom) {
                 Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).consumeWindowInsets(padding).imePadding()
                     .testTag("share-root")) {
                     if (request != null) {
