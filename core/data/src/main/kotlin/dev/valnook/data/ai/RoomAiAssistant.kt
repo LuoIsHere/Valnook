@@ -281,6 +281,13 @@ class RoomAiAssistant(
 
     override suspend fun setKeepImages(cardId: Long, keep: Boolean) = dao.setKeepImages(cardId, keep)
 
+    override suspend fun matchBill(cardId: Long, draft: AiBillDraft, images: List<BillImage>?) {
+        val card = dao.draft(cardId) ?: return
+        if (card.state != AiDraftState.CONFIRMED.name) return
+        // A saved card holds no pins (its bill holds its pictures), so its pictures change without pinning.
+        dao.setDraftContent(cardId, AiConversations.encodeDraft(draft), images?.let(AiConversations::encodeImages) ?: card.images)
+    }
+
     override suspend fun deleteConversation(id: Long) {
         val held = dao.pendingDraftsIn(listOf(id)).flatMap { AiConversations.decodeImages(it.images) }.map { it.key }
         dao.deleteConversation(id)

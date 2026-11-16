@@ -48,16 +48,19 @@ class AiDraftActions(
     val onKeepImages: (AiDraftCard, Boolean) -> Unit,
     /** Opens the exchange rate settings, for a draft across currencies without a rate. */
     val onRates: (() -> Unit)? = null,
+    /** Opens a saved card's bill in the bill page, to change it again; null where that is not offered. */
+    val onEditBill: ((AiDraftCard) -> Unit)? = null,
 )
 
 /**
  * One draft: type, amount and currency, category, account, time and note, with what the checks filled in. A waiting
- * draft can be confirmed (or, without an amount, completed in the bill page), edited or discarded; a saved one opens
- * its bill or is taken back.
+ * draft can be confirmed (or, without an amount, completed in the bill page), edited or discarded; a saved one is
+ * changed again in the bill page (unless [billGone]), opens its bill or is taken back.
  */
 @Composable
 fun AiDraftCardView(card: AiDraftCard, categories: Map<Long, BillCategory>, accounts: Map<Long, BillAccountChoice>,
-    busy: Boolean, actions: AiDraftActions, modifier: Modifier = Modifier, money: AiDraftMoney? = null) {
+    busy: Boolean, actions: AiDraftActions, modifier: Modifier = Modifier, money: AiDraftMoney? = null,
+    billGone: Boolean = false) {
     val draft = card.draft
     val colors = MaterialTheme.colorScheme
     val faded = card.state == AiDraftState.DISCARDED || card.state == AiDraftState.REPLACED
@@ -76,14 +79,20 @@ fun AiDraftCardView(card: AiDraftCard, categories: Map<Long, BillCategory>, acco
                 DraftPictures(card, actions)
             when (card.state) {
                 AiDraftState.PENDING -> PendingButtons(card, busy, actions, money?.missingRate == true)
-                AiDraftState.CONFIRMED -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.ai_draft_saved), Modifier.weight(1f), color = colors.primary,
-                        style = MaterialTheme.typography.labelLarge)
-                    val open = actions.onOpenBill
-                    if (open != null) card.billId?.let { id -> SecondaryButton(stringResource(R.string.ai_chat_view_bill), { open(id) },
-                        Modifier.padding(end = Space.xs).testTag("ai-draft-${card.label}-view")) }
-                    SecondaryButton(stringResource(R.string.ai_draft_undo), { actions.onUndo(card) },
-                        Modifier.testTag("ai-draft-${card.label}-undo"), enabled = !busy)
+                AiDraftState.CONFIRMED -> {
+                    Text(stringResource(R.string.ai_draft_saved), color = colors.primary, style = MaterialTheme.typography.labelLarge)
+                    // On a line of their own, so three buttons never squeeze the words on a narrow screen.
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xs, Alignment.End),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        val edit = actions.onEditBill
+                        if (edit != null && card.billId != null && !billGone) SecondaryButton(stringResource(R.string.ai_draft_edit),
+                            { edit(card) }, Modifier.testTag("ai-draft-${card.label}-edit-bill"), enabled = !busy)
+                        val open = actions.onOpenBill
+                        if (open != null) card.billId?.let { id -> SecondaryButton(stringResource(R.string.ai_chat_view_bill), { open(id) },
+                            Modifier.testTag("ai-draft-${card.label}-view")) }
+                        SecondaryButton(stringResource(R.string.ai_draft_undo), { actions.onUndo(card) },
+                            Modifier.testTag("ai-draft-${card.label}-undo"), enabled = !busy)
+                    }
                 }
                 AiDraftState.DISCARDED -> Text(stringResource(R.string.ai_draft_discarded), style = MaterialTheme.typography.labelLarge,
                     color = colors.onSurfaceVariant)

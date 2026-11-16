@@ -341,4 +341,82 @@ class AiChatUiTest {
         waitTag("ai-draft-d1-pending")
         rule.waitUntil(8_000) { rule.onAllNodesWithTag("ai-chat-history-dot", useUnmergedTree = true).fetchSemanticsNodes().isEmpty() }
     }
+
+    /** A second synthetic sub-account, to move bills to. */
+    private fun secondAccount(): Long = runBlocking {
+        val account = graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "合成钱包", "",
+            listOf(CashBalanceChange("CNY", 50_000, null, name = "合成零钱")))).id
+        db.cash().accountIds(account).single()
+    }
+
+    private fun balanceOf(id: Long) = runBlocking { db.cash().cashAccount(id)!!.balance_minor }
+
+    @Test fun a_draft_changed_in_the_bill_page_shows_what_was_saved() {
+        val other = secondAccount()
+        openChat()
+        drafts("记好了", """{"type":"EXPENSE","amount":"30","category_id":${category("food")},"account_id":$cashId,"note":"合成晚饭"}""")
+        send("晚饭 30")
+        waitTag("ai-draft-d1-pending")
+        rule.onNodeWithTag("ai-draft-details").assertTextContains("合成银行 · 合成储蓄卡", substring = true)
+        rule.onNodeWithTag("ai-draft-d1-edit").performClick()
+        waitTag("bill-editor")
+        rule.onNodeWithTag("bill-account").performClick()
+        waitTag("bill-account-picker")
+        rule.onNodeWithTag("bill-account-$other").performClick()
+        rule.onNodeWithTag("bill-confirm").performClick()
+        // Back in the chat the card shows the bill as saved, on the other account.
+        waitTag("ai-chat")
+        waitTag("ai-draft-d1-confirmed")
+        rule.waitUntil(8_000) {
+            rule.onAllNodes(hasTestTag("ai-draft-details") and hasText("合成钱包 · 合成零钱", substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(100_000L, balance())
+        assertEquals(50_000L - 3_000, balanceOf(other))
+    }
+
+    @Test fun a_saved_card_is_changed_again_in_the_bill_page_and_follows_its_bill() {
+        val other = secondAccount()
+        openChat()
+        drafts("记好了", """{"type":"EXPENSE","amount":"12","category_id":${category("food")},"account_id":$cashId,"note":"合成早饭"}""")
+        send("早饭 12")
+        waitTag("ai-draft-d1-pending")
+        rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
+        waitTag("ai-draft-d1-confirmed")
+        assertEquals(100_000L - 1_200, balance())
+        // Saved straight from the card, it can still be changed in the bill page.
+        rule.onNodeWithTag("ai-draft-d1-edit-bill").performClick()
+        waitTag("bill-editor")
+        rule.onNodeWithTag("bill-account").assertTextEquals("合成银行 · 合成储蓄卡").performClick()
+        waitTag("bill-account-picker")
+        rule.onNodeWithTag("bill-account-$other").performClick()
+        rule.onNodeWithTag("bill-confirm").performClick()
+        waitTag("ai-chat")
+        rule.waitUntil(8_000) {
+            rule.onAllNodes(hasTestTag("ai-draft-details") and hasText("合成钱包 · 合成零钱", substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        waitTag("ai-draft-d1-confirmed")
+        assertEquals(100_000L, balance())
+        assertEquals(50_000L - 1_200, balanceOf(other))
+        // Taken back, the card waits as it was last saved: on the other account.
+        rule.onNodeWithTag("ai-draft-d1-undo").performClick()
+        waitTag("ai-draft-d1-pending")
+        assertEquals(50_000L, balanceOf(other))
+        rule.onNodeWithTag("ai-draft-details").assertTextContains("合成钱包 · 合成零钱", substring = true)
+        rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
+        waitTag("ai-draft-d1-confirmed")
+        assertEquals(50_000L - 1_200, balanceOf(other))
+
+        // Deleted elsewhere, the bill has nothing left to change: back on the page the card no longer offers it.
+        runBlocking {
+            val bill = graph.bills!!.observeSearch("合成早饭").first().single()
+            graph.commands.execute(dev.valnook.domain.repository.DeleteBill(UUID.randomUUID().toString(), bill.id, bill.revision))
+        }
+        rule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        openChat()
+        waitTag("ai-draft-d1-confirmed")
+        gone("ai-draft-d1-edit-bill")
+        rule.onNodeWithTag("ai-draft-d1-undo").assertExists()
+    }
 }

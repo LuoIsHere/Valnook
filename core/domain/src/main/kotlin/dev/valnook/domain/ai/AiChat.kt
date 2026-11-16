@@ -150,6 +150,11 @@ interface AiAssistant {
     /** The saved bill was deleted again: the card waits once more. */
     suspend fun undone(cardId: Long)
     suspend fun setKeepImages(cardId: Long, keep: Boolean)
+    /**
+     * A saved card's bill as it is now, edited since perhaps: the card shows [draft] and, unless null, [images].
+     * Cards that are not saved stay as they are.
+     */
+    suspend fun matchBill(cardId: Long, draft: AiBillDraft, images: List<BillImage>?)
     suspend fun deleteConversation(id: Long)
     suspend fun clearConversations()
     /** Removes conversations past keeping; also run when the app starts. */

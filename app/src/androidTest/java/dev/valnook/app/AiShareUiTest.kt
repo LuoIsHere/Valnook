@@ -207,4 +207,35 @@ class AiShareUiTest {
         // It asks again next time.
         assertTrue(!AiNotices.picturesSeen(context))
     }
+
+    @Test fun a_saved_card_is_changed_again_in_the_share_page() {
+        val other = runBlocking {
+            val account = graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "合成钱包", "",
+                listOf(CashBalanceChange("CNY", 50_000, null, name = "合成零钱")))).id
+            db.cash().accountIds(account).single()
+        }
+        enableAi(pictures = false)
+        drafts("""{"type":"EXPENSE","amount":"20","currency":"CNY","category_id":${category("food")},"account_id":$cashId,"note":"合成奶茶"}""")
+        share("合成奶茶 20 元")
+        waitTag("ai-draft-d1-pending")
+        rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
+        waitTag("ai-draft-d1-confirmed")
+        // The bill opens here to be changed, not in the app.
+        rule.onNodeWithTag("ai-draft-d1-edit-bill").performClick()
+        waitTag("bill-editor")
+        rule.onNodeWithText("编辑账单").assertExists()
+        rule.onNodeWithTag("bill-account").performClick()
+        waitTag("bill-account-picker")
+        rule.onNodeWithTag("bill-account-$other").performClick()
+        rule.onNodeWithTag("bill-confirm").performClick()
+        // Saved, the share goes back to the chat, and the card follows the bill.
+        waitTag("ai-chat")
+        rule.waitUntil(8_000) {
+            rule.onAllNodes(hasTestTag("ai-draft-details") and hasText("合成钱包 · 合成零钱", substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(100_000L, runBlocking { db.cash().cashAccount(cashId)!!.balance_minor })
+        assertEquals(50_000L - 2_000, runBlocking { db.cash().cashAccount(other)!!.balance_minor })
+        assertTrue(!closed())
+    }
 }

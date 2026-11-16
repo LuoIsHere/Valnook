@@ -54,11 +54,13 @@ data class AiChatToolbarState(val title: String?, val onNew: () -> Unit, val onH
 
 /**
  * The AI chat page. [onEdit] opens the bill page with a draft filled in, saved under the draft's operation;
- * [onManual] opens it with words and pictures the model could not turn into drafts.
+ * [onManual] opens it with words and pictures the model could not turn into drafts; [onEditBill] opens a saved
+ * card's bill to change it again.
  */
 @Composable
 fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: String) -> Unit, onOpenBill: ((Long) -> Unit)?,
-    onManual: (prefill: String) -> Unit, onToolbar: (AiChatToolbarState?) -> Unit = {}, onRates: (() -> Unit)? = null) {
+    onManual: (prefill: String) -> Unit, onToolbar: (AiChatToolbarState?) -> Unit = {}, onRates: (() -> Unit)? = null,
+    onEditBill: ((billId: Long) -> Unit)? = null) {
     val ui by vm.state.collectAsStateWithLifecycle()
     var history by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) { vm.refresh(); onPauseOrDispose { } }
@@ -73,7 +75,8 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
     val avatars = rememberAvatars()
     val actions = remember(vm) {
         AiDraftActions(onConfirm = { vm.confirm(it, onEdit) }, onEdit = { vm.edit(it, onEdit) }, onDiscard = vm::discard,
-            onUndo = vm::undo, onOpenBill = onOpenBill, onKeepImages = vm::setKeepImages, onRates = onRates)
+            onUndo = vm::undo, onOpenBill = onOpenBill, onKeepImages = vm::setKeepImages, onRates = onRates,
+            onEditBill = onEditBill?.let { open -> { card: AiDraftCard -> vm.editBill(card, open) } })
     }
     Column(Modifier.fillMaxSize().testTag("ai-chat")) {
         val list = rememberLazyListState()
@@ -253,7 +256,8 @@ private fun AssistantMessage(message: AiChatMessage, ui: AiChatUi, avatar: Image
         message.reasoning?.let { Thinking(it, message.thinkingMs) }
         if (message.text.isNotBlank()) Bubble(message.text, mine = false, Modifier.testTag("ai-chat-reply-${message.id}"))
         message.drafts.forEach { card ->
-            AiDraftCardView(card, ui.categories, ui.accounts, card.id in ui.busyCards, actions, money = ui.money[card.id])
+            AiDraftCardView(card, ui.categories, ui.accounts, card.id in ui.busyCards, actions, money = ui.money[card.id],
+                billGone = card.id in ui.goneBills)
         }
         val waiting = message.drafts.filter { it.state == AiDraftState.PENDING && it.draft.hasAmount && ui.money[it.id]?.missingRate != true }
         if (waiting.size >= 2) PrimaryButton(stringResource(R.string.ai_chat_confirm_all), { vm.confirmAll(message.drafts) },

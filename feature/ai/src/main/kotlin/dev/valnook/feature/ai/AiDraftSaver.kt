@@ -24,6 +24,9 @@ data class AiDraftMoney(val from: String, val fromDigits: Int, val fromMinor: Lo
     val toMinor: Long?, val missingRate: Boolean, val given: Boolean = false, val rate: BigDecimal? = null,
     val source: BillRateSource? = null, val farOff: Boolean = false)
 
+/** A saved bill as a card shows it, and the pictures it has. */
+data class AiSavedBill(val draft: AiBillDraft, val images: List<BillImage>)
+
 /** What confirming a draft came to. */
 sealed interface AiSaveOutcome {
     data class Saved(val billId: Long) : AiSaveOutcome
@@ -98,6 +101,22 @@ class AiDraftSaver(
     companion object {
         /** How far a rate the user gave may be from the app's own before the card asks to check it. */
         val FAR_OFF: BigDecimal = BigDecimal("0.3")
+    }
+
+    /**
+     * Bill [billId] as it is now, as a card shows it: what was charged or received across currencies is given, so the
+     * card shows the bill's own figures, and the checks' flags are gone (the user saw it). Null when the bill is gone.
+     */
+    suspend fun billNow(billId: Long): AiSavedBill? {
+        val bill = bills.observeBill(billId).first() ?: return null
+        val cross = bill.type != BillType.TRANSFER && bill.currency != bill.accountCurrency
+        val transferCross = bill.type == BillType.TRANSFER && bill.toCurrency != null && bill.toCurrency != bill.currency
+        val draft = AiBillDraft(bill.type, bill.amountMinor, bill.currency.code, bill.discountMinor, bill.categoryId,
+            bill.subCategoryId, bill.cashAccountId, bill.toCashAccountId,
+            java.time.Instant.ofEpochMilli(bill.occurredAtMs).atZone(clock.zone).toLocalDateTime(), bill.note,
+            bill.counterparty, bill.reimbursable, toAmountMinor = bill.toAmountMinor?.takeIf { transferCross },
+            accountAmountMinor = bill.accountAmountMinor.takeIf { cross })
+        return AiSavedBill(draft, bills.observeImages(billId).first())
     }
 
     /** The bill saved under [operationId], if one was. */

@@ -188,6 +188,9 @@ interface AiChatDao {
     @Query("UPDATE drafts SET keep_images=:keep WHERE id=:id")
     suspend fun setKeepImages(id: Long, keep: Boolean)
 
+    @Query("UPDATE drafts SET payload=:payload, images=:images WHERE id=:id")
+    suspend fun setDraftContent(id: Long, payload: String, images: String)
+
     @Insert
     suspend fun insertUsage(value: AiUsageEntity)
 

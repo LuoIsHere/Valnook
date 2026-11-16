@@ -105,7 +105,9 @@ internal data class SharedContent(val text: String, val pictures: List<Uri>) {
 }
 
 /** A bill page opened from the share: a draft's form under its operation, or the share as it came. */
-private data class EditorRequest(val key: Int, val prefill: String, val operation: String?, val closesShare: Boolean)
+/** The bill page in the share: a new bill from [prefill], or saved bill [billId] to change again. */
+private data class EditorRequest(val key: Int, val prefill: String?, val operation: String?, val closesShare: Boolean,
+    val billId: Long? = null)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -159,7 +161,8 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
         }
         BackHandler(onBack = back)
         Scaffold(topBar = {
-            TopAppBar(title = { Text(if (request != null) stringResource(dev.valnook.feature.ai.R.string.ai_share_new_bill)
+            TopAppBar(title = { Text(if (request?.billId != null) stringResource(dev.valnook.app.R.string.title_edit_bill)
+                else if (request != null) stringResource(dev.valnook.feature.ai.R.string.ai_share_new_bill)
                 else chatToolbar?.title ?: stringResource(dev.valnook.feature.ai.R.string.ai_chat_title)) }, navigationIcon = {
                 BackButton(stringResource(dev.valnook.feature.ai.R.string.ai_share_back), back)
             })
@@ -171,7 +174,7 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
                     .testTag("share-root")) {
                     if (request != null) {
                         val editorVm: BillEditorViewModel = viewModel(key = "editor-${request.key}", factory = viewModelFactory { initializer {
-                            BillEditorViewModel(null, null, BillTab.EXPENSE, bills, graph.commands, graph.settings.observeSettings(),
+                            BillEditorViewModel(request.billId, null, BillTab.EXPENSE, bills, graph.commands, graph.settings.observeSettings(),
                                 graph.overview.observeFxContext(), graph.clock, createSavedStateHandle(), graph.billImages,
                                 request.prefill, request.operation)
                         } })
@@ -183,7 +186,10 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
                         // The bill details live in the app itself; here a saved draft only says so.
                         onOpenBill = null,
                         onManual = { prefill -> editor = EditorRequest(++nextKey, prefill, null, closesShare = false) },
-                        onToolbar = { chatToolbar = it }) else Surface(Modifier.fillMaxSize()) {}
+                        onToolbar = { chatToolbar = it },
+                        // A saved card's bill opens here too, not in the app.
+                        onEditBill = { billId -> editor = EditorRequest(++nextKey, null, null, closesShare = false, billId = billId) })
+                    else Surface(Modifier.fillMaxSize()) {}
                 }
             }
         }

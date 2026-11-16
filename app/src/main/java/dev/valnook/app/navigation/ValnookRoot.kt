@@ -667,7 +667,7 @@ private fun SessionRoot(
                                 }, onEdit = { prefill, operation -> open(BillEditorKey(prefill = prefill, operation = operation)) },
                                     onOpenBill = { open(BillDetailKey(it)) },
                                     onManual = { prefill -> open(BillEditorKey(prefill = prefill)) }, onToolbar = toolbars.onAiChat,
-                                    onRates = { open(FxSettingsKey) })
+                                    onRates = { open(FxSettingsKey) }, onEditBill = { open(BillEditorKey(billId = it)) })
                             }
                             entry<AiPromptKey> {
                                 graph.ai?.let { dev.valnook.feature.ai.AiPromptScreen(it) }

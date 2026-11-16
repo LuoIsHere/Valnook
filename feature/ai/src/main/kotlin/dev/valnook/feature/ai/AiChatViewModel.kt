@@ -53,6 +53,8 @@ data class AiChatUi(
     val thinkingAvailable: Boolean = false,
     /** Whether the next message goes with deep thinking. */
     val thinking: Boolean = false,
+    /** Saved cards whose bill has been deleted since: nothing is left to edit. */
+    val goneBills: Set<Long> = emptySet(),
 ) {
     /** The pending copy shows until the stored message with its key is in the list. */
     val pendingShown: Boolean get() = pending != null &&
@@ -89,7 +91,8 @@ class AiChatViewModel(
         val money: Map<Long, AiDraftMoney> = emptyMap(), val stored: Boolean = false,
         val pending: AiPendingMessage? = null, val keys: Map<Long, String> = emptyMap(),
         /** Deep thinking as switched on this page for the conversation; null follows the setting. */
-        val thinking: Boolean? = null)
+        val thinking: Boolean? = null,
+        val goneBills: Set<Long> = emptySet())
 
     private val messages = conversation.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else assistant.observeMessages(id) }
     private val choices = combine(bills.observeCategories(), bills.observeAccountChoices()) { c, a ->
@@ -103,7 +106,8 @@ class AiChatViewModel(
         AiChatUi(l.loaded, id, conversations.firstOrNull { it.id == id }?.title, m, l.sending, l.input, l.pictures,
             l.picturesWorking, l.pictureFailed, features, settings.connection.host, categories, accounts, conversations,
             l.busyCards, l.cardError, l.cardFailed, settings.userNickname, settings.aiNickname, l.money, l.sending && l.stored,
-            l.pending, l.keys, features.thinkingAvailable, features.thinkingAvailable && (l.thinking ?: features.thinking))
+            l.pending, l.keys, features.thinkingAvailable, features.thinkingAvailable && (l.thinking ?: features.thinking),
+            l.goneBills)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AiChatUi())
 
     init {
@@ -123,6 +127,37 @@ class AiChatViewModel(
                 if (waiting.isNotEmpty()) workOutMoney(waiting)
             }
         }
+        // A conversation opened shows its saved cards as their bills are now.
+        viewModelScope.launch {
+            conversation.filterNotNull().collectLatest { id ->
+                matchSaved(runCatching { assistant.observeMessages(id).first() }.getOrDefault(emptyList()).flatMap { it.drafts })
+            }
+        }
+    }
+
+    /**
+     * Saved cards follow their bills, which may have been edited since (in the bill page or anywhere else): the card
+     * takes the bill's figures and, when the bill keeps pictures, its pictures. A card whose bill is gone is marked.
+     */
+    private suspend fun matchSaved(cards: List<AiDraftCard>) {
+        val gone = mutableSetOf<Long>()
+        val present = mutableSetOf<Long>()
+        cards.filter { it.state == AiDraftState.CONFIRMED }.forEach { card ->
+            val billId = card.billId ?: return@forEach
+            val now = try { saver.billNow(billId) } catch (cancelled: CancellationException) { throw cancelled }
+                catch (_: Exception) { return@forEach }
+            if (now == null) { gone += card.id; return@forEach }
+            present += card.id
+            // Pictures added to the bill later count as kept, though the card's own were not.
+            val keeps = card.keepImages || now.images.isNotEmpty()
+            val images = now.images.takeIf { keeps }
+            if (now.draft == card.draft && (images == null || images == card.images) && keeps == card.keepImages) return@forEach
+            runCatching {
+                if (keeps != card.keepImages) assistant.setKeepImages(card.id, true)
+                assistant.matchBill(card.id, now.draft, images)
+            }
+        }
+        updateLocal { it.copy(goneBills = it.goneBills - present + gone) }
     }
 
     private suspend fun workOutMoney(cards: List<AiDraftCard>) {
@@ -309,6 +344,12 @@ class AiChatViewModel(
         }
     }
 
+    /** Opens saved card [card]'s bill in the bill page; back here the card follows it. */
+    fun editBill(card: AiDraftCard, onOpen: (billId: Long) -> Unit) {
+        if (card.state != AiDraftState.CONFIRMED || card.id in local.value.goneBills) return
+        card.billId?.let(onOpen)
+    }
+
     /** The bill page's form for [card], saved under the card's operation so the page's save is found afterwards. */
     fun edit(card: AiDraftCard, onOpen: (prefill: String, operation: String) -> Unit) {
         if (card.state != AiDraftState.PENDING) return
@@ -345,15 +386,20 @@ class AiChatViewModel(
     }
 
     /**
-     * Back on the page: drafts saved from the bill page meanwhile become saved cards, and conversions are worked out
-     * again (a rate may have been set in the meantime).
+     * Back on the page: drafts saved from the bill page meanwhile become saved cards, saved cards follow their bills
+     * as they are now, and conversions are worked out again (a rate may have been set in the meantime).
      */
     fun refresh() {
         viewModelScope.launch {
-            val waiting = state.value.messages.flatMap { it.drafts }.filter { it.state == AiDraftState.PENDING }
-            waiting.forEach { card ->
-                saver.savedAs(card.operationId)?.let { runCatching { assistant.confirmed(card.id, it) } }
+            val cards = state.value.messages.flatMap { it.drafts }
+            val waiting = cards.filter { it.state == AiDraftState.PENDING }
+            val savedNow = waiting.mapNotNull { card ->
+                saver.savedAs(card.operationId)?.let { billId ->
+                    runCatching { assistant.confirmed(card.id, billId) }
+                    card.copy(state = AiDraftState.CONFIRMED, billId = billId)
+                }
             }
+            matchSaved(cards.filter { it.state == AiDraftState.CONFIRMED } + savedNow)
             workOutMoney(waiting)
         }
     }
