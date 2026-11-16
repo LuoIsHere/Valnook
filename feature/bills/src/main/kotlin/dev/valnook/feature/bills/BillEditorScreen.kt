@@ -282,14 +282,20 @@ private const val CATEGORY_COLUMNS = 5
     }
 }
 
-@Composable private fun AccountChip(label: String, value: String, onClick: () -> Unit, tag: String) {
+/** A transfer side: [label], the account chosen and, under it, [balance] (its currency and balance) when there is one. */
+@Composable private fun AccountChip(label: String, value: String, balance: String?, onClick: () -> Unit, tag: String) {
     GlassSurface(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(role = Role.Button, onClick = onClick).testTag(tag),
         shape = RoundedCornerShape(18.dp)) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(Space.md))
-            Text(value, Modifier.weight(1f), textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyLarge)
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                Text(value, textAlign = TextAlign.End, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyLarge)
+                if (balance != null) Text(balance, Modifier.testTag("$tag-balance"), textAlign = TextAlign.End, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Spacer(Modifier.width(6.dp)); FaIcon(FaIcons.chevronRight, null, Modifier.size(10.dp), MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
@@ -300,11 +306,13 @@ private const val CATEGORY_COLUMNS = 5
     val f = state.form
     val p = state.preview
     val external = stringResource(R.string.bill_external_account)
+    val from = if (f.fromExternal) null else f.cashAccountId?.let(accounts::get)
+    val to = if (f.toExternal) null else f.toCashAccountId?.let(accounts::get)
     AccountChip(stringResource(R.string.bill_transfer_from), if (f.fromExternal) external
-        else f.cashAccountId?.let(accounts::get)?.label() ?: stringResource(R.string.bill_choose_account),
+        else from?.label() ?: stringResource(R.string.bill_choose_account), from?.let { accountBalanceText(it) },
         { onPick(AccountPickTarget.FROM) }, "bill-transfer-from")
     AccountChip(stringResource(R.string.bill_transfer_to), if (f.toExternal) external
-        else f.toCashAccountId?.let(accounts::get)?.label() ?: stringResource(R.string.bill_choose_account),
+        else to?.label() ?: stringResource(R.string.bill_choose_account), to?.let { accountBalanceText(it) },
         { onPick(AccountPickTarget.TO) }, "bill-transfer-to")
     if (f.fromExternal || f.toExternal) GlassTextField(f.counterparty, vm::setCounterparty, stringResource(R.string.bill_counterparty),
         Modifier.fillMaxWidth().testTag("bill-counterparty"))

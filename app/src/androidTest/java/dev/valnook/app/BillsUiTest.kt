@@ -117,9 +117,13 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-transfer-from").performClick()
         waitTag("bill-account-picker")
         rule.onNodeWithTag("bill-account-$cashId").performClick()
+        // The account's balance shows under its name; an outside account has none.
+        rule.onNodeWithTag("bill-transfer-from-balance", useUnmergedTree = true)
+            .assertTextEquals("CNY · " + dev.valnook.feature.bills.plainAmount(100_000, 2))
         rule.onNodeWithTag("bill-transfer-to").performClick()
         waitTag("bill-account-picker")
         rule.onNodeWithTag("bill-external").performClick()
+        rule.onAllNodesWithTag("bill-transfer-to-balance", useUnmergedTree = true).assertCountEquals(0)
         input("bill-counterparty", "合成房东")
         // Back to a figure: the system keyboard goes away and the bill keypad returns.
         rule.onNodeWithTag("bill-amount").performClick()

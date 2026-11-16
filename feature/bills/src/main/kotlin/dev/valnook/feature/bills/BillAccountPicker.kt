@@ -192,20 +192,25 @@ private fun LazyListScope.allAccounts(accounts: List<BillAccountChoice>, selecte
     }
 }
 
-/** A sub-account with its currency and balance, or what is left to spend on a credit one. */
-@Composable private fun AccountRow(choice: BillAccountChoice, selected: Boolean, onClick: () -> Unit,
-    trailing: @Composable () -> Unit) {
+/** "CNY · 1 000.00": the sub-account's currency and balance, or what is left to spend on a credit one. */
+@Composable internal fun accountBalanceText(choice: BillAccountChoice): String {
     val digits = choice.currency.fraction_digits
     val amount = if (choice.isCredit) choice.availableCreditMinor?.let {
         stringResource(R.string.bill_available_credit, plainAmount(it, digits))
     } ?: stringResource(R.string.bill_credit_no_limit) else plainAmount(choice.balanceMinor, digits)
+    return "${choice.currency.code} · $amount"
+}
+
+/** A sub-account with its currency and balance, or what is left to spend on a credit one. */
+@Composable private fun AccountRow(choice: BillAccountChoice, selected: Boolean, onClick: () -> Unit,
+    trailing: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClick = onClick)
         .semantics { this.selected = selected }.padding(horizontal = 8.dp, vertical = 8.dp).testTag("bill-account-${choice.cashAccountId}"),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
         AccountAvatar(choice.iconSymbol, choice.iconImageKey, size = 36.dp)
         Column(Modifier.weight(1f)) {
             Text(choice.label(), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text("${choice.currency.code} · $amount", style = MaterialTheme.typography.bodySmall,
+            Text(accountBalanceText(choice), style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         if (selected) FaIcon(FaIcons.check, null, Modifier.size(14.dp))
