@@ -34,6 +34,7 @@ data class AiSettingsEntity(
     @ColumnInfo(defaultValue = "''") val ai_nickname: String,
     @ColumnInfo(defaultValue = "0") val revision: Long,
     @ColumnInfo(defaultValue = "0") val updated_at_ms: Long,
+    @ColumnInfo(defaultValue = "1") val default_keep_images: Boolean = true,
 )
 
 @Dao

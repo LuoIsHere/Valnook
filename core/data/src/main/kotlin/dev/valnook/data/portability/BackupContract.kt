@@ -135,7 +135,7 @@ internal object BackupContract {
             bool("share_image"), bool("query_enabled"), bool("thinking"), bool("chat"), bool("send_habits"),
             long("default_time_minutes"), long("default_cash_account_id", true), long("default_expense_category_id", true),
             long("default_income_category_id", true), text("my_rules"), text("user_nickname"), text("ai_nickname"),
-            long("revision"), long("updated_at_ms")
+            long("revision"), long("updated_at_ms"), bool("default_keep_images")
         ), "id"),
         PortableTable("data/term_deposits.jsonl", "term_deposits", listOf(
             long("id"), long("savings_account_id"), text("currency_code"), long("principal_minor"),
@@ -222,7 +222,8 @@ internal object BackupContract {
         "group_id" to 8,
         "label" to 9, "added_at_ms" to 9,
         "is_favorite" to 11, "favorite_order" to 11,
-        "account_deleted" to 12
+        "account_deleted" to 12,
+        "default_keep_images" to 15
     )
 
     /** The tables and columns an archive of [dataSchemaVersion] contains; empty for unknown versions. */

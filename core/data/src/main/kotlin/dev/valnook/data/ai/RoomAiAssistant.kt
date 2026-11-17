@@ -167,7 +167,7 @@ class RoomAiAssistant(
                     client.chat(context.settings.connection, key, AiPrompt.billRequest(system, conversation, thinking, false), thinking, timeout)
                 }
             }
-            store(conversationId, reply, calls, round, images, drafts, source)
+            store(conversationId, reply, calls, round, images, drafts, source, context.settings.defaultKeepImages)
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { storeError(conversationId, null, round, source) }
             throw cancelled
@@ -200,8 +200,9 @@ class RoomAiAssistant(
         throw AiException(AiProblem.UNREADABLE_DRAFTS)
     }
 
+    /** [keepImages]: whether a new card starts with its pictures kept; one taking over a waiting card's keeps its choice. */
     private suspend fun store(conversationId: Long, reply: AiReply, calls: List<AiDraftCall>, round: Round,
-        images: List<BillImage>, before: List<AiDraftEntity>, source: String) {
+        images: List<BillImage>, before: List<AiDraftEntity>, source: String, keepImages: Boolean) {
         val now = clock.millis()
         val latest = before.groupBy { it.label }.mapValues { (_, rows) -> rows.maxBy { it.id } }
         val proposed = calls.flatMap { it.drafts }
@@ -223,6 +224,7 @@ class RoomAiAssistant(
                 val ownPictures = assigned.getOrElse(index) { emptyList() }
                 val oldPictures = old?.takeIf { it.state == AiDraftState.PENDING.name }?.let { AiConversations.decodeImages(it.images) }.orEmpty()
                 val cardPictures = ownPictures.ifEmpty { oldPictures }
+                val keeps = if (ownPictures.isEmpty() && old?.state == AiDraftState.PENDING.name) old.keep_images else keepImages
                 val newLabel = if (old?.state == AiDraftState.PENDING.name) {
                     dao.setDraftState(old.id, AiDraftState.REPLACED.name, null, old.operation_id)
                     released += oldPictures.map { it.key }
@@ -231,7 +233,7 @@ class RoomAiAssistant(
                 dao.insertDraft(AiDraftEntity(conversation_id = conversationId, message_id = messageId, label = newLabel,
                     payload = AiConversations.encodeDraft(draft), state = AiDraftState.PENDING.name, bill_id = null,
                     operation_id = UUID.randomUUID().toString(), images = AiConversations.encodeImages(cardPictures),
-                    keep_images = true))
+                    keep_images = keeps))
                 pinned += cardPictures.map { it.key }
             }
             if (confirmed.isNotEmpty()) dao.setConfirmedBills(messageId, AiConversations.encodeIds(confirmed))

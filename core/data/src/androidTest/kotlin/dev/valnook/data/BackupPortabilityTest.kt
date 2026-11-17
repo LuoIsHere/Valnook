@@ -801,6 +801,7 @@ class BackupPortabilityTest {
             "{\"temperature\": 0.1}"), "synthetic-key")
         service.saveDefaults(9 * 60 + 30, null, null, null)
         service.savePersonal("Synthetic rule.", "Sam", "Penny")
+        service.saveKeepImages(false)
         val output = ByteArrayOutputStream()
         engine(source).createBackup(testOperationId(), output) {}
         // The settings travel; the key never does.
@@ -815,6 +816,13 @@ class BackupPortabilityTest {
         assertEquals("local-model", restored.model)
         assertEquals(570, restored.default_time_minutes)
         assertEquals(listOf("Synthetic rule.", "Sam", "Penny"), listOf(restored.my_rules, restored.user_nickname, restored.ai_nickname))
+        assertFalse(restored.default_keep_images)
+
+        // A backup from before the switch existed keeps pictures, as cards always did.
+        restore(target, downgradeToLegacySchema(output.toByteArray(), 14))
+        val older = target.ai().settings()!!
+        assertEquals("local-model", older.model)
+        assertTrue(older.default_keep_images)
 
         // A backup from before AI settings existed leaves the defaults.
         restore(target, downgradeToLegacySchema(output.toByteArray(), 13))
@@ -928,6 +936,9 @@ class BackupPortabilityTest {
         if (version < 11) { files.remove("data/bill_categories.jsonl"); files.remove("data/bill_entries.jsonl") }
         if (version < 13) files.remove("data/bill_attachments.jsonl")
         if (version < 14) files.remove("data/ai_settings.jsonl")
+        if (version == 14) files["data/ai_settings.jsonl"] = files.getValue("data/ai_settings.jsonl").toString(Charsets.UTF_8)
+            .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
+                JSONObject(line).apply { remove("default_keep_images") }.toString() + "\n" }.toByteArray()
         if (version == 11) files["data/bill_entries.jsonl"] = files.getValue("data/bill_entries.jsonl").toString(Charsets.UTF_8)
             .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
                 JSONObject(line).apply { remove("account_deleted") }.toString() + "\n" }.toByteArray()
@@ -974,7 +985,8 @@ class BackupPortabilityTest {
             val row = fileRows.getJSONObject(index)
             val path = row.getString("path")
             if (path in files) {
-                if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl", "data/wallet_card_images.jsonl")) {
+                if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl", "data/wallet_card_images.jsonl",
+                        "data/ai_settings.jsonl")) {
                     val value = files.getValue(path)
                     row.put("uncompressedBytes", value.size)
                     row.put("sha256", MessageDigest.getInstance("SHA-256").digest(value)

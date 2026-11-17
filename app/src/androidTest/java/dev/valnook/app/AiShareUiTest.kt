@@ -266,4 +266,19 @@ class AiShareUiTest {
         rule.onNodeWithTag("ai-draft-d1-keep-images").assertIsNotEnabled().assertIsOff()
         rule.onAllNodesWithTag("bill-image-missing", useUnmergedTree = true).assertCountEquals(0)
     }
+
+    @Test fun with_pictures_not_kept_by_default_a_new_card_starts_unticked() {
+        enableAi(pictures = true)
+        runBlocking { graph.ai!!.saveKeepImages(false) }
+        AiNotices.markPicturesSeen(context)
+        drafts("""{"type":"EXPENSE","amount":"9","category_id":${category("food")},"note":"合成小票"}""")
+        share(pictures = listOf(picture(Color.CYAN)))
+        waitTag("ai-draft-d1-pending")
+        // Off by the setting, the card can still be ticked by hand.
+        rule.onNodeWithTag("ai-draft-d1-keep-images").assertIsEnabled().assertIsOff()
+        rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
+        waitTag("ai-draft-d1-confirmed")
+        val bill = runBlocking { graph.bills!!.observeSearch("合成小票").first().single() }
+        assertEquals(0, runBlocking { graph.bills!!.observeImages(bill.id).first().size })
+    }
 }

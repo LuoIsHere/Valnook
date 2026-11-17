@@ -51,6 +51,10 @@ class RoomAiService(
             chat = chat, send_habits = sendHabits) }
     }
 
+    override suspend fun saveKeepImages(keep: Boolean) {
+        update { it.copy(default_keep_images = keep) }
+    }
+
     override suspend fun saveConnection(connection: AiConnection, apiKey: String?) {
         val clean = connection.copy(baseUrl = AiConnection.normalizeBaseUrl(connection.baseUrl), model = connection.model.trim(),
             extraParams = connection.extraParams.trim(), thinkingOffParams = connection.thinkingOffParams.trim(),
@@ -136,9 +140,10 @@ internal suspend fun ValnookDatabase.withAccountUse(choices: AiChoices): AiChoic
 internal fun AiSettingsEntity.toModel() = AiSettings(
     AiConnection(preset_id, base_url, model, extra_params, thinking_off_params, thinking_on_params),
     enabled, bill_chat, share_text, share_image, query_enabled, thinking, chat, send_habits, default_time_minutes,
-    default_cash_account_id, default_expense_category_id, default_income_category_id, my_rules, user_nickname, ai_nickname)
+    default_cash_account_id, default_expense_category_id, default_income_category_id, my_rules, user_nickname, ai_nickname,
+    default_keep_images)
 
 internal fun AiSettings.toEntity() = AiSettingsEntity(1, connection.presetId, connection.baseUrl, connection.model,
     connection.extraParams, connection.thinkingOffParams, connection.thinkingOnParams, enabled, billChat, shareText,
     shareImage, query, thinking, chat, sendHabits, defaultTimeMinutes, defaultCashAccountId, defaultExpenseCategoryId,
-    defaultIncomeCategoryId, myRules, userNickname, aiNickname, 0, 0)
+    defaultIncomeCategoryId, myRules, userNickname, aiNickname, 0, 0, defaultKeepImages)

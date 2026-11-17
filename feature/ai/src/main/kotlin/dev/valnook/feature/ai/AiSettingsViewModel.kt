@@ -125,6 +125,10 @@ class AiSettingsViewModel(private val service: AiService, val avatars: AiAvatars
         }
     }
 
+    fun setKeepImages(keep: Boolean) {
+        viewModelScope.launch { runCatching { service.saveKeepImages(keep) } }
+    }
+
     fun clearConversations() {
         val chat = assistant ?: return
         viewModelScope.launch { runCatching { chat.clearConversations() } }

@@ -149,6 +149,9 @@ private fun FeaturesCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
             contentPadding = PaddingValues(vertical = Space.xs))
         SwitchRow(stringResource(R.string.ai_feature_habits), s.sendHabits, { on -> vm.setFeatures { it.copy(sendHabits = on) } }, Modifier.testTag("ai-feature-habits"), summary = stringResource(R.string.ai_feature_habits_summary), enabled = true,
             contentPadding = PaddingValues(vertical = Space.xs))
+        SwitchRow(stringResource(R.string.ai_feature_keep_images), s.defaultKeepImages, vm::setKeepImages,
+            Modifier.testTag("ai-feature-keep-images"), summary = stringResource(R.string.ai_feature_keep_images_summary),
+            contentPadding = PaddingValues(vertical = Space.xs))
     }
 }
 

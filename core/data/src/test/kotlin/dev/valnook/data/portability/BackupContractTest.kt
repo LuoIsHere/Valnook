@@ -80,6 +80,9 @@ class BackupContractTest {
         // The key and check results stay on the device: no column could hold them.
         assertTrue(columns(14, "ai_settings").none { it.contains("key") || it.contains("check") })
         assertTrue(setOf("base_url", "model", "my_rules", "user_nickname", "default_time_minutes").all { it in columns(14, "ai_settings") })
+        // The pictures switch came later: an older backup has no such column.
+        assertTrue("default_keep_images" !in columns(14, "ai_settings"))
+        assertTrue("default_keep_images" in columns(15, "ai_settings"))
     }
 
     @Test fun unknown_versions_have_no_tables() {

@@ -72,6 +72,7 @@ class AiSettingsScreenUiTest {
             settings.value = settings.value.copy(billChat = billChat, shareText = shareText, shareImage = shareImage,
                 thinking = thinking, chat = chat, sendHabits = sendHabits)
         }
+        override suspend fun saveKeepImages(keep: Boolean) { settings.value = settings.value.copy(defaultKeepImages = keep) }
     }
 
     private fun category(id: Long, key: String?, name: String, kind: BillCategoryKind = BillCategoryKind.EXPENSE) =
@@ -231,6 +232,18 @@ class AiSettingsScreenUiTest {
         rule.onNodeWithTag("ai-prompt-entry").performScrollTo().performClick()
         assertEquals(1, prompts)
         rule.onNodeWithTag("ai-disclaimer").performScrollTo().assertExists()
+    }
+
+    @Test fun keeping_pictures_is_on_by_default_and_saves_at_once() {
+        settings.value = settings.value.copy(enabled = true)
+        report.value = AiCheckReport(settings.value.connection.fingerprint, 0, mapOf(
+            AiCheckItem.CONNECT to AiCheck(AiCheckState.PASSED), AiCheckItem.TOOLS to AiCheck(AiCheckState.PASSED)))
+        show()
+        rule.onNodeWithTag("ai-feature-keep-images").performScrollTo().assertIsOn()
+        rule.onNodeWithText("图片默认保存到账单").assertExists()
+        rule.onNodeWithTag("ai-feature-keep-images").performClick()
+        rule.waitUntil(5_000) { !settings.value.defaultKeepImages }
+        rule.onNodeWithTag("ai-feature-keep-images").assertIsOff()
     }
 
     @Test fun the_master_switch_waits_for_the_checks_and_explains_itself_until_told_not_to() {

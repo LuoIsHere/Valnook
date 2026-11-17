@@ -177,6 +177,8 @@
     <string name="ai_feature_chat_summary">When on, replies are fuller; when off, replies are brief and limited to bookkeeping. No investment or financial advice either way</string>
     <string name="ai_feature_habits">Send recent bills as hints</string>
     <string name="ai_feature_habits_summary">Each request includes the notes and categories of the last 20 bills</string>
+    <string name="ai_feature_keep_images">Keep pictures with bills by default</string>
+    <string name="ai_feature_keep_images_summary">New cards start with “Keep the pictures with the bill” ticked</string>
     <string name="ai_section_data">Data</string>
     <string name="ai_usage">This month</string>
     <string name="ai_usage_value">%1$d requests · %2$s tokens</string>

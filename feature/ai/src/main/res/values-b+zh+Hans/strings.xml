@@ -175,6 +175,8 @@
     <string name="ai_feature_chat_summary">开启后回复内容更完整；关闭后回复简短，仅围绕记账。均不提供投资或理财建议</string>
     <string name="ai_feature_habits">发送最近的记账习惯作为参考</string>
     <string name="ai_feature_habits_summary">每次请求附带最近 20 条账单的备注及其分类</string>
+    <string name="ai_feature_keep_images">图片默认保存到账单</string>
+    <string name="ai_feature_keep_images_summary">新的记账卡片默认勾选“保存图片为附件”</string>
     <string name="ai_section_data">数据</string>
     <string name="ai_usage">本月用量</string>
     <string name="ai_usage_value">%1$d 次请求 · %2$s tokens</string>

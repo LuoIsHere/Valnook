@@ -110,6 +110,8 @@ data class AiSettings(
     val myRules: String = "",
     val userNickname: String = "",
     val aiNickname: String = "",
+    /** Whether a new draft card starts with its pictures kept on the bill; each card can still change it. */
+    val defaultKeepImages: Boolean = true,
 )
 
 /**
@@ -211,6 +213,8 @@ interface AiService {
     /** The feature switches: everything in [AiSettings] after [AiSettings.enabled]. */
     suspend fun saveFeatures(billChat: Boolean, shareText: Boolean, shareImage: Boolean, thinking: Boolean, chat: Boolean,
         sendHabits: Boolean)
+    /** [AiSettings.defaultKeepImages]. */
+    suspend fun saveKeepImages(keep: Boolean)
     /** The models [connection] offers, with [apiKey] or else the saved key; throws [AiException]. */
     suspend fun fetchModels(connection: AiConnection, apiKey: String?): List<String>
     /** Runs every check against the saved connection, telling [progress] which one runs. */
