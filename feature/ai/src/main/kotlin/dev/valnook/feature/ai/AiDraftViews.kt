@@ -5,6 +5,13 @@ import dev.valnook.designsystem.PrimaryButton
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import android.graphics.BitmapFactory
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -60,7 +67,7 @@ class AiDraftActions(
 @Composable
 fun AiDraftCardView(card: AiDraftCard, categories: Map<Long, BillCategory>, accounts: Map<Long, BillAccountChoice>,
     busy: Boolean, actions: AiDraftActions, modifier: Modifier = Modifier, money: AiDraftMoney? = null,
-    billGone: Boolean = false) {
+    billGone: Boolean = false, thumbnails: Map<String, ByteArray> = emptyMap(), lostPictures: Set<String> = emptySet()) {
     val draft = card.draft
     val colors = MaterialTheme.colorScheme
     val faded = card.state == AiDraftState.DISCARDED || card.state == AiDraftState.REPLACED
@@ -76,7 +83,7 @@ fun AiDraftCardView(card: AiDraftCard, categories: Map<Long, BillCategory>, acco
             DraftFlags(draft)
             // A discarded or replaced card let its pictures go; the message it came from still shows them.
             if (card.images.isNotEmpty() && (card.state == AiDraftState.PENDING || card.state == AiDraftState.CONFIRMED))
-                DraftPictures(card, actions)
+                DraftPictures(card, actions, thumbnails, lostPictures)
             when (card.state) {
                 AiDraftState.PENDING -> PendingButtons(card, busy, actions, money?.missingRate == true)
                 AiDraftState.CONFIRMED -> {
@@ -228,18 +235,44 @@ private fun DraftFlags(draft: AiBillDraft) {
     }
 }
 
+/**
+ * A card's pictures. Those still on the device show as on a bill and open full size; those let go (saved without
+ * them, or gone since) show the conversation's small copy, marked as not saved, and do not open.
+ */
 @Composable
-private fun DraftPictures(card: AiDraftCard, actions: AiDraftActions) {
+private fun DraftPictures(card: AiDraftCard, actions: AiDraftActions, thumbnails: Map<String, ByteArray>,
+    lostPictures: Set<String>) {
     var viewing by remember { mutableStateOf<Int?>(null) }
-    val keys = card.images.map(BillImage::key)
+    val dropped = if (card.state == AiDraftState.CONFIRMED && !card.keepImages) card.images.map(BillImage::key).toSet()
+        else card.images.map(BillImage::key).filter { it in lostPictures }.toSet()
+    val kept = card.images.map(BillImage::key).filter { it !in dropped }
     LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
-        itemsIndexed(keys) { index, key -> BillImageThumb(key, 56.dp, { viewing = index }) }
+        itemsIndexed(kept) { index, key -> BillImageThumb(key, 56.dp, { viewing = index }) }
+        items(dropped.toList()) { key -> DroppedPicture(thumbnails[key]) }
     }
+    if (dropped.isNotEmpty()) Text(stringResource(R.string.ai_draft_images_dropped), style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.testTag("ai-draft-${card.label}-images-dropped"))
+    // With every picture let go there is nothing left to keep.
     if (card.state == AiDraftState.PENDING) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(card.keepImages, { actions.onKeepImages(card, it) }, Modifier.testTag("ai-draft-${card.label}-keep-images"))
-        Text(stringResource(R.string.ai_draft_keep_images), style = MaterialTheme.typography.bodyMedium)
+        Checkbox(card.keepImages && kept.isNotEmpty(), { actions.onKeepImages(card, it) },
+            Modifier.testTag("ai-draft-${card.label}-keep-images"), enabled = kept.isNotEmpty())
+        Text(stringResource(R.string.ai_draft_keep_images), style = MaterialTheme.typography.bodyMedium,
+            color = if (kept.isNotEmpty()) MaterialTheme.colorScheme.onSurface
+                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f))
     }
-    viewing?.let { BillImageViewer(keys, it) { viewing = null } }
+    viewing?.let { BillImageViewer(kept, it) { viewing = null } }
+}
+
+/** A picture not kept: the conversation's small copy, or a plain tile when there is none. */
+@Composable
+private fun DroppedPicture(bytes: ByteArray?) {
+    val image = remember(bytes) {
+        bytes?.takeIf { it.isNotEmpty() }?.let { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }
+    }
+    Box(Modifier.size(56.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        .testTag("ai-draft-picture-dropped")) {
+        if (image != null) Image(image, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+    }
 }
 
 @Composable

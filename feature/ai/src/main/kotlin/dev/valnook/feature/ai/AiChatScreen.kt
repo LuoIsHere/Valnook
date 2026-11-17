@@ -252,12 +252,16 @@ private fun UserMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitma
 @Composable
 private fun AssistantMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitmap?, actions: AiDraftActions,
     vm: AiChatViewModel, onOpenBill: ((Long) -> Unit)?, onManual: (String) -> Unit) {
+    // The small copies the conversation keeps of what was sent, for pictures not kept on a bill.
+    val thumbnails = remember(ui.messages) {
+        ui.messages.flatMap { m -> m.images.zip(m.pictures) }.associate { (image, small) -> image.key to small.bytes }
+    }
     Speaker(ui.aiNickname.ifBlank { "AI" }, avatar, right = false) {
         message.reasoning?.let { Thinking(it, message.thinkingMs) }
         if (message.text.isNotBlank()) Bubble(message.text, mine = false, Modifier.testTag("ai-chat-reply-${message.id}"))
         message.drafts.forEach { card ->
             AiDraftCardView(card, ui.categories, ui.accounts, card.id in ui.busyCards, actions, money = ui.money[card.id],
-                billGone = card.id in ui.goneBills)
+                billGone = card.id in ui.goneBills, thumbnails = thumbnails, lostPictures = ui.lostPictures)
         }
         val waiting = message.drafts.filter { it.state == AiDraftState.PENDING && it.draft.hasAmount && ui.money[it.id]?.missingRate != true }
         if (waiting.size >= 2) PrimaryButton(stringResource(R.string.ai_chat_confirm_all), { vm.confirmAll(message.drafts) },

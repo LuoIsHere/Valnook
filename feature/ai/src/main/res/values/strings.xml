@@ -151,6 +151,7 @@
     <string name="ai_draft_flag_amount">Amount needed</string>
     <string name="ai_draft_add_amount">Add amount</string>
     <string name="ai_draft_keep_images">Keep the pictures with the bill</string>
+    <string name="ai_draft_images_dropped">Pictures not saved</string>
     <string name="ai_draft_no_account">No account</string>
     <string name="ai_draft_no_category">No category</string>
     <string name="ai_draft_transfer">Transfer</string>

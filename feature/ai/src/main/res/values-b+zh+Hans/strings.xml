@@ -149,6 +149,7 @@
     <string name="ai_draft_flag_amount">需要补充金额</string>
     <string name="ai_draft_add_amount">补充金额</string>
     <string name="ai_draft_keep_images">保存图片为附件</string>
+    <string name="ai_draft_images_dropped">未保存图片</string>
     <string name="ai_draft_no_account">无账户</string>
     <string name="ai_draft_no_category">未分类</string>
     <string name="ai_draft_transfer">转账</string>

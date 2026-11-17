@@ -238,4 +238,32 @@ class AiShareUiTest {
         assertEquals(50_000L - 2_000, runBlocking { db.cash().cashAccount(other)!!.balance_minor })
         assertTrue(!closed())
     }
+
+    @Test fun pictures_not_kept_show_the_conversation_copy_marked_as_not_saved() {
+        enableAi(pictures = true)
+        AiNotices.markPicturesSeen(context)
+        drafts("""{"type":"EXPENSE","amount":"16","category_id":${category("food")},"note":"合成收据"}""")
+        share(pictures = listOf(picture(Color.MAGENTA)))
+        waitTag("ai-draft-d1-pending")
+        rule.onNodeWithTag("ai-draft-d1-keep-images").assertIsOn().performClick()
+        rule.waitUntil(8_000) {
+            runCatching { rule.onNodeWithTag("ai-draft-d1-keep-images").assertIsOff() }.isSuccess
+        }
+        rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
+        waitTag("ai-draft-d1-confirmed")
+        // Saved without it, the picture is gone from the device: the card shows the conversation's small copy instead.
+        waitTag("ai-draft-d1-images-dropped")
+        rule.onNodeWithTag("ai-draft-d1-images-dropped").assertTextEquals("未保存图片")
+        rule.onAllNodesWithTag("ai-draft-picture-dropped", useUnmergedTree = true).assertCountEquals(1)
+        rule.onAllNodesWithTag("bill-image-missing", useUnmergedTree = true).assertCountEquals(0)
+        val bill = runBlocking { graph.bills!!.observeSearch("合成收据").first().single() }
+        assertEquals(0, runBlocking { graph.bills!!.observeImages(bill.id).first().size })
+        // Taken back, the card waits again but can no longer keep a picture that is gone.
+        rule.onNodeWithTag("ai-draft-d1-undo").performClick()
+        waitTag("ai-draft-d1-pending")
+        waitTag("ai-draft-d1-images-dropped")
+        rule.onAllNodesWithTag("ai-draft-picture-dropped", useUnmergedTree = true).assertCountEquals(1)
+        rule.onNodeWithTag("ai-draft-d1-keep-images").assertIsNotEnabled().assertIsOff()
+        rule.onAllNodesWithTag("bill-image-missing", useUnmergedTree = true).assertCountEquals(0)
+    }
 }

@@ -10,6 +10,7 @@ import dev.valnook.domain.model.BillImageRules
 import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.repository.BillAccountChoice
 import dev.valnook.domain.repository.BillImageLibrary
+import dev.valnook.domain.repository.BillImagePlace
 import dev.valnook.domain.repository.BillRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -55,6 +56,8 @@ data class AiChatUi(
     val thinking: Boolean = false,
     /** Saved cards whose bill has been deleted since: nothing is left to edit. */
     val goneBills: Set<Long> = emptySet(),
+    /** Pictures of waiting cards no longer on this device: let go when the card was saved without them. */
+    val lostPictures: Set<String> = emptySet(),
 ) {
     /** The pending copy shows until the stored message with its key is in the list. */
     val pendingShown: Boolean get() = pending != null &&
@@ -92,7 +95,8 @@ class AiChatViewModel(
         val pending: AiPendingMessage? = null, val keys: Map<Long, String> = emptyMap(),
         /** Deep thinking as switched on this page for the conversation; null follows the setting. */
         val thinking: Boolean? = null,
-        val goneBills: Set<Long> = emptySet())
+        val goneBills: Set<Long> = emptySet(),
+        val lostPictures: Set<String> = emptySet())
 
     private val messages = conversation.flatMapLatest { id -> if (id == null) flowOf(emptyList()) else assistant.observeMessages(id) }
     private val choices = combine(bills.observeCategories(), bills.observeAccountChoices()) { c, a ->
@@ -107,7 +111,7 @@ class AiChatViewModel(
             l.picturesWorking, l.pictureFailed, features, settings.connection.host, categories, accounts, conversations,
             l.busyCards, l.cardError, l.cardFailed, settings.userNickname, settings.aiNickname, l.money, l.sending && l.stored,
             l.pending, l.keys, features.thinkingAvailable, features.thinkingAvailable && (l.thinking ?: features.thinking),
-            l.goneBills)
+            l.goneBills, l.lostPictures)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AiChatUi())
 
     init {
@@ -125,6 +129,7 @@ class AiChatViewModel(
             messages.collect { list ->
                 val waiting = list.flatMap { it.drafts }.filter { it.state == AiDraftState.PENDING && it.id !in local.value.money }
                 if (waiting.isNotEmpty()) workOutMoney(waiting)
+                checkPictures(list.flatMap { it.drafts })
             }
         }
         // A conversation opened shows its saved cards as their bills are now.
@@ -158,6 +163,17 @@ class AiChatViewModel(
             }
         }
         updateLocal { it.copy(goneBills = it.goneBills - present + gone) }
+    }
+
+    /**
+     * Which pictures of waiting cards are gone from the device: a card saved without its pictures let them go, and
+     * taken back it can no longer keep them.
+     */
+    private suspend fun checkPictures(cards: List<AiDraftCard>) {
+        val library = images ?: return
+        val keys = cards.filter { it.state == AiDraftState.PENDING }.flatMap { it.images }.map { it.key }.toSet()
+        val lost = keys.filter { runCatching { library.place(it) }.getOrNull() == BillImagePlace.MISSING }.toSet()
+        if (lost != local.value.lostPictures) local.update { it.copy(lostPictures = lost) }
     }
 
     private suspend fun workOutMoney(cards: List<AiDraftCard>) {
