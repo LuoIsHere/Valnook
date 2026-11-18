@@ -516,15 +516,25 @@ private fun SessionRoot(
                                     maxOf(systemBottom,with(density){overlayHeightPx.toDp()}),walletOverview.cache)
                             }
                             entry<WalletKey> { walletPage() }
-                            val billsPage = @Composable {
+                            // Opened at [day] from the statistics page, on that day's month.
+                            val billsPage = @Composable { day: java.time.LocalDate? ->
                                 dev.valnook.feature.bills.BillsScreen(pageViewModel {
                                     dev.valnook.feature.bills.BillsViewModel(requireNotNull(graph.bills),
                                         graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
-                                        createSavedStateHandle())
-                                }, { open(BillDetailKey(it)) }, { open(BillEditorKey(copyFromId = it)) }, toolbars.onBills)
+                                        createSavedStateHandle(), day?.let(java.time.YearMonth::from))
+                                }, { open(BillDetailKey(it)) }, { open(BillEditorKey(copyFromId = it)) }, toolbars.onBills, day)
                             }
-                            entry<BillsKey> { billsPage() }
-                            entry<HiddenBillsKey> { billsPage() }
+                            entry<BillsKey> { billsPage(null) }
+                            entry<HiddenBillsKey> { billsPage(null) }
+                            entry<BillsDayKey> { route -> billsPage(java.time.LocalDate.parse(route.date)) }
+                            entry<BillStatsCategoryKey> { route ->
+                                dev.valnook.feature.bills.BillStatsCategoryScreen(pageViewModel {
+                                    dev.valnook.feature.bills.BillStatsCategoryViewModel(requireNotNull(graph.bills),
+                                        graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
+                                        createSavedStateHandle(), route.categoryId, route.expense,
+                                        java.time.YearMonth.parse(route.month))
+                                }, onOpen = { open(BillDetailKey(it)) })
+                            }
                             entry<BillEditorKey> { route ->
                                 dev.valnook.feature.bills.BillEditorScreen(pageViewModel {
                                     dev.valnook.feature.bills.BillEditorViewModel(route.billId, route.copyFromId,
@@ -575,7 +585,9 @@ private fun SessionRoot(
                                     dev.valnook.feature.bills.BillStatsPage(pageViewModel {
                                         dev.valnook.feature.bills.BillStatsViewModel(bills, graph.settings.observeSettings(),
                                             graph.overview.observeFxContext(), graph.clock, createSavedStateHandle())
-                                    }, expense)
+                                    }, expense,
+                                        onCategory = { id, month -> open(BillStatsCategoryKey(id, expense, month.toString())) },
+                                        onDay = { open(BillsDayKey(it.toString())) })
                                 } })
                             }
                             entry<StatisticsKey> { statisticsPage() }

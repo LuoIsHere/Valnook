@@ -210,4 +210,8 @@
         <item quantity="one">%d bill</item>
         <item quantity="other">%d bills</item>
     </plurals>
+    <string name="stats_subcategories">Subcategories</string>
+    <string name="stats_no_subcategory">No subcategory</string>
+    <string name="stats_category_empty">No bills in this category this month.</string>
+    <string name="bill_net_tag">Net %1$s</string>
 </resources>

@@ -78,8 +78,10 @@ class BillsViewModel(
     fx: Flow<FxContext>,
     private val clock: Clock,
     private val saved: SavedStateHandle,
+    /** The month to open on when none was saved; this month when null. */
+    initialMonth: YearMonth? = null,
 ) : ViewModel() {
-    private val month = MutableStateFlow(saved.get<String>("month")?.let(YearMonth::parse) ?: YearMonth.now(clock))
+    private val month = MutableStateFlow(saved.get<String>("month")?.let(YearMonth::parse) ?: initialMonth ?: YearMonth.now(clock))
     private val query = MutableStateFlow(saved.get<String>("query") ?: "")
     private val filter = MutableStateFlow(BillFilter(
         saved.get<String>("type")?.let(BillType::valueOf), saved.get<Long>("category"), saved.get<Long>("account"),

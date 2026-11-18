@@ -39,11 +39,11 @@ private const val RING_PARTS = 7
 
 /**
  * A month of expense ([expense] true) or income on the statistics page: the totals against the month before, the
- * parts by category, and the sums by day. [onCategory] opens a category's bills when given; [onDay] the bill list
- * on a day.
+ * parts by category, and the sums by day. [onCategory] opens a category's bills in a month when given; [onDay] the
+ * bill list on a day.
  */
 @Composable
-fun BillStatsPage(vm: BillStatsViewModel, expense: Boolean, onCategory: ((Long?) -> Unit)? = null,
+fun BillStatsPage(vm: BillStatsViewModel, expense: Boolean, onCategory: ((Long?, java.time.YearMonth) -> Unit)? = null,
     onDay: ((LocalDate) -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
     val side = if (expense) state.expense else state.income
@@ -115,7 +115,7 @@ fun BillStatsPage(vm: BillStatsViewModel, expense: Boolean, onCategory: ((Long?)
 }
 
 @Composable private fun CategoryCard(state: BillStatsState, side: BillStatsSide, expense: Boolean,
-    onCategory: ((Long?) -> Unit)?) {
+    onCategory: ((Long?, java.time.YearMonth) -> Unit)?) {
     val totals = state.totals ?: return
     val base = state.base?.code
     val total = side.shares.fold(BigDecimal.ZERO) { sum, share -> sum + share.value }
@@ -164,11 +164,11 @@ fun BillStatsPage(vm: BillStatsViewModel, expense: Boolean, onCategory: ((Long?)
 }
 
 @Composable private fun CategoryRow(share: BillShare, name: String, color: Color, state: BillStatsState, total: BigDecimal,
-    largest: BigDecimal, base: String?, totals: BillTotals, onCategory: ((Long?) -> Unit)?) {
+    largest: BigDecimal, base: String?, totals: BillTotals, onCategory: ((Long?, java.time.YearMonth) -> Unit)?) {
     val category = share.categoryId?.let(state.categories::get)
     val digits = state.base?.fraction_digits ?: 2
     Row(Modifier.fillMaxWidth()
-        .then(if (onCategory != null) Modifier.clickable { onCategory(share.categoryId) } else Modifier)
+        .then(if (onCategory != null) Modifier.clickable { onCategory(share.categoryId, state.month) } else Modifier)
         .padding(horizontal = Space.cardInset, vertical = Space.xs).testTag("bill-stats-category-${share.categoryId ?: "none"}")
         // Read as one line: name, amount, bills and share.
         .semantics(mergeDescendants = true) {},
@@ -190,7 +190,7 @@ fun BillStatsPage(vm: BillStatsViewModel, expense: Boolean, onCategory: ((Long?)
     }
 }
 
-@Composable private fun ShareBar(fraction: Float, color: Color) {
+@Composable internal fun ShareBar(fraction: Float, color: Color) {
     // Grows in with the ring the first time the page shows, then follows new values.
     val shown by androidx.compose.animation.core.animateFloatAsState(fraction, tween(450), label = "share-bar")
     Box(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(2.dp))
@@ -261,7 +261,7 @@ private fun fraction(part: BigDecimal, whole: BigDecimal): Float =
     if (whole.signum() <= 0) 0f else part.divide(whole, 6, RoundingMode.HALF_UP).toFloat()
 
 /** "34.5%", and "<0.1%" for a sliver that would round to nothing. */
-private fun percentText(part: BigDecimal, whole: BigDecimal): String {
+internal fun percentText(part: BigDecimal, whole: BigDecimal): String {
     if (whole.signum() <= 0) return "0%"
     val percent = part.multiply(BigDecimal(100)).divide(whole, 1, RoundingMode.HALF_UP)
     return if (percent.signum() == 0 && part.signum() > 0) "<0.1%" else percent.toPlainString() + "%"

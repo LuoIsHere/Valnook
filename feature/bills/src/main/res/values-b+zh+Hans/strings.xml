@@ -208,4 +208,8 @@
     <plurals name="stats_bill_count">
         <item quantity="other">%d 笔</item>
     </plurals>
+    <string name="stats_subcategories">子分类</string>
+    <string name="stats_no_subcategory">未细分</string>
+    <string name="stats_category_empty">这个月这个分类没有账单。</string>
+    <string name="bill_net_tag">净额 %1$s</string>
 </resources>

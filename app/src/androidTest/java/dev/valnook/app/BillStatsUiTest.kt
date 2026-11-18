@@ -45,9 +45,11 @@ class BillStatsUiTest {
 
     private fun category(key: String) = runBlocking { graph.bills!!.observeCategories().first() }.single { it.builtinKey == key }.id
 
-    private fun save(type: BillType, at: Long, amount: Long, key: String, discount: Long = 0, note: String = "") = runBlocking {
+    private fun save(type: BillType, at: Long, amount: Long, key: String, discount: Long = 0, note: String = "",
+        sub: String? = null, counted: Boolean = true) = runBlocking {
         graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(type, at, amount, "CNY",
-            discount, cashId, amount - discount, categoryId = category(key), note = note))).id
+            discount, cashId, amount - discount, categoryId = category(key), subCategoryId = sub?.let(::category),
+            note = note, countInStats = counted))).id
     }
 
     @Before fun seed() {
@@ -141,5 +143,55 @@ class BillStatsUiTest {
         // Back on the assets, the tabs keep working.
         rule.onNodeWithTag("statistics-tab-assets").performClick()
         waitTag("statistics-list")
+    }
+
+    @Test fun a_category_opens_its_bills_and_a_day_opens_the_bill_list() {
+        val now = graph.clock.millis() - 60_000
+        // Lunch 20 with 5 refunded: 15 still spent. A bill left out of income and expense is listed but not added.
+        val boxed = save(BillType.EXPENSE, now, 2_000, "food", sub = "food.lunch", note = "合成便当")
+        runBlocking {
+            val bill = graph.bills!!.observeBill(boxed).first()!!
+            graph.commands.execute(dev.valnook.domain.repository.SettleBill(UUID.randomUUID().toString(), boxed, bill.revision,
+                BillType.REFUND, dev.valnook.domain.model.SettlementDraft(now + 1_000, 500, cashId, 500)))
+        }
+        val advanced = save(BillType.EXPENSE, now, 9_900, "food", note = "合成垫付", counted = false)
+        val food = category("food")
+        rule.onNodeWithTag("statistics-tab-expense").performClick()
+        waitText("bill-stats-total", "75.00 CNY")
+        rule.onNodeWithTag("bill-stats-category-$food").performClick()
+        waitTag("bill-stats-category")
+        waitText("bill-stats-category-total", "63.00 CNY")
+        rule.onNodeWithTag("bill-stats-category-name").assertTextEquals("餐饮")
+        rule.onNodeWithTag("bill-stats-category").assertExists()
+        rule.onNodeWithText("3 笔").assertExists()
+        // 15 of 63 in lunch, the rest on the category itself.
+        rule.onNodeWithTag("bill-stats-sub-${category("food.lunch")}").assertTextContains("15.00 · 23.8%", substring = true)
+        rule.onNodeWithTag("bill-stats-sub-none").assertTextContains("48.00 · 76.2%", substring = true)
+        rule.onNodeWithTag("bill-stats-category").performScrollToNode(hasTestTag("bill-row-$advanced"))
+        rule.onNodeWithTag("bill-row-$advanced").assertTextContains("不计入", substring = true)
+        rule.onNodeWithTag("bill-stats-category").performScrollToNode(hasTestTag("bill-row-$boxed"))
+        rule.onNodeWithTag("bill-row-$boxed").assertTextContains("已退 5.00", substring = true)
+            .assertTextContains("净额 15.00", substring = true).performClick()
+        waitTag("bill-edit")
+        androidx.test.espresso.Espresso.pressBack()
+        waitTag("bill-stats-category")
+        androidx.test.espresso.Espresso.pressBack()
+        waitTag("bill-stats-expense")
+
+        // A day picked on the bars opens the bill list at that day; back returns to the statistics.
+        repeat(3) { rule.onNodeWithTag("bill-stats-expense").performTouchInput { swipeUp() } }
+        rule.waitForIdle()
+        val today = java.time.LocalDate.now(graph.clock)
+        rule.onNodeWithTag("bill-stats-bars").performTouchInput {
+            val slot = width.toFloat() / today.lengthOfMonth()
+            click(androidx.compose.ui.geometry.Offset(slot * (today.dayOfMonth - 0.5f), height / 2f))
+        }
+        waitTag("bill-stats-open-day")
+        rule.onNodeWithTag("bill-stats-open-day").performClick()
+        waitTag("bills-list")
+        waitTag("bills-day-$today")
+        rule.onNodeWithTag("bills-day-$today").assertIsDisplayed()
+        androidx.test.espresso.Espresso.pressBack()
+        waitTag("bill-stats-expense")
     }
 }

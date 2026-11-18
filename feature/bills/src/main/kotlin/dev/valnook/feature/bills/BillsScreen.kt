@@ -5,6 +5,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
@@ -41,9 +42,19 @@ import java.time.format.DateTimeFormatter
 data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Unit)
 
 /** The bills page: one month of bills by day, with the month's and each day's expense and income. */
+/** The bill list; with [scrollTo], opened at that day once its bills are there (from the statistics page). */
 @Composable fun BillsScreen(vm: BillsViewModel, onOpen: (Long) -> Unit, onCopy: (Long) -> Unit,
-    onToolbar: (BillsToolbarState?) -> Unit = {}) {
+    onToolbar: (BillsToolbarState?) -> Unit = {}, scrollTo: LocalDate? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val list = rememberLazyListState()
+    var scrolled by rememberSaveable { mutableStateOf(scrollTo == null) }
+    LaunchedEffect(state.loaded, state.days) {
+        if (scrolled || !state.loaded || state.month != scrollTo?.let(java.time.YearMonth::from)) return@LaunchedEffect
+        scrolled = true
+        // The header comes first, then one item per day, newest first; a day without bills lands on the nearest older one.
+        val index = state.days.indexOfFirst { !it.date.isAfter(scrollTo) }.takeIf { it >= 0 } ?: return@LaunchedEffect
+        list.animateScrollToItem(index + 1)
+    }
     var searching by rememberSaveable { mutableStateOf(state.query.isNotEmpty()) }
     val locale = LocalConfiguration.current.locales[0]
     // Closing the search forgets it, its scope included, so the next one starts from the month on screen.
@@ -52,7 +63,7 @@ data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Uni
         onToolbar(BillsToolbarState(searching) { toggle() })
         onDispose { onToolbar(null) }
     }
-    LazyColumn(Modifier.fillMaxSize().testTag("bills-list"), contentPadding = pageContentPadding(),
+    LazyColumn(Modifier.fillMaxSize().testTag("bills-list"), state = list, contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.md)) {
         item(key = "header") {
             Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
@@ -171,9 +182,10 @@ private val PLACEHOLDER = Regex("\u0000(\\d+)\u0000")
 internal fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTotals): String =
     (if (totals.converted) "≈ " else "") + DecimalRules.format_display(value, value.scale()) + (base?.let { " $it" } ?: "")
 
-@Composable private fun DayHeader(day: BillDay, locale: java.util.Locale, base: String?) {
+@Composable internal fun DayHeader(day: BillDay, locale: java.util.Locale, base: String?) {
     val pattern = android.text.format.DateFormat.getBestDateTimePattern(locale, "MMMdEEE")
-    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp).testTag("bills-day-${day.date}"),
+        verticalAlignment = Alignment.CenterVertically) {
         Text(day.date.format(DateTimeFormatter.ofPattern(pattern, locale)), Modifier.weight(1f),
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         val palette = LocalGainLossPalette.current
@@ -191,9 +203,11 @@ internal fun totalText(value: java.math.BigDecimal, base: String?, totals: BillT
 /**
  * One bill: its category (or transfer) icon, title, details and the amount its own account moved. The note leads
  * when there is one, with the category ("food-lunch") or the transfer under it; otherwise the category is the title.
+ * With [showNet], an expense that had money back also says what it still costs.
  */
 @OptIn(ExperimentalFoundationApi::class)
-@Composable internal fun BillRow(bill: Bill, state: BillsState, onOpen: () -> Unit, onCopy: () -> Unit, showDivider: Boolean) {
+@Composable internal fun BillRow(bill: Bill, state: BillsState, onOpen: () -> Unit, onCopy: () -> Unit, showDivider: Boolean,
+    showNet: Boolean = false) {
     val category = bill.categoryId?.let(state.categories::get)
     val sub = bill.subCategoryId?.let(state.categories::get)
     val shownCategory = sub ?: category
@@ -259,6 +273,8 @@ internal fun totalText(value: java.math.BigDecimal, base: String?, totals: BillT
                     if (!counted) stringResource(R.string.bill_not_counted) else null,
                     if (bill.refundedMinor > 0) stringResource(R.string.bill_refunded_tag, plainAmount(bill.refundedMinor, digits)) else null,
                     if (bill.reimbursedMinor > 0) stringResource(R.string.bill_reimbursed_tag, plainAmount(bill.reimbursedMinor, digits)) else null,
+                    if (showNet && settled > 0 && bill.type == BillType.EXPENSE)
+                        stringResource(R.string.bill_net_tag, plainAmount(bill.remainingMinor.coerceAtLeast(0), digits)) else null,
                     when (bill.reimburseState) {
                         ReimburseState.PENDING, ReimburseState.PARTIAL ->
                             stringResource(R.string.bill_pending_tag, plainAmount(bill.remainingMinor, digits))

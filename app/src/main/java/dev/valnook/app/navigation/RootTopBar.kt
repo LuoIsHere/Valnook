@@ -25,7 +25,8 @@ import dev.valnook.feature.wallet.*
 internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long) -> String,
     instrumentName: (Long) -> String?, cashName: (Long) -> String?, aiChatTitle: String? = null): String = when (current) {
     WalletKey, HiddenWalletKey -> walletTitle ?: stringResource(R.string.nav_wallet)
-    BillsKey, HiddenBillsKey -> stringResource(R.string.nav_bills)
+    BillsKey, HiddenBillsKey, is BillsDayKey -> stringResource(R.string.nav_bills)
+    is BillStatsCategoryKey -> stringResource(R.string.title_bill_stats_category)
     is BillEditorKey -> stringResource(if (current.billId != null) R.string.title_edit_bill else R.string.title_new_bill)
     is BillDetailKey -> stringResource(R.string.title_bill_detail)
     is BillSettleKey -> stringResource(if (current.type == "REFUND") R.string.title_bill_refund else R.string.title_bill_reimbursement)
@@ -87,7 +88,7 @@ internal fun RootTopBarActions(current: NavKey, walletDetail: Boolean, wallet: W
     val accountGroupsDescription = stringResource(dev.valnook.feature.accounts.R.string.account_groups_title)
     val subaccountSortDescription = stringResource(dev.valnook.feature.accounts.R.string.account_order_children)
     when (current) {
-        BillsKey, HiddenBillsKey -> {
+        BillsKey, HiddenBillsKey, is BillsDayKey -> {
             val searching = toolbars.bills?.searching == true
             val searchLabel = stringResource(if (searching) R.string.nav_bill_search_close else R.string.nav_bill_search)
             IconButton({ toolbars.bills?.toggleSearch?.invoke() }, Modifier.testTag("bills-search-toggle")

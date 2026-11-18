@@ -8,6 +8,10 @@ import dev.valnook.feature.deposits.DepositFormMode
 
 @Serializable data object BillsKey : NavKey
 @Serializable data object HiddenBillsKey : NavKey
+/** The bill list opened at [date] (ISO), from the statistics page; the same page as [BillsKey], with a way back. */
+@Serializable data class BillsDayKey(val date: String) : NavKey
+/** One category's bills in [month] (yyyy-MM) among expenses or income; [categoryId] null for bills without one. */
+@Serializable data class BillStatsCategoryKey(val categoryId: Long?, val expense: Boolean, val month: String) : NavKey
 /**
  * A new bill on [tab], an edit of [billId], or a new bill copied from [copyFromId]. [prefill] is a form filled in
  * elsewhere (see BillPrefill), saved under [operation] when given.
