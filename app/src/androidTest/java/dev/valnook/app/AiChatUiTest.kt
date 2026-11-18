@@ -390,6 +390,11 @@ class AiChatUiTest {
         rule.onNodeWithTag("bill-account").assertTextEquals("合成银行 · 合成储蓄卡").performClick()
         waitTag("bill-account-picker")
         rule.onNodeWithTag("bill-account-$other").performClick()
+        rule.onNodeWithTag("bill-note").performTextReplacement("合成早餐加蛋")
+        rule.onNodeWithTag("bill-amount").performClick()
+        repeat(5) { rule.onNodeWithTag("bill-key-BACKSPACE").performClick() }
+        listOf("D1", "D5").forEach { rule.onNodeWithTag("bill-key-$it").performClick() }
+        rule.onNodeWithTag("bill-category-transport").performClick()
         rule.onNodeWithTag("bill-confirm").performClick()
         waitTag("ai-chat")
         rule.waitUntil(8_000) {
@@ -397,20 +402,26 @@ class AiChatUiTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         waitTag("ai-draft-d1-confirmed")
+        // Everything the bill page changed shows on the card, not only the account.
+        rule.onNodeWithText("交通").assertExists()
+        rule.onNodeWithText("15.00 CNY", substring = true).assertExists()
+        rule.onNodeWithText("合成早餐加蛋").assertExists()
+        rule.onNodeWithText("合成早饭").assertDoesNotExist()
         assertEquals(100_000L, balance())
-        assertEquals(50_000L - 1_200, balanceOf(other))
-        // Taken back, the card waits as it was last saved: on the other account.
+        assertEquals(50_000L - 1_500, balanceOf(other))
+        // Taken back, the card waits as it was last saved: on the other account, with the new figures.
         rule.onNodeWithTag("ai-draft-d1-undo").performClick()
         waitTag("ai-draft-d1-pending")
         assertEquals(50_000L, balanceOf(other))
         rule.onNodeWithTag("ai-draft-details").assertTextContains("合成钱包 · 合成零钱", substring = true)
+        rule.onNodeWithText("15.00 CNY", substring = true).assertExists()
         rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
         waitTag("ai-draft-d1-confirmed")
-        assertEquals(50_000L - 1_200, balanceOf(other))
+        assertEquals(50_000L - 1_500, balanceOf(other))
 
         // Deleted elsewhere, the bill has nothing left to change: back on the page the card no longer offers it.
         runBlocking {
-            val bill = graph.bills!!.observeSearch("合成早饭").first().single()
+            val bill = graph.bills!!.observeSearch("合成早餐加蛋").first().single()
             graph.commands.execute(dev.valnook.domain.repository.DeleteBill(UUID.randomUUID().toString(), bill.id, bill.revision))
         }
         rule.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
@@ -418,5 +429,45 @@ class AiChatUiTest {
         waitTag("ai-draft-d1-confirmed")
         gone("ai-draft-d1-edit-bill")
         rule.onNodeWithTag("ai-draft-d1-undo").assertExists()
+    }
+
+    @Test fun a_card_taken_back_on_another_currency_works_out_its_conversion_again() {
+        runBlocking {
+            val settings = graph.settings.observeSettings().first()
+            graph.settingsWriter.applyChange(dev.valnook.domain.repository.SaveFinancialSettings(settings.revision,
+                dev.valnook.domain.model.Currency.of("CNY"), listOf(dev.valnook.domain.model.FxRate(
+                    dev.valnook.domain.model.Currency.of("USD"), dev.valnook.domain.model.Currency.of("CNY"), java.math.BigDecimal("7.2")))))
+        }
+        val dollars = runBlocking {
+            val account = graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "合成外币卡", "",
+                listOf(CashBalanceChange("USD", 50_000, null, name = "合成美元")))).id
+            db.cash().accountIds(account).single()
+        }
+        openChat()
+        drafts("记好了", """{"type":"EXPENSE","amount":"10","currency":"USD","category_id":${category("food")},
+            "account_id":$cashId,"note":"合成早午饭"}""")
+        send("早午饭 10 美元")
+        waitTag("ai-draft-d1-converted")
+        rule.onNodeWithTag("ai-draft-d1-converted").assertTextEquals("扣款 ≈ 72.00 CNY")
+        rule.onNodeWithTag("ai-draft-d1-confirm").performClick()
+        waitTag("ai-draft-d1-confirmed")
+        // Moved to the dollar account in the bill page, then taken back: the card no longer crosses currencies.
+        rule.onNodeWithTag("ai-draft-d1-edit-bill").performClick()
+        waitTag("bill-editor")
+        rule.onNodeWithTag("bill-account").performClick()
+        waitTag("bill-account-picker")
+        rule.onNodeWithTag("bill-account-$dollars").performClick()
+        rule.onNodeWithTag("bill-confirm").performClick()
+        waitTag("ai-chat")
+        rule.waitUntil(8_000) {
+            rule.onAllNodes(hasTestTag("ai-draft-details") and hasText("合成外币卡 · 合成美元", substring = true))
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(50_000L - 1_000, balanceOf(dollars))
+        rule.onNodeWithTag("ai-draft-d1-undo").performClick()
+        waitTag("ai-draft-d1-pending")
+        rule.onNodeWithTag("ai-draft-details").assertTextContains("合成外币卡 · 合成美元", substring = true)
+        gone("ai-draft-d1-converted")
+        rule.onNodeWithTag("ai-draft-d1-confirm").assertTextEquals("确认")
     }
 }

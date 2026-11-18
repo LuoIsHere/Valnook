@@ -91,7 +91,9 @@ class AiChatViewModel(
     private data class Local(val loaded: Boolean = false, val sending: Boolean = false, val input: String = "",
         val pictures: List<BillImage> = emptyList(), val picturesWorking: Int = 0, val pictureFailed: Boolean = false,
         val busyCards: Set<Long> = emptySet(), val cardError: ErrorCode? = null, val cardFailed: Boolean = false,
-        val money: Map<Long, AiDraftMoney> = emptyMap(), val stored: Boolean = false,
+        val money: Map<Long, AiDraftMoney> = emptyMap(),
+        /** The draft each card's conversion was worked out for: a card changed since is worked out again. */
+        val moneyFor: Map<Long, AiBillDraft> = emptyMap(), val stored: Boolean = false,
         val pending: AiPendingMessage? = null, val keys: Map<Long, String> = emptyMap(),
         /** Deep thinking as switched on this page for the conversation; null follows the setting. */
         val thinking: Boolean? = null,
@@ -124,10 +126,11 @@ class AiChatViewModel(
             }
             local.update { it.copy(loaded = true) }
         }
-        // New waiting drafts get their conversion worked out once.
+        // Waiting drafts get their conversion worked out when new, and again when changed (saved, edited, taken back).
         viewModelScope.launch {
             messages.collect { list ->
-                val waiting = list.flatMap { it.drafts }.filter { it.state == AiDraftState.PENDING && it.id !in local.value.money }
+                val waiting = list.flatMap { it.drafts }
+                    .filter { it.state == AiDraftState.PENDING && local.value.moneyFor[it.id] != it.draft }
                 if (waiting.isNotEmpty()) workOutMoney(waiting)
                 checkPictures(list.flatMap { it.drafts })
             }
@@ -178,7 +181,8 @@ class AiChatViewModel(
 
     private suspend fun workOutMoney(cards: List<AiDraftCard>) {
         val found = cards.mapNotNull { card -> saver.money(card.draft)?.let { card.id to it } }.toMap()
-        local.update { it.copy(money = it.money - cards.map(AiDraftCard::id).toSet() + found) }
+        local.update { it.copy(money = it.money - cards.map(AiDraftCard::id).toSet() + found,
+            moneyFor = it.moneyFor + cards.associate { card -> card.id to card.draft }) }
     }
 
     private fun setConversation(id: Long?) {
