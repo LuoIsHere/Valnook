@@ -40,6 +40,9 @@ private val TAB_PRESS_OVERHANG = 10.dp
 /**
  * Text tabs with one underline that slides between them. Tabs keep their natural width, and a name that does not fit
  * shrinks instead of being cut off.
+ *
+ * With [progress] (a fractional index into [options], as a pager scrolls), the underline sits that far between two
+ * tabs on every frame instead of animating to [selected] on its own.
  */
 @Composable
 fun <T> UnderlineTabRow(
@@ -49,6 +52,7 @@ fun <T> UnderlineTabRow(
     label: (T) -> String,
     modifier: Modifier = Modifier,
     optionModifier: (T) -> Modifier = { Modifier },
+    progress: (() -> Float)? = null,
 ) {
     val density = LocalDensity.current
     val height = maxOf(48.dp, (24f * density.fontScale + 16f).dp)
@@ -90,7 +94,27 @@ fun <T> UnderlineTabRow(
                     }
                 } }
             }
-            if (target != null && target.width > 0) {
+            if (progress != null && options.isNotEmpty()) {
+                // Read on every frame in layout only, so following the finger never recomposes the row.
+                fun at(): Rect? {
+                    val value = progress().coerceIn(0f, options.lastIndex.toFloat())
+                    val from = value.toInt()
+                    val start = bounds[options[from]] ?: return null
+                    val end = bounds[options[minOf(from + 1, options.lastIndex)]] ?: start
+                    val fraction = value - from
+                    return Rect(start.left + (end.left - start.left) * fraction, start.top,
+                        start.right + (end.right - start.right) * fraction, start.bottom)
+                }
+                Box(Modifier.align(AbsoluteAlignment.BottomLeft)
+                    .absoluteOffset { IntOffset(at()?.left?.roundToInt() ?: 0, 0) }
+                    .layout { measurable, _ ->
+                        val placeable = measurable.measure(Constraints.fixed(
+                            (at()?.width?.roundToInt() ?: 0).coerceAtLeast(0), 2.dp.roundToPx()))
+                        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+                    }
+                    .background(indicatorColor)
+                    .testTag("underline-indicator"))
+            } else if (target != null && target.width > 0) {
                 val position = remember { Animatable(target, capsuleBoundsConverter) }
                 var previousGeometry by remember { mutableStateOf(geometry) }
                 LaunchedEffect(target, geometry) {

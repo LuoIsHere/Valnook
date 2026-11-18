@@ -68,6 +68,7 @@ fun TrendChart(
     // One paint for the axis labels, recoloured as they fade rather than made on every frame.
     val labelPaint = remember { android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG) }
     var visible by remember { mutableStateOf(false) }
+    val settled = LocalPageSettled.current
     var played by rememberSaveable(animationKey) { mutableStateOf(false) }
     val reveal = remember(animationKey) { Animatable(if (played || compact) 1f else 0f) }
     var interrupted by remember(animationKey) { mutableStateOf(false) }
@@ -79,7 +80,7 @@ fun TrendChart(
     val selectableLast = extensionIndex ?: values.lastIndex
     LaunchedEffect(ready, animationKey) {
         if (ready && !played) {
-            snapshotFlow { visible }.first { it }
+            snapshotFlow { visible && settled() }.first { it }
             played = true
             reveal.animateTo(1f, tween(650, easing=CubicBezierEasing(.25f, .1f, .25f, 1f)))
         }

@@ -51,11 +51,12 @@ fun RingChart(
 ) {
     val track = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
     var visible by remember { mutableStateOf(false) }
+    val settled = LocalPageSettled.current
     var played by rememberSaveable(animationKey) { mutableStateOf(false) }
     val reveal = remember(animationKey) { Animatable(if (played) 1f else 0f) }
     LaunchedEffect(animationKey) {
         if (!played) {
-            snapshotFlow { visible }.first { it }
+            snapshotFlow { visible && settled() }.first { it }
             played = true
             reveal.animateTo(1f, tween(650, easing = CubicBezierEasing(.25f, .1f, .25f, 1f)))
         }

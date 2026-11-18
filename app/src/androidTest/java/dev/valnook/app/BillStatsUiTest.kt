@@ -38,9 +38,15 @@ class BillStatsUiTest {
     private fun waitTag(tag: String, timeout: Long = 8_000) =
         rule.waitUntil(timeout) { rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
 
+    /** The statistics page showing. The pager keeps its neighbours composed off screen, so lookups stay inside this one. */
+    private var page = "bill-stats-expense"
+    private fun onPage(tag: String) = rule.onNode(hasTestTag(tag) and hasAnyAncestor(hasTestTag(page)))
+    private fun onPage(tag: String, text: String, substring: Boolean = false) =
+        rule.onAllNodes(hasTestTag(tag) and hasText(text, substring = substring) and hasAnyAncestor(hasTestTag(page)))
+
     /** While a tab changes, both pages are briefly there: an exact match picks the right one. */
     private fun waitText(tag: String, text: String, substring: Boolean = false) = rule.waitUntil(8_000) {
-        rule.onAllNodes(hasTestTag(tag) and hasText(text, substring = substring)).fetchSemanticsNodes().isNotEmpty()
+        onPage(tag, text, substring).fetchSemanticsNodes().isNotEmpty()
     }
 
     private fun category(key: String) = runBlocking { graph.bills!!.observeCategories().first() }.single { it.builtinKey == key }.id
@@ -81,20 +87,20 @@ class BillStatsUiTest {
         // The page opens on the assets, as it always did.
         rule.onNodeWithTag("statistics-list").assertExists()
         rule.onNodeWithTag("statistics-tab-expense").performClick()
+        page = "bill-stats-expense"
         waitText("bill-stats-total", "60.00 CNY")
         waitTag("bill-stats-expense")
-        rule.waitUntil(8_000) { rule.onAllNodesWithTag("statistics-list").fetchSemanticsNodes().isEmpty() }
-        rule.onNodeWithTag("bill-stats-other").assertTextContains("收入 900.00 CNY · 结余 840.00 CNY", substring = true)
-        rule.onNodeWithTag("bill-stats-compare").assertTextEquals("比上月多 10.00 CNY（20.0%）")
-        rule.onNodeWithTag("bill-stats-savings").assertTextEquals("优惠共省 3.00 CNY")
-        rule.onNodeWithTag("bill-stats-partial").assertDoesNotExist()
+        onPage("bill-stats-other").assertTextContains("收入 900.00 CNY · 结余 840.00 CNY", substring = true)
+        onPage("bill-stats-compare").assertTextEquals("比上月多 10.00 CNY（20.0%）")
+        onPage("bill-stats-savings").assertTextEquals("优惠共省 3.00 CNY")
+        onPage("bill-stats-partial").assertDoesNotExist()
         // Largest first: food 48 in two bills, then transport 12.
-        rule.onNodeWithTag("bill-stats-ring").assertExists()
+        onPage("bill-stats-ring").assertExists()
         val food = category("food")
         val transport = category("transport")
-        rule.onNodeWithTag("bill-stats-category-$food").assertTextContains("2 笔 · 80.0%", substring = true)
+        onPage("bill-stats-category-$food").assertTextContains("2 笔 · 80.0%", substring = true)
             .assertTextContains("48.00", substring = true)
-        rule.onNodeWithTag("bill-stats-category-$transport").assertTextContains("1 笔 · 20.0%", substring = true)
+        onPage("bill-stats-category-$transport").assertTextContains("1 笔 · 20.0%", substring = true)
         val rows = rule.onAllNodes(hasTestTag("bill-stats-category-$food") or hasTestTag("bill-stats-category-$transport"))
             .fetchSemanticsNodes().map { it.boundsInRoot.top }
         assert(rows[0] < rows[1]) { "food should come before transport" }
@@ -103,18 +109,18 @@ class BillStatsUiTest {
         // To the end of the page, so the bars sit above the navigation bar rather than under it.
         repeat(3) { rule.onNodeWithTag("bill-stats-expense").performTouchInput { swipeUp() } }
         rule.waitForIdle()
-        rule.onNodeWithTag("bill-stats-readout").assertTextContains("日均", substring = true)
+        onPage("bill-stats-readout").assertTextContains("日均", substring = true)
         val today = java.time.LocalDate.now(graph.clock)
-        rule.onNodeWithTag("bill-stats-bars").performTouchInput {
+        onPage("bill-stats-bars").performTouchInput {
             val slot = width.toFloat() / today.lengthOfMonth()
             click(androidx.compose.ui.geometry.Offset(slot * (today.dayOfMonth - 0.5f), height / 2f))
         }
         waitText("bill-stats-readout", "60.00 CNY", substring = true)
         rule.waitUntil(8_000) {
-            rule.onAllNodes(hasTestTag("bill-stats-readout") and hasText("日均", substring = true)).fetchSemanticsNodes().isEmpty()
+            onPage("bill-stats-readout", "日均", substring = true).fetchSemanticsNodes().isEmpty()
         }
         // Tapped again, the day lets go.
-        rule.onNodeWithTag("bill-stats-bars").performTouchInput {
+        onPage("bill-stats-bars").performTouchInput {
             val slot = width.toFloat() / today.lengthOfMonth()
             click(androidx.compose.ui.geometry.Offset(slot * (today.dayOfMonth - 0.5f), height / 2f))
         }
@@ -123,22 +129,23 @@ class BillStatsUiTest {
 
     @Test fun expense_and_income_share_the_month() {
         rule.onNodeWithTag("statistics-tab-expense").performClick()
+        page = "bill-stats-expense"
         waitText("bill-stats-total", "60.00 CNY")
-        rule.onNodeWithTag("bill-stats-summary").performScrollTo()
-        rule.onNodeWithTag("month-previous").performClick()
+        onPage("bill-stats-summary").performScrollTo()
+        onPage("month-previous").performClick()
         // Last month: food 50, against nothing the month before.
         waitText("bill-stats-total", "50.00 CNY")
-        rule.onNodeWithTag("bill-stats-compare").assertTextEquals("比上月多 50.00 CNY")
-        rule.onNodeWithTag("bill-stats-savings").assertDoesNotExist()
+        onPage("bill-stats-compare").assertTextEquals("比上月多 50.00 CNY")
+        onPage("bill-stats-savings").assertDoesNotExist()
         // The income tab stays on that month, which had none.
         rule.onNodeWithTag("statistics-tab-income").performClick()
+        page = "bill-stats-income"
         waitTag("bill-stats-income")
-        rule.waitUntil(8_000) { rule.onAllNodesWithTag("bill-stats-expense").fetchSemanticsNodes().isEmpty() }
         waitText("bill-stats-total", "0.00 CNY")
-        rule.onNodeWithTag("bill-stats-empty").assertTextEquals("这个月没有收入")
-        rule.onNodeWithTag("month-next").performClick()
+        onPage("bill-stats-empty").assertTextEquals("这个月没有收入")
+        onPage("month-next").performClick()
         waitText("bill-stats-total", "900.00 CNY")
-        rule.onNodeWithTag("bill-stats-other").assertTextContains("支出 60.00 CNY · 结余 840.00 CNY", substring = true)
+        onPage("bill-stats-other").assertTextContains("支出 60.00 CNY · 结余 840.00 CNY", substring = true)
         rule.onNodeWithTag("bill-stats-category-${category("income.pay")}").assertTextContains("1 笔 · 100.0%", substring = true)
         // Back on the assets, the tabs keep working.
         rule.onNodeWithTag("statistics-tab-assets").performClick()
@@ -157,10 +164,14 @@ class BillStatsUiTest {
         val advanced = save(BillType.EXPENSE, now, 9_900, "food", note = "合成垫付", counted = false)
         val food = category("food")
         rule.onNodeWithTag("statistics-tab-expense").performClick()
+        page = "bill-stats-expense"
         waitText("bill-stats-total", "75.00 CNY")
-        rule.onNodeWithTag("bill-stats-category-$food").performClick()
+        onPage("bill-stats-category-$food").performClick()
         waitTag("bill-stats-category")
-        waitText("bill-stats-category-total", "63.00 CNY")
+        // The category page is a page of its own, outside the statistics pager.
+        rule.waitUntil(8_000) {
+            rule.onAllNodes(hasTestTag("bill-stats-category-total") and hasText("63.00 CNY")).fetchSemanticsNodes().isNotEmpty()
+        }
         rule.onNodeWithTag("bill-stats-category-name").assertTextEquals("餐饮")
         rule.onNodeWithTag("bill-stats-category").assertExists()
         rule.onNodeWithText("3 笔").assertExists()
@@ -182,12 +193,12 @@ class BillStatsUiTest {
         repeat(3) { rule.onNodeWithTag("bill-stats-expense").performTouchInput { swipeUp() } }
         rule.waitForIdle()
         val today = java.time.LocalDate.now(graph.clock)
-        rule.onNodeWithTag("bill-stats-bars").performTouchInput {
+        onPage("bill-stats-bars").performTouchInput {
             val slot = width.toFloat() / today.lengthOfMonth()
             click(androidx.compose.ui.geometry.Offset(slot * (today.dayOfMonth - 0.5f), height / 2f))
         }
         waitTag("bill-stats-open-day")
-        rule.onNodeWithTag("bill-stats-open-day").performClick()
+        onPage("bill-stats-open-day").performClick()
         waitTag("bills-list")
         waitTag("bills-day-$today")
         rule.onNodeWithTag("bills-day-$today").assertIsDisplayed()
@@ -202,8 +213,9 @@ class BillStatsUiTest {
         save(BillType.EXPENSE, noon(1), 1_500, "food", note = "合成一号")
         save(BillType.EXPENSE, noon(2), 2_500, "food", note = "合成二号")
         rule.onNodeWithTag("statistics-tab-expense").performClick()
+        page = "bill-stats-expense"
         waitTag("bill-stats-expense")
-        rule.onNodeWithTag("month-previous").performClick()
+        onPage("month-previous").performClick()
         waitText("bill-stats-total", "90.00 CNY")
         repeat(3) { rule.onNodeWithTag("bill-stats-expense").performTouchInput { swipeUp() } }
         rule.waitForIdle()
@@ -211,20 +223,56 @@ class BillStatsUiTest {
         fun TouchInjectionScope.at(day: Int) =
             androidx.compose.ui.geometry.Offset(width.toFloat() / days * (day - 0.5f), height / 2f)
         // Held and moved, the reading follows the finger: day 2, then back to day 1.
-        rule.onNodeWithTag("bill-stats-bars").performTouchInput { down(at(1)); moveTo(at(2)) }
+        onPage("bill-stats-bars").performTouchInput { down(at(1)); moveTo(at(2)) }
         waitText("bill-stats-readout", "25.00 CNY", substring = true)
-        rule.onNodeWithTag("bill-stats-bars").performTouchInput { moveTo(at(1)) }
+        onPage("bill-stats-bars").performTouchInput { moveTo(at(1)) }
         waitText("bill-stats-readout", "15.00 CNY", substring = true)
         // Lifted, the day stays picked and its bills are one tap away.
-        rule.onNodeWithTag("bill-stats-bars").performTouchInput { up() }
+        onPage("bill-stats-bars").performTouchInput { up() }
         rule.waitForIdle()
-        rule.onNodeWithTag("bill-stats-readout").assertTextContains("15.00 CNY", substring = true)
-        rule.onNodeWithTag("bill-stats-open-day").assertExists()
+        onPage("bill-stats-readout").assertTextContains("15.00 CNY", substring = true)
+        onPage("bill-stats-open-day").assertExists()
         // A drag that starts upright on the bars scrolls the page instead.
-        val top = rule.onNodeWithTag("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top
-        rule.onNodeWithTag("bill-stats-bars").performTouchInput { swipeDown() }
+        val top = onPage("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top
+        onPage("bill-stats-bars").performTouchInput { swipeDown() }
         rule.waitForIdle()
-        assert(rule.onNodeWithTag("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top > top + 20f) { "the page should scroll" }
-        rule.onNodeWithTag("bill-stats-readout").assertTextContains("15.00 CNY", substring = true)
+        assert(onPage("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top > top + 20f) { "the page should scroll" }
+        onPage("bill-stats-readout").assertTextContains("15.00 CNY", substring = true)
+    }
+
+    @Test fun the_tabs_follow_a_swipe_but_not_a_drag_on_a_chart() {
+        rule.onNodeWithTag("statistics-tab-assets").assertIsSelected()
+        // Sideways across the page: the next tab, and back.
+        rule.onNodeWithTag("statistics-pages").performTouchInput { swipeLeft(startX = right * 0.9f, endX = right * 0.1f) }
+        waitTag("bill-stats-expense")
+        rule.onNodeWithTag("statistics-tab-expense").assertIsSelected()
+        rule.onNodeWithTag("statistics-pages").performTouchInput { swipeRight(startX = right * 0.1f, endX = right * 0.9f) }
+        waitTag("statistics-list")
+        rule.onNodeWithTag("statistics-tab-assets").assertIsSelected()
+
+        // Dragged along the asset chart, the chart reads out its points and the page stays.
+        rule.onNodeWithTag("statistics-list").performScrollToNode(hasTestTag("statistics-chart-total_assets"))
+        rule.onNodeWithTag("statistics-chart-total_assets").performTouchInput { swipeLeft(startX = right * 0.9f, endX = right * 0.1f) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("statistics-tab-assets").assertIsSelected()
+        rule.onNodeWithTag("statistics-list").assertExists()
+
+        // A tap on a tab two away slides straight there.
+        rule.onNodeWithTag("statistics-tab-income").performClick()
+        page = "bill-stats-income"
+        waitTag("bill-stats-income")
+        rule.onNodeWithTag("statistics-tab-income").assertIsSelected()
+        waitText("bill-stats-total", "900.00 CNY")
+
+        // Dragged along the daily bars, the bars pick days and the page stays.
+        rule.onNodeWithTag("statistics-tab-expense").performClick()
+        page = "bill-stats-expense"
+        waitText("bill-stats-total", "60.00 CNY")
+        repeat(3) { rule.onNodeWithTag("bill-stats-expense").performTouchInput { swipeUp() } }
+        rule.waitForIdle()
+        onPage("bill-stats-bars").performTouchInput { swipeLeft(startX = right * 0.9f, endX = right * 0.05f) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("statistics-tab-expense").assertIsSelected()
+        rule.onNodeWithTag("bill-stats-expense").assertExists()
     }
 }

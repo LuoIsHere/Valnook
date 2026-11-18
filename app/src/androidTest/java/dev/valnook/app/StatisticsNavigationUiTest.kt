@@ -70,7 +70,8 @@ class StatisticsNavigationUiTest {
             rule.onNodeWithTag("statistics-chart-total_assets").fetchSemanticsNode()
                 .config[SemanticsProperties.StateDescription])
 
-        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasTestTag("statistics-investment_value"))
+        // The asset list by name: the tab pager and the expense page beside it scroll too.
+        rule.onNodeWithTag("statistics-list").performScrollToNode(hasTestTag("statistics-investment_value"))
         rule.onNodeWithTag("statistics-investment_value").assertExists()
         openNavigation()
         rule.onNodeWithTag("nav-settings").performClick()
