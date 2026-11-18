@@ -8,9 +8,15 @@ import dev.valnook.data.database.ValnookDatabase
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.BillAccountChoice
 import dev.valnook.domain.repository.BillRepository
+import androidx.room.withTransaction
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import java.math.BigDecimal
+import java.math.MathContext
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
 
@@ -31,11 +37,30 @@ class RoomBills(private val db: ValnookDatabase) : BillRepository {
     override fun observeReimbursable(): Flow<List<Bill>> =
         dao.observeReimbursable().map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
 
-    override fun observeMonth(month: YearMonth, zone: ZoneId): Flow<List<Bill>> {
-        val start = month.atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
-        val end = month.plusMonths(1).atDay(1).atStartOfDay(zone).toInstant().toEpochMilli()
+    override fun observeMonth(month: YearMonth, zone: ZoneId): Flow<List<Bill>> =
+        observeRange(month.atDay(1), month.plusMonths(1).atDay(1), zone)
+
+    override fun observeRange(from: LocalDate, until: LocalDate, zone: ZoneId): Flow<List<Bill>> {
+        val start = from.atStartOfDay(zone).toInstant().toEpochMilli()
+        val end = until.atStartOfDay(zone).toInstant().toEpochMilli()
         return dao.observeRange(start, end).map { rows -> rows.map { it.toModel() } }.distinctUntilChanged()
     }
+
+    override fun observeStoredRates(currencies: Set<String>, first: LocalDate, last: LocalDate):
+        Flow<Map<String, Map<LocalDate, BigDecimal>>> =
+        db.invalidationTracker.createFlow("app_settings", "fx_rate_history").map {
+            db.withTransaction {
+                val base = db.fx().baseCurrency() ?: return@withTransaction emptyMap()
+                val quotes = currencies.filter { it != base }
+                if (quotes.isEmpty()) emptyMap()
+                // Stored as 1 base = rate quote; inverted once per row to what a bill's amount is multiplied by.
+                else db.fx().historyFor(base, quotes, first.toEpochDay(), last.toEpochDay())
+                    .groupBy { it.quote_currency }
+                    .mapValues { (_, rows) -> rows.associate { row ->
+                        LocalDate.ofEpochDay(row.local_day) to BigDecimal.ONE.divide(BigDecimal(row.rate), MathContext.DECIMAL128)
+                    } }
+            }
+        }.flowOn(Dispatchers.IO).distinctUntilChanged()
 
     override fun observeSearch(query: String, limit: Int): Flow<List<Bill>> = observeSearch(query, null, null, limit)
 

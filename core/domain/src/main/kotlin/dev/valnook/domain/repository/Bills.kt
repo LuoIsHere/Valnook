@@ -104,6 +104,15 @@ interface BillRepository {
     fun observeReimbursable(): Flow<List<Bill>> = kotlinx.coroutines.flow.flowOf(emptyList())
     /** Every bill dated in [month] in [zone], newest first. */
     fun observeMonth(month: YearMonth, zone: ZoneId): Flow<List<Bill>>
+    /** Every bill dated from [from] up to before [until] in [zone], newest first. */
+    fun observeRange(from: java.time.LocalDate, until: java.time.LocalDate, zone: ZoneId): Flow<List<Bill>> =
+        kotlinx.coroutines.flow.flowOf(emptyList())
+    /**
+     * The automatic rates stored for [currencies] on each day from [first] to [last], under the base currency as it is
+     * now: 1 currency = value base. Days without a stored rate are absent. Follows new rates and a new base currency.
+     */
+    fun observeStoredRates(currencies: Set<String>, first: java.time.LocalDate, last: java.time.LocalDate):
+        Flow<Map<String, Map<java.time.LocalDate, java.math.BigDecimal>>> = kotlinx.coroutines.flow.flowOf(emptyMap())
     /** Bills whose note contains [query], newest first. */
     fun observeSearch(query: String, limit: Int = 200): Flow<List<Bill>>
     /** Bills whose note contains [query] dated from [startMs] up to before [endMs] (either open when null), newest first. */

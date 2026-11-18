@@ -372,6 +372,33 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-row-discount-$plain", useUnmergedTree = true).assertDoesNotExist()
     }
 
+    /** Totals count a bill at the rate stored for its own day, ahead of today's rate. */
+    @Test fun totals_use_the_rate_of_the_bills_own_day() {
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        val dollars = runBlocking {
+            val settings = graph.settings.observeSettings().first()
+            graph.settingsWriter.applyChange(dev.valnook.domain.repository.SaveFinancialSettings(settings.revision,
+                dev.valnook.domain.model.Currency.of("CNY"), listOf(dev.valnook.domain.model.FxRate(
+                    dev.valnook.domain.model.Currency.of("USD"), dev.valnook.domain.model.Currency.of("CNY"), java.math.BigDecimal("7")))))
+            val account = graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "合成外币卡", "",
+                listOf(CashBalanceChange("USD", 50_000, null, name = "合成美元")))).id
+            db.cash().accountIds(account).single()
+        }
+        val at = graph.clock.millis() - 60_000
+        runBlocking {
+            // That day's stored rate: 1 CNY = 0.125 USD, so 8 yuan to the dollar where today's rate says 7.
+            val day = java.time.Instant.ofEpochMilli(at).atZone(graph.clock.zone).toLocalDate().toEpochDay()
+            db.fx().insertHistory(listOf(dev.valnook.data.database.FxRateHistoryEntity("CNY", "USD", day, day, "0.125", 1)))
+            graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, BillDraft(BillType.EXPENSE, at, 1_000,
+                "USD", 0, dollars, 1_000, categoryId = categories.single { it.builtinKey == "food" }.id)))
+        }
+        rule.waitUntil(8_000) {
+            rule.onAllNodes(hasTestTag("bills-month-expense") and hasText("≈ 80.00 CNY")).fetchSemanticsNodes().isNotEmpty()
+        }
+        // Nowhere at today's rate: neither the month nor the day.
+        rule.onAllNodesWithText("70.00 CNY", substring = true).assertCountEquals(0)
+    }
+
     /** A note search looks in the month on screen unless told to look in another month, a year or everywhere. */
     @Test fun a_search_looks_in_the_month_on_screen_unless_told_otherwise() {
         val categories = runBlocking { graph.bills!!.observeCategories().first() }

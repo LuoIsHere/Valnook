@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
 import dev.valnook.domain.model.Bill
+import dev.valnook.domain.model.BillTotals
 import dev.valnook.domain.model.BillType
 import dev.valnook.domain.model.ReimburseState
 import dev.valnook.domain.model.TransferKind

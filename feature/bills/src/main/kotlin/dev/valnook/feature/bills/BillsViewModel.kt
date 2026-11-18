@@ -4,13 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dev.valnook.domain.fx.FxContext
-import dev.valnook.domain.fx.FxRateResolver
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.BillAccountChoice
+import dev.valnook.domain.repository.BillCounter
 import dev.valnook.domain.repository.BillRepository
 import kotlinx.coroutines.flow.*
-import java.math.BigDecimal
-import java.math.RoundingMode
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -52,9 +50,6 @@ sealed interface BillSearchScope {
     }
 }
 
-/** Expense and income in the base currency; [partial] when some bill had no rate and was left out. */
-data class BillTotals(val expense: BigDecimal, val income: BigDecimal, val partial: Boolean, val converted: Boolean)
-
 data class BillDay(val date: LocalDate, val bills: List<Bill>, val totals: BillTotals)
 
 data class BillsState(
@@ -92,8 +87,10 @@ class BillsViewModel(
 
     private val scope = MutableStateFlow(BillSearchScope.decode(saved.get<String>("scope")))
 
+    private val counter = BillCounter(bills, settings, fx, clock.zone)
+
     private val listed = combine(month, query, scope) { m, q, s -> Triple(m, q.trim(), s) }.flatMapLatest { (m, q, s) ->
-        if (q.isEmpty()) bills.observeMonth(m, clock.zone)
+        val found = if (q.isEmpty()) bills.observeMonth(m, clock.zone)
         else {
             fun start(day: java.time.LocalDate) = day.atStartOfDay(clock.zone).toInstant().toEpochMilli()
             when (s) {
@@ -104,26 +101,30 @@ class BillsViewModel(
                 BillSearchScope.All -> bills.observeSearch(q, null, null)
             }
         }
+        // Each list is counted at its own days' rates, so the month and day totals agree with the statistics.
+        found.flatMapLatest { list -> counter.observe(list).map { Fetched(m, q, s, it) } }
     }
 
-    val state: StateFlow<BillsState> = combine(
-        combine(month, query, filter, scope, listed) { m, q, f, s, l -> Listed(m, q, f, l, s) },
-        bills.observeCategories(), bills.observeAccountChoices(), combine(settings, fx) { s, x -> s to x },
-        bills.observeFirstBillAt()) { listed, categories, accounts, (settingsValue, fxValue), first ->
-        val resolver = FxRateResolver(settingsValue, fxValue)
+    val state: StateFlow<BillsState> = combine(listed, filter, bills.observeCategories(), bills.observeAccountChoices(),
+        bills.observeFirstBillAt()) { fetched, filterValue, categories, accounts, first ->
+        val listed = Listed(fetched.month, fetched.query, filterValue, fetched.counting.bills, fetched.scope)
+        val counting = fetched.counting
         val shown = listed.bills.filter(listed.filter::matches)
-        val days = shown.groupBy { Instant.ofEpochMilli(it.occurredAtMs).atZone(clock.zone).toLocalDate() }
-            .map { (date, list) -> BillDay(date, list, totals(list, resolver)) }.sortedByDescending { it.date }
+        val days = shown.groupBy(counting::dateOf)
+            .map { (date, list) -> BillDay(date, list, counting.totals(list)) }.sortedByDescending { it.date }
         BillsState(listed.month, listed.query, listed.filter, days,
-            if (listed.query.isEmpty()) totals(listed.bills, resolver) else null,
+            if (listed.query.isEmpty()) counting.totals() else null,
             categories.associateBy { it.id }, categories, accounts.associateBy { it.cashAccountId }, accounts,
-            settingsValue.baseCurrency, true, first?.let { YearMonth.from(Instant.ofEpochMilli(it).atZone(clock.zone)) },
+            counting.base, true, first?.let { YearMonth.from(Instant.ofEpochMilli(it).atZone(clock.zone)) },
             listed.scope, first?.let { firstAt ->
                 val from = YearMonth.from(Instant.ofEpochMilli(firstAt).atZone(clock.zone))
                 val to = maxOf(YearMonth.now(clock), listed.month)
                 generateSequence(to) { it.minusMonths(1) }.takeWhile { !it.isBefore(from) }.toList()
             } ?: listOf(listed.month))
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BillsState(month.value, query.value, filter.value))
+
+    private data class Fetched(val month: YearMonth, val query: String, val scope: BillSearchScope?,
+        val counting: BillCounting)
 
     private data class Listed(val month: YearMonth, val query: String, val filter: BillFilter, val bills: List<Bill>,
         val scope: BillSearchScope?)
@@ -136,37 +137,5 @@ class BillsViewModel(
         filter.value = value
         saved["type"] = value.type?.name; saved["category"] = value.categoryId
         saved["account"] = value.cashAccountId; saved["counted"] = value.counted
-    }
-
-    companion object {
-        /** [value] of what [bill] paid, scaled to what is left of it after refunds and reimbursements. */
-        internal fun net(bill: Bill, value: BigDecimal): BigDecimal =
-            if (bill.paidMinor <= 0 || bill.remainingMinor == bill.paidMinor) value
-            else value.multiply(BigDecimal.valueOf(bill.remainingMinor.coerceAtLeast(0)))
-                .divide(BigDecimal.valueOf(bill.paidMinor), 12, RoundingMode.HALF_UP)
-
-        /**
-         * Expense and income counted in income and expense, at today's rate into the base currency. An expense counts
-         * net of its refunds and reimbursements, wherever they arrived ([Bill.remainingMinor] of what it paid); the
-         * refunds and reimbursements themselves are neither expense nor income. An expense whose paying back was given
-         * up counts what was not paid back, even when it was not marked to count.
-         */
-        fun totals(list: List<Bill>, resolver: FxRateResolver): BillTotals {
-            val base = resolver.base
-            var expense = BigDecimal.ZERO
-            var income = BigDecimal.ZERO
-            var partial = false
-            var converted = false
-            list.filter { it.counted && (it.type == BillType.EXPENSE || it.type == BillType.INCOME) }.forEach { bill ->
-                val currency = bill.accountCurrency
-                val rate = resolver.today(currency.code)
-                if (rate == null) { partial = true; return@forEach }
-                if (currency != base) converted = true
-                val value = BigDecimal.valueOf(bill.accountAmountMinor, currency.fraction_digits).multiply(rate)
-                if (bill.type == BillType.EXPENSE) expense += net(bill, value) else income += value
-            }
-            val digits = base?.fraction_digits ?: 2
-            return BillTotals(expense.setScale(digits, RoundingMode.HALF_UP), income.setScale(digits, RoundingMode.HALF_UP), partial, converted)
-        }
     }
 }
