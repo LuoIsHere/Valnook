@@ -98,6 +98,42 @@ class BillCountingTest {
         decimal("15.00", counting(owed.copy(reimburseState = ReimburseState.WAIVED)).totals().expense)
     }
 
+    @Test fun categories_and_days_add_up_what_counts() {
+        val lunch = bill(BillType.EXPENSE, 3_000, day1).copy(categoryId = 10)
+        val dinner = bill(BillType.EXPENSE, 1_000, day2, usd).copy(categoryId = 10)
+        val bus = bill(BillType.EXPENSE, 500, day2).copy(categoryId = 20)
+        val returned = bill(BillType.EXPENSE, 800, day2).copy(categoryId = 20, refundedMinor = 800)
+        val left = bill(BillType.EXPENSE, 9_000, day2, counted = false).copy(categoryId = 20)
+        val unpriced = bill(BillType.EXPENSE, 100, day2, jpy).copy(categoryId = 30)
+        val loose = bill(BillType.EXPENSE, 200, day3).copy(categoryId = null)
+        val pay = bill(BillType.INCOME, 50_000, day3).copy(categoryId = 90)
+        val counting = counting(lunch, dinner, bus, returned, left, unpriced, loose, pay)
+        // 30 + 73 for category 10; 5 for 20, where the refunded bill counts for nothing and is not counted.
+        val shares = counting.shares(BillType.EXPENSE) { it.categoryId }
+        assertEquals(listOf(10L, 20L, null), shares.map { it.categoryId })
+        assertEquals(listOf(2, 1, 1), shares.map { it.count })
+        assertEquals(0, BigDecimal("103").compareTo(shares[0].value))
+        // Together they make the expense total.
+        assertEquals(0, counting.totals().expense.compareTo(shares.fold(BigDecimal.ZERO) { a, s -> a + s.value }))
+        assertEquals(listOf(90L), counting.shares(BillType.INCOME) { it.categoryId }.map { it.categoryId })
+
+        val days = counting.byDay(BillType.EXPENSE)
+        assertEquals(setOf(day1, day2, day3), days.keys)
+        assertEquals(0, BigDecimal("78").compareTo(days.getValue(day2)))
+        assertEquals(0, BigDecimal("500").compareTo(counting.byDay(BillType.INCOME).getValue(day3)))
+    }
+
+    @Test fun savings_convert_each_discount_from_its_own_currency() {
+        // 2.00 USD off on day 1 at 7.2, 3.50 CNY off; the bill left out and the JPY one without a rate do not add.
+        val savings = counting(bill(BillType.EXPENSE, 1_000, day1, usd, discount = 200),
+            bill(BillType.EXPENSE, 2_000, day3, discount = 350),
+            bill(BillType.EXPENSE, 2_000, day3, discount = 900, counted = false),
+            bill(BillType.EXPENSE, 1_000, day1, jpy, discount = 100)).savings()
+        decimal("17.90", savings.value)
+        assertTrue(savings.partial)
+        assertFalse(counting(bill(BillType.EXPENSE, 100, day1)).savings().partial)
+    }
+
     @Test fun days_follow_the_zone() {
         // 23:30 on day 1 in Shanghai is still day 1 there, though day 1 15:30 in UTC.
         val late = bill(BillType.EXPENSE, 100, day1).copy(

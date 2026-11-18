@@ -24,4 +24,7 @@
     <string name="statistics_home_investment">总投资市值</string>
     <string name="statistics_point_incomplete">部分币种缺少汇率，未计入</string>
     <string name="statistics_series_incomplete">部分日期缺少汇率，相关币种未计入</string>
+    <string name="statistics_tab_assets">资产</string>
+    <string name="statistics_tab_expense">支出</string>
+    <string name="statistics_tab_income">收入</string>
 </resources>

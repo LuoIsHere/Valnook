@@ -1,5 +1,13 @@
 package dev.valnook.feature.statistics
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -25,6 +33,8 @@ import dev.valnook.designsystem.Space
 import dev.valnook.designsystem.GlassCard
 import dev.valnook.designsystem.CapsuleChoiceRow
 import dev.valnook.designsystem.pageContentPadding
+import dev.valnook.designsystem.LocalPageTopSpace
+import dev.valnook.designsystem.UnderlineTabRow
 import dev.valnook.domain.calculation.CurvePoint
 import dev.valnook.domain.calculation.MonotoneCurve
 import dev.valnook.domain.model.*
@@ -37,8 +47,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import dev.valnook.designsystem.ChevronIcon
 
+/**
+ * The statistics page. With [ledger], the page has tabs: assets, then the month's expense (`ledger(true)`) and
+ * income (`ledger(false)`), each keeping its own scroll position. Without it, only the assets show, as before.
+ */
 @Composable
-fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = {}) {
+fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = {},
+    ledger: (@Composable (expense: Boolean) -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.loading) {
@@ -60,6 +75,42 @@ fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = 
             vm.refresh()
         }
     }
+    val assets = @Composable { AssetStatistics(vm, state, showLoading, summary) }
+    if (ledger == null) { assets(); return }
+    val tab by vm.tab.collectAsStateWithLifecycle()
+    val pages = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+    val names = mapOf(StatisticsTab.ASSETS to stringResource(R.string.statistics_tab_assets),
+        StatisticsTab.EXPENSE to stringResource(R.string.statistics_tab_expense),
+        StatisticsTab.INCOME to stringResource(R.string.statistics_tab_income))
+    Column(Modifier.fillMaxSize()) {
+        UnderlineTabRow(StatisticsTab.entries, tab, vm::setTab, label = { names.getValue(it) },
+            modifier = Modifier.padding(top = LocalPageTopSpace.current).testTag("statistics-tabs"),
+            optionModifier = { Modifier.testTag("statistics-tab-${it.name.lowercase()}") })
+        // The tab row already sits below the title bar, so the pages under it start right away.
+        CompositionLocalProvider(LocalPageTopSpace provides 0.dp) {
+            AnimatedContent(tab, Modifier.fillMaxWidth().weight(1f), label = "statistics-tab", transitionSpec = {
+                // The new page comes in from the side of the tab it belongs to, a short way, as the old one fades.
+                val forward = targetState.ordinal > initialState.ordinal
+                (fadeIn(tween(220, delayMillis = 60)) + slideInHorizontally(tween(280, easing = FastOutSlowInEasing)) {
+                    (if (forward) it else -it) / 12 }) togetherWith
+                    (fadeOut(tween(120)) + slideOutHorizontally(tween(280, easing = FastOutSlowInEasing)) {
+                        (if (forward) -it else it) / 12 })
+            }) { shown ->
+                pages.SaveableStateProvider(shown.name) {
+                    when (shown) {
+                        StatisticsTab.ASSETS -> assets()
+                        StatisticsTab.EXPENSE -> ledger(true)
+                        StatisticsTab.INCOME -> ledger(false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssetStatistics(vm: StatisticsViewModel, state: StatisticsUiState, showLoading: Boolean,
+    summary: @Composable () -> Unit) {
     LazyColumn(Modifier.fillMaxSize().testTag("statistics-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.lg)) {
         item("asset-summary") { summary() }

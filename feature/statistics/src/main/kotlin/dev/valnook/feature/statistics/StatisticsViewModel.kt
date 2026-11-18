@@ -22,6 +22,9 @@ data class ChartUiState(
     val followCurrentPeriod: Boolean = true
 )
 
+/** The statistics page's tabs: assets over time, then the month's expense and income. */
+enum class StatisticsTab { ASSETS, EXPENSE, INCOME }
+
 data class StatisticsUiState(
     val today: LocalDate,
     val current: CurrentStatistics? = null,
@@ -39,6 +42,11 @@ class StatisticsViewModel(
     private val mutable = MutableStateFlow(StatisticsUiState(today = today,
         charts = StatisticsMetric.entries.associateWith(::restoreChart)))
     val state = mutable.asStateFlow()
+    private val tabs = MutableStateFlow(savedState.get<String>("tab")
+        ?.let { name -> StatisticsTab.entries.firstOrNull { it.name == name } } ?: StatisticsTab.ASSETS)
+    val tab = tabs.asStateFlow()
+
+    fun setTab(value: StatisticsTab) { tabs.value = value; savedState["tab"] = value.name }
     private var refreshJob: Job? = null
 
     init {

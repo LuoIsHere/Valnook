@@ -152,7 +152,7 @@ data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Uni
 }
 
 /** The string [id] with each argument in its own colour; the words around them keep the text's colour. */
-@Composable private fun colouredText(id: Int, vararg args: Pair<String, Color>): AnnotatedString {
+@Composable internal fun colouredText(id: Int, vararg args: Pair<String, Color>): AnnotatedString {
     val template = stringResource(id, *args.indices.map { "\u0000$it\u0000" }.toTypedArray())
     return buildAnnotatedString {
         var start = 0
@@ -168,7 +168,7 @@ data class BillsToolbarState(val searching: Boolean, val toggleSearch: () -> Uni
 
 private val PLACEHOLDER = Regex("\u0000(\\d+)\u0000")
 
-private fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTotals): String =
+internal fun totalText(value: java.math.BigDecimal, base: String?, totals: BillTotals): String =
     (if (totals.converted) "≈ " else "") + DecimalRules.format_display(value, value.scale()) + (base?.let { " $it" } ?: "")
 
 @Composable private fun DayHeader(day: BillDay, locale: java.util.Locale, base: String?) {

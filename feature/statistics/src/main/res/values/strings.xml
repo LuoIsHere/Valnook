@@ -24,4 +24,7 @@
     <string name="statistics_home_investment">Total investment value</string>
     <string name="statistics_point_incomplete">Some currencies had no exchange rate and are left out</string>
     <string name="statistics_series_incomplete">Some days had no exchange rate; those currencies are left out</string>
+    <string name="statistics_tab_assets">Assets</string>
+    <string name="statistics_tab_expense">Expense</string>
+    <string name="statistics_tab_income">Income</string>
 </resources>

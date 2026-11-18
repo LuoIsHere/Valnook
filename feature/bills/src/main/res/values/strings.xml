@@ -189,4 +189,25 @@
     <string name="bill_image_in_cloud">In OneDrive</string>
     <string name="bill_image_fetch">Fetch from OneDrive</string>
     <string name="bill_image_fetch_failed">Could not fetch it from OneDrive. Try again later.</string>
+    <string name="stats_total_expense">Total expense</string>
+    <string name="stats_total_income">Total income</string>
+    <string name="stats_expense_balance">Expense %1$s · Balance %2$s</string>
+    <string name="stats_compare_more">%1$s (%2$s) more than last month</string>
+    <string name="stats_compare_less">%1$s (%2$s) less than last month</string>
+    <string name="stats_compare_more_plain">%1$s more than last month</string>
+    <string name="stats_compare_less_plain">%1$s less than last month</string>
+    <string name="stats_compare_same">Same as last month</string>
+    <string name="stats_savings">Saved %1$s through discounts</string>
+    <string name="stats_by_category">By category</string>
+    <string name="stats_no_expense">No expense this month</string>
+    <string name="stats_no_income">No income this month</string>
+    <string name="stats_ring_description">Share by category: %1$s</string>
+    <string name="stats_daily_expense">Daily expense</string>
+    <string name="stats_daily_income">Daily income</string>
+    <string name="stats_daily_average">%1$s a day on average</string>
+    <string name="stats_open_day">View bills</string>
+    <plurals name="stats_bill_count">
+        <item quantity="one">%d bill</item>
+        <item quantity="other">%d bills</item>
+    </plurals>
 </resources>

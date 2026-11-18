@@ -34,6 +34,12 @@ data class BillTotals(val expense: BigDecimal, val income: BigDecimal, val parti
     val balance: BigDecimal get() = income - expense
 }
 
+/** One group's part of a total, unrounded in the base currency; [count] bills make it up. */
+data class BillShare(val categoryId: Long?, val value: BigDecimal, val count: Int)
+
+/** Discounts in the base currency; [partial] when some had no rate and were left out. */
+data class BillSavings(val value: BigDecimal, val partial: Boolean)
+
 /**
  * [bills] as income and expense count them, each at [rates] on its own date in [zone]. Statistics, the bill list's
  * totals and AI questions about spending all count through here, so they agree.
@@ -76,6 +82,40 @@ class BillCounting(val bills: List<Bill>, val rates: BillDayRates, val zone: Zon
         val digits = base?.fraction_digits ?: 2
         return BillTotals(expense.setScale(digits, RoundingMode.HALF_UP), income.setScale(digits, RoundingMode.HALF_UP),
             partial, converted)
+    }
+
+    /**
+     * The counted bills of [type] grouped by [key] (a category, or null for bills without one), largest first. Only
+     * bills that come to more than nothing count toward [BillShare.count]: one refunded in full is not spending.
+     * Bills without a rate are left out, as from [totals].
+     */
+    fun shares(type: BillType, key: (Bill) -> Long?): List<BillShare> =
+        bills.asSequence().filter { it.type == type && counts(it) }
+            .mapNotNull { bill -> valueOf(bill)?.takeIf { it.signum() > 0 }?.let { key(bill) to it } }
+            .groupBy({ it.first }, { it.second })
+            .map { (id, values) -> BillShare(id, values.fold(BigDecimal.ZERO, BigDecimal::add), values.size) }
+            .sortedWith(compareByDescending<BillShare> { it.value }.thenBy { it.categoryId ?: Long.MAX_VALUE })
+
+    /** The counted bills of [type] summed by date; days without any are absent. */
+    fun byDay(type: BillType): Map<LocalDate, BigDecimal> =
+        bills.asSequence().filter { it.type == type && counts(it) }
+            .mapNotNull { bill -> valueOf(bill)?.let { dateOf(bill) to it } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, values) -> values.fold(BigDecimal.ZERO, BigDecimal::add) }
+
+    /**
+     * What the counted expenses saved through discounts, in the base currency. A discount is in the bill's own
+     * currency, so it converts at that currency's rate on the bill's day; one without a rate is left out.
+     */
+    fun savings(): BillSavings {
+        var total = BigDecimal.ZERO
+        var partial = false
+        bills.filter { it.type == BillType.EXPENSE && counts(it) && it.discountMinor > 0 }.forEach { bill ->
+            val rate = rates.on(bill.currency.code, dateOf(bill))
+            if (rate == null) { partial = true; return@forEach }
+            total += BigDecimal.valueOf(bill.discountMinor, bill.currency.fraction_digits).multiply(rate.rate)
+        }
+        return BillSavings(total.setScale(base?.fraction_digits ?: 2, RoundingMode.HALF_UP), partial)
     }
 
     companion object {

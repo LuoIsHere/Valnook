@@ -571,7 +571,12 @@ private fun SessionRoot(
                                     dev.valnook.feature.accounts.AccountOverviewSummary(pageViewModel {
                                         dev.valnook.feature.accounts.AccountsViewModel(graph.overview)
                                     })
-                                })
+                                }, ledger = graph.bills?.let { bills -> { expense ->
+                                    dev.valnook.feature.bills.BillStatsPage(pageViewModel {
+                                        dev.valnook.feature.bills.BillStatsViewModel(bills, graph.settings.observeSettings(),
+                                            graph.overview.observeFxContext(), graph.clock, createSavedStateHandle())
+                                    }, expense)
+                                } })
                             }
                             entry<StatisticsKey> { statisticsPage() }
                             entry<HiddenStatisticsKey> { statisticsPage() }

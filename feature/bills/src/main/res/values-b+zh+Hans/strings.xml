@@ -188,4 +188,24 @@
     <string name="bill_image_in_cloud">在云端</string>
     <string name="bill_image_fetch">从 OneDrive 取回</string>
     <string name="bill_image_fetch_failed">没能从 OneDrive 取回，请稍后再试。</string>
+    <string name="stats_total_expense">支出合计</string>
+    <string name="stats_total_income">收入合计</string>
+    <string name="stats_expense_balance">支出 %1$s · 结余 %2$s</string>
+    <string name="stats_compare_more">比上月多 %1$s（%2$s）</string>
+    <string name="stats_compare_less">比上月少 %1$s（%2$s）</string>
+    <string name="stats_compare_more_plain">比上月多 %1$s</string>
+    <string name="stats_compare_less_plain">比上月少 %1$s</string>
+    <string name="stats_compare_same">和上月持平</string>
+    <string name="stats_savings">优惠共省 %1$s</string>
+    <string name="stats_by_category">分类</string>
+    <string name="stats_no_expense">这个月没有支出</string>
+    <string name="stats_no_income">这个月没有收入</string>
+    <string name="stats_ring_description">分类占比：%1$s</string>
+    <string name="stats_daily_expense">每日支出</string>
+    <string name="stats_daily_income">每日收入</string>
+    <string name="stats_daily_average">日均 %1$s</string>
+    <string name="stats_open_day">查看账单</string>
+    <plurals name="stats_bill_count">
+        <item quantity="other">%d 笔</item>
+    </plurals>
 </resources>
