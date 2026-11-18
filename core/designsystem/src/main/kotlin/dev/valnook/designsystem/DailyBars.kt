@@ -6,7 +6,8 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -24,7 +25,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
+import dev.valnook.core.designsystem.R
+import kotlin.math.abs
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.first
@@ -33,8 +39,10 @@ import kotlinx.coroutines.flow.first
  * One bar per slot (a day), growing from a shared baseline. [values] are heights from 0 to 1; null leaves the slot
  * empty (a day still to come). [labels] put text under chosen slots by index.
  *
- * A tap picks the slot under the finger and [onSelect] reports it; tapping the picked slot again, or a tap away from
- * any slot, reports null. With a slot picked, the other bars fade back.
+ * A tap picks the slot under the finger and [onSelect] reports it; tapping the picked slot again, or a slot still to
+ * come, reports null. Dragging sideways picks whichever slot the finger is over (never past the last one with a
+ * value), and the pick stays when the finger lifts. A drag that starts upright is left to the page to scroll. With a
+ * slot picked, the other bars fade back.
  *
  * The bars grow in once per [animationKey], the first time they are on screen. New values (another month) move each
  * bar from its old height to its new one instead.
@@ -86,15 +94,57 @@ fun DailyBars(
     }
     val fade by animateFloatAsState(if (selection != null) 0.35f else 1f, tween(160), label = "bars-fade")
     val currentOnSelect by rememberUpdatedState(onSelect)
+    val currentSelection by rememberUpdatedState(selection)
     val count = values.size
-    Box(modifier.semantics { contentDescription = description }
+    val lastWithValue = values.indexOfLast { it != null }
+    val previousLabel = stringResource(R.string.bars_previous_day)
+    val nextLabel = stringResource(R.string.bars_next_day)
+    Box(modifier.semantics {
+            contentDescription = description
+            if (lastWithValue >= 0) customActions = listOf(
+                CustomAccessibilityAction(previousLabel) {
+                    val at = currentSelection ?: lastWithValue
+                    if (currentSelection == null || at > 0) { currentOnSelect((if (currentSelection == null) at else at - 1)); true } else false
+                },
+                CustomAccessibilityAction(nextLabel) {
+                    val at = currentSelection ?: return@CustomAccessibilityAction false
+                    if (at < lastWithValue) { currentOnSelect(at + 1); true } else false
+                })
+        }
         .onGloballyPositioned { if (it.boundsInWindow().height > 0f) visible = true }
-        .pointerInput(values, selection) {
-            detectTapGestures { offset ->
-                if (count == 0) return@detectTapGestures
-                val slot = size.width.toFloat() / count
-                val index = (offset.x / slot).toInt().coerceIn(0, count - 1)
-                currentOnSelect(if (index == selection || values.getOrNull(index) == null) null else index)
+        .pointerInput(values) {
+            awaitEachGesture {
+                val down = awaitFirstDown(requireUnconsumed = false)
+                if (count == 0) return@awaitEachGesture
+                fun slotAt(x: Float) = (x / (size.width.toFloat() / count)).toInt().coerceIn(0, count - 1)
+                val before = currentSelection
+                var horizontal = false
+                var vertical = false
+                var picked: Int? = null
+                while (true) {
+                    val event = awaitPointerEvent()
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if (!change.pressed) {
+                        // Lifted without dragging: a tap, which picks the slot or lets the picked one go.
+                        if (!horizontal) {
+                            val index = slotAt(down.position.x)
+                            currentOnSelect(if (index == before || values.getOrNull(index) == null) null else index)
+                        }
+                        break
+                    }
+                    val delta = change.position - down.position
+                    // The first clear direction decides, as on the trend chart: sideways picks days, upright scrolls.
+                    if (!horizontal && !vertical && maxOf(abs(delta.x), abs(delta.y)) > viewConfiguration.touchSlop) {
+                        horizontal = abs(delta.x) > abs(delta.y)
+                        vertical = !horizontal
+                    }
+                    if (vertical || (change.isConsumed && !horizontal)) break
+                    if (horizontal && lastWithValue >= 0) {
+                        change.consume()
+                        val index = slotAt(change.position.x).coerceAtMost(lastWithValue)
+                        if (index != picked) { picked = index; currentOnSelect(index) }
+                    }
+                }
             }
         }) {
         Canvas(Modifier.fillMaxSize()) {

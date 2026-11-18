@@ -169,4 +169,6 @@
     <string name="bill_icon_group_family">家人与人情</string>
     <string name="bill_icon_group_money">工作与理财</string>
     <string name="bill_icon_group_other">其他</string>
+    <string name="bars_previous_day">前一天</string>
+    <string name="bars_next_day">后一天</string>
 </resources>

@@ -194,4 +194,37 @@ class BillStatsUiTest {
         androidx.test.espresso.Espresso.pressBack()
         waitTag("bill-stats-expense")
     }
+
+    @Test fun dragging_across_the_bars_follows_the_finger_and_keeps_the_day() {
+        // Last month is all in the past, so every day there has a bar to drag across.
+        val month = java.time.YearMonth.now(graph.clock).minusMonths(1)
+        fun noon(day: Int) = month.atDay(day).atTime(12, 0).atZone(graph.clock.zone).toInstant().toEpochMilli()
+        save(BillType.EXPENSE, noon(1), 1_500, "food", note = "合成一号")
+        save(BillType.EXPENSE, noon(2), 2_500, "food", note = "合成二号")
+        rule.onNodeWithTag("statistics-tab-expense").performClick()
+        waitTag("bill-stats-expense")
+        rule.onNodeWithTag("month-previous").performClick()
+        waitText("bill-stats-total", "90.00 CNY")
+        repeat(3) { rule.onNodeWithTag("bill-stats-expense").performTouchInput { swipeUp() } }
+        rule.waitForIdle()
+        val days = month.lengthOfMonth()
+        fun TouchInjectionScope.at(day: Int) =
+            androidx.compose.ui.geometry.Offset(width.toFloat() / days * (day - 0.5f), height / 2f)
+        // Held and moved, the reading follows the finger: day 2, then back to day 1.
+        rule.onNodeWithTag("bill-stats-bars").performTouchInput { down(at(1)); moveTo(at(2)) }
+        waitText("bill-stats-readout", "25.00 CNY", substring = true)
+        rule.onNodeWithTag("bill-stats-bars").performTouchInput { moveTo(at(1)) }
+        waitText("bill-stats-readout", "15.00 CNY", substring = true)
+        // Lifted, the day stays picked and its bills are one tap away.
+        rule.onNodeWithTag("bill-stats-bars").performTouchInput { up() }
+        rule.waitForIdle()
+        rule.onNodeWithTag("bill-stats-readout").assertTextContains("15.00 CNY", substring = true)
+        rule.onNodeWithTag("bill-stats-open-day").assertExists()
+        // A drag that starts upright on the bars scrolls the page instead.
+        val top = rule.onNodeWithTag("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top
+        rule.onNodeWithTag("bill-stats-bars").performTouchInput { swipeDown() }
+        rule.waitForIdle()
+        assert(rule.onNodeWithTag("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top > top + 20f) { "the page should scroll" }
+        rule.onNodeWithTag("bill-stats-readout").assertTextContains("15.00 CNY", substring = true)
+    }
 }

@@ -171,4 +171,6 @@
     <string name="bill_icon_group_family">Family &amp; people</string>
     <string name="bill_icon_group_money">Work &amp; money</string>
     <string name="bill_icon_group_other">Other</string>
+    <string name="bars_previous_day">Previous day</string>
+    <string name="bars_next_day">Next day</string>
 </resources>
