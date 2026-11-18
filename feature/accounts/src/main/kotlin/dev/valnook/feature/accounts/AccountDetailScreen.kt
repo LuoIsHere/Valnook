@@ -16,7 +16,7 @@ import dev.valnook.designsystem.PageLoading
 import dev.valnook.designsystem.headerDrag
 import dev.valnook.designsystem.rememberHeaderCollapse
 import dev.valnook.designsystem.PageFailure
-import dev.valnook.designsystem.UnderlineTabRow
+import dev.valnook.designsystem.SwipeTabs
 import dev.valnook.domain.model.ConvertedTotal
 import dev.valnook.domain.model.StatisticsPoint
 import dev.valnook.domain.money.DecimalRules
@@ -64,7 +64,6 @@ fun AccountDetailContent(accountId: Long, name: String, note: String, total: Con
     depositContent: @Composable () -> Unit, investmentContent: @Composable () -> Unit, onTitleReserve: (Int) -> Unit = {}) {
     val collapse = rememberHeaderCollapse(accountId)
     var selected by rememberSaveable(accountId) { mutableStateOf(initialSection) }
-    val sectionStates = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
     val background = MaterialTheme.colorScheme.background
     val names = mapOf(
         AccountDetailSection.ACCOUNTS to stringResource(R.string.accounts_accounts),
@@ -77,32 +76,35 @@ fun AccountDetailContent(accountId: Long, name: String, note: String, total: Con
             if (value == null || currency == null) "—"
             else DecimalRules.format_display(value, currency.fraction_digits) + " " + currency.code
         }, onTitleReserve)
-        // The tabs and the content are opaque: they slide over the chart as the header closes.
-        UnderlineTabRow(AccountDetailSection.entries, selected, { selected = it },
+        // The tabs and the content are opaque: they slide over the chart as the header closes. The sections also follow
+        // the finger sideways, each keeping its own scroll position.
+        SwipeTabs(AccountDetailSection.entries, selected, { selected = it },
             label = { "${names.getValue(it)} ${sections.getValue(it).count}" },
-            modifier = Modifier.background(background).headerDrag(collapse).testTag("account-detail-tabs"),
-            optionModifier = { Modifier.testTag("account-section-${it.name}") })
-        // With assets in one section only, its total would just repeat the balance above.
-        if (sections.values.count { it.total.amount.signum() != 0 } > 1) {
-            val sectionTotal = sections.getValue(selected).total
-            Row(Modifier.fillMaxWidth().background(background).headerDrag(collapse)
-                .padding(horizontal = 16.dp, vertical = 6.dp).testTag("account-section-total"),
-                verticalAlignment = Alignment.CenterVertically) {
-                Text(stringResource(R.string.account_section_total), Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(detailTotal(sectionTotal), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
-                    color = detailAmountColor(sectionTotal))
+            modifier = Modifier.fillMaxWidth().weight(1f).background(background).testTag("account-detail-pages"),
+            tabRowModifier = Modifier.background(background).headerDrag(collapse).testTag("account-detail-tabs"),
+            optionModifier = { Modifier.testTag("account-section-${it.name}") }, key = { it.name },
+            above = { SectionTotal(sections, selected, background, collapse) }) { section ->
+            when (section) {
+                AccountDetailSection.ACCOUNTS -> cashContent(cashSlot)
+                AccountDetailSection.DEPOSITS -> depositContent()
+                AccountDetailSection.INVESTMENTS -> investmentContent()
             }
         }
-        // Keep every section's scroll state while displaying only the selected content.
-        Box(Modifier.fillMaxWidth().weight(1f).background(background)) {
-            sectionStates.SaveableStateProvider(selected.name) {
-                when (selected) {
-                    AccountDetailSection.ACCOUNTS -> cashContent(cashSlot)
-                    AccountDetailSection.DEPOSITS -> depositContent()
-                    AccountDetailSection.INVESTMENTS -> investmentContent()
-                }
-            }
+    }
+}
+
+/** With assets in more than one section, the selected one's total; with one only, it would repeat the balance above. */
+@Composable private fun SectionTotal(sections: Map<AccountDetailSection, AccountSectionSummary>, selected: AccountDetailSection,
+    background: androidx.compose.ui.graphics.Color, collapse: dev.valnook.designsystem.HeaderCollapse) {
+    if (sections.values.count { it.total.amount.signum() != 0 } > 1) {
+        val sectionTotal = sections.getValue(selected).total
+        Row(Modifier.fillMaxWidth().background(background).headerDrag(collapse)
+            .padding(horizontal = 16.dp, vertical = 6.dp).testTag("account-section-total"),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.account_section_total), Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(detailTotal(sectionTotal), style = MaterialTheme.typography.bodyMedium.copy(fontFeatureSettings = "tnum"),
+                color = detailAmountColor(sectionTotal))
         }
     }
 }

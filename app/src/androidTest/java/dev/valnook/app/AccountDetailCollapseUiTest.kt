@@ -93,6 +93,33 @@ class AccountDetailCollapseUiTest {
             bounds("row-2").top - bounds("account-section-ACCOUNTS").top < thirdRow - 100f)
     }
 
+    @Test fun the_sections_follow_a_swipe_and_keep_the_header_where_it_was() {
+        show(30)
+        rule.waitForIdle()
+        measureOpen()
+        drag(-headerHeight * .9f)
+        drag(-300f)
+        val closed = with(rule.density) { 56.dp.toPx() }
+        assertEquals(closed, bounds("account-section-ACCOUNTS").top, 2f)
+        val rowBefore = bounds("row-2").top
+        // Sideways to the deposits: the header stays closed.
+        rule.onNodeWithTag("account-detail-pages").performTouchInput { swipeLeft(startX = right * 0.9f, endX = right * 0.1f) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("account-section-DEPOSITS").assertIsSelected()
+        rule.onNodeWithText("deposits").assertIsDisplayed()
+        assertEquals(closed, bounds("account-section-ACCOUNTS").top, 2f)
+        // Back: the list is where it was left.
+        rule.onNodeWithTag("account-detail-pages").performTouchInput { swipeRight(startX = right * 0.1f, endX = right * 0.9f) }
+        rule.waitForIdle()
+        rule.onNodeWithTag("account-section-ACCOUNTS").assertIsSelected()
+        assertEquals(rowBefore, bounds("row-2").top, 2f)
+        // A tap on a tab two away goes straight there.
+        rule.onNodeWithTag("account-section-INVESTMENTS").performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag("account-section-INVESTMENTS").assertIsSelected()
+        rule.onNodeWithText("investments").assertIsDisplayed()
+    }
+
     @Test fun a_short_release_goes_back_open() {
         show(30)
         rule.waitForIdle()

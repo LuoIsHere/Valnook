@@ -166,8 +166,19 @@ class UiFlowTest {
         PlatformTestStorageRegistry.getInstance().openOutputFile(if(date)"native-date.png" else "native-time.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
         onView(withId(android.R.id.button1)).perform(click())
     }
+    /**
+     * The scrolling list on screen. Swipeable tabs keep the pages beside the shown one composed, off to the side, so
+     * a page can hold more than one list: the one whose left edge is on screen is the one showing.
+     */
+    private fun shownList(matcher: SemanticsMatcher): SemanticsNodeInteraction {
+        val width = rule.onAllNodes(androidx.compose.ui.test.isRoot()).onFirst().fetchSemanticsNode().size.width
+        val shown = rule.onAllNodes(matcher).fetchSemanticsNodes().firstOrNull {
+            it.boundsInRoot.width > 0f && it.boundsInRoot.left >= 0f && it.boundsInRoot.left < width
+        } ?: return rule.onNode(matcher)
+        return rule.onNode(SemanticsMatcher("node ${shown.id}") { it.id == shown.id })
+    }
     private fun click_list(text:String) {
-        rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+        shownList(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
             .performScrollToNode(hasText(text))
         rule.onNodeWithText(text).performClick()
     }
@@ -181,7 +192,7 @@ class UiFlowTest {
     }
     private fun click_record(tag:String) {
         // Ledgers show one month at a time; step back to the record's month when it is not in this one.
-        val list=rule.onNode(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
+        val list=shownList(SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange))
         repeat(24) {
             if(runCatching{list.performScrollToNode(hasTestTag(tag))}.isSuccess) {
                 rule.onNodeWithTag(tag).performClick()
@@ -751,7 +762,7 @@ class UiFlowTest {
             }
             shot("cash-detail-${if(dark)"dark" else "light"}-$width-$scale","cash-detail",(width*density).toInt())
             val editCash = rule.activity.getString(dev.valnook.core.designsystem.R.string.edit_cash_change)
-            rule.onNode(hasScrollAction()).performScrollToNode(hasText(editCash))
+            shownList(hasScrollAction()).performScrollToNode(hasText(editCash))
             rule.onNodeWithText(editCash).assertIsDisplayed()
             if(width in listOf(320,840)&&scale==2f) {
                 show_scene("trade-detail-$name") {
@@ -771,7 +782,7 @@ class UiFlowTest {
                     rule.activity.getString(dev.valnook.core.designsystem.R.string.edit_trade),
                     rule.activity.getString(dev.valnook.core.designsystem.R.string.delete_trade)
                 )) {
-                    rule.onNode(hasScrollAction()).performScrollToNode(hasText(label))
+                    shownList(hasScrollAction()).performScrollToNode(hasText(label))
                     rule.onNodeWithText(label).assertIsDisplayed()
                 }
                 show_scene("deposit-detail-$name") {
@@ -792,7 +803,7 @@ class UiFlowTest {
                     rule.activity.getString(dev.valnook.core.designsystem.R.string.edit_deposit),
                     rule.activity.getString(dev.valnook.core.designsystem.R.string.close_deposit)
                 )) {
-                    rule.onNode(hasScrollAction()).performScrollToNode(hasText(label))
+                    shownList(hasScrollAction()).performScrollToNode(hasText(label))
                     rule.onNodeWithText(label).assertIsDisplayed()
                 }
             }

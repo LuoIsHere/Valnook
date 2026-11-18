@@ -102,7 +102,8 @@ class HeaderCollapse internal constructor(private val saved: MutableFloatState, 
     override suspend fun onPreFling(available: Velocity): Velocity {
         if (progress <= 0f || progress >= 1f) return Velocity.Zero
         settle(available.y)
-        return available
+        // Only the upright part: a sideways fling still turns the page it started on.
+        return Velocity(0f, available.y)
     }
 
     override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
