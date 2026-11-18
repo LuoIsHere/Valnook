@@ -2,6 +2,9 @@
 <resources>
     <string name="bill_account">账户</string>
     <string name="bill_account_amount">账户实际金额（%1$s）</string>
+    <string name="bill_in_base">折合 %1$s</string>
+    <string name="bill_in_base_day">按 %1$s 汇率</string>
+    <string name="bill_in_base_today">按今天汇率</string>
     <string name="bill_add_category">添加分类</string>
     <string name="bill_add_subcategory">添加子分类</string>
     <string name="bill_again">再记</string>

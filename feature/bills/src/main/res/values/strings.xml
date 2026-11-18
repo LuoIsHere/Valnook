@@ -2,6 +2,9 @@
 <resources>
     <string name="bill_account">Account</string>
     <string name="bill_account_amount">Charged to account (%1$s)</string>
+    <string name="bill_in_base">In %1$s</string>
+    <string name="bill_in_base_day">at the %1$s rate</string>
+    <string name="bill_in_base_today">at today\'s rate</string>
     <string name="bill_add_category">Add category</string>
     <string name="bill_add_subcategory">Add subcategory</string>
     <string name="bill_again">Next</string>

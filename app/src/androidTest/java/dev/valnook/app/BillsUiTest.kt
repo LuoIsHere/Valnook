@@ -399,6 +399,70 @@ class BillsUiTest {
         rule.onAllNodesWithText("70.00 CNY", substring = true).assertCountEquals(0)
     }
 
+    /**
+     * A bill paid from an account in neither currency shows what it came to in the base currency, at its day's
+     * stored rate or else today's; nothing shows when either currency is the base, for a transfer, or without a rate.
+     */
+    @Test fun the_detail_shows_the_base_currency_only_when_both_currencies_are_foreign() {
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        val food = categories.single { it.builtinKey == "food" }.id
+        fun currency(code: String) = dev.valnook.domain.model.Currency.of(code)
+        val at = graph.clock.millis() - 60_000
+        val day = java.time.Instant.ofEpochMilli(at).atZone(graph.clock.zone).toLocalDate()
+        val ids = runBlocking {
+            val settings = graph.settings.observeSettings().first()
+            // USD and HKD have today's rates; JPY has none. Only USD has a rate stored for the bills' day.
+            graph.settingsWriter.applyChange(dev.valnook.domain.repository.SaveFinancialSettings(settings.revision,
+                currency("CNY"), listOf(dev.valnook.domain.model.FxRate(currency("USD"), currency("CNY"), java.math.BigDecimal("7")),
+                    dev.valnook.domain.model.FxRate(currency("HKD"), currency("CNY"), java.math.BigDecimal("0.9")))))
+            db.fx().insertHistory(listOf(dev.valnook.data.database.FxRateHistoryEntity("CNY", "USD", day.toEpochDay(),
+                day.toEpochDay(), "0.125", 1)))
+            fun account(code: String) = runBlocking {
+                val account = graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "合成$code", "",
+                    listOf(CashBalanceChange(code, 500_000, null, name = "合成$code")))).id
+                db.cash().accountIds(account).single()
+            }
+            val usd = account("USD"); val hkd = account("HKD"); val jpy = account("JPY")
+            fun save(draft: BillDraft) = runBlocking { graph.commands.execute(SaveBill(UUID.randomUUID().toString(), null, null, draft)).id }
+            mapOf(
+                // 10.00 EUR paid as 11.00 USD: at the day's 8, 88.00 CNY.
+                "day" to save(BillDraft(BillType.EXPENSE, at, 1_000, "EUR", 0, usd, 1_100, java.math.BigDecimal("1.1"),
+                    dev.valnook.domain.model.BillRateSource.ONE_TIME, categoryId = food, note = "合成甲")),
+                // 100.00 HKD from the HKD account, no stored day: today's 0.9, 90.00 CNY.
+                "today" to save(BillDraft(BillType.EXPENSE, at, 10_000, "HKD", 0, hkd, 10_000, categoryId = food, note = "合成乙")),
+                "base-bill" to save(BillDraft(BillType.EXPENSE, at, 7_000, "CNY", 0, usd, 1_000, java.math.BigDecimal("0.142857"),
+                    dev.valnook.domain.model.BillRateSource.ONE_TIME, categoryId = food, note = "合成丙")),
+                "base-account" to save(BillDraft(BillType.EXPENSE, at, 1_000, "USD", 0, cashId, 7_000, java.math.BigDecimal("7"),
+                    dev.valnook.domain.model.BillRateSource.ONE_TIME, categoryId = food, note = "合成丁")),
+                "transfer" to save(BillDraft(BillType.TRANSFER, at, 1_000, "USD", 0, usd, 1_000,
+                    transferKind = dev.valnook.domain.model.TransferKind.TO_EXTERNAL, counterparty = "合成收款人")),
+                "no-rate" to save(BillDraft(BillType.EXPENSE, at, 1_000, "JPY", 0, jpy, 1_000, categoryId = food, note = "合成戊")))
+        }
+        val dayText = day.format(java.time.format.DateTimeFormatter.ofPattern("MM-dd"))
+        fun open(key: String) {
+            // Rows further down are only composed once scrolled to.
+            rule.waitUntil(8_000) { runCatching {
+                rule.onNodeWithTag("bills-list").performScrollToNode(hasTestTag("bill-row-${ids.getValue(key)}")) }.isSuccess }
+            rule.onNodeWithTag("bill-row-${ids.getValue(key)}").performClick()
+            waitTag("bill-edit")
+        }
+        fun back() { androidx.test.espresso.Espresso.pressBack(); waitTag("bills-list") }
+        open("day")
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("detail-折合 CNY").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("detail-折合 CNY").assertTextContains("88.00 CNY · 按 $dayText 汇率", substring = true)
+        back()
+        open("today")
+        rule.waitUntil(8_000) { rule.onAllNodesWithTag("detail-折合 CNY").fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag("detail-折合 CNY").assertTextContains("90.00 CNY · 按今天汇率", substring = true)
+        back()
+        listOf("base-bill", "base-account", "transfer", "no-rate").forEach { key ->
+            open(key)
+            rule.waitForIdle()
+            rule.onNodeWithTag("detail-折合 CNY").assertDoesNotExist()
+            back()
+        }
+    }
+
     /** A note search looks in the month on screen unless told to look in another month, a year or everywhere. */
     @Test fun a_search_looks_in_the_month_on_screen_unless_told_otherwise() {
         val categories = runBlocking { graph.bills!!.observeCategories().first() }

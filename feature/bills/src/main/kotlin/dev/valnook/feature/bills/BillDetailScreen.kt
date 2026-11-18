@@ -35,10 +35,16 @@ data class BillDetailState(
     val deleted: Boolean = false,
     val error: ErrorCode? = null,
     val images: List<BillImage> = emptyList(),
+    /** What the account paid in the base currency, when neither the bill's nor the account's currency is it. */
+    val inBase: BillInBase? = null,
 )
 
+/** [value] in [base], at the rate stored for [day], or at today's rate when [day] is null. */
+data class BillInBase(val value: java.math.BigDecimal, val base: Currency, val day: java.time.LocalDate?)
+
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-class BillDetailViewModel(billId: Long, bills: BillRepository, private val commands: FinancialCommands) : ViewModel() {
+class BillDetailViewModel(billId: Long, bills: BillRepository, private val commands: FinancialCommands,
+    counter: BillCounter? = null) : ViewModel() {
     private val action = MutableStateFlow(Triple(false, false, null as ErrorCode?))
     private val bill = bills.observeBill(billId)
     private val pictures = bills.observeImages(billId)
@@ -50,10 +56,26 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
             else -> flowOf(emptyList<Bill>() to null)
         }
     }
-    val state: StateFlow<BillDetailState> = combine(combine(bill, pictures) { b, p -> b to p }, related, bills.observeCategories(),
-        bills.observeAccountChoices(), action) { (b, images), (children, parent), categories, accounts, (deleting, deleted, error) ->
+    /**
+     * Worked out when shown, never stored: what the account paid, as statistics count it (that day's rate, else
+     * today's), but before any refund or reimbursement.
+     */
+    private val inBase = bill.flatMapLatest { b ->
+        if (b == null || counter == null || (b.type != BillType.EXPENSE && b.type != BillType.INCOME)) flowOf(null)
+        else counter.observe(listOf(b)).map { counting ->
+            val base = counting.base ?: return@map null
+            if (b.currency == base || b.accountCurrency == base) return@map null
+            counting.rates.on(b.accountCurrency.code, counting.dateOf(b))?.let { rate ->
+                BillInBase(java.math.BigDecimal.valueOf(b.accountAmountMinor, b.accountCurrency.fraction_digits)
+                    .multiply(rate.rate), base, rate.day)
+            }
+        }
+    }
+    val state: StateFlow<BillDetailState> = combine(combine(bill, pictures, inBase) { b, p, x -> Triple(b, p, x) }, related,
+        bills.observeCategories(), bills.observeAccountChoices(), action) { (b, images, converted), (children, parent),
+        categories, accounts, (deleting, deleted, error) ->
         BillDetailState(true, b, children, parent, categories.associateBy { it.id }, accounts.associateBy { it.cashAccountId },
-            deleting, deleted, error, images)
+            deleting, deleted, error, images, converted)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, BillDetailState())
 
     private fun run(command: FinancialCommand, leaves: Boolean) {
@@ -241,6 +263,13 @@ class BillDetailViewModel(billId: Long, bills: BillRepository, private val comma
             rateSourceLabel(bill.rateSource)?.let { " · $it" }.orEmpty()
         if (bill.type != BillType.TRANSFER) rows += stringResource(R.string.bill_account_amount, bill.accountCurrency.code) to
             money(bill.accountAmountMinor, bill.accountCurrency)
+    }
+    state.inBase?.let { converted ->
+        val digits = converted.base.fraction_digits
+        val minor = converted.value.movePointRight(digits).setScale(0, java.math.RoundingMode.HALF_UP).toLong()
+        val source = converted.day?.let { stringResource(R.string.bill_in_base_day, it.format(DateTimeFormatter.ofPattern("MM-dd"))) }
+            ?: stringResource(R.string.bill_in_base_today)
+        rows += stringResource(R.string.bill_in_base, converted.base.code) to "${money(minor, converted.base)} · $source"
     }
     rows += stringResource(R.string.bill_time) to time.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE) + " " +
         time.toLocalTime().format(rememberClockFormatter())
