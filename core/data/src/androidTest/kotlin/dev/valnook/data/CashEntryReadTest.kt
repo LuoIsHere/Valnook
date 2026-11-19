@@ -65,4 +65,34 @@ class CashEntryReadTest {
         commands.execute(DeleteInvestmentTrade(id(),trade,4))
         assertNull(cash.observe_entry(account,entry).first())
     }
+
+    @Test fun deleting_a_hand_made_change_moves_the_balance_back_and_hides_it()=runBlocking {
+        val account=commands.testAccount("A")
+        commands.execute(SetCashBalance(id(),account,"USD",10000,null))
+        val first=cash.observe_entries(account,"USD",50).first().single()
+        val balanceAccount=first.cashAccountId
+        commands.execute(SetCashBalance(id(),account,"USD",12500,db.cash().cashAccount(balanceAccount)!!.revision,balanceAccount))
+        val raise=cash.observe_entries(account,"USD",50).first().first{it.delta_minor==2500L}
+        // A stale revision or another record's entry is refused and changes nothing.
+        try { commands.execute(DeleteCashEntry(id(),raise.id,raise.revision+1)); fail() }
+        catch(error:dev.valnook.domain.model.DomainException){assertEquals(dev.valnook.domain.model.ErrorCode.STALE_RECORD,error.code)}
+        val operation=id()
+        commands.execute(DeleteCashEntry(operation,raise.id,raise.revision))
+        assertEquals(10000L,db.cash().cashAccount(balanceAccount)!!.balance_minor)
+        assertNull(cash.observe_entry(account,raise.id).first())
+        assertEquals(listOf(first.id),cash.observe_entries(account,"USD",50).first().map{it.id})
+        // The same operation again is the one already done, not a second take-back.
+        commands.execute(DeleteCashEntry(operation,raise.id,raise.revision))
+        assertEquals(10000L,db.cash().cashAccount(balanceAccount)!!.balance_minor)
+        db.openHelper.readableDatabase.query("SELECT action,entity_kind FROM audit_events WHERE operation_id=?",arrayOf(operation)).use {
+            assertTrue(it.moveToFirst());assertEquals("DELETE",it.getString(0));assertEquals("CASH_ENTRY",it.getString(1))
+        }
+        val type=commands.testType("基金")
+        val asset=commands.testInvestment(account,"QQQ","",type,"USD",0,R.parse_e8("10"),null)
+        val trade=commands.execute(RecordInvestmentTrade(id(),asset,Direction.BUY,R.parse_e8("1"),R.parse_e8("10"),clock.millis(),true)).id
+        val tradeEntry=db.ledger().source_entry("TRADE",trade)!!
+        try { commands.execute(DeleteCashEntry(id(),tradeEntry.id,tradeEntry.revision)); fail() }
+        catch(error:dev.valnook.domain.model.DomainException){assertEquals(dev.valnook.domain.model.ErrorCode.SOURCE_RECORD,error.code)}
+        assertEquals(9000L,db.cash().cashAccount(balanceAccount)!!.balance_minor)
+    }
 }

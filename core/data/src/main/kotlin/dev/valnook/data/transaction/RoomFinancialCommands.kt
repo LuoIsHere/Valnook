@@ -82,6 +82,7 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 is CreateInvestmentPosition -> positions.create(command, now)
                 is SetCashBalance -> accounts.setBalance(command, now)
                 is EditCashEntry -> accounts.editEntry(command, now)
+                is DeleteCashEntry -> accounts.deleteEntry(command, now)
                 is OpenTermDeposit -> deposits.open(command, now)
                 is CloseTermDeposit -> deposits.close(command, now)
                 is EditTermDeposit -> deposits.edit(command, now)
@@ -155,6 +156,8 @@ class RoomFinancialCommands(private val db: ValnookDatabase, private val clock: 
                 val old = db.cash().cash_entry(command.entry_id)?.occurred_at_ms?.let(::day) ?: day(command.occurred_at_ms)
                 minOf(old, day(command.occurred_at_ms)).coerceAtLeast(baseline)
             }
+            is DeleteCashEntry -> (db.cash().cash_entry(command.entry_id)?.occurred_at_ms?.let(::day)
+                ?: baseline).coerceAtLeast(baseline)
             is SetCashBalance, is CloseTermDeposit -> day(now)
             is OpenTermDeposit -> command.start_epoch_day.coerceAtLeast(baseline)
             is EditTermDeposit -> {

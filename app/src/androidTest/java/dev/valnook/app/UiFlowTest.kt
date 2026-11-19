@@ -754,7 +754,7 @@ class UiFlowTest {
                         Box(Modifier.fillMaxSize()) {
                             Box(Modifier.width(width.dp).height(height.dp).testTag("cash-detail")) {
                                 CashEntryDetailContent(CashEntry(1,1,Currency.of("USD"),-123456789,graph.clock.millis(),
-                                    CashSource.CASH_SET,null,null,"一条较长的备注，用于验证窄屏和大字体下的信息完整显示。",1),a.first().name,{})
+                                    CashSource.CASH_SET,null,null,"一条较长的备注，用于验证窄屏和大字体下的信息完整显示。",1),a.first().name,on_edit={})
                             }
                         }
                     }

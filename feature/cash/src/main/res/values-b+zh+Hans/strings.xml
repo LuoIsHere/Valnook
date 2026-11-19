@@ -44,4 +44,8 @@
     <string name="cash_bill_deleted_account">已删除的账户</string>
     <string name="cash_bill_refund">退款</string>
     <string name="cash_bill_reimbursement">报销回款</string>
+    <string name="cash_entry_delete">删除</string>
+    <string name="cash_entry_delete_title">删除这条余额调整？</string>
+    <string name="cash_entry_delete_message">删除后余额 %1$s。</string>
+    <string name="cash_entry_delete_unchanged">删除后余额不变。</string>
 </resources>

@@ -137,6 +137,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is CreateInvestmentPosition -> null
         is SetCashBalance -> null
         is EditCashEntry -> "cash_entries" to command.entry_id
+        is DeleteCashEntry -> "cash_entries" to command.entry_id
         is OpenTermDeposit -> null
         is CloseTermDeposit -> "term_deposits" to command.deposit_id
         is EditTermDeposit -> "term_deposits" to command.deposit_id
@@ -176,7 +177,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         is DeleteBalanceAccount, is DeleteAccount, is DeleteAccountGroup, is DeleteAssetType, is DeleteInstrument -> "DELETE"
         is SaveInstrument -> if (command.instrumentId == null) "CREATE" else "UPDATE"
         is CreateInvestmentPosition, is SetCashBalance, is OpenTermDeposit, is RecordInvestmentTrade, is RecordDividend -> "CREATE"
-        is DeleteInvestmentTrade, is DeleteBill, is DeleteBillCategory -> "DELETE"
+        is DeleteInvestmentTrade, is DeleteBill, is DeleteBillCategory, is DeleteCashEntry -> "DELETE"
         is SaveBill -> if (command.billId == null) "CREATE" else "UPDATE"
         is SettleBill, is SettleBills -> "CREATE"
         is SaveBillCategory -> if (command.categoryId == null) "CREATE" else "UPDATE"
@@ -223,6 +224,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
             is EditDividend -> accountForTrade(command.trade_id)?.let(accounts::add)
             is DeleteInvestmentTrade -> accountForTrade(command.trade_id)?.let(accounts::add)
             is EditCashEntry -> accountForCashEntry(command.entry_id)?.let(accounts::add)
+            is DeleteCashEntry -> accountForCashEntry(command.entry_id)?.let(accounts::add)
             is CloseTermDeposit -> accountForDeposit(command.deposit_id)?.let(accounts::add)
             is EditTermDeposit -> accountForDeposit(command.deposit_id)?.let(accounts::add)
             is MoveAccountsToGroup -> accounts.addAll(command.accountIds)

@@ -69,6 +69,7 @@ internal object CommandFingerprint {
             is ReorderGroupAccounts -> listOf("GROUP_ACCOUNT_ORDER", command.groupId) + command.orderedIds
             is EditCashEntry -> listOf("CASH_EDIT",command.entry_id,command.expected_revision,command.delta_minor,
                 command.occurred_at_ms,command.note.trim())
+            is DeleteCashEntry -> listOf("CASH_DELETE",command.entry_id,command.expected_revision)
             is SaveBill -> command.draft.let { d -> listOf("BILL_SAVE", command.billId, command.expectedRevision,
                 d.type.name, d.occurredAtMs, d.amountMinor, d.currencyCode, d.discountMinor, d.cashAccountId,
                 d.accountAmountMinor, d.rate.stripTrailingZeros().toPlainString(), d.rateSource.name, d.transferKind?.name,

@@ -25,8 +25,8 @@ internal fun EntryProviderScope<NavKey>.ledgerEntries(graph: AppGraph, open: (Na
         CashBalanceEditScreen(vm, back, onBalanceToolbar)
     }
     entry<CashEntryKey> { route ->
-        val vm = pageViewModel { CashEntryViewModel(route.cashAccountId, route.entryId, graph.cash) }
-        CashEntryDetailScreen(vm, accountName(route.accountId), { entry ->
+        val vm = pageViewModel { CashEntryViewModel(route.cashAccountId, route.entryId, graph.cash, graph.commands) }
+        CashEntryDetailScreen(vm, accountName(route.accountId), back, { entry ->
             if (entry.editable) open(CashEntryEditKey(route.accountId, route.cashAccountId, entry.id))
             else entry.source_id?.let { sourceId ->
                 when (entry.source) {

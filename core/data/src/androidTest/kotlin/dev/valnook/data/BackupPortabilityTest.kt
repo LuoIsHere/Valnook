@@ -17,6 +17,7 @@ import dev.valnook.data.portability.PortableJson
 import dev.valnook.data.portability.RoomPortabilityEngine
 import dev.valnook.data.portability.RestoreImporter
 import dev.valnook.data.portability.RestorePoint
+import dev.valnook.data.repository.RoomCash
 import dev.valnook.data.repository.RoomOverview
 import dev.valnook.data.repository.RoomSettings
 import dev.valnook.data.transaction.RoomFinancialCommands
@@ -243,6 +244,27 @@ class BackupPortabilityTest {
         assertEquals(0, java.math.BigDecimal("12.34").compareTo(java.math.BigDecimal(restored.realized_profit)))
         assertEquals(realized, restored.realized_profit)
         assertEquals("DIVIDEND", target.trades().replayTrades(position).single { it.quantity_e8 == 0L }.direction)
+    }
+
+    @Test fun a_deleted_balance_adjustment_stays_deleted_after_a_restore() = runBlocking {
+        val source = database("cash-delete-source")
+        val commands = RoomFinancialCommands(source, clock)
+        val account = commands.testAccount("合成账户")
+        commands.execute(SetCashBalance(testOperationId(), account, "CNY", 10000, null))
+        val balanceAccount = source.cash().cashCandidates(account, "CNY").single()
+        commands.execute(SetCashBalance(testOperationId(), account, "CNY", 13000, balanceAccount.revision, balanceAccount.id))
+        val raise = RoomCash(source.ledger()).observe_entries(account, "CNY", 50).first().first { it.delta_minor == 3000L }
+        commands.execute(DeleteCashEntry(testOperationId(), raise.id, raise.revision))
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(UUID.randomUUID().toString(), output) {}
+        val target = database("cash-delete-target")
+        val targetEngine = engine(target)
+        val staged = targetEngine.prepareRestore(ByteArrayInputStream(output.toByteArray()), "cash-delete.val_backup") {}
+        try { targetEngine.commitRestore(staged) {} } finally { targetEngine.close(staged) }
+        assertEquals(10000L, target.cash().cashAccount(balanceAccount.id)!!.balance_minor)
+        val restored = RoomCash(target.ledger())
+        assertEquals(listOf(10000L), restored.observe_entries(account, "CNY", 50).first().map { it.delta_minor })
+        assertNull(restored.observe_entry(account, raise.id).first())
     }
 
     @Test fun data_schema_v1_restores_all_legacy_balance_accounts_as_savings() = runBlocking {

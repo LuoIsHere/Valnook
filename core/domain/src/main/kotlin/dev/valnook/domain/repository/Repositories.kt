@@ -106,3 +106,7 @@ data class EditDividend(override val operation_id: String, val trade_id: Long, v
 data class EditCashEntry(override val operation_id: String, val entry_id: Long,
     val expected_revision: Long, val delta_minor: Long, val occurred_at_ms: Long,
     val note: String) : FinancialCommand
+
+/** Takes back a hand-made balance change: the entry no longer lists and the balance moves back by its amount. */
+data class DeleteCashEntry(override val operation_id: String, val entry_id: Long,
+    val expected_revision: Long) : FinancialCommand

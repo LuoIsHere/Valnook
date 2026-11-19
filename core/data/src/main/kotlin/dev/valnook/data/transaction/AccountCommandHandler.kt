@@ -9,6 +9,7 @@ import dev.valnook.domain.model.DomainException
 import dev.valnook.domain.model.ErrorCode
 import dev.valnook.domain.model.OperationResult
 import dev.valnook.domain.money.DecimalRules as R
+import dev.valnook.domain.repository.DeleteCashEntry
 import dev.valnook.domain.repository.EditCashEntry
 import dev.valnook.domain.repository.SaveAccount
 import dev.valnook.domain.repository.SetCashBalance
@@ -174,6 +175,22 @@ internal class AccountCommandHandler(
         fault(TransactionPoint.AFTER_BUSINESS)
         cash.change(command.operation_id, account.id,
             R.replace_contribution(0, old.delta_minor, command.delta_minor), "CASH_EDIT", now)
+        return OperationResult("CASH_ENTRY", old.id)
+    }
+
+    /** Only a hand-made change; any other entry goes with its own record. Same as editing its amount to zero. */
+    suspend fun deleteEntry(command: DeleteCashEntry, now: Long): OperationResult {
+        val old = db.cash().cash_entry(command.entry_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        if (old.is_deleted || old.revision != command.expected_revision) throw DomainException(ErrorCode.STALE_RECORD)
+        if (old.source_kind != CashSource.CASH_SET.name) throw DomainException(ErrorCode.SOURCE_RECORD)
+        val account = db.cash().cashAccount(old.cash_account_id) ?: throw DomainException(ErrorCode.NOT_FOUND)
+        R.add(old.revision, 1)
+        if (db.cash().editEntry(old.id, old.revision, account.id, account.savings_account_id,
+                account.currency_code, old.delta_minor, old.occurred_at_ms, old.note, true, now) != 1) {
+            throw DomainException(ErrorCode.STALE_RECORD)
+        }
+        fault(TransactionPoint.AFTER_BUSINESS)
+        cash.change(command.operation_id, account.id, R.replace_contribution(0, old.delta_minor, 0), "CASH_EDIT", now)
         return OperationResult("CASH_ENTRY", old.id)
     }
 
