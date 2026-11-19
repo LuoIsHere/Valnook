@@ -1,6 +1,15 @@
 package dev.valnook.app
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import dev.valnook.designsystem.ValnookTheme
@@ -68,6 +77,28 @@ class BillImagesScreenUiTest {
         // Without OneDrive there is nowhere to fetch from, so it cannot be switched on.
         connected.value = false
         rule.onNodeWithTag("bill-images-auto-clean").assertIsNotEnabled()
+    }
+
+    @Test fun the_months_stay_on_one_line_on_a_narrow_screen_with_large_text() {
+        months.value = 3
+        val vm = BillImagesViewModel(storage, cloud, Clock.fixed(now, ZoneOffset.UTC))
+        rule.setContent {
+            val density = LocalDensity.current
+            CompositionLocalProvider(LocalDensity provides Density(density.density, 1.5f)) {
+                ValnookTheme(dark_theme = false) { Box(Modifier.width(320.dp)) { BillImagesScreen(vm) } }
+            }
+        }
+        val heights = listOf(1, 3, 6, 12).map { value ->
+            val option = rule.onNodeWithTag("bill-images-auto-$value")
+            val lines = mutableListOf<TextLayoutResult>()
+            rule.onNode(hasText("$value 个月") and hasAnyAncestor(hasTestTag("bill-images-auto-$value")), useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(lines) }
+            assertEquals("$value months on one line", 1, lines.single().lineCount)
+            option.fetchSemanticsNode().size.height
+        }
+        assertEquals(1, heights.distinct().size)
+        rule.onNodeWithTag("bill-images-auto-12").performClick()
+        rule.waitUntil(5_000) { months.value == 12 }
     }
 
     @Test fun clearing_keeps_onedrive_unless_asked_and_without_onedrive_deletes_for_good() {

@@ -14,6 +14,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
@@ -110,10 +112,12 @@ internal fun sizeText(bytes: Long): String = if ((bytes + 1023) / 1024 < 1000) "
                         enabled = state.connected || state.autoCleanMonths != null, contentPadding = PaddingValues(0.dp))
                     Text(stringResource(if (state.connected) R.string.bill_images_auto_clean_hint else R.string.bill_images_auto_clean_needs_cloud),
                         style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                    if (state.autoCleanMonths != null) Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
-                        BILL_IMAGE_CLEANUP_MONTHS.forEach { months ->
-                            FilterChip(state.autoCleanMonths == months, { vm.setAutoClean(months) },
-                                { Text(stringResource(R.string.bill_images_months, months)) }, Modifier.testTag("bill-images-auto-$months"))
+                    // Equal widths, one line each: a long name shrinks instead of wrapping on a narrow screen or large text.
+                    state.autoCleanMonths?.let { selected ->
+                        CapsuleChoiceRow(BILL_IMAGE_CLEANUP_MONTHS, selected, vm::setAutoClean, Modifier.fillMaxWidth(),
+                            optionModifier = { Modifier.testTag("bill-images-auto-$it") }) { months ->
+                            Text(stringResource(R.string.bill_images_months, months), style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1, autoSize = TextAutoSize.StepBased(9.sp, MaterialTheme.typography.labelLarge.fontSize, .5.sp))
                         }
                     }
                 }
