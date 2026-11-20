@@ -95,4 +95,34 @@ class AiPromptTest {
         assertEquals(16384, AiPrompt.billRequest("s", emptyList(), thinking = true)["max_tokens"]!!.jsonPrimitive.int)
         assertEquals("system", request["messages"]!!.jsonArray.first().jsonObject["role"]!!.jsonPrimitive.content)
     }
+
+    @Test fun questions_about_bills_bring_the_query_tools_and_their_rules() {
+        fun names(request: JsonObject) = request["tools"]?.jsonArray.orEmpty().map {
+            it.jsonObject["function"]!!.jsonObject["name"]!!.jsonPrimitive.content }
+        val off = AiPrompt.fixedRules(AiSettings(), english = false)
+        assertTrue(off.contains("You cannot look up the user's bills"))
+        assertTrue(off.contains("对话查询"))
+        val on = AiPrompt.fixedRules(AiSettings(query = true), english = true, bills = true, queries = true)
+        assertTrue(on.contains("call query_summary or query_bills"))
+        assertTrue(on.contains("up to 3 rounds"))
+        assertFalse(on.contains("You cannot look up the user's bills"))
+        // Only questions: no drafts made in conversation, and the user is told where to turn them on.
+        val onlyQueries = AiPrompt.fixedRules(AiSettings(billChat = false, query = true), english = false, bills = false, queries = true)
+        assertTrue(onlyQueries.contains("Recording bills here is turned off"))
+        assertTrue(onlyQueries.contains("对话记账"))
+        val conversation = listOf(AiPrompt.message("user", "How much on food this month?"))
+        assertEquals(listOf("create_bill_drafts", "query_summary", "query_bills"),
+            names(AiPrompt.chatRequest("s", conversation, false, bills = true, queries = true)))
+        assertEquals(listOf("query_summary", "query_bills"), names(AiPrompt.chatRequest("s", conversation, false, bills = false, queries = true)))
+        // Answering from results needs less room, and once the queries are used up no tool may be called.
+        val answering = AiPrompt.chatRequest("s", conversation, false, bills = true, queries = true, toolsOff = true, afterQuery = true)
+        assertEquals("none", answering["tool_choice"]!!.jsonPrimitive.content)
+        assertEquals(2048, answering["max_tokens"]!!.jsonPrimitive.int)
+        assertEquals(16384, AiPrompt.chatRequest("s", conversation, true, true, true, afterQuery = true)["max_tokens"]!!.jsonPrimitive.int)
+        // The system message follows the switches unless told otherwise.
+        val system = AiPrompt.system(AiSettings(query = true), categories, accounts, LocalDateTime.of(2026, 11, 20, 9, 0), "CNY", true)
+        assertTrue(system.contains("call query_summary"))
+        assertFalse(AiPrompt.system(AiSettings(query = true), categories, accounts, LocalDateTime.of(2026, 11, 20, 9, 0), "CNY", true,
+            queries = false).contains("call query_summary"))
+    }
 }

@@ -55,6 +55,10 @@ class RoomAiService(
         update { it.copy(default_keep_images = keep) }
     }
 
+    override suspend fun saveQuery(query: Boolean) {
+        update { it.copy(query_enabled = query) }
+    }
+
     override suspend fun saveConnection(connection: AiConnection, apiKey: String?) {
         val clean = connection.copy(baseUrl = AiConnection.normalizeBaseUrl(connection.baseUrl), model = connection.model.trim(),
             extraParams = connection.extraParams.trim(), thinkingOffParams = connection.thinkingOffParams.trim(),
@@ -111,7 +115,9 @@ class RoomAiService(
         val system = AiPrompt.system(settings, choices.categories, choices.accounts,
             LocalDateTime.now(clock), base, english(), habits)
         val placeholder = if (english()) "(what you type or share)" else "（你输入或分享的内容）"
-        val body = AiPrompt.billRequest(system, listOf(AiPrompt.message("user", placeholder)), settings.thinking)
+        // What a conversation sends: the bookkeeping tool, the query tools, or both, as switched on.
+        val body = AiPrompt.chatRequest(system, listOf(AiPrompt.message("user", placeholder)), settings.thinking,
+            bills = settings.billChat || !settings.query, queries = settings.query)
         return AiJson.pretty.encodeToString(kotlinx.serialization.json.JsonObject.serializer(),
             client.request(settings.connection, body, settings.thinking))
     }

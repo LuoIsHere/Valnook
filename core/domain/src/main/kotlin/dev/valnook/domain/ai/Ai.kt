@@ -138,9 +138,11 @@ data class AiFeatures(
     val pictures: Boolean = false,
     /** Deep thinking can be turned on in a conversation; [thinking] is whether a new conversation starts with it. */
     val thinkingAvailable: Boolean = false,
+    /** Questions about bills can be answered: the conversation offers the query tools. */
+    val query: Boolean = false,
 ) {
-    /** The chat page has something to offer. */
-    val chatEntry: Boolean get() = enabled && billChat
+    /** The chat page has something to offer: bookkeeping, questions about bills, or both. */
+    val chatEntry: Boolean get() = enabled && (billChat || query)
 
     companion object {
         fun of(settings: AiSettings, report: AiCheckReport?): AiFeatures {
@@ -151,7 +153,7 @@ data class AiFeatures(
                 settings.connection.thinkingOnParams.isNotBlank()
             // A share goes to the AI whenever it is on; pictures once the model has passed the picture check.
             return AiFeatures(true, settings.billChat, true, image,
-                settings.thinking && thinking, settings.chat, image, thinking)
+                settings.thinking && thinking, settings.chat, image, thinking, settings.query)
         }
     }
 }
@@ -224,6 +226,8 @@ interface AiService {
         sendHabits: Boolean)
     /** [AiSettings.defaultKeepImages]. */
     suspend fun saveKeepImages(keep: Boolean)
+    /** [AiSettings.query]: whether conversations may look up bills to answer questions. */
+    suspend fun saveQuery(query: Boolean)
     /** The models [connection] offers, with [apiKey] or else the saved key; throws [AiException]. */
     suspend fun fetchModels(connection: AiConnection, apiKey: String?): List<String>
     /** Runs every check against the saved connection, telling [progress] which one runs. */

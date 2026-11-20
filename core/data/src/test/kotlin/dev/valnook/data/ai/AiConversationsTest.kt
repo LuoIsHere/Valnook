@@ -2,11 +2,16 @@ package dev.valnook.data.ai
 
 import dev.valnook.domain.ai.AiBillDraft
 import dev.valnook.domain.ai.AiDraftFlag
+import dev.valnook.domain.ai.AiQueryCall
+import dev.valnook.domain.ai.AiQueryGroup
+import dev.valnook.domain.ai.AiQueryRecord
+import dev.valnook.domain.ai.AiQuerySort
 import dev.valnook.domain.model.BillImage
 import dev.valnook.domain.model.BillType
 import kotlinx.serialization.json.*
 import org.junit.Assert.*
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 /** What earlier rounds send, and how drafts and pictures are kept. */
@@ -92,5 +97,39 @@ class AiConversationsTest {
         val images = listOf(BillImage("c".repeat(64), 1000, 30, 40))
         assertEquals(images, AiConversations.decodeImages(AiConversations.encodeImages(images)))
         assertEquals(listOf(4L, 9L), AiConversations.decodeIds(AiConversations.encodeIds(listOf(4, 9))))
+    }
+
+    @Test fun an_answers_query_steps_go_back_before_it_with_summaries_only() {
+        val ask = user("Lunch 30. And what did food cost this month?")
+        val answer = reply("""{"role":"assistant","content":"Food came to 469.00."}""")
+        val stepRaw = """{"role":"assistant","content":"","tool_calls":[
+            {"id":"b1","type":"function","function":{"name":"create_bill_drafts","arguments":"{}"}},
+            {"id":"q1","type":"function","function":{"name":"query_summary","arguments":"{}"}},
+            {"id":"q2","type":"function","function":{"name":"query_bills","arguments":"{}"}}]}"""
+        val call = AiQueryCall(true, BillType.EXPENSE, LocalDate.parse("2026-11-01"), LocalDate.parse("2026-11-30"), AiQueryGroup.CATEGORY)
+        val step = AiQueryStepEntity(answer.id, 1, stepRaw, AiConversations.encodeStepCalls(listOf(
+            AiStepCall("b1", "create_bill_drafts"),
+            AiStepCall("q1", "query_summary", "Gave 3 row(s); not repeated here.", AiQueryRecord(1, call, 3, false)),
+            AiStepCall("q2", "query_bills", "Error: from is required.", AiQueryRecord(1, null, 0, true)))))
+        val history = AiConversations.history(listOf(ask, answer), listOf(draft(answer.id, "d1", "PENDING")), emptyMap(), listOf(step))
+        assertEquals(listOf("user", "assistant", "tool", "tool", "tool", "assistant"), history.map { it["role"]!!.jsonPrimitive.content })
+        assertEquals(AiJson.format.parseToJsonElement(stepRaw), history[1])
+        assertTrue(history[2]["content"]!!.jsonPrimitive.content.contains("d1 waiting for the user to confirm"))
+        assertEquals("Gave 3 row(s); not repeated here.", history[3]["content"]!!.jsonPrimitive.content)
+        assertEquals("Error: from is required.", history[4]["content"]!!.jsonPrimitive.content)
+        assertEquals("Food came to 469.00.", history[5]["content"]!!.jsonPrimitive.content)
+        // What the page lists, in order.
+        assertEquals(listOf(AiQueryRecord(1, call, 3, false), AiQueryRecord(1, null, 0, true)), AiConversations.queryRecords(listOf(step)))
+    }
+
+    @Test fun a_query_left_unrun_in_the_last_reply_is_said_so_and_queries_survive_storing() {
+        val ask = user("More?")
+        val answer = reply("""{"role":"assistant","content":"That is all I found.","tool_calls":[
+            {"id":"q9","type":"function","function":{"name":"query_bills","arguments":"{}"}}]}""")
+        val history = AiConversations.history(listOf(ask, answer), emptyList(), emptyMap())
+        assertEquals("Not run: the queries of this answer were used up.", history.last()["content"]!!.jsonPrimitive.content)
+        val call = AiQueryCall(false, null, LocalDate.parse("2025-11-01"), LocalDate.parse("2026-11-30"), categoryId = 12,
+            accountId = 4, keyword = "lunch", sort = AiQuerySort.AMOUNT_DESC, limit = 5, shortened = true)
+        assertEquals(call, AiConversations.decodeQuery(AiConversations.encodeQuery(call)))
     }
 }

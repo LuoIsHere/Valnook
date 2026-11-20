@@ -7,11 +7,12 @@ import kotlinx.coroutines.flow.Flow
 /**
  * Conversations live in a database of their own: the main database's version and backups never see them, and losing
  * them loses nothing that was saved. Versions move on by automatic migrations; one that cannot starts over ([open]
- * drops old tables). Version 2: messages remember whether they were shared from another app.
+ * drops old tables). Version 2: messages remember whether they were shared from another app. Version 3: the bill
+ * queries an answer ran.
  */
 @Database(entities = [AiConversationEntity::class, AiMessageEntity::class, AiPictureEntity::class,
-    AiDraftEntity::class, AiUsageEntity::class], version = 2, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 1, to = 2)])
+    AiDraftEntity::class, AiUsageEntity::class, AiQueryStepEntity::class], version = 3, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)])
 abstract class AiChatDatabase : RoomDatabase() {
     abstract fun chat(): AiChatDao
 
@@ -91,6 +92,20 @@ data class AiDraftEntity(
     val operation_id: String,
     val images: String,
     val keep_images: Boolean,
+)
+
+/**
+ * One step of bill queries before an answer ([message_id]): [raw], the model's reply that asked for them, exactly as
+ * received, and [calls], a JSON array with each tool call's id and what its result is in later requests (a short
+ * summary, not the rows), the checked query and how many rows it gave.
+ */
+@Entity(tableName = "query_steps", primaryKeys = ["message_id", "step"], foreignKeys = [ForeignKey(
+    entity = AiMessageEntity::class, parentColumns = ["id"], childColumns = ["message_id"], onDelete = ForeignKey.CASCADE)])
+data class AiQueryStepEntity(
+    val message_id: Long,
+    val step: Int,
+    val raw: String,
+    val calls: String,
 )
 
 /** One round's tokens, from a conversation (CHAT) or a share (SHARE), for the month's usage. */
@@ -190,6 +205,15 @@ interface AiChatDao {
 
     @Query("UPDATE drafts SET payload=:payload, images=:images WHERE id=:id")
     suspend fun setDraftContent(id: Long, payload: String, images: String)
+
+    @Query("SELECT * FROM query_steps WHERE message_id IN (SELECT id FROM messages WHERE conversation_id=:conversationId) ORDER BY message_id, step")
+    fun observeQuerySteps(conversationId: Long): Flow<List<AiQueryStepEntity>>
+
+    @Query("SELECT * FROM query_steps WHERE message_id IN (SELECT id FROM messages WHERE conversation_id=:conversationId) ORDER BY message_id, step")
+    suspend fun querySteps(conversationId: Long): List<AiQueryStepEntity>
+
+    @Insert
+    suspend fun insertQuerySteps(values: List<AiQueryStepEntity>)
 
     @Insert
     suspend fun insertUsage(value: AiUsageEntity)

@@ -73,6 +73,7 @@ class AiSettingsScreenUiTest {
                 thinking = thinking, chat = chat, sendHabits = sendHabits)
         }
         override suspend fun saveKeepImages(keep: Boolean) { settings.value = settings.value.copy(defaultKeepImages = keep) }
+        override suspend fun saveQuery(query: Boolean) { settings.value = settings.value.copy(query = query) }
     }
 
     private fun category(id: Long, key: String?, name: String, kind: BillCategoryKind = BillCategoryKind.EXPENSE) =

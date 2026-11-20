@@ -140,7 +140,12 @@ data class AiChatMessage(
     val shared: Boolean = false,
     /** A user message's pictures in the picture library (they may have been let go since). */
     val images: List<BillImage> = emptyList(),
+    /** The bill queries an answer ran, in order. */
+    val queries: List<AiQueryRecord> = emptyList(),
 )
+
+/** A query running for an answer in [conversationId]; [call] is null while its arguments are read. */
+data class AiQueryProgress(val conversationId: Long, val call: AiQueryCall?)
 
 /** A conversation in the history; [pending] is how many of its drafts wait to be confirmed. */
 data class AiConversation(val id: Long, val title: String, val createdAtMs: Long, val lastAtMs: Long, val tokens: Long,
@@ -156,6 +161,8 @@ interface AiAssistant {
     /** Whether any conversation has drafts waiting. */
     fun observePendingDrafts(): Flow<Boolean>
     fun observeUsage(): Flow<AiUsageSummary>
+    /** The bill query an answer is running now, if any. */
+    fun observeQuerying(): Flow<AiQueryProgress?> = kotlinx.coroutines.flow.flowOf(null)
     /** The latest conversation when its last message is recent enough to go on with; null starts a new one. */
     suspend fun conversationToContinue(): Long?
     /**

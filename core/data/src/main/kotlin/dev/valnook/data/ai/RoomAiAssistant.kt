@@ -32,7 +32,8 @@ interface AiPicturePins {
 
 /**
  * Conversations and shares against the saved connection. Requests use the same beginning as the prompt preview; every
- * call's tokens are added to the month's usage, whether the round ends in drafts, an error or a cancel.
+ * call's tokens are added to the month's usage, whether the round ends in drafts, an error or a cancel. With
+ * [queries], a conversation can also look up bills to answer questions, in up to [AiRules.QUERY_STEPS] steps.
  */
 class RoomAiAssistant(
     private val db: ValnookDatabase,
@@ -44,8 +45,12 @@ class RoomAiAssistant(
     private val pictures: AiPictureSource,
     private val pins: AiPicturePins,
     private val client: AiClient = AiClient(),
+    private val queries: AiBillQueries? = null,
 ) : AiAssistant {
     private val dao = chatDb.chat()
+    private val querying = MutableStateFlow<AiQueryProgress?>(null)
+
+    override fun observeQuerying(): Flow<AiQueryProgress?> = querying
 
     override fun observeConversations(): Flow<List<AiConversation>> =
         combine(dao.observeConversations(), dao.observePendingConversations()) { list, pending ->
@@ -55,9 +60,11 @@ class RoomAiAssistant(
 
     override fun observeMessages(conversationId: Long): Flow<List<AiChatMessage>> = combine(
         dao.observeMessages(conversationId), dao.observePictures(conversationId), dao.observeDrafts(conversationId),
-    ) { messages, pictureRows, drafts ->
+        dao.observeQuerySteps(conversationId),
+    ) { messages, pictureRows, drafts, steps ->
         val pictureBy = pictureRows.groupBy { it.message_id }
         val draftsBy = drafts.groupBy { it.message_id }
+        val stepsBy = steps.groupBy { it.message_id }
         messages.map { m ->
             AiChatMessage(m.id, AiMessageKind.valueOf(m.kind), m.text,
                 pictureBy[m.id].orEmpty().sortedBy { it.position }.map { AiThumbnail(it.thumb) },
@@ -70,7 +77,7 @@ class RoomAiAssistant(
                 pictureBy[m.id].orEmpty().sortedBy { it.position }.mapNotNull { row ->
                     (runCatching { AiJson.format.parseToJsonElement(row.image) }.getOrNull() as? JsonObject)
                         ?.let(AiConversations::decodeImage)
-                })
+                }, AiConversations.queryRecords(stepsBy[m.id].orEmpty()))
         }
     }
 
@@ -144,36 +151,79 @@ class RoomAiAssistant(
             (runCatching { AiJson.format.parseToJsonElement(row.image) }.getOrNull() as? JsonObject)?.let(AiConversations::decodeImage)
         }
         val jpegs = images.mapNotNull { pictures.forModel(it.key) }
-        val history = AiConversations.history(messages.filter { it.id < user.id }, drafts, counts)
+        val history = AiConversations.history(messages.filter { it.id < user.id }, drafts, counts, dao.querySteps(conversationId))
         // A share is always bookkeeping: thinking off and the draft tool required, as before it joined the chat.
         val shared = user.shared
         val thinking = !shared && context.features.thinkingAvailable && (asked ?: context.features.thinking)
         val words = (if (shared) AiPrompt.SHARE_INTRO + "\n\n" else "") + AiConversations.userText(user.text, jpegs.size, earlier = false)
-        val conversation = history + AiConversations.userMessage(words, jpegs)
-        val system = context.system(english())
+        val sent = (history + AiConversations.userMessage(words, jpegs)).toMutableList()
+        val bills = shared || context.features.billChat
+        val asks = !shared && context.features.query && queries != null
+        val system = context.system(english(), bills, asks)
         val timeout = when { thinking -> AiRules.TIMEOUT_THINKING_MS; jpegs.isNotEmpty() -> AiRules.TIMEOUT_IMAGE_MS; else -> AiRules.TIMEOUT_TEXT_MS }
         val source = if (shared) "SHARE" else "CHAT"
         val round = Round()
         var force = shared
+        val steps = mutableListOf<AiQueryStepEntity>()
+        val made = mutableListOf<AiDraftCall>()
         try {
-            // Pictures and shares are read for the currency they show.
-            val (reply, calls) = askForDrafts(context, round, currencyExpected = shared || jpegs.isNotEmpty()) { key ->
-                try { client.chat(context.settings.connection, key, AiPrompt.billRequest(system, conversation, thinking, force), thinking, timeout) }
-                catch (error: AiException) {
-                    // Some services refuse a required tool; asking without that is the next best thing.
-                    if (!force || error.problem != AiProblem.REJECTED) throw error
-                    round.calls++
-                    force = false
-                    client.chat(context.settings.connection, key, AiPrompt.billRequest(system, conversation, thinking, false), thinking, timeout)
+            var reply: AiReply
+            while (true) {
+                // Queries used up: one more request without tools, to answer from what was found.
+                val toolsOff = asks && steps.size >= AiRules.QUERY_STEPS
+                fun body() = AiPrompt.chatRequest(system, sent, thinking, bills, asks, force, toolsOff, afterQuery = steps.isNotEmpty())
+                // Pictures and shares are read for the currency they show.
+                val (next, calls) = askForDrafts(context, round, currencyExpected = shared || jpegs.isNotEmpty()) { key ->
+                    try { client.chat(context.settings.connection, key, body(), thinking, timeout) }
+                    catch (error: AiException) {
+                        // Some services refuse a required tool; asking without that is the next best thing.
+                        if (!force || error.problem != AiProblem.REJECTED) throw error
+                        round.calls++
+                        force = false
+                        client.chat(context.settings.connection, key, body(), thinking, timeout)
+                    }
                 }
+                reply = next
+                made += calls
+                val asked = if (asks && !toolsOff) reply.toolCalls.filter { it.name in AiQueryTools.names } else emptyList()
+                if (asked.isEmpty()) break
+                val step = steps.size + 1
+                val ran = asked.withIndex().associate { (index, call) -> call.id to runQuery(conversationId, context, call, step, index) }
+                // The reply goes back as received, each of its calls followed by its result: a query's in full.
+                sent += reply.message
+                sent += reply.toolCalls.map { call ->
+                    AiConversations.toolResult(call.id, ran[call.id]?.second ?: if (call.name == AiPrompt.BILL_TOOL) DRAFTS_MADE else "Unknown tool.")
+                }
+                steps += AiQueryStepEntity(0, step, AiJson.format.encodeToString(JsonObject.serializer(), reply.message),
+                    AiConversations.encodeStepCalls(reply.toolCalls.map { call -> ran[call.id]?.first ?: AiStepCall(call.id, call.name) }))
             }
-            store(conversationId, reply, calls, round, images, drafts, source, context.settings.defaultKeepImages)
+            // An answer whose last reply says nothing and made no drafts is no answer.
+            if (reply.content.isBlank() && made.none { it.drafts.isNotEmpty() || it.message.isNotBlank() }) throw AiException(AiProblem.EMPTY_REPLY)
+            store(conversationId, reply, made, round, images, drafts, source, context.settings.defaultKeepImages, steps)
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { storeError(conversationId, null, round, source) }
             throw cancelled
         } catch (error: AiException) {
             storeError(conversationId, error.problem, round, source)
+        } finally {
+            querying.value = null
         }
+    }
+
+    /**
+     * Runs the [index]th query call of [step]: its stored form and what goes back to the model now. A call past
+     * [AiRules.QUERY_CALLS], or one whose arguments do not hold up, is not run; the model is told why.
+     */
+    private suspend fun runQuery(conversationId: Long, context: Context, call: AiToolCall, step: Int,
+        index: Int): Pair<AiStepCall, String> {
+        fun refused(reason: String) = AiStepCall(call.id, call.name, reason, AiQueryRecord(step, null, 0, true)) to reason
+        if (index >= AiRules.QUERY_CALLS) return refused("Not run: at most ${AiRules.QUERY_CALLS} queries run from one reply. Ask again for the rest.")
+        val checked = try { context.queryReader().read(call.name, call.arguments) }
+            catch (error: AiQueryError) { return refused("Error: ${error.message} Correct it and call again.") }
+        querying.value = AiQueryProgress(conversationId, checked)
+        val result = withContext(Dispatchers.IO) { requireNotNull(queries).run(checked, context.queryRunner(english())) }
+        val summary = if (result.rows == 0) "Gave no rows; not repeated here." else "Gave ${result.rows} row(s); not repeated here."
+        return AiStepCall(call.id, call.name, summary, AiQueryRecord(step, checked, result.rows, false)) to result.text
     }
 
     /**
@@ -193,7 +243,7 @@ class RoomAiAssistant(
             round.thinkingMs = if (reply.reasoning != null) clock.millis() - started else null
             if (reply.finishReason == "length") throw AiException(AiProblem.TRUNCATED)
             val calls = reply.toolCalls.filter { it.name == AiPrompt.BILL_TOOL }
-            if (calls.isEmpty() && reply.content.isBlank()) throw AiException(AiProblem.EMPTY_REPLY)
+            if (reply.toolCalls.isEmpty() && reply.content.isBlank()) throw AiException(AiProblem.EMPTY_REPLY)
             val read = calls.map { runCatching { reader.read(it.arguments) }.getOrNull() }
             if (read.none { it == null }) return reply to read.filterNotNull()
         }
@@ -202,7 +252,8 @@ class RoomAiAssistant(
 
     /** [keepImages]: whether a new card starts with its pictures kept; one taking over a waiting card's keeps its choice. */
     private suspend fun store(conversationId: Long, reply: AiReply, calls: List<AiDraftCall>, round: Round,
-        images: List<BillImage>, before: List<AiDraftEntity>, source: String, keepImages: Boolean) {
+        images: List<BillImage>, before: List<AiDraftEntity>, source: String, keepImages: Boolean,
+        steps: List<AiQueryStepEntity> = emptyList()) {
         val now = clock.millis()
         val latest = before.groupBy { it.label }.mapValues { (_, rows) -> rows.maxBy { it.id } }
         val proposed = calls.flatMap { it.drafts }
@@ -217,6 +268,7 @@ class RoomAiAssistant(
                 reasoning = reply.reasoning, thinking_ms = round.thinkingMs, input_tokens = round.input, output_tokens = round.output,
                 total_tokens = round.total, cached_tokens = round.cached, calls = round.calls, problem = null,
                 no_drafts = proposed.isEmpty(), confirmed_bills = "[]", created_at_ms = now))
+            if (steps.isNotEmpty()) dao.insertQuerySteps(steps.map { it.copy(message_id = messageId) })
             var fresh = 0
             proposed.forEachIndexed { index, (label, draft) ->
                 val old = label?.let(latest::get)
@@ -348,7 +400,10 @@ class RoomAiAssistant(
     /** Everything one request is built from, read once so the prompt and the checks of its reply agree. */
     private class Context(val settings: AiSettings, val features: AiFeatures, val choices: AiChoices, val base: String?,
         val habits: List<AiHabit>, val now: LocalDateTime) {
-        fun system(english: Boolean) = AiPrompt.system(settings, choices.categories, choices.accounts, now, base, english, habits)
+        fun system(english: Boolean, bills: Boolean, queries: Boolean) =
+            AiPrompt.system(settings, choices.categories, choices.accounts, now, base, english, habits, bills, queries)
+        fun queryReader() = AiQueryReader(choices.categories, AiPrompt.sentAccounts(choices.accounts))
+        fun queryRunner(english: Boolean) = AiQueryRunner(choices.categories, AiPrompt.sentAccounts(choices.accounts), english)
         fun reader(currencyExpected: Boolean) = AiDraftReader(settings, choices.categories,
             AiPrompt.sentAccounts(choices.accounts), choices.accounts, now, base, currencyExpected)
     }
@@ -371,6 +426,8 @@ class RoomAiAssistant(
     }
 
     private companion object {
+        /** What a bill call made before more queries hears; the drafts wait for the user. */
+        const val DRAFTS_MADE = "Drafts made; the user confirms them in the app. Do not make them again."
         const val DAY_MS = 24 * 60 * 60 * 1000L
         /** Usage is shown by month; a little over a year is kept. */
         const val USAGE_DAYS = 400L

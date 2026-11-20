@@ -20,7 +20,7 @@ data class AiHabit(val note: String, val categoryId: Long)
 
 object AiPrompt {
     /** Raised whenever the fixed rules change. */
-    const val RULES_VERSION = 6
+    const val RULES_VERSION = 7
 
     /** The most accounts a request lists; past it the frequent and the most recently used are kept. */
     const val ACCOUNT_LIMIT = 100
@@ -54,10 +54,14 @@ object AiPrompt {
             ))))),
         listOf("bills"))
 
-    /** The system message: everything before the conversation. */
+    /**
+     * The system message: everything before the conversation. [bills] and [queries] say which tools the request
+     * offers: by default what a conversation offers as switched on.
+     */
     fun system(settings: AiSettings, categories: List<BillCategory>, accounts: List<AiAccountChoice>,
-        now: LocalDateTime, baseCurrency: String?, english: Boolean, habits: List<AiHabit> = emptyList()): String = buildString {
-        append(fixedRules(settings, english))
+        now: LocalDateTime, baseCurrency: String?, english: Boolean, habits: List<AiHabit> = emptyList(),
+        bills: Boolean = settings.billChat || !settings.query, queries: Boolean = settings.query): String = buildString {
+        append(fixedRules(settings, english, bills, queries))
         personal(settings)?.let { append("\n\n").append(it) }
         append("\n\n").append(categoryList(categories, english))
         append("\n\n").append(accountList(accounts))
@@ -77,20 +81,38 @@ object AiPrompt {
 
     /** The request body of a bill request before the model and connection parameters. */
     fun billRequest(system: String, conversation: List<JsonObject>, thinking: Boolean, forceTool: Boolean = false): JsonObject =
-        JsonObject(buildMap {
-            put("messages", JsonArray(listOf(message("system", system)) + conversation))
-            put("tools", JsonArray(listOf(billTool)))
-            put("max_tokens", JsonPrimitive(if (thinking) AiRules.MAX_TOKENS_THINKING else AiRules.MAX_TOKENS))
-            // A share is always bookkeeping: the tool is required, unless a service refuses that.
-            if (forceTool) put("tool_choice", JsonObject(mapOf("type" to JsonPrimitive("function"),
-                "function" to JsonObject(mapOf("name" to JsonPrimitive(BILL_TOOL))))))
-        })
+        chatRequest(system, conversation, thinking, bills = true, queries = false, forceTool = forceTool)
+
+    /**
+     * A conversation's request body before the model and connection parameters, offering the bill tool ([bills]) and
+     * the query tools ([queries]). [forceTool] requires the bill tool; [toolsOff] forbids every tool, once the queries
+     * of an answer are used up. [afterQuery]: the model is answering from query results, which needs less room.
+     */
+    fun chatRequest(system: String, conversation: List<JsonObject>, thinking: Boolean, bills: Boolean, queries: Boolean,
+        forceTool: Boolean = false, toolsOff: Boolean = false, afterQuery: Boolean = false): JsonObject = JsonObject(buildMap {
+        put("messages", JsonArray(listOf(message("system", system)) + conversation))
+        val tools = buildList {
+            if (bills) add(billTool)
+            if (queries) { add(AiQueryTools.summaryTool); add(AiQueryTools.billsTool) }
+        }
+        if (tools.isNotEmpty()) put("tools", JsonArray(tools))
+        put("max_tokens", JsonPrimitive(when {
+            thinking -> AiRules.MAX_TOKENS_THINKING
+            afterQuery -> AiRules.MAX_TOKENS_QUERY
+            else -> AiRules.MAX_TOKENS
+        }))
+        // A share is always bookkeeping: the tool is required, unless a service refuses that.
+        if (toolsOff) put("tool_choice", JsonPrimitive("none"))
+        else if (forceTool) put("tool_choice", JsonObject(mapOf("type" to JsonPrimitive("function"),
+            "function" to JsonObject(mapOf("name" to JsonPrimitive(BILL_TOOL))))))
+    })
 
     fun message(role: String, content: String) = JsonObject(mapOf("role" to JsonPrimitive(role), "content" to JsonPrimitive(content)))
 
-    internal fun fixedRules(settings: AiSettings, english: Boolean): String = listOf(
+    internal fun fixedRules(settings: AiSettings, english: Boolean, bills: Boolean = true, queries: Boolean = false): String = listOfNotNull(
         "You are the bookkeeping assistant in Valnook, a personal finance app. Rules v$RULES_VERSION:",
-        "- Turn what the user says or shows into bill drafts by calling create_bill_drafts. You never save anything; the user confirms every draft in the app.",
+        if (bills) "- Turn what the user says or shows into bill drafts by calling create_bill_drafts. You never save anything; the user confirms every draft in the app."
+        else "- Recording bills here is turned off. If asked to record one, say that turning on \"${if (english) "Bookkeeping by chat" else "对话记账"}\" in Settings lets you.",
         "- Use only the category and account ids listed below. Leave out a field you are unsure of. Never invent amounts; leave unreadable parts out.",
         "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up yourself; the app does that. The only sums you work out are the shares when splitting an expense, below.",
         "- amount and discount: when the user gives a price and what was taken off it (coupons, deals) or what was finally paid, set amount to the price and discount to everything taken off; the app records amount minus discount as paid. When only what was paid is known, set amount to that and leave discount out.",
@@ -104,11 +126,18 @@ object AiPrompt {
         "- occurred_at: local \"YYYY-MM-DDTHH:MM\"; only \"YYYY-MM-DD\" when a day but no time was said; leave it out when nothing about time was said. A part of the day counts as a time: morning (早上, 上午) 08:00, noon (中午) 12:00, afternoon (下午) 15:00, evening (晚上) 19:00, late night (深夜, 半夜) 22:00.",
         "- When something needed is missing, such as the amount, ask in message, or make a draft without it.",
         "- Never give investment or financial advice.",
-        "- You cannot look up the user's bills, balances, investments or cards. If asked about their bills, say that turning on \"${if (english) "Ask about bills" else "对话查询"}\" in Settings lets you answer; other data cannot be asked about.",
+        *(if (queries) arrayOf(
+            "- To answer questions about the user's own spending or income, call query_summary or query_bills; never guess numbers or work out ones the results do not give. Results are in the base currency at each bill's own day's rate, net of refunds, exactly as the app's statistics count them; only expenses and income that count in statistics are included, no transfers.",
+            "- Work out ranges such as \"this month\" or \"last week\" from Now below, and use category and account ids from the lists below. You may call several queries at once and query again with what you learned, up to ${AiRules.QUERY_STEPS} rounds; then answer from what you have and say plainly what the results cannot tell.",
+            "- Balances, net worth, investments and cards cannot be looked up: say so.",
+        ) else arrayOf(
+            "- You cannot look up the user's bills, balances, investments or cards. If asked about their bills, say that turning on \"${if (english) "Ask about bills" else "对话查询"}\" in Settings lets you answer; other data cannot be asked about.",
+        )),
         "- Write plain text, without Markdown.",
         "- Reply in ${if (english) "English" else "Simplified Chinese"}.",
         if (settings.chat) "- You may chat naturally and say a little more, staying friendly and concise."
         else "- Keep replies to one or two sentences. For small talk, answer briefly and steer back to bookkeeping.",
+        if (queries) "- An answer about bills may be as long as its results need: list what was asked for, without filler." else null,
     ).joinToString("\n")
 
     /** Nicknames and the user's own rules; null when there are none. */

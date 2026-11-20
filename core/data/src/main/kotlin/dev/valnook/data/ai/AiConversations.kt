@@ -4,12 +4,24 @@ import dev.valnook.domain.ai.AiBillDraft
 import dev.valnook.domain.ai.AiDraftFlag
 import dev.valnook.domain.ai.AiDraftState
 import dev.valnook.domain.ai.AiMessageKind
+import dev.valnook.domain.ai.AiQueryCall
+import dev.valnook.domain.ai.AiQueryGroup
+import dev.valnook.domain.ai.AiQueryRecord
+import dev.valnook.domain.ai.AiQuerySort
 import dev.valnook.domain.ai.AiRules
 import dev.valnook.domain.model.BillImage
 import dev.valnook.domain.model.BillType
 import kotlinx.serialization.json.*
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.Base64
+
+/**
+ * A tool call of one query step as stored: [result] is what later requests send for it (a summary of a query, never
+ * its rows); [record] the query as run, for the page. A bill call keeps neither: its result is what became of its
+ * drafts.
+ */
+internal data class AiStepCall(val id: String, val tool: String, val result: String? = null, val record: AiQueryRecord? = null)
 
 /** The rules of a conversation's history and stored drafts, kept apart from storage so they can be tested alone. */
 internal object AiConversations {
@@ -17,31 +29,105 @@ internal object AiConversations {
     /**
      * The earlier rounds sent with a new message: the last [AiRules.CONTEXT_TURNS] rounds, a round starting at each
      * message the user sent. Replies go back exactly as received, each tool call followed by its result, which says
-     * what became of the drafts it made so the model knows which it may still replace. Errors are left out; pictures
-     * are not sent again.
+     * what became of the drafts it made so the model knows which it may still replace. An answer's query steps go
+     * before it, each query's result only a summary, so rows are not sent again. Errors are left out; pictures are not
+     * sent again.
      */
-    fun history(messages: List<AiMessageEntity>, drafts: List<AiDraftEntity>, pictureCounts: Map<Long, Int>): List<JsonObject> {
+    fun history(messages: List<AiMessageEntity>, drafts: List<AiDraftEntity>, pictureCounts: Map<Long, Int>,
+        steps: List<AiQueryStepEntity> = emptyList()): List<JsonObject> {
         val starts = messages.withIndex().filter { it.value.kind == AiMessageKind.USER.name }.map { it.index }
         val from = starts.takeLast(AiRules.CONTEXT_TURNS).firstOrNull() ?: return emptyList()
         val byMessage = drafts.groupBy { it.message_id }
+        val stepsBy = steps.groupBy { it.message_id }
         return messages.drop(from).flatMap { message ->
             when (message.kind) {
                 AiMessageKind.USER.name -> listOf(AiPrompt.message("user",
                     (if (message.shared) AiPrompt.SHARE_INTRO + "\n\n" else "") +
                         userText(message.text, pictureCounts[message.id] ?: 0, earlier = true)))
                 AiMessageKind.ASSISTANT.name -> {
-                    val raw = message.raw?.let { runCatching { AiJson.format.parseToJsonElement(it).jsonObject }.getOrNull() }
-                        ?: return@flatMap emptyList()
-                    val ids = (raw["tool_calls"] as? JsonArray).orEmpty()
-                        .mapNotNull { ((it as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull }
-                    listOf(raw) + ids.mapIndexed { index, id ->
-                        toolResult(id, if (index == 0) status(byMessage[message.id].orEmpty()) else "Done.")
+                    val raw = parse(message.raw) ?: return@flatMap emptyList()
+                    val status = status(byMessage[message.id].orEmpty())
+                    var told = false
+                    // The first bill call hears what became of the drafts; a query its summary.
+                    fun results(reply: JsonObject, stored: Map<String, String>) = toolCalls(reply).map { (id, name) ->
+                        toolResult(id, stored[id] ?: when {
+                            name in AiQueryTools.names -> "Not run: the queries of this answer were used up."
+                            !told -> status.also { told = true }
+                            else -> "Done."
+                        })
                     }
+                    stepsBy[message.id].orEmpty().sortedBy { it.step }.flatMap { step ->
+                        val reply = parse(step.raw) ?: return@flatMap emptyList()
+                        listOf(reply) + results(reply, decodeStepCalls(step.calls)
+                            .mapNotNull { call -> call.result?.let { call.id to it } }.toMap())
+                    } + listOf(raw) + results(raw, emptyMap())
                 }
                 else -> emptyList()
             }
         }
     }
+
+    private fun parse(raw: String?): JsonObject? =
+        raw?.let { runCatching { AiJson.format.parseToJsonElement(it).jsonObject }.getOrNull() }
+
+    /** A reply's tool calls: id and function name. */
+    fun toolCalls(reply: JsonObject): List<Pair<String, String>> = (reply["tool_calls"] as? JsonArray).orEmpty().mapNotNull { call ->
+        val o = call as? JsonObject ?: return@mapNotNull null
+        val id = (o["id"] as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
+        id to (((o["function"] as? JsonObject)?.get("name") as? JsonPrimitive)?.contentOrNull.orEmpty())
+    }
+
+    fun encodeStepCalls(calls: List<AiStepCall>): String = JsonArray(calls.map { call -> JsonObject(buildMap {
+        put("id", JsonPrimitive(call.id))
+        put("tool", JsonPrimitive(call.tool))
+        call.result?.let { put("result", JsonPrimitive(it)) }
+        call.record?.let { record ->
+            put("rows", JsonPrimitive(record.rows))
+            put("error", JsonPrimitive(record.error))
+            record.call?.let { put("call", encodeQuery(it)) }
+        }
+    }) }).toString()
+
+    fun decodeStepCalls(text: String, step: Int = 0): List<AiStepCall> = runCatching {
+        AiJson.format.parseToJsonElement(text).jsonArray.mapNotNull { element ->
+            val o = element as? JsonObject ?: return@mapNotNull null
+            fun string(key: String) = (o[key] as? JsonPrimitive)?.contentOrNull
+            val tool = string("tool").orEmpty()
+            AiStepCall(string("id") ?: return@mapNotNull null, tool, string("result"),
+                if (tool in AiQueryTools.names) AiQueryRecord(step, (o["call"] as? JsonObject)?.let(::decodeQuery),
+                    (o["rows"] as? JsonPrimitive)?.intOrNull ?: 0, (o["error"] as? JsonPrimitive)?.booleanOrNull ?: false)
+                else null)
+        }
+    }.getOrDefault(emptyList())
+
+    /** The queries an answer ran, in order, for the page. */
+    fun queryRecords(steps: List<AiQueryStepEntity>): List<AiQueryRecord> =
+        steps.sortedBy { it.step }.flatMap { step -> decodeStepCalls(step.calls, step.step).mapNotNull { it.record } }
+
+    fun encodeQuery(call: AiQueryCall) = JsonObject(buildMap {
+        put("summary", JsonPrimitive(call.summary))
+        call.type?.let { put("type", JsonPrimitive(it.name)) }
+        put("from", JsonPrimitive(call.from.toString()))
+        put("to", JsonPrimitive(call.to.toString()))
+        put("group", JsonPrimitive(call.group.name))
+        call.categoryId?.let { put("category", JsonPrimitive(it)) }
+        call.accountId?.let { put("account", JsonPrimitive(it)) }
+        if (call.keyword.isNotEmpty()) put("keyword", JsonPrimitive(call.keyword))
+        put("sort", JsonPrimitive(call.sort.name))
+        put("limit", JsonPrimitive(call.limit))
+        if (call.shortened) put("shortened", JsonPrimitive(true))
+    })
+
+    fun decodeQuery(o: JsonObject): AiQueryCall? = runCatching {
+        fun string(key: String) = (o[key] as? JsonPrimitive)?.contentOrNull
+        fun long(key: String) = (o[key] as? JsonPrimitive)?.longOrNull
+        AiQueryCall((o["summary"] as JsonPrimitive).boolean, string("type")?.let(BillType::valueOf),
+            LocalDate.parse(string("from")), LocalDate.parse(string("to")),
+            string("group")?.let(AiQueryGroup::valueOf) ?: AiQueryGroup.NONE, long("category"), long("account"),
+            string("keyword").orEmpty(), string("sort")?.let(AiQuerySort::valueOf) ?: AiQuerySort.TIME_DESC,
+            (o["limit"] as? JsonPrimitive)?.intOrNull ?: AiRules.QUERY_BILL_ROWS,
+            (o["shortened"] as? JsonPrimitive)?.booleanOrNull ?: false)
+    }.getOrNull()
 
     fun toolResult(callId: String, content: String) = JsonObject(mapOf("role" to JsonPrimitive("tool"),
         "tool_call_id" to JsonPrimitive(callId), "content" to JsonPrimitive(content)))

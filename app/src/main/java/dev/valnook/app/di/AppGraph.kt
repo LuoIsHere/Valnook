@@ -108,6 +108,10 @@ internal fun createDatabaseGraph(
     val chat = if (persistentPrivateCards) dev.valnook.data.ai.AiChatDatabase.open(context)
         else dev.valnook.data.ai.AiChatDatabase.inMemory(context)
     val aiPictures = dev.valnook.data.ai.StoreAiPictures(images)
+    val bills = dev.valnook.data.repository.RoomBills(database)
+    // Questions about bills count them as statistics do, at each bill's own day's rate.
+    val aiQueries = dev.valnook.data.ai.AiBillQueries(bills, dev.valnook.domain.repository.BillCounter(bills,
+        settings.observeSettings(), RoomOverview(database).observeFxContext(), clock.zone), clock.zone)
     return DatabaseGraph(
         database = database,
         accounts = RoomAccounts(database),
@@ -128,7 +132,7 @@ internal fun createDatabaseGraph(
             database, RoomOverview(database), RoomStatistics(database, clock),
             deposits, RoomInvestments(database)),
         walletPrivate = LocalWalletPrivateRepository(context, database, persistentPrivateCards),
-        bills = dev.valnook.data.repository.RoomBills(database),
+        bills = bills,
         images = images,
         billImages = dev.valnook.data.image.LocalBillImageLibrary(images,
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)),
@@ -137,7 +141,8 @@ internal fun createDatabaseGraph(
         ai = ai,
         aiKeys = aiKeys,
         aiChecks = aiChecks,
-        assistant = dev.valnook.data.ai.RoomAiAssistant(database, chat, ai, aiKeys, clock, english, aiPictures, aiPictures, aiClient)
+        assistant = dev.valnook.data.ai.RoomAiAssistant(database, chat, ai, aiKeys, clock, english, aiPictures, aiPictures, aiClient,
+            aiQueries)
     )
 }
 
