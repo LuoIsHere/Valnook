@@ -28,6 +28,7 @@ internal class WebAdminApiRouter(
     private val onDataChanged: suspend (Long) -> Unit
 ) {
     private val reads get() = sessions.webAdminReads()
+    private val bills = WebBillRoutes { sessions.webAdminBills() }
 
     suspend fun handle(webSessionId: String, request: WebHttpRequest): WebHttpResponse = try {
         withContext(Dispatchers.IO) { route(webSessionId, request) }
@@ -89,8 +90,10 @@ internal class WebAdminApiRouter(
         if (method == "POST" && path == "/api/v1/accounts") return saveAccount(sessionId, null, request)
         accountGroupRoute(sessionId, method, path, request)?.let { return it }
         if (method == "GET" && path == "/api/v1/records") return records(request)
-        CASH_ENTRY.matchEntire(path)?.let { if (method == "PUT")
-            return editCashEntry(sessionId, it.groupValues[1].toLong(), request) }
+        CASH_ENTRY.matchEntire(path)?.let {
+            if (method == "PUT") return editCashEntry(sessionId, it.groupValues[1].toLong(), request)
+            if (method == "DELETE") return deleteCashEntry(sessionId, it.groupValues[1].toLong(), request)
+        }
         if (method == "GET" && path == "/api/v1/asset-types") return assetTypes()
         if (method == "POST" && path == "/api/v1/asset-types") return saveAssetType(sessionId, null, request)
         ASSET_TYPE.matchEntire(path)?.let { if (method == "PUT")
@@ -125,6 +128,10 @@ internal class WebAdminApiRouter(
         if (method == "GET" && path == "/api/v1/statistics/summary") return statisticsSummary()
         if (method == "GET" && path == "/api/v1/statistics/history") return statisticsHistory(request)
         if (method == "GET" && path == "/api/v1/statistics/distribution") return distributions()
+        // Bills are read-only here; a write to a bill path is not a route and answers 404.
+        bills.route(method, path, query(request.query))?.let { value ->
+            return success(buildJsonObject { put("dataGeneration", reads.generation()); value.forEach { (k, v) -> put(k, v) } })
+        }
         return failure(404, "NOT_FOUND")
     }
 
@@ -306,6 +313,12 @@ internal class WebAdminApiRouter(
         return save(sessionId, body, EditCashEntry(body.operationId(), id, body.long("expectedRevision"),
             DecimalRules.parse_signed_minor(body.text("amount"), currency), body.long("occurredAtMs"),
             body.optionalText("note").orEmpty()))
+    }
+
+    /** Only a hand-made balance adjustment can be deleted; the command refuses entries a bill or trade made. */
+    private suspend fun deleteCashEntry(sessionId: String, id: Long, request: WebHttpRequest): WebHttpResponse {
+        val body = body(request)
+        return save(sessionId, body, DeleteCashEntry(body.operationId(), id, body.long("expectedRevision")))
     }
 
     private suspend fun assetTypes(): WebHttpResponse = success(buildJsonObject {

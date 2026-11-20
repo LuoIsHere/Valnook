@@ -19,6 +19,7 @@ import dev.valnook.domain.webadmin.WebAdminPhase
 import dev.valnook.domain.webadmin.WebAdminError
 import dev.valnook.domain.webadmin.WEB_DEFAULT_PORT
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -979,6 +980,144 @@ class WebAdminEndToEndTest {
             activity.moveToState(Lifecycle.State.CREATED)
             awaitPhase(WebAdminPhase.CLOSED)
             nextSocket.close()
+        }
+    }
+
+    /**
+     * Bills are read over HTTP as the phone counts them (refunds off the expense, an expense not counted left out) and
+     * cannot be written: every write to a bill path answers 404 and changes nothing. All data is synthetic, in March
+     * 2025 so other tests' bills stay out of the month.
+     */
+    @Test fun bills_are_listed_counted_and_read_only_over_http() = runBlocking<Unit> {
+        val clock = java.time.Clock.systemDefaultZone()
+        val commands = RoomFinancialCommands(database, clock)
+        fun id() = UUID.randomUUID().toString()
+        val settingsRepo = dev.valnook.data.repository.RoomSettings(database, clock)
+        val settings = settingsRepo.observeSettings().first()
+        if (settings.baseCurrency == null) settingsRepo.applyChange(SaveFinancialSettings(settings.revision, Currency.of("CNY"), emptyList()))
+        val account = commands.execute(SaveAccount(id(), null, null, "Synthetic web bills", "", listOf(
+            CashBalanceChange("CNY", 1_000_000, null, name = "Main")))).id
+        val cash = RoomOverview(database).snapshot().cash.single { it.account_id == account }.id
+        fun category(key: String) = database.openHelper.readableDatabase.query("SELECT id FROM bill_categories WHERE builtin_key=?",
+            arrayOf(key)).use { it.moveToFirst(); it.getLong(0) }
+        val food = category("food"); val lunch = category("food.lunch"); val shopping = category("shopping")
+        val business = category("business"); val pay = category("income.pay")
+        val zone = clock.zone
+        fun at(month: Int, day: Int) = java.time.LocalDate.of(2025, month, day).atTime(12, 0).atZone(zone).toInstant().toEpochMilli()
+        suspend fun save(draft: BillDraft) = commands.execute(SaveBill(id(), null, null, draft)).id
+        val lunchBill = save(BillDraft(BillType.EXPENSE, at(3, 3), 10_500, "CNY", 500, cash, 10_000,
+            categoryId = food, subCategoryId = lunch, note = "Synthetic web lunch"))
+        val coat = save(BillDraft(BillType.EXPENSE, at(3, 5), 30_000, "CNY", 0, cash, 30_000, categoryId = shopping, note = "Synthetic coat"))
+        val bills = dev.valnook.data.repository.RoomBills(database)
+        commands.execute(SettleBill(id(), coat, bills.observeBill(coat).first()!!.revision, BillType.REFUND,
+            SettlementDraft(at(3, 9), 10_000, cash, 10_000)))
+        val trip = save(BillDraft(BillType.EXPENSE, at(3, 7), 20_000, "CNY", 0, cash, 20_000, categoryId = business,
+            countInStats = false, reimbursable = true, counterparty = "Synthetic employer", note = "Synthetic trip"))
+        commands.execute(SettleBill(id(), trip, bills.observeBill(trip).first()!!.revision, BillType.REIMBURSEMENT,
+            SettlementDraft(at(3, 20), 5_000, cash, 5_000)))
+        save(BillDraft(BillType.INCOME, at(3, 10), 100_000, "CNY", 0, cash, 100_000, categoryId = pay, note = "Synthetic pay"))
+        save(BillDraft(BillType.TRANSFER, at(3, 12), 2_000, "CNY", 0, cash, 2_000, transferKind = TransferKind.TO_EXTERNAL,
+            counterparty = "Synthetic family", note = "Synthetic gift"))
+        save(BillDraft(BillType.EXPENSE, at(2, 14), 5_000, "CNY", 0, cash, 5_000, categoryId = food, note = "Synthetic February"))
+        web.start()
+        val endpoint = URI(requireNotNull(web.state.value.url) { "web admin did not start: ${web.state.value}" })
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin, body = JSONObject().put("code", web.state.value.pairingCode).toString())
+        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf = JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint, origin, cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            fun get(path: String) = http(endpoint, "GET", path, cookie = cookie).also { assertEquals(it.body, 200, it.status) }.body.let(::JSONObject)
+            fun notes(value: JSONObject) = value.getJSONArray("items").let { items -> (0 until items.length()).map { items.getJSONObject(it).getString("note") } }
+            val march = get("/api/v1/bills?month=2025-03")
+            // Fields the page reads.
+            listOf("dataGeneration", "month", "baseCurrency", "firstMonth", "lastMonth", "monthCount", "totals", "previous",
+                "savings", "pending", "items", "days", "cashAccounts").forEach { assertTrue(it, march.has(it)) }
+            val totals = march.getJSONObject("totals")
+            // 100 for lunch and 300 - 100 refunded for the coat; the trip is not counted.
+            assertEquals("300.00", totals.getString("expense")); assertEquals("1000.00", totals.getString("income"))
+            assertEquals("700.00", totals.getString("balance"))
+            assertEquals("50.00", march.getJSONObject("previous").getString("expense"))
+            assertEquals("5.00", march.getString("savings"))
+            val coatJson = (0 until march.getJSONArray("items").length()).map { march.getJSONArray("items").getJSONObject(it) }
+                .single { it.getLong("id") == coat }
+            listOf("type", "occurredAtMs", "amount", "paid", "currencyCode", "cashAccountId", "accountAmount", "categoryId",
+                "subCategoryId", "counted", "reimburseState", "refunded", "remaining", "imageCount", "value", "note").forEach {
+                assertTrue(it, coatJson.has(it)) }
+            assertEquals("100.00", coatJson.getString("refunded")); assertEquals("200.00", coatJson.getString("value"))
+            assertEquals(listOf("Synthetic pay"), notes(get("/api/v1/bills?month=2025-03&type=income")))
+            assertEquals(listOf("Synthetic web lunch"), notes(get("/api/v1/bills?month=2025-03&categoryId=$food")))
+            // As on the phone, the reimbursement (no note of its own) is not counted either.
+            assertEquals(listOf("", "Synthetic trip"), notes(get("/api/v1/bills?month=2025-03&counted=false")))
+            assertEquals(listOf("Synthetic web lunch"), notes(get("/api/v1/bills?month=2025-03&query=web%20lunch")))
+            // Searching every month finds February too; searching March alone does not.
+            assertEquals(listOf("Synthetic February"), notes(get("/api/v1/bills?month=2025-03&query=Synthetic%20February&scope=all")))
+            assertEquals(emptyList<String>(), notes(get("/api/v1/bills?month=2025-03&query=Synthetic%20February")))
+            val detail = get("/api/v1/bills/$coat")
+            assertEquals("REFUND", detail.getJSONArray("children").getJSONObject(0).getString("type"))
+            val refundId = detail.getJSONArray("children").getJSONObject(0).getLong("id")
+            assertEquals(coat, get("/api/v1/bills/$refundId").getJSONObject("parent").getLong("id"))
+            val trip200 = get("/api/v1/bills/$trip").getJSONObject("bill")
+            assertEquals("PARTIAL", trip200.getString("reimburseState")); assertEquals("150.00", trip200.getString("remaining"))
+            val stats = get("/api/v1/statistics/bills?month=2025-03")
+            val expense = stats.getJSONObject("expense")
+            assertEquals("300.00", stats.getJSONObject("totals").getString("expense"))
+            assertEquals("9.68", expense.getString("average")) // 300 over the 31 days of a past month
+            val foodShare = (0 until expense.getJSONArray("categories").length()).map { expense.getJSONArray("categories").getJSONObject(it) }
+                .single { it.getLong("categoryId") == food }
+            assertEquals("100.00", foodShare.getString("value"))
+            assertEquals(lunch, foodShare.getJSONArray("subcategories").getJSONObject(0).getLong("categoryId"))
+            val categories = get("/api/v1/bill-categories").getJSONArray("items")
+            val foodCategory = (0 until categories.length()).map { categories.getJSONObject(it) }.single { it.getLong("id") == food }
+            assertEquals("餐饮", foodCategory.getString("nameZh")); assertEquals("Food & drink", foodCategory.getString("nameEn"))
+            assertEquals(400, http(endpoint, "GET", "/api/v1/bills?month=2025-13", cookie = cookie).status)
+            assertEquals(404, http(endpoint, "GET", "/api/v1/bills/999999999", cookie = cookie).status)
+            assertEquals(401, http(endpoint, "GET", "/api/v1/bills").status)
+            // No write reaches a bill.
+            val generation = march.getLong("dataGeneration")
+            val write = JSONObject().put("operationId", id()).put("dataGeneration", generation).put("expectedRevision", 1).toString()
+            listOf("POST" to "/api/v1/bills", "PUT" to "/api/v1/bills/$coat", "DELETE" to "/api/v1/bills/$coat").forEach { (method, path) ->
+                val refused = http(endpoint, method, path, origin = origin, cookie = cookie, csrf = csrf, body = write)
+                assertEquals("$method $path", 404, refused.status)
+            }
+            assertEquals(generation, database.audit().generation())
+            assertNotNull(bills.observeBill(coat).first())
+        }
+    }
+
+    /** A hand-made balance adjustment is deleted over HTTP like on the phone; a bill's own cash entry is not. */
+    @Test fun balance_adjustment_is_deleted_over_http_but_a_bill_entry_is_not() = runBlocking<Unit> {
+        val commands = RoomFinancialCommands(database, java.time.Clock.systemUTC())
+        fun id() = UUID.randomUUID().toString()
+        val account = commands.execute(SaveAccount(id(), null, null, "Synthetic web adjustments", "", emptyList())).id
+        commands.execute(SetCashBalance(id(), account, "CNY", 20_000, null))
+        val cash = RoomOverview(database).snapshot().cash.single { it.account_id == account }.id
+        commands.execute(SaveBill(id(), null, null, BillDraft(BillType.EXPENSE, System.currentTimeMillis() - 60_000, 1_500, "CNY", 0,
+            cash, 1_500, categoryId = database.openHelper.readableDatabase.query("SELECT id FROM bill_categories WHERE builtin_key='food'")
+                .use { it.moveToFirst(); it.getLong(0) }, note = "Synthetic adjustment bill")))
+        web.start()
+        val endpoint = URI(requireNotNull(web.state.value.url) { "web admin did not start: ${web.state.value}" })
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin, body = JSONObject().put("code", web.state.value.pairingCode).toString())
+        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
+        val csrf = JSONObject(paired.body).getString("csrfToken")
+        openWebSocket(endpoint, origin, cookie).use {
+            awaitPhase(WebAdminPhase.ACTIVE)
+            val listed = JSONObject(http(endpoint, "GET", "/api/v1/records?accountId=$account", cookie = cookie).body).getJSONArray("items")
+                .let { items -> (0 until items.length()).map { items.getJSONObject(it) } }
+            val adjustment = listed.single { it.getString("action") == "CASH_SET" }
+            val billEntry = listed.single { it.getString("action") == "BILL" }
+            suspend fun delete(record: JSONObject, revision: Long) = http(endpoint, "DELETE", "/api/v1/cash-entries/${record.getLong("id")}",
+                origin = origin, cookie = cookie, csrf = csrf, body = JSONObject().put("operationId", id())
+                    .put("dataGeneration", database.audit().generation()).put("expectedRevision", revision).toString())
+            assertEquals(409, delete(adjustment, adjustment.getLong("revision") + 5).status)
+            val refused = delete(billEntry, billEntry.getLong("revision"))
+            assertEquals(refused.body, 400, refused.status)
+            assertEquals("SOURCE_RECORD", JSONObject(refused.body).getJSONObject("error").getString("code"))
+            val deleted = delete(adjustment, adjustment.getLong("revision"))
+            assertEquals(deleted.body, 200, deleted.status)
+            // The 200.00 set by hand is gone; the bill's 15.00 is still taken.
+            assertEquals(-1_500L, RoomOverview(database).snapshot().cash.single { it.id == cash }.balance_minor)
         }
     }
 

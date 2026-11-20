@@ -279,6 +279,10 @@ class AppSessionManager @Inject internal constructor(
     internal fun webAdminReads(): dev.valnook.domain.webadmin.WebAdminReadRepository =
         webAdminGraph().webAdminReads
 
+    /** Bills of the database the web session uses, read-only. */
+    internal fun webAdminBills(): dev.valnook.app.webadmin.WebBillSource =
+        webAdminGraph().let { dev.valnook.app.webadmin.WebBillSource(it.bills, it.overview, it.settings, it.clock) }
+
     internal suspend fun previewWebAccountDeletion(webSessionId: String, accountId: Long, cashId: Long?) = writeMutex.withLock {
         requireWebOwner(webSessionId)
         webAdminGraph().commands.previewAccountDeletion(accountId, cashId)
