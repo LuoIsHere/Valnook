@@ -13,6 +13,7 @@ import dev.valnook.domain.repository.InvestmentRepository
 import dev.valnook.domain.repository.StatisticsRepository
 import dev.valnook.domain.webadmin.WebAdminReadRepository
 import dev.valnook.domain.webadmin.WebRecord
+import dev.valnook.domain.webadmin.WebRecordBill
 import dev.valnook.domain.webadmin.WebRecordCursor
 import dev.valnook.domain.webadmin.WebRecordFilter
 import dev.valnook.domain.webadmin.WebRecordKind
@@ -76,7 +77,7 @@ class RoomWebAdminReadRepository(
         args += size + 1
         val sql = """
             WITH records AS (
-                SELECT 'CASH' kind,e.id id,e.revision revision,e.occurred_at_ms business_ms,
+                SELECT CASE WHEN e.source_kind IN ('BILL','BILL_TRANSFER_IN','BILL_REMOVED') THEN 'BILL' ELSE 'CASH' END kind,e.id id,e.revision revision,e.occurred_at_ms business_ms,
                     e.savings_account_id account_id,a.name account_name,e.cash_account_id child_id,
                     c.name child_name,e.source_kind action,
                     CASE WHEN e.source_kind IN ('TRADE','DIVIDEND') THEN COALESCE(i.name,'')
@@ -87,7 +88,9 @@ class RoomWebAdminReadRepository(
                     c.currency_code currency_code,e.note note,
                     e.updated_at_ms updated_ms,curr.fraction_digits fraction_digits,
                     'CASH:' || printf('%020d',e.id) stable_key,
-                    lower(a.name || ' ' || c.name || ' ' || COALESCE(i.name,'') || ' ' || e.note) search_text
+                    lower(a.name || ' ' || c.name || ' ' || COALESCE(i.name,'') || ' ' || e.note || ' ' || COALESCE(b.note,'')) search_text,
+                    b.type bill_type,b.note bill_note,b.category_id bill_category_id,b.sub_category_id bill_sub_category_id,
+                    b.transfer_kind bill_transfer_kind,b.counterparty bill_counterparty,pb.note bill_parent_note
                 FROM cash_entries e
                 JOIN savings_accounts a ON a.id=e.savings_account_id
                 JOIN cash_accounts c ON c.id=e.cash_account_id
@@ -95,12 +98,14 @@ class RoomWebAdminReadRepository(
                 LEFT JOIN investment_trades linked_trade ON e.source_kind IN ('TRADE','DIVIDEND') AND linked_trade.id=e.source_id
                 LEFT JOIN investments p ON p.id=linked_trade.investment_id
                 LEFT JOIN instruments i ON i.id=p.instrument_id
+                LEFT JOIN bill_entries b ON e.source_kind IN ('BILL','BILL_TRANSFER_IN') AND b.id=e.source_id
+                LEFT JOIN bill_entries pb ON pb.id=b.parent_id
                 WHERE e.is_deleted=0
                 UNION ALL
                 SELECT 'DEPOSIT',d.id,d.revision,d.start_epoch_day*86400000,d.savings_account_id,
                     a.name,d.id,d.currency_code,CASE WHEN d.status='CLOSED' THEN 'CLOSE' ELSE 'OPEN' END,
                     d.currency_code,d.principal_minor,NULL,NULL,NULL,NULL,NULL,d.id,NULL,d.currency_code,'',d.updated_at_ms,curr.fraction_digits,
-                    'DEPOSIT:' || printf('%020d',d.id),lower(a.name || ' ' || d.currency_code)
+                    'DEPOSIT:' || printf('%020d',d.id),lower(a.name || ' ' || d.currency_code),NULL,NULL,NULL,NULL,NULL,NULL,NULL
                 FROM term_deposits d
                 JOIN savings_accounts a ON a.id=d.savings_account_id
                 JOIN currencies curr ON curr.code=d.currency_code
@@ -109,7 +114,7 @@ class RoomWebAdminReadRepository(
                     i.name,t.direction,i.name,t.amount_minor,t.quantity_e8,t.execution_price_e8,t.fee_minor,
                     t.cash_linked,t.cash_account_id,t.id,p.id,t.currency_code,i.symbol,t.updated_at_ms,
                     curr.fraction_digits,'TRADE:' || printf('%020d',t.id),
-                    lower(a.name || ' ' || i.name || ' ' || i.symbol || ' ' || t.direction)
+                    lower(a.name || ' ' || i.name || ' ' || i.symbol || ' ' || t.direction),NULL,NULL,NULL,NULL,NULL,NULL,NULL
                 FROM investment_trades t
                 JOIN investments p ON p.id=t.investment_id
                 JOIN instruments i ON i.id=p.instrument_id
@@ -154,7 +159,12 @@ class RoomWebAdminReadRepository(
             sourceId = nullableLong("source_id"),
             sourceParentId = nullableLong("source_parent_id"),
             note = string("note"),
-            updatedAtMs = long("updated_ms")
+            updatedAtMs = long("updated_ms"),
+            bill = index("bill_type").takeUnless(::isNull)?.let {
+                WebRecordBill(string("bill_type"), string("bill_note"), nullableLong("bill_category_id"), nullableLong("bill_sub_category_id"),
+                    index("bill_transfer_kind").takeUnless(::isNull)?.let(::getString), string("bill_counterparty"),
+                    index("bill_parent_note").takeUnless(::isNull)?.let(::getString))
+            }
         )
     }
 

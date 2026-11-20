@@ -101,16 +101,13 @@ internal class WebBillRoutes(private val source: () -> WebBillSource) {
         val settings = s.settings.observeSettings().first()
         val pending = ReimbursementsViewModel.summary(s.bills.observeReimbursable().first(), settings,
             s.overview.observeFxContext().first())
-        val today = LocalDate.now(s.clock)
-        val first = s.bills.observeFirstBillAt().first()?.let { YearMonth.from(Instant.ofEpochMilli(it).atZone(s.clock.zone)) }
-        val latest = s.bills.observeRange(today.plusDays(1), today.plusYears(100), s.clock.zone).first()
-            .maxOfOrNull { it.occurredAtMs }?.let { YearMonth.from(Instant.ofEpochMilli(it).atZone(s.clock.zone)) }
+        val (first, last) = monthRange(s)
         val digits = counted.base?.fraction_digits ?: 2
         return buildJsonObject {
             put("month", month.toString())
             put("baseCurrency", counted.base?.code)
             put("firstMonth", first?.toString())
-            put("lastMonth", maxOf(YearMonth.from(today), latest ?: YearMonth.from(today)).toString())
+            put("lastMonth", last.toString())
             put("monthCount", monthBills.size)
             put("totals", totals(counted.totals()))
             put("previous", if (before.bills.isEmpty()) JsonNull else totals(before.totals()))
@@ -129,6 +126,15 @@ internal class WebBillRoutes(private val source: () -> WebBillSource) {
                 put("name", it.cashAccountName); put("currencyCode", it.currency.code)
             }) } })
         }
+    }
+
+    /** The first month with a bill, and the later of this month and the last one with a bill (bills can be dated ahead). */
+    private suspend fun monthRange(s: WebBillSource): Pair<YearMonth?, YearMonth> {
+        val today = LocalDate.now(s.clock)
+        val first = s.bills.observeFirstBillAt().first()?.let { YearMonth.from(Instant.ofEpochMilli(it).atZone(s.clock.zone)) }
+        val latest = s.bills.observeRange(today.plusDays(1), today.plusYears(100), s.clock.zone).first()
+            .maxOfOrNull { it.occurredAtMs }?.let { YearMonth.from(Instant.ofEpochMilli(it).atZone(s.clock.zone)) }
+        return first to maxOf(YearMonth.from(today), latest ?: YearMonth.from(today))
     }
 
     private suspend fun detail(s: WebBillSource, id: Long): JsonObject? {
@@ -177,9 +183,12 @@ internal class WebBillRoutes(private val source: () -> WebBillSource) {
                 }) } })
             }) } })
         }
+        val (first, last) = monthRange(s)
         return buildJsonObject {
             put("month", month.toString())
             put("baseCurrency", now.base?.code)
+            put("firstMonth", first?.toString())
+            put("lastMonth", last.toString())
             put("totals", totals(now.totals()))
             put("previous", if (before.bills.isEmpty()) JsonNull else totals(before.totals()))
             put("savings", now.savings().let { buildJsonObject { put("value", decimal(it.value)); put("partial", it.partial) } })

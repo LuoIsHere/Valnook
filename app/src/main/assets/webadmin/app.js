@@ -9,10 +9,11 @@ import { accountsPage, accountDialog, groupsDialog } from "./page-accounts.js";
 import { recordsPage, keepRecordPages } from "./page-records.js";
 import { investmentsPage, tradeDialog, instrumentDialog, isPriceEditing, cancelPriceEdit } from "./page-investments.js";
 import { statsPage } from "./page-stats.js";
+import { billsPage } from "./page-bills.js";
 
 const app = $("#app");
-const NAV = [["accounts", "accounts"], ["records", "records"], ["investments", "investments"], ["statistics", "statistics"]];
-const pageFor = { accounts: accountsPage, records: recordsPage, investments: investmentsPage, statistics: statsPage };
+const NAV = [["accounts", "accounts"], ["bills", "bills"], ["records", "records"], ["investments", "investments"], ["statistics", "statistics"]];
+const pageFor = { accounts: accountsPage, bills: billsPage, records: recordsPage, investments: investmentsPage, statistics: statsPage };
 
 /* ---------- Theme and hidden amounts (this browser only) ---------- */
 const stored = (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } };
@@ -94,8 +95,10 @@ function endedPage(key) {
 
 /* ---------- Workspace ---------- */
 async function preload() {
-  const [accounts, instruments, types, positions] = await Promise.all([api("/api/v1/accounts"), api("/api/v1/instruments"), api("/api/v1/asset-types"), api("/api/v1/positions")]);
+  const [accounts, instruments, types, positions, categories] = await Promise.all([api("/api/v1/accounts"), api("/api/v1/instruments"),
+    api("/api/v1/asset-types"), api("/api/v1/positions"), api("/api/v1/bill-categories")]);
   state.accounts = accounts.items; state.accountGroups = accounts.groups; state.instruments = instruments.items; state.assetTypes = types.items; state.positions = positions.items;
+  state.billCategories = categories.items;
   state.lastSync = Date.now();
 }
 let idleTimer = null, lastPage = null, enterTimer = 0, switchTimer = 0, shownNumbers = {}, refreshing = false;
@@ -248,6 +251,8 @@ function palette() {
         el("span", {}, el("kbd", { text: "/" }), t("openSearchAnytime")))));
   const items = [
     ...NAV.map(([k, icon]) => ({ group: t("pages"), label: t(k), icon, run: () => go(k) })),
+    { group: t("pages"), label: t("expenseStats"), icon: "statistics", run: () => go("statistics/expense") },
+    { group: t("pages"), label: t("incomeStats"), icon: "statistics", run: () => go("statistics/income") },
     { group: t("actions"), label: t("newAccount"), icon: "plus", run: () => accountDialog(null) },
     { group: t("actions"), label: t("newTrade"), icon: "plus", run: () => tradeDialog(null, null) },
     { group: t("actions"), label: t("newInstrument"), icon: "plus", run: () => instrumentDialog(null) },

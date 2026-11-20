@@ -11,6 +11,7 @@ import dev.valnook.data.repository.RoomOverview
 import dev.valnook.data.repository.RoomStatistics
 import dev.valnook.domain.webadmin.WebRecordFilter
 import dev.valnook.domain.webadmin.WebRecordKind
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -75,6 +76,36 @@ class WebAdminReadRepositoryTest {
         assertEquals(1L, linkedCash.sourceParentId)
         val wildcard = repository.records(WebRecordFilter(query = "%_", pageSize = 50))
         assertTrue(wildcard.items.isEmpty())
+    }
+
+    /** A bill's cash is its own kind, named by its bill; a hand-made adjustment stays CASH. Synthetic data only. */
+    @Test fun bill_entries_are_their_own_kind_and_carry_their_bill() = runBlocking {
+        val commands = dev.valnook.data.transaction.RoomFinancialCommands(database, clock)
+        fun id() = java.util.UUID.randomUUID().toString()
+        val account = commands.execute(dev.valnook.domain.repository.SaveAccount(id(), null, null, "Synthetic bank", "", listOf(
+            dev.valnook.domain.repository.CashBalanceChange("CNY", 100_000, null, name = "Main")))).id
+        val cash = RoomOverview(database).snapshot().cash.single { it.account_id == account }.id
+        fun category(key: String) = database.openHelper.readableDatabase.query("SELECT id FROM bill_categories WHERE builtin_key=?", arrayOf(key))
+            .use { it.moveToFirst(); it.getLong(0) }
+        val food = category("food"); val lunch = category("food.lunch")
+        val lunchBill = commands.execute(dev.valnook.domain.repository.SaveBill(id(), null, null, dev.valnook.domain.model.BillDraft(
+            dev.valnook.domain.model.BillType.EXPENSE, clock.millis(), 3_000, "CNY", 0, cash, 3_000, categoryId = food, subCategoryId = lunch,
+            note = "Synthetic lunch"))).id
+        val revision = dev.valnook.data.repository.RoomBills(database).observeBill(lunchBill).first()!!.revision
+        commands.execute(dev.valnook.domain.repository.SettleBill(id(), lunchBill, revision, dev.valnook.domain.model.BillType.REFUND,
+            dev.valnook.domain.model.SettlementDraft(clock.millis() + 1_000, 1_000, cash, 1_000)))
+        val bills = repository.records(WebRecordFilter(kind = WebRecordKind.BILL, pageSize = 50)).items
+        assertEquals(listOf("REFUND", "EXPENSE"), bills.map { it.bill?.type })
+        val expense = bills.single { it.bill?.type == "EXPENSE" }
+        assertEquals("BILL", expense.action)
+        assertEquals("Synthetic lunch", expense.bill?.note)
+        assertEquals(food, expense.bill?.categoryId); assertEquals(lunch, expense.bill?.subCategoryId)
+        assertEquals("Synthetic lunch", bills.single { it.bill?.type == "REFUND" }.bill?.parentNote)
+        // The opening balance is a hand-made adjustment: CASH, with no bill.
+        val manual = repository.records(WebRecordFilter(kind = WebRecordKind.CASH, pageSize = 50)).items
+        assertTrue(manual.isNotEmpty() && manual.all { it.bill == null && it.action != "BILL" })
+        // A note search finds a bill entry by its bill's note.
+        assertTrue(repository.records(WebRecordFilter(query = "synthetic lunch", pageSize = 50)).items.any { it.bill?.type == "EXPENSE" })
     }
 
     private fun seedTrades(count: Int, symbol: String = "AAPL") {

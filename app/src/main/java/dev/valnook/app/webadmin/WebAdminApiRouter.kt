@@ -611,6 +611,10 @@ internal class WebAdminApiRouter(
         put("cashLinked", value.cashLinked); put("linkedCashAccountId", value.linkedCashAccountId)
         put("sourceId", value.sourceId); put("sourceParentId", value.sourceParentId)
         put("note", value.note); put("updatedAtMs", value.updatedAtMs)
+        put("bill", value.bill?.let { b -> buildJsonObject {
+            put("type", b.type); put("note", b.note); put("categoryId", b.categoryId); put("subCategoryId", b.subCategoryId)
+            put("transferKind", b.transferKind); put("counterparty", b.counterparty); put("parentNote", b.parentNote)
+        } } ?: JsonNull)
     }
 
     private fun body(request: WebHttpRequest): JsonObject {

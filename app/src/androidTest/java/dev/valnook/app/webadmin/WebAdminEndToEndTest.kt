@@ -491,7 +491,7 @@ class WebAdminEndToEndTest {
         val csrf = JSONObject(paired.body).getString("csrfToken")
         openWebSocket(endpoint, origin, cookie).use { socket ->
             awaitPhase(WebAdminPhase.ACTIVE)
-            listOf("decimal", "theme-boot", "ui", "layout", "router", "forms", "page-accounts", "page-records", "page-investments", "page-stats").forEach {
+            listOf("decimal", "theme-boot", "ui", "layout", "router", "forms", "page-accounts", "page-bills", "page-records", "page-investments", "page-stats").forEach {
                 assertEquals(200, http(endpoint, "GET", "/$it.js").status)
             }
             val generation = database.audit().generation()
@@ -1060,6 +1060,8 @@ class WebAdminEndToEndTest {
             val trip200 = get("/api/v1/bills/$trip").getJSONObject("bill")
             assertEquals("PARTIAL", trip200.getString("reimburseState")); assertEquals("150.00", trip200.getString("remaining"))
             val stats = get("/api/v1/statistics/bills?month=2025-03")
+            // The month range comes along, so a page opened at the statistics can step back to the first bill.
+            assertEquals("2025-02", stats.getString("firstMonth"))
             val expense = stats.getJSONObject("expense")
             assertEquals("300.00", stats.getJSONObject("totals").getString("expense"))
             assertEquals("9.68", expense.getString("average")) // 300 over the 31 days of a past month

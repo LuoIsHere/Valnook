@@ -59,7 +59,12 @@ object UnavailableWebAdminService : WebAdminService {
     override suspend fun stop() = Unit
 }
 
-enum class WebRecordKind { CASH, DEPOSIT, TRADE }
+/** BILL is the cash a bill moved (its own side, a transfer's receiving side, or a deleted bill's); CASH is all other cash. */
+enum class WebRecordKind { CASH, DEPOSIT, TRADE, BILL }
+
+/** The bill behind a BILL record, to name it as the bills page does; [parentNote] is a refund's or reimbursement's expense. */
+data class WebRecordBill(val type: String, val note: String, val categoryId: Long?, val subCategoryId: Long?,
+    val transferKind: String?, val counterparty: String, val parentNote: String?)
 
 data class WebRecord(
     val kind: WebRecordKind,
@@ -82,7 +87,8 @@ data class WebRecord(
     val sourceId: Long?,
     val sourceParentId: Long?,
     val note: String,
-    val updatedAtMs: Long
+    val updatedAtMs: Long,
+    val bill: WebRecordBill? = null
 )
 
 data class WebRecordCursor(val businessAtMs: Long, val stableKey: String)

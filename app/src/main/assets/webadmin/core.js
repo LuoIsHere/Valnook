@@ -14,7 +14,8 @@ const state = {
   recordsCursor: null, recordsHistory: [], locale: navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en", generation: null,
   // The pages: filters and open sections kept while the session lasts.
   accountQuery: "", accountTab: "subs", collapsedGroups: new Map(), invCollapsed: new Set(), closedOpen: new Set(), insType: "",
-  rec: { type: "", account: "", period: "", from: "", to: "", q: "" }, recordItems: [], range: "6m", motion: null, lastSync: 0
+  rec: { type: "", account: "", period: "", from: "", to: "", q: "" }, recordItems: [], range: "6m", motion: null, lastSync: 0,
+  bills: { month: "", type: "", cat: "", sub: "", counted: "", q: "", scope: "month", shown: 80, day: "" }, billCategories: [], statsMonth: "", statsOpen: new Set()
 };
 const copy = {
   "zh-CN": {
@@ -381,6 +382,42 @@ const v2 = {
   saveFailedShort: ["保存失败", "Save failed"], unknownResult: ["正在确认保存结果，请勿重复新建。点保存可继续确认。", "Checking whether it was saved. Do not create it again; choose Save to check again."],
 };
 Object.entries(v2).forEach(([key, [zh, en]]) => { copy["zh-CN"][key] = zh; copy.en[key] = en; });
+// Copy for the bills pages and income/expense statistics (v0.0.19). Bill words follow the app's bill screens.
+const v3 = {
+  bills: ["账单", "Bills"], expenseStats: ["支出统计", "Expense statistics"], incomeStats: ["收入统计", "Income statistics"],
+  previousMonth: ["上个月", "Previous month"], nextMonth: ["下个月", "Next month"], chooseMonth: ["{month}，选择月份", "{month}, choose a month"], month: ["月份", "Month"],
+  sameAsLastMonth: ["和上月持平", "Same as last month"], moreThanLastMonth: ["比上月多 {amount}", "{amount} more than last month"], lessThanLastMonth: ["比上月少 {amount}", "{amount} less than last month"],
+  expense: ["支出", "Expense"], income: ["收入", "Income"], transfer: ["转账", "Transfer"], refund: ["退款", "Refund"], reimbursement: ["报销回款", "Reimbursement"],
+  notCounted: ["不计入", "Not counted"], refundedShort: ["已退", "Refunded"], reimbursedShort: ["已报", "Paid back"], pendingShort: ["待回款", "To be paid back"],
+  waived: ["已放弃回款", "Given up"], notYetPosted: ["未入账", "Not yet posted"], deletedAccount: ["已删除的账户", "Deleted account"], noAccount: ["不记账户", "No account"],
+  externalAccount: ["外部账户", "External account"], billCount: ["{n} 笔", "{n} bills"], viewOnly: ["仅可查看", "View only"], balanceShort: ["结余", "Balance"],
+  savedByDiscounts: ["优惠共省", "Saved by discounts"], pendingReimbursement: ["待回款", "To be paid back"], pendingCount: ["{n} 笔 · 全部月份", "{n} bills · all months"],
+  nonePending: ["没有待回款", "Nothing to be paid back"], ratesMissingLeftOut: ["没有汇率的币种未计入合计。", "Currencies without a rate are left out of the totals."],
+  allCategories: ["全部分类", "All categories"], filterCategory: ["按分类筛选", "Filter by category"], countedAll: ["计入收支：全部", "Counted: all"],
+  countedYes: ["计入收支", "Counted"], countedNo: ["不计入收支", "Not counted"], filterCounted: ["按是否计入收支筛选", "Filter by counted"],
+  thisMonthShort: ["当月", "This month"], allMonths: ["全部月份", "All months"], searchScope: ["搜索范围", "Search in"], searchNotes: ["搜索备注", "Search notes"],
+  noNoteMatch: ["没有找到备注相符的账单", "No bill notes match"], noBillMatch: ["没有符合条件的账单", "No bills match the filters"], noBillsThisMonth: ["这个月还没有账单", "No bills this month"],
+  foundCount: ["找到 {n} 笔", "{n} found"], foundAllMonths: ["在全部月份找到 {n} 笔", "{n} found in all months"], loadMoreLeft: ["加载更多（还有 {n} 笔）", "Load more ({n} left)"],
+  imageCount: ["{n} 张图片", "{n} images"], discountShort: ["优惠", "Discount"], transferOut: ["转出", "From"], transferIn: ["转入", "To"], notFilled: ["未填写", "Not given"],
+  amountOut: ["转出金额", "Amount sent"], amountIn: ["转入金额", "Amount received"], receivedIn: ["到账账户", "Received in"], category: ["分类", "Category"],
+  originalAmount: ["原金额", "Original amount"], discount: ["优惠", "Discount"], paid: ["实付", "Paid"], rateAuto: ["自动汇率", "Automatic rate"], rateManual: ["手动汇率", "Manual rate"],
+  rateOneTime: ["仅本次使用", "This time only"], rateDerived: ["按实际金额反推", "From the amount moved"], accountAmount: ["账户实际金额", "Amount in the account"],
+  countedInStats: ["计入收支", "Counted"], countedWaived: ["计入（已放弃回款）", "Counted (given up)"], countedYesShort: ["计入", "Counted"], countedNoShort: ["不计入", "Not counted"],
+  reimbursementLabel: ["报销", "Reimbursement"], leftToReceive: ["还剩", "Left"], payer: ["回款方", "Paid back by"], images: ["图片", "Images"],
+  imagesOnPhone: ["{n} 张 · 在手机上查看", "{n} · view them on the phone"], refundsAndReimbursements: ["退款和报销回款", "Refunds and reimbursements"],
+  netAmount: ["净额", "Net"], allReturned: ["已全部退回", "All returned"], originalBill: ["原账单", "Original bill"], viewCategoryStats: ["查看分类统计", "Category statistics"],
+  viewBill: ["查看账单", "Open bill"], betweenAccounts: ["账户之间", "Between accounts"], netWorthTab: ["净资产", "Net worth"],
+  expenseTotal: ["支出合计", "Total expense"], incomeTotal: ["收入合计", "Total income"], dailyAverage: ["日均", "Daily average"],
+  dailyExpense: ["每日支出", "Daily expense"], dailyIncome: ["每日收入", "Daily income"],
+  dailyExpenseAria: ["每日支出，用左右方向键查看每天的数值，回车查看当天账单", "Daily expense; arrow keys read each day, Enter opens its bills"],
+  dailyIncomeAria: ["每日收入，用左右方向键查看每天的数值，回车查看当天账单", "Daily income; arrow keys read each day, Enter opens its bills"],
+  notYet: ["还没到", "Not yet"], dayBillsOpen: ["{n} 笔 · 点击查看", "{n} bills · click to open"], noBillsDay: ["没有账单", "No bills"],
+  notSplit: ["未细分", "Not split"], categories: ["分类", "Categories"], categoryCountHint: ["{n} 类 · 点开查看子分类", "{n} · open one for its subcategories"],
+  categoryShares: ["分类占比", "Category shares"], noExpenseThisMonth: ["这个月没有支出", "No expense this month"], noIncomeThisMonth: ["这个月没有收入", "No income this month"],
+  reimburse_PENDING: ["待回款", "To be paid back"], reimburse_PARTIAL: ["部分回款", "Partly paid back"], reimburse_DONE: ["已回款", "Paid back"],
+  reimburse_WAIVED: ["已放弃", "Given up"], reimburse_NONE: ["—", "—"],
+};
+Object.entries(v3).forEach(([key, [zh, en]]) => { copy["zh-CN"][key] = zh; copy.en[key] = en; });
 // The built-in class is stored under its Chinese name; other classes read as the user named them.
 const DEFAULT_TYPE_NAME = "未分类";
 function typeLabel(name, isDefault = false) { return isDefault || name === DEFAULT_TYPE_NAME ? t("uncategorized") : name; }

@@ -5,13 +5,16 @@ import { pageHead, detailPanel, split, emptyState, rowKeys, kv } from "./layout.
 import { submit, write } from "./forms.js";
 import { openTrade } from "./page-investments.js";
 import { depositDialog } from "./page-accounts.js";
+import { billTitle, billIcon, catIcon } from "./page-bills.js";
 
 const PAGE = 50;
 const keyOf = r => `${r.kind}-${r.id}`;
 const label = a => ({ BUY: t("buy"), SELL: t("sell"), CASH_SET: t("cashChange"), TERM_OPEN: t("depositOpen"), TERM_CLOSE: t("depositClose"),
   OPEN: t("depositOpen"), CLOSE: t("depositClose"), TRADE: t("trade"), TRADE_REMOVED: t("deletedInstrumentTrade"), DIVIDEND: t("dividend"),
   DIVIDEND_REMOVED: t("deletedInstrumentDividend"), BILL: t("bill"), BILL_TRANSFER_IN: t("billTransferIn"), BILL_REMOVED: t("deletedBill") })[a] || a;
-const isBill = r => r.kind === "CASH" && ["BILL", "BILL_TRANSFER_IN", "BILL_REMOVED"].includes(r.action);
+const isBill = r => r.kind === "BILL";
+/** A bill's entry is named and drawn as its bill is on the bills page. */
+const billOf = r => (r.bill ? { ...r.bill, parentNote: r.bill.parentNote, transferKind: r.bill.transferKind } : null);
 function iconOf(r) {
   if (isBill(r)) return ["bills", ""];
   if (r.kind === "DEPOSIT" || ["TERM_OPEN", "TERM_CLOSE"].includes(r.action)) return ["deposit", "dep"];
@@ -24,7 +27,7 @@ function titleOf(r) {
   if (r.kind === "CASH" && r.action === "CASH_SET") return r.note || t("cashChange");
   if (r.kind === "DEPOSIT") return `${label(r.action)} · ${r.currencyCode}`;
   if (r.kind === "TRADE") return `${label(r.action)} ${r.objectName}`;
-  if (isBill(r)) return r.note || label(r.action);
+  if (isBill(r)) return r.bill ? billTitle(billOf(r)) : r.note || label(r.action);
   return r.objectName && r.objectName !== r.childName ? `${label(r.action)} · ${r.objectName}` : label(r.action);
 }
 /** What moved: cash as recorded; a buy or a deposit opening takes money out, a sale, dividend or settlement brings it in. */
@@ -104,7 +107,7 @@ function filterBar() {
   const clear = btn(t("clearFilters"), () => set({ type: "", account: "", period: "", from: "", to: "", q: "" }), "ghost sm", "filter_x");
   clear.hidden = !active();
   return el("div", { class: "filters", role: "search" },
-    typeChip("", t("all")), typeChip("CASH", t("cashEntriesChip")), typeChip("DEPOSIT", t("deposits")), typeChip("TRADE", t("trades")),
+    typeChip("", t("all")), typeChip("BILL", t("bills")), typeChip("CASH", t("cashEntriesChip")), typeChip("DEPOSIT", t("deposits")), typeChip("TRADE", t("trades")),
     el("span", { class: "gap6" }),
     el("label", { class: "chip field-chip" }, sym("accounts", "sm"), acc),
     el("label", { class: "chip field-chip" }, sym("calendar", "sm"), period),
@@ -134,10 +137,11 @@ function recordList(selected) {
 }
 function recordRow(r, selected) {
   const [ic, cls] = iconOf(r), amount = signedAmount(r), key = keyOf(r);
+  const b = billOf(r), icon = b ? billIcon(b) : null;
   return rowKeys(el("div", { class: "row cols-records", role: "option", "data-key": key, "aria-selected": String(key === selected) },
-    el("span", { class: `kind-icon ${cls}` }, sym(ic, "sm")),
+    icon ? catIcon(icon.icon, icon.color) : el("span", { class: `kind-icon ${cls}` }, sym(ic, "sm")),
     el("div", { class: "min0" },
-      el("div", { class: "rec-title" }, el("strong", { text: titleOf(r) }), r.action === "DIVIDEND" || isBill(r) ? el("span", { class: "tag", text: t("phoneOnly") }) : null),
+      el("div", { class: "rec-title" }, el("strong", { text: titleOf(r) }), r.action === "DIVIDEND" ? el("span", { class: "tag", text: t("phoneOnly") }) : null),
       el("div", { class: "rec-sub", text: [r.accountName, r.kind === "TRADE" ? null : r.childName, when(r.businessAtMs, "time")].filter(Boolean).join(" · ") })),
     el("div", { class: "rec-amt" }, el("strong", {}, money(amount, r.currencyCode, { sign: true, tone: true })),
       r.quantity && r.action !== "DIVIDEND" ? el("div", { class: "sub num", text: `${qtyText(r.quantity)} × ${fmt(r.unitPrice, r.currencyCode, { digits: 8, min: 2 })}` }) : null)),
@@ -170,10 +174,12 @@ function recordDetail(r) {
       if (dep) depositDialog(detail, dep);
     }, "primary", "deposit"));
   } else if (isBill(r)) {
+    if (r.action !== "BILL_REMOVED" && r.sourceId) actions.push(btn(t("viewBill"), () => go(`bills/${r.sourceId}`), "primary", "bills"));
     if (r.action !== "BILL_REMOVED") notes.push(t("billOnPhone"));
   }
-  return detailPanel({ back: "records", avatar: el("span", { class: `kind-icon lg ${cls}` }, sym(ic)),
-    title: titleOf(r), sub: { CASH: isBill(r) ? t("billEntry") : t("cashEntry"), TRADE: t("tradeRecord"), DEPOSIT: t("depositRecord") }[r.kind],
+  const bi = r.bill ? billIcon(billOf(r)) : null;
+  return detailPanel({ back: "records", avatar: bi ? catIcon(bi.icon, bi.color, "lg") : el("span", { class: `kind-icon lg ${cls}` }, sym(ic)),
+    title: titleOf(r), sub: { BILL: t("billEntry"), CASH: t("cashEntry"), TRADE: t("tradeRecord"), DEPOSIT: t("depositRecord") }[r.kind],
     total: el("div", {}, el("div", { class: "big" }, money(signedAmount(r), r.currencyCode, { sign: true, tone: true }))),
     body: el("div", {}, kv(rows), actions.length ? el("div", { class: "actions-row" }, actions) : null,
       notes.map(n => el("p", { class: "phone-note" }, sym("phone", "sm"), n))) });
