@@ -276,4 +276,30 @@
     <string name="ai_guide_replace_cancel">Cancel</string>
     <string name="ai_guide_filled_key">Example values entered. Enter your API key, then tap \"Save and check\".</string>
     <string name="ai_guide_filled">Example values entered. If the saved key is not for this service, enter a new API key here, then tap \"Save and check\".</string>
+    <string name="ai_feature_query">Ask about bills</string>
+    <string name="ai_feature_query_summary">The AI can look up your bills to answer questions. The amounts, categories and notes it finds are sent to the model</string>
+    <string name="ai_chat_example_query">How much did food cost this month</string>
+    <string name="ai_chat_querying">Looking up: %1$s</string>
+    <plurals name="ai_query_process"><item quantity="one">Lookup · %1$d</item><item quantity="other">Lookups · %1$d</item></plurals>
+    <plurals name="ai_query_rows"><item quantity="one">%1$d row</item><item quantity="other">%1$d rows</item></plurals>
+    <plurals name="ai_query_bill_rows"><item quantity="one">%1$d bill</item><item quantity="other">%1$d bills</item></plurals>
+    <string name="ai_query_refused">Not run; the AI was asked to correct it</string>
+    <string name="ai_query_unreadable">Unusable arguments</string>
+    <string name="ai_query_expense">expense</string>
+    <string name="ai_query_income">income</string>
+    <string name="ai_query_bills">%1$s bills</string>
+    <string name="ai_query_all_bills">all</string>
+    <string name="ai_query_by_category">by category</string>
+    <string name="ai_query_by_sub_category">by sub-category</string>
+    <string name="ai_query_by_month">by month</string>
+    <string name="ai_query_by_month_category">by month and category</string>
+    <string name="ai_query_by_day">by day</string>
+    <string name="ai_query_by_account">by account</string>
+    <string name="ai_query_by_amount">largest first</string>
+    <string name="ai_query_keyword">note has \"%1$s\"</string>
+    <string name="ai_query_shortened">cut to 13 months</string>
+    <string name="ai_chat_open_stats">View in statistics</string>
+    <string name="ai_chat_turn_on_query">Turn on</string>
+    <string name="ai_chat_input_hint_query">Describe a bill, send a screenshot, or ask about your bills</string>
+    <string name="ai_chat_input_hint_query_only">Ask about your bills</string>
 </resources>

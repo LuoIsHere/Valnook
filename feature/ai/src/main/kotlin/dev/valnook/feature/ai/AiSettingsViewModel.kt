@@ -129,6 +129,11 @@ class AiSettingsViewModel(private val service: AiService, val avatars: AiAvatars
         viewModelScope.launch { runCatching { service.saveKeepImages(keep) } }
     }
 
+    /** Whether conversations may look up bills; what is found is sent to the model, as the switch says. */
+    fun setQuery(query: Boolean) {
+        viewModelScope.launch { runCatching { service.saveQuery(query) } }
+    }
+
     fun clearConversations() {
         val chat = assistant ?: return
         viewModelScope.launch { runCatching { chat.clearConversations() } }

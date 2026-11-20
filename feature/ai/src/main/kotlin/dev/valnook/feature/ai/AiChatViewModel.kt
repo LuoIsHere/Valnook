@@ -58,6 +58,8 @@ data class AiChatUi(
     val goneBills: Set<Long> = emptySet(),
     /** Pictures of waiting cards no longer on this device: let go when the card was saved without them. */
     val lostPictures: Set<String> = emptySet(),
+    /** The bill query the reply on its way waits on. */
+    val querying: AiQueryCall? = null,
 ) {
     /** The pending copy shows until the stored message with its key is in the list. */
     val pendingShown: Boolean get() = pending != null &&
@@ -105,15 +107,17 @@ class AiChatViewModel(
         c.associateBy { it.id } to a.associateBy { it.cashAccountId }
     }
 
+    private data class Page(val id: Long?, val local: Local, val messages: List<AiChatMessage>, val querying: AiQueryProgress?)
+
     val state: StateFlow<AiChatUi> = combine(
-        combine(conversation, local, messages) { id, l, m -> Triple(id, l, m) },
+        combine(conversation, local, messages, assistant.observeQuerying()) { id, l, m, q -> Page(id, l, m, q) },
         service.observeFeatures(), service.observeSettings(), choices, assistant.observeConversations(),
-    ) { (id, l, m), features, settings, (categories, accounts), conversations ->
+    ) { (id, l, m, q), features, settings, (categories, accounts), conversations ->
         AiChatUi(l.loaded, id, conversations.firstOrNull { it.id == id }?.title, m, l.sending, l.input, l.pictures,
             l.picturesWorking, l.pictureFailed, features, settings.connection.host, categories, accounts, conversations,
             l.busyCards, l.cardError, l.cardFailed, settings.userNickname, settings.aiNickname, l.money, l.sending && l.stored,
             l.pending, l.keys, features.thinkingAvailable, features.thinkingAvailable && (l.thinking ?: features.thinking),
-            l.goneBills, l.lostPictures)
+            l.goneBills, l.lostPictures, q?.takeIf { l.sending && it.conversationId == id }?.call)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, AiChatUi())
 
     init {

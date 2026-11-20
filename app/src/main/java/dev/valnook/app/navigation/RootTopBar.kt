@@ -27,6 +27,7 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     WalletKey, HiddenWalletKey -> walletTitle ?: stringResource(R.string.nav_wallet)
     BillsKey, HiddenBillsKey, is BillsDayKey -> stringResource(R.string.nav_bills)
     is BillStatsCategoryKey -> stringResource(R.string.title_bill_stats_category)
+    is BillStatsMonthKey -> stringResource(if (current.expense) R.string.title_bill_stats_expense else R.string.title_bill_stats_income)
     is BillEditorKey -> stringResource(if (current.billId != null) R.string.title_edit_bill else R.string.title_new_bill)
     is BillDetailKey -> stringResource(R.string.title_bill_detail)
     is BillSettleKey -> stringResource(if (current.type == "REFUND") R.string.title_bill_refund else R.string.title_bill_reimbursement)

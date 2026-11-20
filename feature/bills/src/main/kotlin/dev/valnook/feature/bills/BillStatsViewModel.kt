@@ -44,8 +44,10 @@ class BillStatsViewModel(
     fx: Flow<FxContext>,
     private val clock: Clock,
     private val saved: SavedStateHandle,
+    /** The month shown first; this month when null. */
+    initialMonth: YearMonth? = null,
 ) : ViewModel() {
-    private val month = MutableStateFlow(saved.get<String>("stats-month")?.let(YearMonth::parse) ?: YearMonth.now(clock))
+    private val month = MutableStateFlow(saved.get<String>("stats-month")?.let(YearMonth::parse) ?: initialMonth ?: YearMonth.now(clock))
     private val counter = BillCounter(bills, settings, fx, clock.zone)
 
     private fun counted(month: YearMonth) =

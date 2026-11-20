@@ -60,7 +60,8 @@ data class AiChatToolbarState(val title: String?, val onNew: () -> Unit, val onH
 @Composable
 fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: String) -> Unit, onOpenBill: ((Long) -> Unit)?,
     onManual: (prefill: String) -> Unit, onToolbar: (AiChatToolbarState?) -> Unit = {}, onRates: (() -> Unit)? = null,
-    onEditBill: ((billId: Long) -> Unit)? = null) {
+    onEditBill: ((billId: Long) -> Unit)? = null, onOpenStats: ((AiStatsTarget) -> Unit)? = null,
+    onOpenSettings: (() -> Unit)? = null) {
     val ui by vm.state.collectAsStateWithLifecycle()
     var history by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) { vm.refresh(); onPauseOrDispose { } }
@@ -104,7 +105,8 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
                 Arrive(animate, fromRight = message.kind == AiMessageKind.USER) {
                     when (message.kind) {
                         AiMessageKind.USER -> UserMessage(message, ui, avatars.user)
-                        AiMessageKind.ASSISTANT -> AssistantMessage(message, ui, avatars.ai, actions, vm, onOpenBill, onManual)
+                        AiMessageKind.ASSISTANT -> AssistantMessage(message, ui, avatars.ai, actions, vm, onOpenBill, onManual,
+                            onOpenStats, onOpenSettings)
                         AiMessageKind.ERROR -> ErrorMessage(message, ui, avatars.ai, vm, onManual)
                     }
                 }
@@ -115,12 +117,15 @@ fun AiChatScreen(vm: AiChatViewModel, onEdit: (prefill: String, operation: Strin
             // The reply on its way, as the AI's own bubble: only once the user's message is in, and a beat after it.
             if (ui.typing || (ui.pendingShown && ui.replyPending)) item(key = "typing") {
                 Arrive(true, fromRight = false, delayMs = 180) {
-                    Speaker(ui.aiNickname.ifBlank { "AI" }, avatars.ai, right = false) { Typing() }
+                    Speaker(ui.aiNickname.ifBlank { "AI" }, avatars.ai, right = false) {
+                        Typing()
+                        ui.querying?.let { AiQueryingLine(it, ui.categories, ui.accounts) }
+                    }
                 }
             }
         }
         // On an empty page, the examples sit just above the box, on the left.
-        if (ui.messages.isEmpty() && !ui.sending) Examples(vm)
+        if (ui.messages.isEmpty() && !ui.sending) Examples(vm, bills = ui.features.billChat, queries = ui.features.query)
         if (ui.cardFailed) Text(stringResource(R.string.ai_chat_save_failed), Modifier.fillMaxWidth()
             .padding(horizontal = 16.dp).clickable { vm.dismissCardError() }.testTag("ai-chat-save-failed"),
             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -184,12 +189,14 @@ private fun rememberAvatars(): Avatars {
     }
 }
 
+/** Things to say, for what the chat offers: bookkeeping, questions about bills, or both. */
 @Composable
-private fun Examples(vm: AiChatViewModel) {
+private fun Examples(vm: AiChatViewModel, bills: Boolean, queries: Boolean) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("ai-chat-examples")) {
         Text(stringResource(R.string.ai_chat_examples), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        listOf(R.string.ai_chat_example_1, R.string.ai_chat_example_2, R.string.ai_chat_example_3).forEach { id ->
+        (if (bills) listOf(R.string.ai_chat_example_1, R.string.ai_chat_example_2, R.string.ai_chat_example_3) else emptyList<Int>())
+            .plus(if (queries) listOf(R.string.ai_chat_example_query) else emptyList()).forEach { id ->
             val text = stringResource(id)
             SuggestionChip({ vm.setInput(text) }, { Text(text) })
         }
@@ -251,7 +258,8 @@ private fun UserMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitma
 
 @Composable
 private fun AssistantMessage(message: AiChatMessage, ui: AiChatUi, avatar: ImageBitmap?, actions: AiDraftActions,
-    vm: AiChatViewModel, onOpenBill: ((Long) -> Unit)?, onManual: (String) -> Unit) {
+    vm: AiChatViewModel, onOpenBill: ((Long) -> Unit)?, onManual: (String) -> Unit,
+    onOpenStats: ((AiStatsTarget) -> Unit)?, onOpenSettings: (() -> Unit)?) {
     // The small copies the conversation keeps of what was sent, for pictures not kept on a bill.
     val thumbnails = remember(ui.messages) {
         ui.messages.flatMap { m -> m.images.zip(m.pictures) }.associate { (image, small) -> image.key to small.bytes }
@@ -273,7 +281,18 @@ private fun AssistantMessage(message: AiChatMessage, ui: AiChatUi, avatar: Image
                 if (onOpenBill != null) SecondaryButton(stringResource(R.string.ai_chat_view_bill), { onOpenBill(billId) })
             }
         }
-        if (message.noDrafts) ManualButton(ui, vm, message, onManual)
+        if (message.queries.isNotEmpty()) AiQueryProcess(message.id, message.queries, ui.categories, ui.accounts)
+        val target = remember(message.queries, ui.categories) { aiStatsTarget(message.queries, ui.categories) }
+        if (target != null && onOpenStats != null) SecondaryButton(stringResource(R.string.ai_chat_open_stats),
+            { onOpenStats(target) }, Modifier.testTag("ai-chat-open-stats-${message.id}"))
+        // With questions switched off, a reply that names the switch leads to it.
+        val switchName = stringResource(R.string.ai_feature_query)
+        val leadsToSwitch = !ui.features.query && message.queries.isEmpty() && onOpenSettings != null &&
+            message.text.contains(switchName, ignoreCase = true)
+        if (leadsToSwitch) SecondaryButton(stringResource(R.string.ai_chat_turn_on_query), { onOpenSettings?.invoke() },
+            Modifier.testTag("ai-chat-turn-on-query-${message.id}"))
+        // A reply that answered a question, or pointed to the switch, has nothing to record by hand.
+        if (message.noDrafts && message.queries.isEmpty() && !leadsToSwitch) ManualButton(ui, vm, message, onManual)
         Usage(message.usage)
     }
 }
@@ -378,7 +397,11 @@ private fun InputBar(ui: AiChatUi, vm: AiChatViewModel) {
                     FaIcon(FaIcons.image, null, Modifier.size(20.dp), MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            ValnookTextField(ui.input, vm::setInput, Modifier.weight(1f), placeholder = stringResource(R.string.ai_chat_input_hint),
+            ValnookTextField(ui.input, vm::setInput, Modifier.weight(1f), placeholder = stringResource(when {
+                !ui.features.query -> R.string.ai_chat_input_hint
+                ui.features.billChat -> R.string.ai_chat_input_hint_query
+                else -> R.string.ai_chat_input_hint_query_only
+            }),
                 maxLines = 5, shape = RoundedCornerShape(24.dp), tag = "ai-chat-input")
             if (ui.sending) SecondaryButton(stringResource(R.string.ai_chat_cancel), vm::cancel, Modifier.testTag("ai-chat-cancel"))
             else PrimaryButton(stringResource(R.string.ai_chat_send), vm::send, Modifier.testTag("ai-chat-send"),

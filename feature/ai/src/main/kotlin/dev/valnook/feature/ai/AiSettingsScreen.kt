@@ -142,6 +142,8 @@ private fun FeaturesCard(ui: AiSettingsUi, vm: AiSettingsViewModel) {
     Section(stringResource(R.string.ai_section_features)) {
         SwitchRow(stringResource(R.string.ai_feature_bill_chat), s.billChat, { on -> vm.setFeatures { it.copy(billChat = on) } }, Modifier.testTag("ai-feature-bill-chat"), summary = stringResource(R.string.ai_feature_bill_chat_summary), enabled = true,
             contentPadding = PaddingValues(vertical = Space.xs))
+        SwitchRow(stringResource(R.string.ai_feature_query), s.query, vm::setQuery, Modifier.testTag("ai-feature-query"),
+            summary = stringResource(R.string.ai_feature_query_summary), contentPadding = PaddingValues(vertical = Space.xs))
         SwitchRow(stringResource(R.string.ai_feature_thinking), s.thinking && ui.thinkingPassed, { on -> vm.setFeatures { it.copy(thinking = on) } }, Modifier.testTag("ai-feature-thinking"), summary = stringResource(if (ui.thinkingPassed)
             R.string.ai_feature_thinking_summary else R.string.ai_feature_thinking_unavailable), enabled = ui.thinkingPassed,
             contentPadding = PaddingValues(vertical = Space.xs))

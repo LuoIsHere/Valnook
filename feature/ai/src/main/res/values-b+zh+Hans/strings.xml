@@ -274,4 +274,30 @@
     <string name="ai_guide_replace_cancel">取消</string>
     <string name="ai_guide_filled_key">已填入示例参数。请填写 API Key，然后点击“保存并检测”。</string>
     <string name="ai_guide_filled">已填入示例参数。已保存的 Key 如不属于该服务，请在此填写新的 API Key，然后点击“保存并检测”。</string>
+    <string name="ai_feature_query">对话查询</string>
+    <string name="ai_feature_query_summary">打开后，AI 可以查询你的账单来回答问题。查询到的金额、分类和备注会发送给模型</string>
+    <string name="ai_chat_example_query">这个月餐饮花了多少</string>
+    <string name="ai_chat_querying">正在查询：%1$s</string>
+    <plurals name="ai_query_process"><item quantity="other">查询过程 · %1$d 次</item></plurals>
+    <plurals name="ai_query_rows"><item quantity="other">%1$d 行</item></plurals>
+    <plurals name="ai_query_bill_rows"><item quantity="other">%1$d 笔</item></plurals>
+    <string name="ai_query_refused">未执行，已让 AI 更正</string>
+    <string name="ai_query_unreadable">参数无法使用</string>
+    <string name="ai_query_expense">支出</string>
+    <string name="ai_query_income">收入</string>
+    <string name="ai_query_bills">%1$s账单</string>
+    <string name="ai_query_all_bills">收支</string>
+    <string name="ai_query_by_category">按分类</string>
+    <string name="ai_query_by_sub_category">按子分类</string>
+    <string name="ai_query_by_month">按月</string>
+    <string name="ai_query_by_month_category">按月和分类</string>
+    <string name="ai_query_by_day">按天</string>
+    <string name="ai_query_by_account">按账户</string>
+    <string name="ai_query_by_amount">按金额</string>
+    <string name="ai_query_keyword">备注含“%1$s”</string>
+    <string name="ai_query_shortened">已截为 13 个月</string>
+    <string name="ai_chat_open_stats">在统计页查看</string>
+    <string name="ai_chat_turn_on_query">去打开</string>
+    <string name="ai_chat_input_hint_query">描述一笔账、发送截图，或问问账单</string>
+    <string name="ai_chat_input_hint_query_only">问问你的账单</string>
 </resources>

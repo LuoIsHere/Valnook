@@ -58,4 +58,6 @@
     <string name="shortcut_ai_chat">AI bookkeeping</string>
     <string name="shortcut_ai_chat_long">Record with AI</string>
     <string name="title_bill_stats_category">Category details</string>
+    <string name="title_bill_stats_expense">Expense statistics</string>
+    <string name="title_bill_stats_income">Income statistics</string>
 </resources>

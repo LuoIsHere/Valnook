@@ -535,6 +535,15 @@ private fun SessionRoot(
                                         java.time.YearMonth.parse(route.month))
                                 }, onOpen = { open(BillDetailKey(it)) })
                             }
+                            entry<BillStatsMonthKey> { route ->
+                                dev.valnook.feature.bills.BillStatsPage(pageViewModel {
+                                    dev.valnook.feature.bills.BillStatsViewModel(requireNotNull(graph.bills),
+                                        graph.settings.observeSettings(), graph.overview.observeFxContext(), graph.clock,
+                                        createSavedStateHandle(), java.time.YearMonth.parse(route.month))
+                                }, route.expense,
+                                    onCategory = { id, month -> open(BillStatsCategoryKey(id, route.expense, month.toString())) },
+                                    onDay = { open(BillsDayKey(it.toString())) })
+                            }
                             entry<BillEditorKey> { route ->
                                 dev.valnook.feature.bills.BillEditorScreen(pageViewModel {
                                     dev.valnook.feature.bills.BillEditorViewModel(route.billId, route.copyFromId,
@@ -686,7 +695,15 @@ private fun SessionRoot(
                                 }, onEdit = { prefill, operation -> open(BillEditorKey(prefill = prefill, operation = operation)) },
                                     onOpenBill = { open(BillDetailKey(it)) },
                                     onManual = { prefill -> open(BillEditorKey(prefill = prefill)) }, onToolbar = toolbars.onAiChat,
-                                    onRates = { open(FxSettingsKey) }, onEditBill = { open(BillEditorKey(billId = it)) })
+                                    onRates = { open(FxSettingsKey) }, onEditBill = { open(BillEditorKey(billId = it)) },
+                                    onOpenStats = { target ->
+                                        open(when (target) {
+                                            is dev.valnook.feature.ai.AiStatsTarget.Category ->
+                                                BillStatsCategoryKey(target.categoryId, target.expense, target.month.toString())
+                                            is dev.valnook.feature.ai.AiStatsTarget.Day -> BillsDayKey(target.date.toString())
+                                            is dev.valnook.feature.ai.AiStatsTarget.Month -> BillStatsMonthKey(target.expense, target.month.toString())
+                                        })
+                                    }, onOpenSettings = { open(AiSettingsKey) })
                             }
                             entry<AiPromptKey> {
                                 graph.ai?.let { dev.valnook.feature.ai.AiPromptScreen(it) }
