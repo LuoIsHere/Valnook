@@ -74,6 +74,37 @@ data class AiDraftCard(
     val keepImages: Boolean,
 )
 
+/** How a summary query groups the bills it counts. */
+enum class AiQueryGroup { NONE, CATEGORY, SUB_CATEGORY, MONTH, MONTH_CATEGORY, DAY, ACCOUNT }
+
+enum class AiQuerySort { TIME_DESC, AMOUNT_DESC }
+
+/**
+ * A bill query the model asked for, checked: a summary ([summary]) or a list of bills, of the counted bills dated
+ * [from] to [to] inclusive. [type] is required for a summary; a null one lists expenses and income both.
+ * [categoryId] matches a category or one of its sub-categories. [shortened]: the range asked for was longer than
+ * [AiRules.QUERY_MONTHS] and was cut to its last months.
+ */
+data class AiQueryCall(
+    val summary: Boolean,
+    val type: BillType?,
+    val from: java.time.LocalDate,
+    val to: java.time.LocalDate,
+    val group: AiQueryGroup = AiQueryGroup.NONE,
+    val categoryId: Long? = null,
+    val accountId: Long? = null,
+    val keyword: String = "",
+    val sort: AiQuerySort = AiQuerySort.TIME_DESC,
+    val limit: Int = AiRules.QUERY_BILL_ROWS,
+    val shortened: Boolean = false,
+)
+
+/**
+ * One query of an answer, in [step] (from 1): [call] as run, or null when its arguments could not be used; [rows]
+ * what came back; [error] when nothing was run and the model was told why.
+ */
+data class AiQueryRecord(val step: Int, val call: AiQueryCall?, val rows: Int, val error: Boolean)
+
 /** Tokens of one round: everything from a message sent to the reply shown. Null parts the service did not report. */
 data class AiTurnUsage(val input: Long?, val output: Long?, val total: Long?, val cached: Long?, val calls: Int) {
     val known: Boolean get() = total != null || input != null || output != null

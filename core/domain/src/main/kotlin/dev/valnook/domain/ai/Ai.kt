@@ -43,6 +43,15 @@ object AiRules {
     const val TITLE_LENGTH = 16
     /** How far from now a bill's time may be before now is used instead. */
     const val MAX_TIME_DAYS = 366L
+    /** Rounds of bill queries in one answer; then the model is asked to answer without more. */
+    const val QUERY_STEPS = 3
+    /** Queries run from one reply; more are answered with an error. */
+    const val QUERY_CALLS = 4
+    /** The longest range one query covers; a longer one is cut to its last months. */
+    const val QUERY_MONTHS = 13L
+    const val QUERY_SUMMARY_ROWS = 60
+    const val QUERY_BILL_ROWS = 20
+    const val QUERY_KEYWORD_MAX = 50
 }
 
 /**
