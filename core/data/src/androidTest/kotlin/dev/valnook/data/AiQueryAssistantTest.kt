@@ -170,7 +170,7 @@ class AiQueryAssistantTest {
     }
 
     @Test fun a_bill_and_a_question_together_give_a_draft_and_an_answer() = runBlocking {
-        replies += calls(call("b1", "create_bill_drafts", """{"bills":[{"type":"EXPENSE","amount":"30","note":"Synthetic coffee"}]}"""),
+        replies += calls(call("b1", "create_bill_drafts", """{"message":"Draft made, please confirm.","bills":[{"type":"EXPENSE","amount":"30","note":"Synthetic coffee"}]}"""),
             call("q1", "query_summary", """{$november}"""))
         replies += text("Noted the coffee. Before it, this month came to 77.00.")
         val id = assistant.send(null, "Coffee 30. How much this month so far?", emptyList())
@@ -178,6 +178,8 @@ class AiQueryAssistantTest {
         assertTrue(results[0]["content"]!!.jsonPrimitive.content.startsWith("Drafts made"))
         assertTrue(results[1]["content"]!!.jsonPrimitive.content.contains("Total: 77.00 (2 bills)"))
         val answer = messages(id).last()
+        // The answer already speaks of the draft: the draft call's own words are not added again.
+        assertEquals("Noted the coffee. Before it, this month came to 77.00.", answer.text)
         assertEquals(listOf("d1"), answer.drafts.map { it.label })
         assertEquals(3_000L, answer.drafts.single().draft.amountMinor)
         assertEquals(1, answer.queries.size)

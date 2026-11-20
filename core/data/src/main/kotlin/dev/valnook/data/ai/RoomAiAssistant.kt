@@ -166,6 +166,7 @@ class RoomAiAssistant(
         var force = shared
         val steps = mutableListOf<AiQueryStepEntity>()
         val made = mutableListOf<AiDraftCall>()
+        var lastCalls = emptyList<AiDraftCall>()
         try {
             var reply: AiReply
             while (true) {
@@ -185,6 +186,7 @@ class RoomAiAssistant(
                 }
                 reply = next
                 made += calls
+                lastCalls = calls
                 val asked = if (asks && !toolsOff) reply.toolCalls.filter { it.name in AiQueryTools.names } else emptyList()
                 if (asked.isEmpty()) break
                 val step = steps.size + 1
@@ -199,7 +201,9 @@ class RoomAiAssistant(
             }
             // An answer whose last reply says nothing and made no drafts is no answer.
             if (reply.content.isBlank() && made.none { it.drafts.isNotEmpty() || it.message.isNotBlank() }) throw AiException(AiProblem.EMPTY_REPLY)
-            store(conversationId, reply, made, round, images, drafts, source, context.settings.defaultKeepImages, steps)
+            // An answer written after queries says what its earlier drafts were itself; their own words would repeat it.
+            val words = (if (reply.content.isBlank()) made else lastCalls).map { it.message }
+            store(conversationId, reply, made, round, images, drafts, source, context.settings.defaultKeepImages, steps, words)
         } catch (cancelled: CancellationException) {
             withContext(NonCancellable) { storeError(conversationId, null, round, source) }
             throw cancelled
@@ -253,7 +257,7 @@ class RoomAiAssistant(
     /** [keepImages]: whether a new card starts with its pictures kept; one taking over a waiting card's keeps its choice. */
     private suspend fun store(conversationId: Long, reply: AiReply, calls: List<AiDraftCall>, round: Round,
         images: List<BillImage>, before: List<AiDraftEntity>, source: String, keepImages: Boolean,
-        steps: List<AiQueryStepEntity> = emptyList()) {
+        steps: List<AiQueryStepEntity> = emptyList(), words: List<String> = calls.map { it.message }) {
         val now = clock.millis()
         val latest = before.groupBy { it.label }.mapValues { (_, rows) -> rows.maxBy { it.id } }
         val proposed = calls.flatMap { it.drafts }
@@ -263,7 +267,7 @@ class RoomAiAssistant(
         chatDb.withTransaction {
             val confirmed = mutableListOf<Long>()
             val messageId = dao.insertMessage(AiMessageEntity(conversation_id = conversationId, kind = AiMessageKind.ASSISTANT.name,
-                text = AiConversations.replyText(reply.content, calls.map { it.message }),
+                text = AiConversations.replyText(reply.content, words),
                 raw = AiJson.format.encodeToString(JsonObject.serializer(), reply.message),
                 reasoning = reply.reasoning, thinking_ms = round.thinkingMs, input_tokens = round.input, output_tokens = round.output,
                 total_tokens = round.total, cached_tokens = round.cached, calls = round.calls, problem = null,
