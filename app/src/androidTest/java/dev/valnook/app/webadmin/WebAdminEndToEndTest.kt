@@ -491,7 +491,7 @@ class WebAdminEndToEndTest {
         val csrf = JSONObject(paired.body).getString("csrfToken")
         openWebSocket(endpoint, origin, cookie).use { socket ->
             awaitPhase(WebAdminPhase.ACTIVE)
-            listOf("decimal", "price-editor", "investment-groups").forEach {
+            listOf("decimal", "theme-boot", "ui", "layout", "router", "forms", "page-accounts", "page-records", "page-investments", "page-stats").forEach {
                 assertEquals(200, http(endpoint, "GET", "/$it.js").status)
             }
             val generation = database.audit().generation()
@@ -538,7 +538,7 @@ class WebAdminEndToEndTest {
         assertFalse(index.body.contains("https://"))
         assertEquals("DENY", index.headers["x-frame-options"])
         assertEquals("nosniff", index.headers["x-content-type-options"])
-        listOf("core", "session", "pages", "icons", "symbols").forEach {
+        listOf("app", "core", "session", "icons", "symbols", "ui", "theme-boot").forEach {
             val asset = http(endpoint, "GET", "/$it.js")
             assertEquals(200, asset.status)
             assertTrue(asset.headers["content-type"].orEmpty().contains("javascript"))

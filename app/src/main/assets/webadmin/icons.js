@@ -13,8 +13,8 @@ export function symbol(key) {
 const photos = new Map();
 export function clearAvatarCache() { photos.clear(); }
 
-export function avatar(icon) {
-  const result = el("span", { class: "avatar", "aria-hidden": "true" }, symbol(icon?.value));
+export function avatar(icon, size = "") {
+  const result = el("span", { class: `avatar ${size}`, "aria-hidden": "true" }, symbol(icon?.value));
   if (icon?.type === "IMAGE" && /^[a-f0-9]{64}$/.test(icon.value)) {
     const show = blob => {
       const url = URL.createObjectURL(blob), image = el("img", { alt: "", src: url });

@@ -1,46 +1,38 @@
-import { clear, rememberSessionCredentials, clearSessionCredentials, api, $, state, hooks, t } from "./core.js";
-import { preload, navigate, renderNav, scheduleRefresh, closeDrawer } from "./pages.js";
+// The session with the phone: pairing, the WebSocket that keeps it alive, reconnecting, and its end.
+// What the page shows for each of these is up to the shell (app.js), reached through `view`.
+import { rememberSessionCredentials, clearSessionCredentials, api, state, hooks, t } from "./core.js";
 import { clearAvatarCache } from "./icons.js";
-async function pair(kind, value) {
-  const status = $("#pair-status");
-  const button = $("#pair-submit");
-  status.textContent = ""; button.disabled = true;
+
+/** Set by app.js: pairing(status), workspace(), connection(kind), ended(reasonKey), dataChanged(). */
+export const view = {};
+
+export async function pair(kind, value) {
   try {
     const data = await api(`/api/v1/pair/${kind}`, { method: "POST", body: JSON.stringify({ [kind === "qr" ? "token" : "code"]: value }) });
     rememberSessionCredentials(data.sessionToken, data.csrfToken);
     state.allowReconnect = true;
     delete document.body.dataset.ended;
-    history.replaceState(null, "", location.pathname);
     await connect();
+    return null;
   } catch (error) {
-    if (String(error.message).startsWith("WS_")) {
-      $("#pair-form").hidden = true; $("#pair-copy").textContent = t("wsFailed");
-    } else if (kind === "qr") {
-      // The QR token did not work: the code on the phone still can.
-      $("#pair-form").hidden = false; $("#pair-copy").textContent = t("pairCopy");
-    }
-    status.textContent = error.code === "PAIR_CODE_ROTATED" ? t("pairWrong") : error.code === "PAIR_INVALID" ? t("pairInvalid")
-      : `${t("pairFailed")}: ${error.code || error.message || "UNKNOWN"}`;
-  } finally { button.disabled = false; }
+    if (String(error.message).startsWith("WS_")) return { message: t("wsFailed"), retry: false };
+    if (error.code === "PAIR_CODE_ROTATED") return { message: t("pairWrong"), retry: true };
+    if (error.code === "PAIR_INVALID") return { message: t("pairInvalid"), retry: true };
+    return { message: `${t("pairFailed")}: ${error.code || error.message || "UNKNOWN"}`, retry: true };
+  }
 }
 
 async function connect() {
   const deadline = Date.now() + 40000;
   while (true) {
-    try {
-      await openSocket();
-      break;
-    } catch (error) {
+    try { await openSocket(); break; } catch (error) {
       if (!String(error.message).startsWith("WS_") || Date.now() >= deadline) throw error;
       await delay(1000);
     }
   }
-  const session = await api("/api/v1/session");
-  applySession(session);
-  showWorkspace();
+  applySession(await api("/api/v1/session"));
   startHeartbeat();
-  await preload();
-  await navigate("accounts");
+  await view.workspace();
   if (state.socket?.readyState !== WebSocket.OPEN) reconnect();
 }
 
@@ -52,9 +44,7 @@ function openSocket() {
     const socket = new WebSocket(`${protocol}//${location.host}/ws/v1/session?ticket=${encodeURIComponent(ticket)}`);
     const timer = setTimeout(() => { socket.close(); reject(new Error("WS_TIMEOUT")); }, 15000);
     let ready = false;
-    socket.addEventListener("error", () => {
-      if (!ready) { clearTimeout(timer); reject(new Error("WS_FAILED")); }
-    }, { once: true });
+    socket.addEventListener("error", () => { if (!ready) { clearTimeout(timer); reject(new Error("WS_FAILED")); } }, { once: true });
     socket.addEventListener("message", event => {
       let msg; try { msg = JSON.parse(event.data); } catch (_) { return; }
       if (msg.type === "idle" || msg.type === "ready") state.idleDeadline = performance.now() + (msg.idleRemainingMs ?? 300000);
@@ -65,7 +55,7 @@ function openSocket() {
         if (previous && previous !== socket && previous.readyState < WebSocket.CLOSING) previous.close(1000, "replaced");
         socket.send('{"type":"heartbeat"}'); resolve(); return;
       }
-      if (msg.type === "dataChanged") scheduleRefresh();
+      if (msg.type === "dataChanged") view.dataChanged?.();
       if (msg.type === "serverClosing") expireSession(msg.reason);
     });
     socket.addEventListener("close", () => {
@@ -85,22 +75,18 @@ function applySession(session) {
   state.session = session;
   state.locale = session.language === "ENGLISH" ? "en" : "zh-CN";
   document.documentElement.lang = state.locale;
-  applyGainPalette(session.gainLossColors);
+  // Red for gain follows the phone; the stylesheet swaps the colours for both themes.
+  if (session.gainLossColors === "RED_GAIN") document.documentElement.dataset.gain = "red"; else delete document.documentElement.dataset.gain;
 }
 
 function startHeartbeat() {
   if (state.heartbeat) clearInterval(state.heartbeat);
-  state.heartbeat = setInterval(() => {
-    if (state.socket?.readyState === WebSocket.OPEN) state.socket.send('{"type":"heartbeat"}');
-  }, 5000);
+  state.heartbeat = setInterval(() => { if (state.socket?.readyState === WebSocket.OPEN) state.socket.send('{"type":"heartbeat"}'); }, 5000);
 }
 
-function reconnect() {
+export function reconnect() {
   if (state.reconnecting || !state.allowReconnect || document.body.dataset.ended) return state.reconnecting;
-  if (!$("#workspace").hidden) {
-    $("#connected-label").textContent = t("reconnecting");
-    $("#connection-banner").textContent = t("reconnecting"); $("#connection-banner").hidden = false;
-  }
+  if (state.session) view.connection?.("reconnecting");
   const operation = (async () => {
     const deadline = Date.now() + 40000;
     while (Date.now() < deadline && !document.body.dataset.ended) {
@@ -108,9 +94,8 @@ function reconnect() {
         await openSocket();
         applySession(await api("/api/v1/session"));
         startHeartbeat();
-        showWorkspace();
-        await preload();
-        scheduleRefresh();
+        view.connection?.("online");
+        view.dataChanged?.();
         return;
       } catch (error) {
         if (error.code === "SESSION_EXPIRED" || document.body.dataset.ended) return;
@@ -124,89 +109,54 @@ function reconnect() {
   return operation;
 }
 
-function delay(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function resumeExistingSession() {
+/** A reload keeps the session: its token is in this tab's storage, and the phone hands out a new CSRF token. */
+export async function resumeExistingSession() {
+  if (!state.sessionToken) return false;
   try {
     const data = await api("/api/v1/session/resume", { method: "POST", body: "{}" });
     rememberSessionCredentials(state.sessionToken, data.csrfToken);
     state.allowReconnect = true;
     delete document.body.dataset.ended;
-    $("#pair-form").hidden = true;
-    $("#pair-copy").textContent = t("reconnecting");
+    view.pairing?.(t("reconnecting"), { busy: true });
     await connect();
+    return true;
   } catch (error) {
     if (error.code === "SESSION_EXPIRED") clearSessionCredentials();
-    if (!state.session) {
-      $("#pair-form").hidden = false;
-      applyPairingCopy();
-    }
+    return false;
   }
 }
 
-function applyGainPalette(value) {
-  if (value === "RED_GAIN") {
-    document.documentElement.style.setProperty("--gain", "#c43c35");
-    document.documentElement.style.setProperty("--loss", "#16855b");
-  }
+export async function endSession() {
+  try { await api("/api/v1/session/end", { method: "POST", body: "{}" }); } finally { expireSession("BROWSER_ENDED"); }
 }
-function applyPairingCopy() {
-  document.documentElement.lang = state.locale;
-  $("#pair-title").textContent = t("pairTitle");
-  $("#pair-copy").textContent = t("pairCopy");
-  $(".pair-form label").textContent = t("pairCode");
-  $("#pair-submit").textContent = t("connect");
-  $(".security-note").textContent = t("trustedLan");
-}
-function showWorkspace() {
-  $("#connection-banner").hidden = true;
-  Array.from($("#theme-toggle").options).forEach(option => option.textContent = t(option.value));
-  $("#refresh-page").setAttribute("aria-label", t("refresh")); $("#refresh-page").title = t("refresh");
-  $("#pairing").hidden = true; $("#workspace").hidden = false;
-  $("#session-hint").textContent = t("sessionHint");
-  $("#continue-session").textContent = t("continueSession");
-  $("#connected-label").textContent = state.session?.dataMode === "DEMO" ? `${t("connected")} · ${t("demoMode")}` : t("connected");
-  $("#end-session").textContent = t("end");
-  $("#nav").setAttribute("aria-label", t("mainNav")); $("#theme-toggle").setAttribute("aria-label", t("theme"));
-  $("#drawer-close").setAttribute("aria-label", t("close"));
-  renderNav();
-}
-function expireSession(reason) {
+
+export function expireSession(reason) {
   if (document.body.dataset.ended) return;
   document.body.dataset.ended = "true";
   state.allowReconnect = false;
   clearSessionCredentials();
   if (state.heartbeat) clearInterval(state.heartbeat);
-  state.viewEpoch++; closeDrawer(true);
-  state.socket?.close(); state.session = null; state.accounts = []; state.instruments = []; state.positions = []; state.recordFilters = {}; state.recordsApplied = null; state.recordsCursor = null;
-  state.expandedInvestmentAccounts.clear(); clearAvatarCache();
-  clear($("#content")); $("#idle-warning").hidden = true;
-  $("#toast").hidden = true; $("#connection-banner").hidden = true;
-  $("#workspace").hidden = true; $("#pairing").hidden = false;
+  state.viewEpoch++;
+  state.socket?.close(); state.session = null; state.accounts = []; state.instruments = []; state.positions = []; state.assetTypes = [];
+  clearAvatarCache();
   // When the phone ended the session its server stops too; otherwise the code on the phone can pair again.
-  const phoneEnded = ({ IDLE_TIMEOUT: "idleEnded", PHONE_BACKGROUND: "phoneBackground", PHONE_ENDED: "phoneEnded" })[reason];
-  $("#pair-form").hidden = !!phoneEnded; $("#pair-copy").textContent = t(phoneEnded || "sessionLost");
-  $("#pair-status").textContent = "";
+  const key = ({ IDLE_TIMEOUT: "idleEnded", PHONE_BACKGROUND: "phoneBackground", PHONE_ENDED: "phoneEnded", BROWSER_ENDED: "browserEnded" })[reason] || "sessionLost";
+  view.ended?.(key);
 }
 
 let lastActivitySent = -Infinity;
-function sendActivity(force = false) {
+/** Real input only (never animations or timers) tells the phone someone is still here. */
+export function sendActivity(force = false) {
   if (!state.session || document.hidden || state.socket?.readyState !== WebSocket.OPEN) return;
   const now = performance.now();
   if (!force && now - lastActivitySent < 1000) return;
   lastActivitySent = now; state.socket.send('{"type":"activity"}');
 }
-function installActivityTracking() {
+export function installActivityTracking() {
   ["pointerdown", "keydown", "input", "wheel", "touchmove"].forEach(name => document.addEventListener(name, event => {
     if (event.isTrusted) sendActivity();
   }, { passive: true, capture: true }));
-  $("#continue-session").addEventListener("click", () => sendActivity(true));
-  setInterval(() => {
-    const remaining = Math.max(0, state.idleDeadline - performance.now());
-    const show = !!state.session && remaining <= 30000 && state.socket?.readyState === WebSocket.OPEN;
-    $("#idle-warning").hidden = !show;
-    if (show) $("#idle-message").textContent = `${t("idleWarning")} · ${Math.ceil(remaining / 1000)}s`;
-  }, 500);
 }
 hooks.expire = expireSession;
-export { pair, reconnect, resumeExistingSession, applyPairingCopy, expireSession, installActivityTracking };

@@ -434,8 +434,9 @@ class AppWebAdminCoordinator @Inject constructor(
     private companion object {
         const val WEB_SOCKET_RECONNECT_GRACE_MS = 45_000L
         val CODE_PATTERN = Regex("[0-9]{6}")
-        val STATIC_PATHS = setOf("/app.js", "/styles.css", "/core.js", "/pages.js", "/session.js", "/icons.js", "/photo-validation.js", "/symbols.js", "/valnook.svg",
-            "/decimal.js", "/price-editor.js", "/investment-groups.js")
+        val STATIC_PATHS = setOf("/app.js", "/styles.css", "/core.js", "/session.js", "/icons.js", "/photo-validation.js", "/symbols.js", "/valnook.svg",
+            "/decimal.js", "/theme-boot.js", "/ui.js", "/layout.js", "/router.js", "/forms.js",
+            "/page-accounts.js", "/page-records.js", "/page-investments.js", "/page-stats.js")
         val SECURITY_HEADERS = mapOf(
             "X-Frame-Options" to "DENY"
         )

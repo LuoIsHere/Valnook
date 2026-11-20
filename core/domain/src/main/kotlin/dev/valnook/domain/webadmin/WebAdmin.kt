@@ -10,7 +10,7 @@ import dev.valnook.domain.model.OperationResult
 import kotlinx.coroutines.flow.StateFlow
 
 const val WEB_API_VERSION = 1
-const val WEB_ASSET_VERSION = 2
+const val WEB_ASSET_VERSION = 3
 const val WEB_DEFAULT_PORT = 8765
 
 enum class WebAdminPhase { CLOSED, WAITING, ACTIVE }

@@ -36,9 +36,14 @@ class FaIconsUiTest {
     @Test fun the_web_picker_lists_exactly_the_account_keys() {
         val script = rule.activity.assets.open("webadmin/symbols.js").bufferedReader().use { it.readText() }
         fun keys(name: String) = Regex("""export const $name = (\{.*?\});\n""").find(script)!!.groupValues[1]
-            .let { Regex(""""(\w+)": \{"viewBox"""").findAll(it).map { match -> match.groupValues[1] }.toSet() }
+            .let { Regex(""""([\w-]+)": \{"viewBox"""").findAll(it).map { match -> match.groupValues[1] }.toSet() }
         assertEquals(AccountSymbols.keys, keys("symbols"))
-        assertEquals(setOf("ui_refresh", "ui_close", "ui_up", "ui_down", "ui_delete"), keys("uiSymbols"))
+        assertEquals(setOf("ui_refresh", "ui_close", "ui_up", "ui_down", "ui_delete", "ui_search", "ui_eye", "ui_eye_slash", "ui_moon",
+            "ui_plus", "ui_pen", "ui_check", "ui_chevron_left", "ui_chevron_right", "ui_chevron_down", "ui_layers", "ui_bills", "ui_records",
+            "ui_investments", "ui_statistics", "ui_accounts", "ui_deposit", "ui_trade", "ui_dividend", "ui_phone", "ui_paperclip", "ui_repeat",
+            "ui_globe", "ui_more", "ui_image"), keys("uiSymbols"))
+        // The web shows each bill category with the app's own icon.
+        assertEquals(dev.valnook.designsystem.BillIcons.keys, keys("billSymbols"))
     }
 
     @Test fun add_icon_is_large_inside_a_full_size_touch_target() {

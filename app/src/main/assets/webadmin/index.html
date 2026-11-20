@@ -6,53 +6,11 @@
   <meta name="color-scheme" content="light dark">
   <title>Valnook</title>
   <link rel="icon" type="image/svg+xml" sizes="any" href="/valnook.svg">
+  <script src="/theme-boot.js"></script>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <main id="pairing" class="pairing-shell">
-    <section class="pairing-card" aria-labelledby="pair-title">
-      <img class="brand-mark" src="/valnook.svg" width="52" height="52" alt="" aria-hidden="true">
-      <p class="eyebrow">VALNOOK</p>
-      <h1 id="pair-title">连接到手机</h1>
-      <p id="pair-copy" class="muted">请在手机上打开网页端管理，并输入手机显示的 6 位配对码。</p>
-      <form id="pair-form" class="pair-form">
-        <label for="pair-code">配对码</label>
-        <input id="pair-code" name="code" inputmode="numeric" autocomplete="one-time-code"
-               pattern="[0-9]{6}" maxlength="6" placeholder="000000" required>
-        <button id="pair-submit" class="primary" type="submit">连接</button>
-      </form>
-      <p id="pair-status" class="status" role="status" aria-live="polite"></p>
-      <p class="security-note">仅用于可信局域网。此版本使用 HTTP/WS，不提供传输加密。</p>
-    </section>
-  </main>
-
-  <div id="workspace" class="workspace" hidden>
-    <aside id="sidebar" class="sidebar">
-      <div class="brand"><img class="brand-mark small" src="/valnook.svg" width="34" height="34" alt="" aria-hidden="true"><strong>Valnook</strong></div>
-      <nav id="nav" aria-label="主导航"></nav>
-      <div class="sidebar-foot">
-        <div class="connection"><span class="dot"></span><span id="connected-label">已连接</span></div>
-        <p id="session-hint" class="subtle"></p>
-      </div>
-
-    </aside>
-    <section class="content-shell">
-      <header class="topbar">
-        <div><p id="page-kicker" class="eyebrow"></p><h1 id="page-title"></h1></div>
-        <div class="top-actions"><button id="refresh-page" class="icon-button" type="button" aria-label="刷新"></button><select id="theme-toggle" aria-label="主题"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select><span id="save-state" class="save-state" role="status"></span><button id="end-session" class="secondary danger" type="button">结束会话</button></div>
-      </header>
-      <div id="connection-banner" class="connection-banner" role="status" hidden></div>
-      <div id="idle-warning" class="idle-warning" role="status" hidden><span id="idle-message"></span><button id="continue-session" class="primary" type="button">继续管理</button></div>
-      <main id="content" class="content" tabindex="-1"></main>
-    </section>
-  </div>
-
-  <div id="scrim" class="scrim" hidden></div>
-  <aside id="drawer" class="drawer" aria-modal="true" role="dialog" aria-labelledby="drawer-title" hidden>
-    <header><div><p id="drawer-kicker" class="eyebrow"></p><h2 id="drawer-title"></h2></div><button id="drawer-close" class="icon-button" type="button" aria-label="关闭"></button></header>
-    <div id="drawer-content" class="drawer-content"></div>
-  </aside>
-  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="app"></div>
   <script src="/app.js" type="module"></script>
 </body>
 </html>
