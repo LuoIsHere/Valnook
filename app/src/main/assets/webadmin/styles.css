@@ -711,6 +711,6 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
 .min0{min-width:0}.push{margin-left:auto}.gap6{width:6px}
 .actions-row{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
 .kind-icon.lg{width:44px;height:44px;border-radius:14px}
-.contents{display:contents}.pad{padding:14px 18px}.strong{font-weight:600}.spaced-l{margin-top:34px}
+.contents{display:contents}.pad{padding:14px 18px}.strong{font-weight:600}.spaced-l{margin-top:34px}.spaced-k{margin-top:14px}
 .price-cell{display:flex;justify-content:flex-end}
 .chart-wrap .last-dot{fill:var(--accent-2)}
