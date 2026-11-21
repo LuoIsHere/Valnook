@@ -40,8 +40,9 @@ internal const val FOREGROUND_REMINDER_ABOVE = 20
             // Only the text scrolls: on a short screen or with large fonts the title and the buttons stay in view.
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf(R.string.cloud_notice_what, R.string.cloud_notice_where, R.string.cloud_notice_pictures,
-                    R.string.cloud_notice_keep, R.string.cloud_notice_disconnect)
+                listOf(R.string.cloud_notice_what, R.string.cloud_notice_not_sent, R.string.cloud_notice_where,
+                    R.string.cloud_notice_access, R.string.cloud_notice_pictures, R.string.cloud_notice_keep,
+                    R.string.cloud_notice_disconnect)
                     .forEach { Text(stringResource(it), style = MaterialTheme.typography.bodyMedium) }
             }
         }
