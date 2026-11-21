@@ -65,6 +65,8 @@ class WalletBackNavigationUiTest {
         rule.onNodeWithTag("cash-entry-$entry").performScrollTo().performClick()
         rule.waitUntil(10_000) { rule.onAllNodesWithText("查看账单").fetchSemanticsNodes().isNotEmpty() }
         rule.waitForIdle()
+        // The entry page names itself in the bar rather than falling back to the app name.
+        rule.onNode(hasText("流水详情") and hasAnyAncestor(hasTestTag("root-toolbar")), useUnmergedTree = true).assertExists()
 
         rule.mainClock.autoAdvance = false
         rule.runOnUiThread { rule.activity.onBackPressedDispatcher.onBackPressed() }
