@@ -6,9 +6,11 @@ import androidx.lifecycle.viewModelScope
 import dev.valnook.domain.model.*
 import dev.valnook.domain.repository.*
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 
 data class NavigationSettingsState(
@@ -17,7 +19,6 @@ data class NavigationSettingsState(
     val baselineRevision: Long = 0,
     val loaded: Boolean = false,
     val busy: Boolean = false,
-    val savedNotice: Boolean = false,
     val error: ErrorCode? = null
 ) {
     val dirty: Boolean get() = draft != saved
@@ -33,6 +34,9 @@ class NavigationSettingsViewModel(
 ) : ViewModel() {
     private val mutable = MutableStateFlow(NavigationSettingsState())
     val state = mutable.asStateFlow()
+    private val savedSignal = Channel<Unit>(Channel.CONFLATED)
+    /** One value per successful save; the page closes on it. A failed save sends nothing and stays. */
+    val saved = savedSignal.receiveAsFlow()
     private var latestRevision = 0L
 
     init {
@@ -65,7 +69,7 @@ class NavigationSettingsViewModel(
     }
 
     fun discardAndReload() = update(state.value.copy(draft = state.value.saved,
-        baselineRevision = latestRevision, error = null, savedNotice = false))
+        baselineRevision = latestRevision, error = null))
 
     /** Takes [item] off the bar; it goes to the end of the hidden pages. Settings always stays. */
     fun hide(item: NavigationItemId) {
@@ -96,7 +100,8 @@ class NavigationSettingsViewModel(
             try {
                 val stored = writer.applyChange(SaveNavigationConfiguration(current.baselineRevision, current.draft))
                 update(NavigationSettingsState(stored.navigation, stored.navigation, stored.revision,
-                    loaded = true, savedNotice = true))
+                    loaded = true))
+                savedSignal.trySend(Unit)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: DomainException) {
@@ -110,7 +115,7 @@ class NavigationSettingsViewModel(
     private fun editable(current: NavigationSettingsState) = current.loaded && !current.busy
 
     private fun change(current: NavigationSettingsState, shown: List<NavigationItemId>, hidden: List<NavigationItemId>) =
-        update(current.copy(draft = NavigationConfiguration(shown + hidden, shown.toSet()), savedNotice = false))
+        update(current.copy(draft = NavigationConfiguration(shown + hidden, shown.toSet())))
 
     private fun update(value: NavigationSettingsState) {
         mutable.value = value

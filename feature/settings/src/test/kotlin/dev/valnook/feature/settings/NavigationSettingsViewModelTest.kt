@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.*
@@ -75,12 +76,36 @@ class NavigationSettingsViewModelTest {
         assertEquals(draft, vm.state.value.draft)
         assertEquals(5, vm.state.value.baselineRevision)
     }
+    @Test fun onlyASuccessfulSaveTellsThePageToClose() = runTest(dispatcher) {
+        val repository = Repository().apply { fail = true }
+        val vm = NavigationSettingsViewModel(repository, repository, SavedStateHandle())
+        val closes = mutableListOf<Unit>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.saved.collect { closes += it } }
+        advanceUntilIdle()
+        vm.hide(NavigationItemId.WALLET)
+        vm.save()
+        advanceUntilIdle()
+        // A refused save keeps the page and its draft, with the reason shown there.
+        assertEquals(0, closes.size)
+        assertTrue(vm.state.value.dirty)
+        assertEquals(ErrorCode.STALE_RECORD, vm.state.value.error)
+
+        repository.fail = false
+        vm.discardAndReload()
+        vm.hide(NavigationItemId.WALLET)
+        vm.save()
+        advanceUntilIdle()
+        assertEquals(1, closes.size)
+        assertFalse(vm.state.value.dirty)
+    }
 
     private class Repository(navigation: NavigationConfiguration = NavigationConfiguration()) : SettingsRepository, SettingsWriter {
         val value = MutableStateFlow(AppSettings(navigation = navigation))
         var writes = 0
+        var fail = false
         override fun observeSettings(): Flow<AppSettings> = value
         override suspend fun applyChange(change: SettingsChange): AppSettings {
+            if (fail) throw DomainException(ErrorCode.STALE_RECORD)
             val navigation = (change as SaveNavigationConfiguration).configuration
             writes++
             return value.value.copy(revision = value.value.revision + 1, navigation = navigation)

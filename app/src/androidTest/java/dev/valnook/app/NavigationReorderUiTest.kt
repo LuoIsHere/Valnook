@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipe
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsDisplayed
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
 import kotlinx.coroutines.runBlocking
@@ -41,12 +42,12 @@ class NavigationReorderUiTest {
         rule.activity.sessions.session.value.graph.settings.observeSettings().first().navigation
     }
 
+    /** Saving goes straight back to settings: the page and its ✓ are gone, and nothing asks about leaving. */
     private fun save() {
         rule.onNodeWithTag("navigation-save").assertIsEnabled().performClick()
-        rule.waitUntil(5_000) {
-            rule.onAllNodesWithTag("navigation-save").fetchSemanticsNodes().single()
-                .config.contains(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
-        }
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("navigation-save").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("settings-list").assertIsDisplayed()
+        rule.onNodeWithTag("navigation-row-statistics").assertDoesNotExist()
     }
 
     @Test fun draggingPastTheAdjacentRowCenterMovesExactlyOnePosition() {
@@ -85,6 +86,7 @@ class NavigationReorderUiTest {
         save()
         assertFalse(page in stored().visible)
 
+        openPage()
         rule.onNodeWithTag("navigation-visible-${page.name.lowercase()}").performClick()
         rule.waitForIdle()
         save()

@@ -40,12 +40,14 @@ private val GROUP_CORNER = 18.dp
 
 /**
  * The bottom navigation, edited in place: a preview of the bar, the pages on it (drag to reorder, ⊖ to hide) and
- * the hidden ones (⊕ to bring back). The toolbar's save writes the draft.
+ * the hidden ones (⊕ to bring back). The toolbar's save writes the draft, and [onSaved] then leaves the page.
  */
 @Composable
 fun NavigationSettingsScreen(vm: NavigationSettingsViewModel,
-    onToolbarChange: (NavigationToolbarState?) -> Unit = {}) {
+    onToolbarChange: (NavigationToolbarState?) -> Unit = {}, onSaved: () -> Unit = {}) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val leave by rememberUpdatedState(onSaved)
+    LaunchedEffect(vm) { vm.saved.collect { leave() } }
     if (!state.loaded) {
         CircularProgressIndicator()
         return
@@ -205,9 +207,6 @@ fun NavigationSettingsScreen(vm: NavigationSettingsViewModel,
                 }
             }
         } }
-        if (state.savedNotice) item(key = "saved") {
-            Text(stringResource(R.string.settings_saved), Modifier.padding(start = 4.dp, top = Space.md))
-        }
     }
 }
 

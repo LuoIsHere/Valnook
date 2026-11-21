@@ -734,7 +734,9 @@ private fun SessionRoot(
                                 NavigationSettingsScreen(pageViewModel {
                                     NavigationSettingsViewModel(graph.settings, graph.settingsWriter,
                                         createSavedStateHandle())
-                                }, onToolbarChange = updateNavigationToolbar)
+                                }, onToolbarChange = updateNavigationToolbar,
+                                    // Saved: back to settings, unless the page was already left.
+                                    onSaved = { if (stack.last() == NavigationSettingsKey) pop() })
                             }
                             entry<FxSettingsKey> {
                                 FxSettingsScreen(pageViewModel {
