@@ -27,4 +27,20 @@
     <string name="statistics_tab_assets">资产</string>
     <string name="statistics_tab_expense">支出</string>
     <string name="statistics_tab_income">收入</string>
+    <string name="statistics_distribution">分布</string>
+    <string name="statistics_by_account">按账户</string>
+    <string name="statistics_by_asset_type">按资产构成</string>
+    <string name="statistics_by_currency">按币种</string>
+    <string name="statistics_negative_left_out">负值账户不计入</string>
+    <string name="statistics_type_default">未分类</string>
+    <string name="statistics_distribution_total">合计</string>
+    <string name="statistics_distribution_empty">暂无数据</string>
+    <string name="statistics_distribution_description">%1$s：%2$s</string>
+    <string name="statistics_show_less">收起</string>
+    <plurals name="statistics_item_count">
+        <item quantity="other">%d 项</item>
+    </plurals>
+    <plurals name="statistics_show_all">
+        <item quantity="other">显示全部 %d 个</item>
+    </plurals>
 </resources>

@@ -511,32 +511,14 @@ internal class WebAdminApiRouter(
 
     private suspend fun distributions(): WebHttpResponse {
         val snapshot = reads.snapshot()
-        val overview = AssetValuation.calculate(snapshot)
-        // Same lookup as the totals; an amount without any rate is left out, as the totals leave it out.
-        val rates = dev.valnook.domain.fx.FxRateResolver(snapshot.settings, snapshot.fx)
-        fun convert(code: String, amount: BigDecimal): BigDecimal? = rates.today(code)?.let(amount::multiply)
-        val types = snapshot.positions.filter { it.holding_quantity_e8 > 0 }.groupBy { it.type_name }.mapValues { (_, rows) ->
-            rows.fold(BigDecimal.ZERO) { total, row -> total + (convert(row.currency.code, AssetValuation.marketValue(row)) ?: BigDecimal.ZERO) }
-        }
-        val currencies = mutableMapOf<String, BigDecimal>()
-        snapshot.cash.forEach { currencies[it.currency.code] = currencies.getOrDefault(it.currency.code, BigDecimal.ZERO) +
-            BigDecimal.valueOf(it.balance_minor, it.currency.fraction_digits) }
-        snapshot.deposits.filterNot { it.closed }.forEach { currencies[it.currency.code] =
-            currencies.getOrDefault(it.currency.code, BigDecimal.ZERO) + BigDecimal.valueOf(it.principal_minor, it.currency.fraction_digits) }
-        snapshot.positions.filter { it.holding_quantity_e8 > 0 }.forEach { currencies[it.currency.code] =
-            currencies.getOrDefault(it.currency.code, BigDecimal.ZERO) + AssetValuation.marketValue(it) }
-        fun map(values: Map<String, BigDecimal>, convertValues: Boolean = false) = buildJsonArray {
-            values.toSortedMap().forEach { (label, amount) ->
-                val value = if (convertValues) convert(label, amount) ?: return@forEach else amount
-                add(buildJsonObject { put("label", label); put("value", decimal(value)) })
-            }
+        val distribution = dev.valnook.domain.calculation.AssetDistribution.calculate(snapshot)
+        fun parts(values: List<dev.valnook.domain.calculation.DistributionPart>) = buildJsonArray {
+            values.forEach { add(buildJsonObject { put("label", it.label); put("value", decimal(it.value)) }) }
         }
         return success(buildJsonObject {
-            put("dataGeneration", reads.generation()); put("currency", snapshot.settings.baseCurrency?.code)
-            put("accounts", buildJsonArray { overview.accounts.forEach { add(buildJsonObject {
-                put("label", it.account.name); put("value", decimal(it.total.amount))
-            }) } })
-            put("assetTypes", map(types)); put("currencies", map(currencies, true))
+            put("dataGeneration", reads.generation()); put("currency", distribution.currency?.code)
+            put("accounts", parts(distribution.accounts))
+            put("assetTypes", parts(distribution.assetTypes)); put("currencies", parts(distribution.currencies))
         })
     }
 

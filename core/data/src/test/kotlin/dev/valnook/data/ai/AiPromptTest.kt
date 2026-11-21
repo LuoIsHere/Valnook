@@ -105,15 +105,18 @@ class AiPromptTest {
         val on = AiPrompt.fixedRules(AiSettings(query = true), english = true, bills = true, queries = true)
         assertTrue(on.contains("call query_summary or query_bills"))
         assertTrue(on.contains("up to 3 rounds"))
+        // How assets are spread can be asked, in shares only; amounts still cannot.
+        assertTrue(on.contains("call query_distribution: it gives shares in percent only"))
+        assertTrue(off.contains("how their assets are spread"))
         assertFalse(on.contains("You cannot look up the user's bills"))
         // Only questions: no drafts made in conversation, and the user is told where to turn them on.
         val onlyQueries = AiPrompt.fixedRules(AiSettings(billChat = false, query = true), english = false, bills = false, queries = true)
         assertTrue(onlyQueries.contains("Recording bills here is turned off"))
         assertTrue(onlyQueries.contains("对话记账"))
         val conversation = listOf(AiPrompt.message("user", "How much on food this month?"))
-        assertEquals(listOf("create_bill_drafts", "query_summary", "query_bills"),
+        assertEquals(listOf("create_bill_drafts", "query_summary", "query_bills", "query_distribution"),
             names(AiPrompt.chatRequest("s", conversation, false, bills = true, queries = true)))
-        assertEquals(listOf("query_summary", "query_bills"), names(AiPrompt.chatRequest("s", conversation, false, bills = false, queries = true)))
+        assertEquals(listOf("query_summary", "query_bills", "query_distribution"), names(AiPrompt.chatRequest("s", conversation, false, bills = false, queries = true)))
         // Answering from results needs less room, and once the queries are used up no tool may be called.
         val answering = AiPrompt.chatRequest("s", conversation, false, bills = true, queries = true, toolsOff = true, afterQuery = true)
         assertEquals("none", answering["tool_choice"]!!.jsonPrimitive.content)

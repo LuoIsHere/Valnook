@@ -597,7 +597,9 @@ private fun SessionRoot(
                                     }, expense,
                                         onCategory = { id, month -> open(BillStatsCategoryKey(id, expense, month.toString())) },
                                         onDay = { open(BillsDayKey(it.toString())) })
-                                } })
+                                } }, distribution = pageViewModel {
+                                    dev.valnook.feature.statistics.DistributionViewModel(graph.overview)
+                                })
                             }
                             entry<StatisticsKey> { statisticsPage() }
                             entry<HiddenStatisticsKey> { statisticsPage() }
@@ -702,6 +704,8 @@ private fun SessionRoot(
                                                 BillStatsCategoryKey(target.categoryId, target.expense, target.month.toString())
                                             is dev.valnook.feature.ai.AiStatsTarget.Day -> BillsDayKey(target.date.toString())
                                             is dev.valnook.feature.ai.AiStatsTarget.Month -> BillStatsMonthKey(target.expense, target.month.toString())
+                                            // A page of its own, which opens on the assets tab.
+                                            dev.valnook.feature.ai.AiStatsTarget.Assets -> HiddenStatisticsKey
                                         })
                                     }, onOpenSettings = { open(AiSettingsKey) })
                             }

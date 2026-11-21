@@ -20,7 +20,7 @@ data class AiHabit(val note: String, val categoryId: Long)
 
 object AiPrompt {
     /** Raised whenever the fixed rules change. */
-    const val RULES_VERSION = 7
+    const val RULES_VERSION = 8
 
     /** The most accounts a request lists; past it the frequent and the most recently used are kept. */
     const val ACCOUNT_LIMIT = 100
@@ -93,7 +93,7 @@ object AiPrompt {
         put("messages", JsonArray(listOf(message("system", system)) + conversation))
         val tools = buildList {
             if (bills) add(billTool)
-            if (queries) { add(AiQueryTools.summaryTool); add(AiQueryTools.billsTool) }
+            if (queries) { add(AiQueryTools.summaryTool); add(AiQueryTools.billsTool); add(AiQueryTools.distributionTool) }
         }
         if (tools.isNotEmpty()) put("tools", JsonArray(tools))
         put("max_tokens", JsonPrimitive(when {
@@ -129,9 +129,9 @@ object AiPrompt {
         *(if (queries) arrayOf(
             "- To answer questions about the user's own spending or income, call query_summary or query_bills; never guess numbers or work out ones the results do not give. Results are in the base currency at each bill's own day's rate, net of refunds, exactly as the app's statistics count them; only expenses and income that count in statistics are included, no transfers.",
             "- Work out ranges such as \"this month\" or \"last week\" from Now below, and use category and account ids from the lists below. You may call several queries at once and query again with what you learned, up to ${AiRules.QUERY_STEPS} rounds; then answer from what you have and say plainly what the results cannot tell.",
-            "- Balances, net worth, investments and cards cannot be looked up: say so.",
+            "- To answer how the user's assets are spread now (by account, asset type or currency), call query_distribution: it gives shares in percent only. Amounts of balances, net worth, holdings and investments, and cards cannot be looked up: say so.",
         ) else arrayOf(
-            "- You cannot look up the user's bills, balances, investments or cards. If asked about their bills, say that turning on \"${if (english) "Ask about bills" else "对话查询"}\" in Settings lets you answer; other data cannot be asked about.",
+            "- You cannot look up the user's bills, assets, balances, investments or cards. If asked about their bills or how their assets are spread, say that turning on \"${if (english) "Ask about bills" else "对话查询"}\" in Settings lets you answer; other data cannot be asked about.",
         )),
         "- Write plain text, without Markdown.",
         "- Reply in ${if (english) "English" else "Simplified Chinese"}.",

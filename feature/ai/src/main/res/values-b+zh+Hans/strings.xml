@@ -275,7 +275,7 @@
     <string name="ai_guide_filled_key">已填入示例参数。请填写 API Key，然后点击“保存并检测”。</string>
     <string name="ai_guide_filled">已填入示例参数。已保存的 Key 如不属于该服务，请在此填写新的 API Key，然后点击“保存并检测”。</string>
     <string name="ai_feature_query">对话查询</string>
-    <string name="ai_feature_query_summary">打开后，AI 可以查询你的账单来回答问题。查询到的金额、分类和备注会发送给模型</string>
+    <string name="ai_feature_query_summary">打开后，AI 可以查询你的账单和资产分布来回答问题。查询到的账单金额、分类和备注，以及各账户、资产类型、币种的占比会发送给模型。资产金额不发送</string>
     <string name="ai_chat_example_query">这个月餐饮花了多少</string>
     <string name="ai_chat_querying">正在查询：%1$s</string>
     <plurals name="ai_query_process"><item quantity="other">查询过程 · %1$d 次</item></plurals>
@@ -293,6 +293,9 @@
     <string name="ai_query_by_month_category">按月和分类</string>
     <string name="ai_query_by_day">按天</string>
     <string name="ai_query_by_account">按账户</string>
+    <string name="ai_query_distribution">资产分布</string>
+    <string name="ai_query_by_asset_type">按资产构成</string>
+    <string name="ai_query_by_currency">按币种</string>
     <string name="ai_query_by_amount">按金额</string>
     <string name="ai_query_keyword">备注含“%1$s”</string>
     <string name="ai_query_shortened">已截为 13 个月</string>

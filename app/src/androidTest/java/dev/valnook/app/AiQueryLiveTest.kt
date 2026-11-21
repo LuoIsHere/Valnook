@@ -114,7 +114,8 @@ class AiQueryLiveTest {
             }
             val bills = RoomBills(db)
             val counter = BillCounter(bills, settings.observeSettings(), RoomOverview(db).observeFxContext(), zone)
-            val queries = AiBillQueries(bills, counter, zone)
+            val distribution = suspend { dev.valnook.domain.calculation.AssetDistribution.calculate(RoomOverview(db).snapshot()) }
+            val queries = AiBillQueries(bills, counter, zone, distribution)
             val assistant = RoomAiAssistant(db, chat, service, keys, clock, { false }, pictures, pictures, client, queries)
 
             // What the app itself counts, to hold the answers against.
@@ -126,6 +127,7 @@ class AiQueryLiveTest {
                     report("truth_${month}_$type", queries.run(call, runner).text)
                 }
             }
+            report("truth_distribution", AiDistributionText.format(distribution(), AiDistributionBy.ALL, english = false).text)
 
             var conversation: Long? = null
             prompts.forEachIndexed { index, line ->
@@ -139,6 +141,7 @@ class AiQueryLiveTest {
                 val reply = assistant.observeMessages(id).first().last()
                 val lookups = reply.queries.joinToString("\n") { record ->
                     "  [${record.step}] " + (record.call?.let { c ->
+                        if (c.distribution != null) "distribution ${c.distribution}" else
                         listOfNotNull(if (c.summary) "summary" else "bills", c.type?.name, "${c.from}..${c.to}",
                             c.group.takeIf { c.summary }?.name, c.categoryId?.let { "cat=$it" }, c.accountId?.let { "acct=$it" },
                             c.keyword.takeIf { it.isNotEmpty() }?.let { "kw=$it" }, c.sort.takeIf { !c.summary }?.name,

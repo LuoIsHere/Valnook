@@ -1,10 +1,13 @@
 package dev.valnook.data.ai
 
 import dev.valnook.domain.ai.AiAccountChoice
+import dev.valnook.domain.ai.AiDistributionBy
 import dev.valnook.domain.ai.AiQueryCall
 import dev.valnook.domain.ai.AiQueryGroup
 import dev.valnook.domain.ai.AiQuerySort
 import dev.valnook.domain.ai.AiRules
+import dev.valnook.domain.calculation.AssetDistribution
+import dev.valnook.domain.model.AssetTypeRules
 import dev.valnook.domain.model.Bill
 import dev.valnook.domain.model.BillCategory
 import dev.valnook.domain.model.BillCategoryKind
@@ -22,11 +25,15 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-/** The two bill query tools as the model sees them. Names and descriptions are short English to save tokens. */
+/**
+ * The query tools as the model sees them: two on bills and one on how today's assets are spread, which gives shares
+ * only, never amounts. Names and descriptions are short English to save tokens.
+ */
 object AiQueryTools {
     const val SUMMARY = "query_summary"
     const val BILLS = "query_bills"
-    val names = setOf(SUMMARY, BILLS)
+    const val DISTRIBUTION = "query_distribution"
+    val names = setOf(SUMMARY, BILLS, DISTRIBUTION)
 
     private fun prop(type: String, description: String? = null, values: List<String>? = null) = JsonObject(buildMap {
         put("type", JsonPrimitive(type))
@@ -63,6 +70,11 @@ object AiQueryTools {
             linkedMapOf("sort" to prop("string", values = AiQuerySort.entries.map { it.name }),
                 "limit" to prop("integer", "1 to ${AiRules.QUERY_BILL_ROWS}")),
         listOf("from", "to"))
+
+    val distributionTool: JsonObject = tool(DISTRIBUTION,
+        "Shares in percent of the user's assets today by account, asset type or currency, as the app's statistics " +
+            "show them. Gives no amounts.",
+        linkedMapOf("by" to prop("string", "Default ALL", AiDistributionBy.entries.map { it.name })), emptyList())
 }
 
 /** An argument the model gave that cannot be used; its message goes back to the model to correct. */
@@ -72,7 +84,8 @@ class AiQueryError(message: String) : IllegalArgumentException(message)
  * Reads a query call's arguments against what the request sent. Unknown values are errors for the model to correct;
  * a range past [AiRules.QUERY_MONTHS] is cut to its last months, and dates the wrong way round are swapped.
  */
-class AiQueryReader(private val categories: List<BillCategory>, accounts: List<AiAccountChoice>) {
+class AiQueryReader(private val categories: List<BillCategory>, accounts: List<AiAccountChoice>,
+    private val today: LocalDate = LocalDate.now()) {
     private val categoryById = categories.associateBy { it.id }
     private val sentAccounts = accounts.map { it.id }.toSet()
 
@@ -89,6 +102,8 @@ class AiQueryReader(private val categories: List<BillCategory>, accounts: List<A
             values.firstOrNull { it.name.equals(value, ignoreCase = true) }
                 ?: throw AiQueryError("$key must be one of ${values.joinToString { it.name }}.")
         }
+        if (name == AiQueryTools.DISTRIBUTION) return AiQueryCall(true, null, today, today,
+            distribution = choice("by", AiDistributionBy.entries.toTypedArray()) ?: AiDistributionBy.ALL)
         val summary = when (name) {
             AiQueryTools.SUMMARY -> true
             AiQueryTools.BILLS -> false
@@ -138,7 +153,7 @@ data class AiQueryResult(val text: String, val rows: Int)
  * statistics page. [accounts] are the accounts the request sent: bills of any other are grouped as other accounts and
  * their names are never given.
  */
-class AiQueryRunner(categories: List<BillCategory>, accounts: List<AiAccountChoice>, private val english: Boolean) {
+class AiQueryRunner(categories: List<BillCategory>, accounts: List<AiAccountChoice>, val english: Boolean) {
     private val categoryById = categories.associateBy { it.id }
     private val accountById = accounts.associateBy { it.id }
 
@@ -250,10 +265,55 @@ class AiQueryRunner(categories: List<BillCategory>, accounts: List<AiAccountChoi
     }
 }
 
-/** Runs a query on the bills it covers, read when it runs, at the rates statistics use. */
-class AiBillQueries(private val bills: BillRepository, private val counter: BillCounter, private val zone: ZoneId) {
+/**
+ * Runs a query on the bills it covers, read when it runs, at the rates statistics use; a distribution query on
+ * today's [distribution], read when it runs.
+ */
+class AiBillQueries(private val bills: BillRepository, private val counter: BillCounter, private val zone: ZoneId,
+    private val distribution: (suspend () -> AssetDistribution)? = null) {
     suspend fun run(call: AiQueryCall, runner: AiQueryRunner): AiQueryResult {
+        call.distribution?.let { by ->
+            val source = distribution ?: return AiQueryResult("Not available here.", 0)
+            return AiDistributionText.format(source(), by, runner.english)
+        }
         val list = bills.observeRange(call.from, call.to.plusDays(1), zone).first()
         return runner.run(call, counter.observe(list).first())
+    }
+}
+
+/**
+ * A distribution as the model reads it: each part above zero with its share of their sum, largest first, as the
+ * statistics page shows them. Never an amount.
+ */
+object AiDistributionText {
+    fun format(distribution: AssetDistribution, by: AiDistributionBy, english: Boolean): AiQueryResult {
+        val groups = buildList {
+            if (by == AiDistributionBy.ALL || by == AiDistributionBy.ACCOUNT)
+                add("By account (accounts below zero left out)" to distribution.accounts)
+            if (by == AiDistributionBy.ALL || by == AiDistributionBy.ASSET_TYPE)
+                add("By asset type (held investments only)" to distribution.assetTypes.map {
+                    if (AssetTypeRules.isDefaultName(it.label)) it.copy(label = if (english) "Uncategorized" else AssetTypeRules.DEFAULT_NAME) else it
+                })
+            if (by == AiDistributionBy.ALL || by == AiDistributionBy.CURRENCY)
+                add("By currency (cash, deposits and investments; currencies without a rate left out)" to distribution.currencies)
+        }
+        var rows = 0
+        val text = groups.joinToString("\n\n", prefix = "Shares of the user's assets today, in percent; amounts are not available.\n\n") { (title, all) ->
+            val parts = all.filter { it.value.signum() > 0 }.sortedByDescending { it.value }
+            val total = parts.fold(BigDecimal.ZERO) { sum, part -> sum + part.value }
+            val shown = parts.take(AiRules.QUERY_SUMMARY_ROWS)
+            rows += shown.size
+            val rest = parts.drop(shown.size)
+            title + ":\n" + if (parts.isEmpty()) "none" else (shown.map { "${it.label}: ${share(it.value, total)}" } +
+                listOfNotNull(rest.takeIf { it.isNotEmpty() }?.let { "${it.size} more: ${share(it.fold(BigDecimal.ZERO) { s, p -> s + p.value }, total)}" }))
+                .joinToString("\n")
+        }
+        return AiQueryResult(text, rows)
+    }
+
+    /** "34.5%", and "<0.1%" for a sliver that would round to nothing, as the statistics page shows it. */
+    private fun share(part: BigDecimal, whole: BigDecimal): String {
+        val percent = part.multiply(BigDecimal(100)).divide(whole, 1, RoundingMode.HALF_UP)
+        return if (percent.signum() == 0) "<0.1%" else percent.toPlainString() + "%"
     }
 }

@@ -42,10 +42,11 @@ import dev.valnook.designsystem.ChevronIcon
 /**
  * The statistics page. With [ledger], the page has tabs: assets, then the month's expense (`ledger(true)`) and
  * income (`ledger(false)`), each keeping its own scroll position. Without it, only the assets show, as before.
+ * With [distribution], the assets end with how they are spread by account, asset type and currency.
  */
 @Composable
 fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = {},
-    ledger: (@Composable (expense: Boolean) -> Unit)? = null) {
+    ledger: (@Composable (expense: Boolean) -> Unit)? = null, distribution: DistributionViewModel? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.loading) {
@@ -67,7 +68,7 @@ fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = 
             vm.refresh()
         }
     }
-    val assets = @Composable { AssetStatistics(vm, state, showLoading, summary) }
+    val assets = @Composable { AssetStatistics(vm, state, showLoading, summary, distribution) }
     if (ledger == null) { assets(); return }
     val topSpace = LocalPageTopSpace.current
     val tab by vm.tab.collectAsStateWithLifecycle()
@@ -91,7 +92,7 @@ fun StatisticsScreen(vm: StatisticsViewModel, summary: @Composable () -> Unit = 
 
 @Composable
 private fun AssetStatistics(vm: StatisticsViewModel, state: StatisticsUiState, showLoading: Boolean,
-    summary: @Composable () -> Unit) {
+    summary: @Composable () -> Unit, distribution: DistributionViewModel?) {
     LazyColumn(Modifier.fillMaxSize().testTag("statistics-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.lg)) {
         item("asset-summary") { summary() }
@@ -107,6 +108,7 @@ private fun AssetStatistics(vm: StatisticsViewModel, state: StatisticsUiState, s
                 }
             }
         }
+        if (distribution != null) item("distribution") { AssetDistributionSection(distribution) }
     }
 }
 

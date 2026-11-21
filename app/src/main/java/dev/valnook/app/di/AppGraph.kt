@@ -109,9 +109,12 @@ internal fun createDatabaseGraph(
         else dev.valnook.data.ai.AiChatDatabase.inMemory(context)
     val aiPictures = dev.valnook.data.ai.StoreAiPictures(images)
     val bills = dev.valnook.data.repository.RoomBills(database)
-    // Questions about bills count them as statistics do, at each bill's own day's rate.
+    // Questions about bills count them as statistics do, at each bill's own day's rate; how assets are spread is
+    // worked out as the statistics page does, from today's snapshot.
     val aiQueries = dev.valnook.data.ai.AiBillQueries(bills, dev.valnook.domain.repository.BillCounter(bills,
-        settings.observeSettings(), RoomOverview(database).observeFxContext(), clock.zone), clock.zone)
+        settings.observeSettings(), RoomOverview(database).observeFxContext(), clock.zone), clock.zone) {
+        dev.valnook.domain.calculation.AssetDistribution.calculate(RoomOverview(database).snapshot())
+    }
     return DatabaseGraph(
         database = database,
         accounts = RoomAccounts(database),

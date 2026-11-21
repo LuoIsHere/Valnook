@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import dev.valnook.designsystem.FaIcon
 import dev.valnook.designsystem.FaIcons
 import dev.valnook.designsystem.Space
+import dev.valnook.domain.ai.AiDistributionBy
 import dev.valnook.domain.ai.AiQueryCall
 import dev.valnook.domain.ai.AiQueryGroup
 import dev.valnook.domain.ai.AiQueryRecord
@@ -46,17 +47,20 @@ sealed interface AiStatsTarget {
     data class Category(val categoryId: Long, val expense: Boolean, val month: YearMonth) : AiStatsTarget
     data class Day(val date: LocalDate) : AiStatsTarget
     data class Month(val expense: Boolean, val month: YearMonth) : AiStatsTarget
+    /** The assets tab, where today's distribution shows. */
+    data object Assets : AiStatsTarget
 }
 
 /**
  * Where an answer's lookups can be seen in the statistics, which go by month: the latest query that has a place
- * there, a day's bills, a category's month, or the expense or income of a month. A range across months, or a list
- * of both expense and income, has none.
+ * there, a day's bills, a category's month, the expense or income of a month, or the assets for a distribution. A
+ * range across months, or a list of both expense and income, has none.
  */
 fun aiStatsTarget(records: List<AiQueryRecord>, categories: Map<Long, BillCategory>): AiStatsTarget? =
     records.asReversed().firstNotNullOfOrNull { record -> record.call?.takeIf { !record.error }?.let { statsTarget(it, categories) } }
 
 private fun statsTarget(call: AiQueryCall, categories: Map<Long, BillCategory>): AiStatsTarget? {
+    if (call.distribution != null) return AiStatsTarget.Assets
     if (call.from == call.to) return AiStatsTarget.Day(call.from)
     val month = YearMonth.from(call.from)
     if (YearMonth.from(call.to) != month) return null
@@ -88,9 +92,18 @@ fun aiQueryRange(from: LocalDate, to: LocalDate, today: LocalDate, english: Bool
     }
 }
 
-/** What a query looked up, such as "11 月支出 · 按分类 · 餐饮". */
+/** What a query looked up, such as "11 月支出 · 按分类 · 餐饮", or "资产分布 · 按币种". */
 @Composable
 fun aiQueryText(call: AiQueryCall, categories: Map<Long, BillCategory>, accounts: Map<Long, BillAccountChoice>): String {
+    call.distribution?.let { by ->
+        val what = stringResource(R.string.ai_query_distribution)
+        return when (by) {
+            AiDistributionBy.ALL -> null
+            AiDistributionBy.ACCOUNT -> R.string.ai_query_by_account
+            AiDistributionBy.ASSET_TYPE -> R.string.ai_query_by_asset_type
+            AiDistributionBy.CURRENCY -> R.string.ai_query_by_currency
+        }?.let { what + " · " + stringResource(it) } ?: what
+    }
     val english = LocalConfiguration.current.locales[0].language != "zh"
     val range = aiQueryRange(call.from, call.to, LocalDate.now(), english)
     val kind = stringResource(when (call.type) {

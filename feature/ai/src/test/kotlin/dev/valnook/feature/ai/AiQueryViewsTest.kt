@@ -37,6 +37,10 @@ class AiQueryViewsTest {
             target(ran(month), ran(AiQueryCall(false, null, d("2026-11-01"), d("2026-11-30")))))
         // A query that did not run is passed over.
         assertEquals(AiStatsTarget.Month(true, november), target(ran(month), AiQueryRecord(2, null, 0, true)))
+        // A look at how assets are spread, dated today, opens the assets rather than that day's bills.
+        val distribution = AiQueryCall(true, null, d("2026-11-20"), d("2026-11-20"),
+            distribution = dev.valnook.domain.ai.AiDistributionBy.CURRENCY)
+        assertEquals(AiStatsTarget.Assets, target(ran(month), ran(distribution)))
         assertNull(target())
     }
 

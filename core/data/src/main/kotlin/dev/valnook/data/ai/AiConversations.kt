@@ -116,6 +116,7 @@ internal object AiConversations {
         put("sort", JsonPrimitive(call.sort.name))
         put("limit", JsonPrimitive(call.limit))
         if (call.shortened) put("shortened", JsonPrimitive(true))
+        call.distribution?.let { put("distribution", JsonPrimitive(it.name)) }
     })
 
     fun decodeQuery(o: JsonObject): AiQueryCall? = runCatching {
@@ -126,7 +127,8 @@ internal object AiConversations {
             string("group")?.let(AiQueryGroup::valueOf) ?: AiQueryGroup.NONE, long("category"), long("account"),
             string("keyword").orEmpty(), string("sort")?.let(AiQuerySort::valueOf) ?: AiQuerySort.TIME_DESC,
             (o["limit"] as? JsonPrimitive)?.intOrNull ?: AiRules.QUERY_BILL_ROWS,
-            (o["shortened"] as? JsonPrimitive)?.booleanOrNull ?: false)
+            (o["shortened"] as? JsonPrimitive)?.booleanOrNull ?: false,
+            string("distribution")?.let(dev.valnook.domain.ai.AiDistributionBy::valueOf))
     }.getOrNull()
 
     fun toolResult(callId: String, content: String) = JsonObject(mapOf("role" to JsonPrimitive("tool"),

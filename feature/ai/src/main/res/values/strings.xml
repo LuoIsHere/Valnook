@@ -277,7 +277,7 @@
     <string name="ai_guide_filled_key">Example values entered. Enter your API key, then tap \"Save and check\".</string>
     <string name="ai_guide_filled">Example values entered. If the saved key is not for this service, enter a new API key here, then tap \"Save and check\".</string>
     <string name="ai_feature_query">Ask about bills</string>
-    <string name="ai_feature_query_summary">The AI can look up your bills to answer questions. The amounts, categories and notes it finds are sent to the model</string>
+    <string name="ai_feature_query_summary">The AI can look up your bills and how your assets are spread to answer questions. The amounts, categories and notes of the bills it finds, and the shares of your accounts, asset types and currencies, are sent to the model. Asset amounts are not sent</string>
     <string name="ai_chat_example_query">How much did food cost this month</string>
     <string name="ai_chat_querying">Looking up: %1$s</string>
     <plurals name="ai_query_process"><item quantity="one">Lookup · %1$d</item><item quantity="other">Lookups · %1$d</item></plurals>
@@ -295,6 +295,9 @@
     <string name="ai_query_by_month_category">by month and category</string>
     <string name="ai_query_by_day">by day</string>
     <string name="ai_query_by_account">by account</string>
+    <string name="ai_query_distribution">Asset distribution</string>
+    <string name="ai_query_by_asset_type">by asset type</string>
+    <string name="ai_query_by_currency">by currency</string>
     <string name="ai_query_by_amount">largest first</string>
     <string name="ai_query_keyword">note has \"%1$s\"</string>
     <string name="ai_query_shortened">cut to 13 months</string>

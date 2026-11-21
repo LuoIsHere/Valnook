@@ -105,7 +105,7 @@ class AiQueryAssistantTest {
         replies += text("Food came to 77.00.")
         val id = assistant.send(null, "What did food cost this month?", emptyList())
         assertEquals(2, requests.size)
-        assertEquals(listOf("create_bill_drafts", "query_summary", "query_bills"), toolNames(requests[0]))
+        assertEquals(listOf("create_bill_drafts", "query_summary", "query_bills", "query_distribution"), toolNames(requests[0]))
         assertEquals(4096, requests[0]["max_tokens"]!!.jsonPrimitive.int)
         // The second request has the reply and its result in full, and less room to answer in.
         val second = sent(requests[1])
@@ -220,7 +220,7 @@ class AiQueryAssistantTest {
         assertTrue(service.observeFeatures().first().chatEntry)
         replies += text("Ask away.")
         assistant.send(null, "Hi", emptyList())
-        assertEquals(listOf("query_summary", "query_bills"), toolNames(requests.last()))
+        assertEquals(listOf("query_summary", "query_bills", "query_distribution"), toolNames(requests.last()))
         assertTrue(sent(requests.last()).first()["content"]!!.jsonPrimitive.content.contains("Recording bills here is turned off"))
     }
 }

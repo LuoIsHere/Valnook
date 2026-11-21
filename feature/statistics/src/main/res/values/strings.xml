@@ -27,4 +27,22 @@
     <string name="statistics_tab_assets">Assets</string>
     <string name="statistics_tab_expense">Expense</string>
     <string name="statistics_tab_income">Income</string>
+    <string name="statistics_distribution">Distribution</string>
+    <string name="statistics_by_account">By account</string>
+    <string name="statistics_by_asset_type">By asset type</string>
+    <string name="statistics_by_currency">By currency</string>
+    <string name="statistics_negative_left_out">Accounts below zero are left out</string>
+    <string name="statistics_type_default">Uncategorized</string>
+    <string name="statistics_distribution_total">Total</string>
+    <string name="statistics_distribution_empty">No data</string>
+    <string name="statistics_distribution_description">%1$s: %2$s</string>
+    <string name="statistics_show_less">Show less</string>
+    <plurals name="statistics_item_count">
+        <item quantity="one">%d item</item>
+        <item quantity="other">%d items</item>
+    </plurals>
+    <plurals name="statistics_show_all">
+        <item quantity="one">Show all %d</item>
+        <item quantity="other">Show all %d</item>
+    </plurals>
 </resources>

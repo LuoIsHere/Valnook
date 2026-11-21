@@ -79,11 +79,15 @@ enum class AiQueryGroup { NONE, CATEGORY, SUB_CATEGORY, MONTH, MONTH_CATEGORY, D
 
 enum class AiQuerySort { TIME_DESC, AMOUNT_DESC }
 
+/** What a distribution query splits today's assets by, as the statistics page does; [ALL] gives all three. */
+enum class AiDistributionBy { ALL, ACCOUNT, ASSET_TYPE, CURRENCY }
+
 /**
  * A bill query the model asked for, checked: a summary ([summary]) or a list of bills, of the counted bills dated
  * [from] to [to] inclusive. [type] is required for a summary; a null one lists expenses and income both.
  * [categoryId] matches a category or one of its sub-categories. [shortened]: the range asked for was longer than
- * [AiRules.QUERY_MONTHS] and was cut to its last months.
+ * [AiRules.QUERY_MONTHS] and was cut to its last months. With [distribution], it is instead a look at how today's
+ * assets are spread, and only that field counts.
  */
 data class AiQueryCall(
     val summary: Boolean,
@@ -97,6 +101,8 @@ data class AiQueryCall(
     val sort: AiQuerySort = AiQuerySort.TIME_DESC,
     val limit: Int = AiRules.QUERY_BILL_ROWS,
     val shortened: Boolean = false,
+    /** Set for a query of how today's assets are spread (shares only); its range is then today. */
+    val distribution: AiDistributionBy? = null,
 )
 
 /**

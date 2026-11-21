@@ -1,9 +1,12 @@
 package dev.valnook.data.ai
 
 import dev.valnook.domain.ai.AiAccountChoice
+import dev.valnook.domain.ai.AiDistributionBy
 import dev.valnook.domain.ai.AiQueryCall
 import dev.valnook.domain.ai.AiQueryGroup
 import dev.valnook.domain.ai.AiQuerySort
+import dev.valnook.domain.calculation.AssetDistribution
+import dev.valnook.domain.calculation.DistributionPart
 import dev.valnook.domain.fx.FxContext
 import dev.valnook.domain.fx.FxRateResolver
 import dev.valnook.domain.model.*
@@ -144,5 +147,34 @@ class AiQueriesTest {
         assertTrue(result.text.contains("10 more rows not shown."))
         assertTrue(BillCounting(emptyList(), BillDayRates(FxRateResolver(AppSettings(), FxContext())), zone)
             .let { runner.run(AiQueryCall(true, BillType.EXPENSE, from, to), it) }.text.contains("No base currency"))
+    }
+
+    @Test fun distribution_gives_shares_and_never_amounts() {
+        val today = LocalDate.parse("2026-11-20")
+        val dated = AiQueryReader(categories, accounts, today)
+        val byCurrency = dated.read(AiQueryTools.DISTRIBUTION, "{\"by\":\"currency\"}")
+        assertEquals(AiDistributionBy.CURRENCY, byCurrency.distribution)
+        assertEquals(today, byCurrency.from); assertEquals(today, byCurrency.to)
+        assertEquals(AiDistributionBy.ALL, dated.read(AiQueryTools.DISTRIBUTION, "").distribution)
+        assertThrows(AiQueryError::class.java) { dated.read(AiQueryTools.DISTRIBUTION, "{\"by\":\"SIDEWAYS\"}") }
+        // Stored with the answer and read back as run.
+        assertEquals(byCurrency, AiConversations.decodeQuery(AiConversations.encodeQuery(byCurrency)))
+
+        fun part(label: String, value: String) = DistributionPart(label, BigDecimal(value))
+        val distribution = AssetDistribution(cny,
+            listOf(part("Synthetic bank", "1234.56"), part("Synthetic broker", "411.52"), part("Synthetic card", "-88.00")),
+            listOf(part(AssetTypeRules.DEFAULT_NAME, "300"), part("Synthetic funds", "100")),
+            listOf(part("CNY", "1600"), part("USD", "0.01")))
+        val all = AiDistributionText.format(distribution, AiDistributionBy.ALL, english = true)
+        assertTrue(all.text, all.text.contains("Synthetic bank: 75.0%\nSynthetic broker: 25.0%"))
+        assertTrue(all.text.contains("Uncategorized: 75.0%"))
+        assertTrue(all.text.contains("USD: <0.1%"))
+        assertFalse("below zero is left out", all.text.contains("Synthetic card"))
+        listOf("1234", "411", "1600", "300").forEach { assertFalse("no amount $it", all.text.contains(it)) }
+        assertEquals(6, all.rows)
+        val accountsOnly = AiDistributionText.format(distribution, AiDistributionBy.ACCOUNT, english = false)
+        assertFalse(accountsOnly.text.contains("By currency"))
+        assertEquals(2, accountsOnly.rows)
+        assertTrue(AiDistributionText.format(distribution, AiDistributionBy.ASSET_TYPE, english = false).text.contains("未分类: 75.0%"))
     }
 }

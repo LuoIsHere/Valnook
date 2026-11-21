@@ -406,7 +406,7 @@ class RoomAiAssistant(
         val habits: List<AiHabit>, val now: LocalDateTime) {
         fun system(english: Boolean, bills: Boolean, queries: Boolean) =
             AiPrompt.system(settings, choices.categories, choices.accounts, now, base, english, habits, bills, queries)
-        fun queryReader() = AiQueryReader(choices.categories, AiPrompt.sentAccounts(choices.accounts))
+        fun queryReader() = AiQueryReader(choices.categories, AiPrompt.sentAccounts(choices.accounts), now.toLocalDate())
         fun queryRunner(english: Boolean) = AiQueryRunner(choices.categories, AiPrompt.sentAccounts(choices.accounts), english)
         fun reader(currencyExpected: Boolean) = AiDraftReader(settings, choices.categories,
             AiPrompt.sentAccounts(choices.accounts), choices.accounts, now, base, currencyExpected)
