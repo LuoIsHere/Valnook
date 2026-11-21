@@ -33,6 +33,7 @@
     <string name="account_independent_limit">独立额度</string>
     <string name="account_limit_source">额度来源</string>
     <string name="account_statement_day">账单日</string>
+    <string name="account_statement_day_resplit">之前的周期也会按新账单日重新划分</string>
     <string name="account_due_rule">最后还款日规则</string>
     <string name="account_due_after">账单日后 N 天</string>
     <string name="account_due_fixed">每月固定日期</string>

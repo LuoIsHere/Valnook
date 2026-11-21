@@ -86,6 +86,10 @@ internal fun SubaccountEditSheet(row: CashAccountRowDraft, state: AccountEditUiS
                                     "FIXED_DAY_OF_MONTH" to stringResource(R.string.account_due_fixed)),
                                 { vm.changeRow(row.key, dueRuleType = it) }, enabled = editable)
                         })
+                        // A new statement day re-splits the card's whole history, which can surprise on its statements.
+                        if (row.statementDayChanged) Text(stringResource(R.string.account_statement_day_resplit),
+                            Modifier.padding(horizontal = 4.dp).testTag("account-statement-day-resplit"),
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         FilledField(if (row.dueRuleType == "FIXED_DAY_OF_MONTH") stringResource(R.string.account_due_day)
                             else stringResource(R.string.account_due_days_after), row.dueRuleValueInput,
                             { vm.changeRow(row.key, dueRuleValue = it) }, numeric = true, enabled = editable,

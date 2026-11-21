@@ -33,6 +33,7 @@
     <string name="account_independent_limit">Independent limit</string>
     <string name="account_limit_source">Limit source</string>
     <string name="account_statement_day">Statement day</string>
+    <string name="account_statement_day_resplit">Past cycles will also be split by the new statement day</string>
     <string name="account_due_rule">Payment due rule</string>
     <string name="account_due_after">Days after statement</string>
     <string name="account_due_fixed">Fixed day each month</string>

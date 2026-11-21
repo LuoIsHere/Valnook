@@ -119,6 +119,42 @@ class AccountEditSheetUiTest {
         rule.runOnIdle { assertTrue(vm.state.value.rows.single().statementDayIncluded) }
     }
 
+    @Test fun changing_a_saved_card_s_statement_day_says_past_cycles_follow_it() {
+        runBlocking {
+            graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "Bank", "", listOf(
+                BalanceAccountChange("CNY", -500, null, name = "Card", type = BalanceAccountType.CREDIT,
+                    credit = CreditAccountInput(500000, 7, CreditDueRule.AfterStatementDays(20), null)))))
+        }
+        val account = runBlocking { graph.overview.snapshot().accounts.single { it.name == "Bank" } }
+        val vm = draft(account.id)
+        edit(vm)
+        rule.onNodeWithText("Card").performClick()
+        rule.waitUntil(5_000) { sheetOpen() }
+        val hint = string(AccountsR.string.account_statement_day_resplit)
+        val key = vm.state.value.rows.single().key
+        fun type(day: String) { rule.runOnUiThread { vm.changeRow(key, statementDay = day) }; rule.waitForIdle() }
+        rule.onNodeWithText(hint).assertDoesNotExist()
+        type("15")
+        rule.onNodeWithTag("account-statement-day-resplit").performScrollTo().assertTextEquals(hint)
+        // Back to the saved day, or a day that is not one, says nothing.
+        type("7")
+        rule.onNodeWithText(hint).assertDoesNotExist()
+        type("40")
+        rule.onNodeWithText(hint).assertDoesNotExist()
+    }
+
+    @Test fun a_new_card_has_no_cycles_to_resplit() {
+        val vm = draft()
+        edit(vm)
+        rule.onNodeWithTag("account-add-row").performClick()
+        rule.waitUntil(5_000) { sheetOpen() }
+        val key = vm.state.value.rows.single().key
+        rule.runOnUiThread { vm.changeRow(key, type = BalanceAccountType.CREDIT, statementDay = "15") }
+        rule.waitForIdle()
+        rule.onNodeWithText(string(AccountsR.string.account_statement_day)).assertExists()
+        rule.onNodeWithTag("account-statement-day-resplit").assertDoesNotExist()
+    }
+
     @Test fun large_text_puts_currency_above_balance() {
         val vm = draft()
         rule.runOnUiThread { vm.addRow() }

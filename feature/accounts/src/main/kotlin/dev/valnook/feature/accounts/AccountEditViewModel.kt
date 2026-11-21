@@ -43,9 +43,15 @@ data class CashAccountRowDraft(
     val dueRuleValueInput: String = "20",
     val limitSourceAccountId: Long? = null,
     val includeInAvailableCash: Boolean = true, val showOnAccountsPage: Boolean = true,
-    val statementDayIncluded: Boolean = true
+    val statementDayIncluded: Boolean = true,
+    /** The statement day the saved credit sub-account has; null for a new or non-credit one. */
+    val savedStatementDay: Int? = null
 ) {
     val currencyLocked: Boolean get() = cashAccountId != null
+
+    /** A saved card given another valid statement day: its past cycles will be split by the new day too. */
+    val statementDayChanged: Boolean get() =
+        savedStatementDay != null && statementDayInput.toIntOrNull()?.takeIf { it in 1..31 }?.let { it != savedStatementDay } == true
 }
 
 data class CreditSourceOption(val id: Long, val label: String, val currency: Currency)
@@ -97,7 +103,7 @@ class AccountEditViewModel(
                 saved["limit-$key"] ?: "", saved["statement-$key"] ?: "12",
                 saved["dueType-$key"] ?: "AFTER_STATEMENT_DAYS", saved["dueValue-$key"] ?: "20",
                 saved["source-$key"], saved["available-$key"] ?: true, saved["visible-$key"] ?: true,
-                saved["included-$key"] ?: true)
+                saved["included-$key"] ?: true, saved["savedStatement-$key"])
         }, expectedRevision = saved["accountRevision"], loaded = true,
             icon = AccountIcon(AccountIconType.valueOf(saved["iconType"] ?: "SYMBOL"), saved["iconValue"] ?: "account_balance"),
             iconImage = saved["iconImage"], iconChanged = saved["iconChanged"] ?: false,
@@ -141,6 +147,7 @@ class AccountEditViewModel(
             saved["available-${row.key}"] = row.includeInAvailableCash
             saved["visible-${row.key}"] = row.showOnAccountsPage
             saved["included-${row.key}"] = row.statementDayIncluded
+            saved["savedStatement-${row.key}"] = row.savedStatementDay
         }
     }
 
@@ -167,7 +174,8 @@ class AccountEditViewModel(
                             profile?.statementDay?.toString() ?: "12",
                             if (profile?.dueRule is CreditDueRule.FixedDayOfMonth) "FIXED_DAY_OF_MONTH" else "AFTER_STATEMENT_DAYS",
                             profile?.dueRule?.value?.toString() ?: "20", profile?.limitSourceAccountId,
-                            cash.includeInAvailableCash, cash.showOnAccountsPage, profile?.statementDayIncluded ?: true)
+                            cash.includeInAvailableCash, cash.showOnAccountsPage, profile?.statementDayIncluded ?: true,
+                            profile?.statementDay)
                     }, account?.revision, sources, true, icon = account?.icon ?: AccountIcon(),
                     showDepositSummary = account?.showDepositSummary ?: true, showInvestmentSummary = account?.showInvestmentSummary ?: true))
             } catch (cancelled: CancellationException) {
