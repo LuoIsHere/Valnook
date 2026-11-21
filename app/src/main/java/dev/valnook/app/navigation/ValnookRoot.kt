@@ -780,13 +780,15 @@ private fun SessionRoot(
         if (current.isRoot() && !keyboardOpen) AnimatedVisibility(!walletNavigationHidden,
             Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             enter = NavigationMotion.bar_enter(), exit = NavigationMotion.bar_exit()) {
-            // Taps wait until the card has returned, like the wallet toolbar actions.
+            // Taps wait until the card has returned, like the wallet toolbar actions. The buttons themselves stay while
+            // the bar slides away under a card: dropping them would shrink the bar, and with it the card stack's bottom
+            // space, so a stack scrolled to its end would be pulled back and not return to where it was.
             FloatingNavigationBar(current, settings.navigation.visibleInOrder, { if (!walletDetail) selectRoot(it) },
                 Modifier.fillMaxWidth().onSizeChanged { overlayHeightPx = it.height }
                     .testTag("floating-navigation-overlay"), backdrop,
                 fold = { navigationFold }, onExpand = navigationCollapse::expand,
-                onAddBill = if (graph.bills != null && !walletDetail) ({ open(BillEditorKey()) }) else null,
-                onAiChat = if (graph.bills != null && !walletDetail && aiFeatures.chatEntry) ({ open(AiChatKey) }) else null,
+                onAddBill = if (graph.bills != null) ({ if (!walletDetail) open(BillEditorKey()) }) else null,
+                onAiChat = if (graph.bills != null && aiFeatures.chatEntry) ({ if (!walletDetail) open(AiChatKey) }) else null,
                 aiPending = aiPending)
         }
     }
