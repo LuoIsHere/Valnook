@@ -75,6 +75,11 @@ class DemoWalkthroughUiTest {
             val bank = snapshot.accounts.single { it.name == words.bank }
             val salary = snapshot.cash.single { it.name == words.salaryCard }
 
+            // The demo opens on Bills, as a new install does.
+            waitTag("bills-list")
+            capture("$name-bills")
+            checkBills(graph, words)
+            rule.onNodeWithTag("nav-accounts").performClick()
             waitTag("accounts-list")
             waitText(words.group)
             capture("$name-accounts")
@@ -119,18 +124,40 @@ class DemoWalkthroughUiTest {
             waitTag("investment-home")
             capture("$name-investments")
 
-            rule.onNodeWithTag("nav-statistics").performClick()
+            rule.onNodeWithTag("nav-settings").performClick()
+            waitTag("settings-list")
+            capture("$name-settings")
+
+            // Statistics is off the bar by default and opens from Settings › More pages.
+            rule.onNodeWithTag("settings-page-STATISTICS").performClick()
             rule.waitForIdle()
             rule.mainClock.advanceTimeBy(1_000)
             capture("$name-statistics")
-
-            rule.onNodeWithTag("nav-settings").performClick()
-            rule.waitForIdle()
-            capture("$name-settings")
+            back(context)
+            waitTag("settings-list")
 
             check(snapshot.instruments.any { it.name == words.instrument }) { "Instrument names not localised" }
         } finally {
             runBlocking { sessions.exitDemo() }
+        }
+    }
+
+    /**
+     * The bundled bills: every kind is there whatever month the test runs in, notes follow the language, and the
+     * pictures were copied in with the database.
+     */
+    private fun checkBills(graph: dev.valnook.app.di.AppGraph, words: Words) = runBlocking {
+        val bills = requireNotNull(graph.bills)
+        val months = (9..11).map { java.time.YearMonth.of(2026, it) }
+        val all = months.flatMap { bills.observeMonth(it, graph.clock.zone).first() }
+        check(all.size > 250) { "Only ${all.size} demo bills" }
+        check(all.map { it.type }.toSet() == dev.valnook.domain.model.BillType.entries.toSet()) { "Missing bill kinds" }
+        check(all.any { it.note == words.salary }) { "Bill notes not localised" }
+        val pictured = all.filter { it.imageCount > 0 }
+        check(pictured.sumOf { it.imageCount } == 4) { "Demo pictures ${pictured.sumOf { it.imageCount }}" }
+        val library = requireNotNull(graph.billImages)
+        pictured.flatMap { bills.observeImages(it.id).first() }.forEach { image ->
+            check(library.place(image.key) == dev.valnook.domain.repository.BillImagePlace.DEVICE) { "Picture ${image.key} missing" }
         }
     }
 

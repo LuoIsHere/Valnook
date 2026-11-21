@@ -63,4 +63,29 @@ class DemoLanguageDataTest {
         assertEquals("China Merchants Bank", switchTo("zh", AppLanguage.ENGLISH))
         assertEquals("招商银行", switchTo("en", AppLanguage.ZH_HANS))
     }
+
+    @Test fun demo_bill_notes_and_payers_follow_the_language_unless_the_user_changed_them() = runBlocking {
+        db.openHelper.writableDatabase.apply {
+            fun bill(id: Int, note: String, counterparty: String) = execSQL("""INSERT INTO operations(operation_id,kind,
+                request_fingerprint,result_kind,result_id,created_at_ms) VALUES ('op-$id','BILL','f$id','BILL',$id,0)""")
+                .also { execSQL("""INSERT INTO bill_entries(id,operation_id,
+                type,occurred_at_ms,amount_minor,currency_code,discount_minor,account_currency_code,account_amount_minor,rate,
+                rate_source,fee_minor,counterparty,count_in_stats,reimbursable,reimburse_state,note,revision,is_deleted,
+                created_at_ms,updated_at_ms) VALUES ($id,'op-$id','EXPENSE',0,1000,'CNY',0,'CNY',1000,'1','SAME',0,
+                '$counterparty',1,1,'PENDING','$note',1,0,0,0)""") }
+            bill(1, "出差打车", "公司")
+            bill(2, "我自己写的", "公司")
+            execSQL("INSERT INTO demo_labels VALUES ('BILL',1,'NOTE','出差打车','Taxi on a work trip')")
+            execSQL("INSERT INTO demo_labels VALUES ('BILL',1,'COUNTERPARTY','公司','Employer')")
+            execSQL("INSERT INTO demo_labels VALUES ('BILL',2,'NOTE','出差餐费','Meals on a work trip')")
+        }
+        suspend fun bill(id: Int) = db.openHelper.readableDatabase.query("SELECT note,counterparty FROM bill_entries WHERE id=$id")
+            .use { it.moveToFirst(); it.getString(0) to it.getString(1) }
+        switchTo("zh", AppLanguage.ENGLISH)
+        assertEquals("Taxi on a work trip" to "Employer", bill(1))
+        // A note the user rewrote is theirs, in whatever language.
+        assertEquals("我自己写的" to "公司", bill(2))
+        switchTo("en", AppLanguage.ZH_HANS)
+        assertEquals("出差打车" to "公司", bill(1))
+    }
 }

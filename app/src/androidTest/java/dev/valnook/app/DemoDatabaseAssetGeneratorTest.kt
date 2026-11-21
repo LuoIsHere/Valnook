@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import dev.valnook.app.di.AppGraph
+import dev.valnook.app.di.DemoBillSeeder
 import dev.valnook.app.di.DemoDataSeeder
 import dev.valnook.app.di.createDatabaseGraph
 import dev.valnook.app.di.currentBuildInfo
@@ -53,9 +54,9 @@ import java.time.ZoneId
 import java.util.UUID
 
 /**
- * Builds the bundled demo database `valnook-demo-v23.db` from [DemoDataSeeder], adds the wallet, the price history,
- * the fixed exchange rate history and the English labels, checks that the ledger reads like a real one, and writes
- * the file to test storage.
+ * Builds the bundled demo database `valnook-demo-v30.db` from [DemoDataSeeder] and [DemoBillSeeder], adds the
+ * wallet, the price history, the fixed exchange rate history and the English labels, checks that the ledger reads
+ * like a real one, and writes the file and the bills' pictures (`demo-bill-image-<key>.webp`) to test storage.
  */
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
@@ -63,7 +64,9 @@ class DemoDatabaseAssetGeneratorTest {
     fun exportDemoDatabase() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(EXPORT_DATABASE_NAME)
-        val clock = Clock.fixed(Instant.parse("2026-10-20T04:00:00Z"), ZoneId.of("Asia/Shanghai"))
+        val pictures = java.io.File(context.filesDir, "bill_images_${EXPORT_DATABASE_NAME.removeSuffix(".db")}")
+        pictures.deleteRecursively()
+        val clock = Clock.fixed(Instant.parse("2026-11-21T04:00:00Z"), ZoneId.of("Asia/Shanghai"))
         val database = Room.databaseBuilder(context, ValnookDatabase::class.java, EXPORT_DATABASE_NAME)
             .addCallback(ValnookDatabase.seed)
             .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)
@@ -75,13 +78,15 @@ class DemoDatabaseAssetGeneratorTest {
                 dev.valnook.data.repository.RoomStatistics(database, clock), raw.settings, raw.settingsWriter,
                 raw.instruments, raw.cashPages, raw.depositPages)
             val fx = readDemoFx()
-            DemoDataSeeder(graph, clock).seed(AppSettings(), fx.currentRates())
+            DemoDataSeeder(graph, clock, BILLS_FROM).seed(AppSettings(), fx.currentRates())
             database.fx().insertHistory(fx.rows)
             seedWallet(database, graph, clock)
+            DemoBillSeeder(raw, clock, BILLS_FROM).seed()
             dev.valnook.data.repository.RoomAccountGroupWriter(database, clock).setCollapsed(AccountGroup.DEFAULT_ID, true)
             enrichHistory(database, clock)
             insertLabels(database)
             check(database, graph)
+            checkBills(database, pictures, clock)
             checkFx(database, fx)
         } finally {
             database.close()
@@ -91,6 +96,37 @@ class DemoDatabaseAssetGeneratorTest {
             source.inputStream().use { input -> input.copyTo(output) }
         }
         assertTrue(source.length() > 0)
+        // The bills' pictures go into the app's assets beside the database; demo mode copies them in on entry.
+        pictures.listFiles().orEmpty().forEach { file ->
+            PlatformTestStorageRegistry.getInstance().openOutputFile("demo-bill-image-${file.name}").use { output ->
+                file.inputStream().use { input -> input.copyTo(output) }
+            }
+        }
+    }
+
+    /** One of each kind the bill pages show, and every picture on disk. */
+    private fun checkBills(database: ValnookDatabase, pictures: java.io.File, clock: Clock) {
+        val sql = database.openHelper.readableDatabase
+        fun strings(query: String) = sql.query(query).use { buildSet { while (it.moveToNext()) add(it.getString(0)) } }
+        fun count(query: String) = sql.query(query).use { it.moveToFirst(); it.getInt(0) }
+        val live = "FROM bill_entries WHERE is_deleted=0"
+        assertEquals(setOf("EXPENSE", "INCOME", "TRANSFER", "REFUND", "REIMBURSEMENT"), strings("SELECT DISTINCT type $live"))
+        assertEquals(setOf("INTERNAL", "TO_EXTERNAL", "FROM_EXTERNAL"),
+            strings("SELECT DISTINCT transfer_kind $live AND transfer_kind IS NOT NULL"))
+        assertTrue(strings("SELECT DISTINCT reimburse_state $live").containsAll(setOf("PENDING", "PARTIAL", "DONE", "WAIVED")))
+        assertTrue(count("SELECT COUNT(*) $live AND currency_code<>account_currency_code") >= 1)
+        assertTrue(count("SELECT COUNT(*) $live AND currency_code='JPY'") >= 1)
+        assertTrue(count("SELECT COUNT(*) $live AND discount_minor>0") >= 1)
+        assertTrue(count("SELECT COUNT(*) $live AND fee_minor>0") >= 1)
+        assertTrue(count("SELECT COUNT(*) $live AND type='EXPENSE' AND count_in_stats=0") >= 1)
+        assertTrue(count("SELECT COUNT(*) $live AND occurred_at_ms>${clock.millis()}") >= 1)
+        val bills = count("SELECT COUNT(*) $live")
+        Log.i("DemoAsset", "bills=$bills")
+        assertTrue(bills in 250..900)
+        val keys = strings("SELECT DISTINCT image_key FROM bill_attachments")
+        assertEquals(4, keys.size)
+        assertTrue(keys.all { java.io.File(pictures, "$it.webp").isFile })
+        assertEquals(4, count("SELECT COUNT(*) FROM bill_image_files WHERE local_saved_at_ms IS NOT NULL"))
     }
 
     /**
@@ -279,7 +315,7 @@ class DemoDatabaseAssetGeneratorTest {
     /** Every demo text the user can see gets an English twin; switching the app language swaps them. */
     private suspend fun insertLabels(database: ValnookDatabase) {
         val sql = database.openHelper.writableDatabase
-        val dictionary = DemoDataSeeder.ENGLISH + WALLET_ENGLISH
+        val dictionary = DemoDataSeeder.ENGLISH + WALLET_ENGLISH + DemoBillSeeder.ENGLISH
         fun label(kind: String, id: Long, field: String, zh: String) {
             if (zh.isEmpty()) return
             val english = requireNotNull(dictionary[zh]) { "No English label for $zh" }
@@ -302,6 +338,10 @@ class DemoDatabaseAssetGeneratorTest {
             label("GROUP", it.getLong(0), "NAME", it.getString(1))
         }
         rows("SELECT id,name FROM wallet_cards") { label("CARD", it.getLong(0), "NAME", it.getString(1)) }
+        rows("SELECT id,note,counterparty FROM bill_entries") {
+            label("BILL", it.getLong(0), "NOTE", it.getString(1))
+            label("BILL", it.getLong(0), "COUNTERPARTY", it.getString(2))
+        }
         rows("SELECT rowid,label FROM wallet_card_images") { label("FACE", it.getLong(0), "LABEL", it.getString(1)) }
         sql.query("SELECT id,name FROM asset_types ORDER BY id").use {
             while (it.moveToNext()) label("TYPE", it.getLong(0), "NAME", it.getString(1))
@@ -378,7 +418,9 @@ class DemoDatabaseAssetGeneratorTest {
             "纸纹" to "Paper", "极光" to "Aurora"
         )
         const val EXPORT_DATABASE_NAME = "valnook-demo-asset-export.db"
-        const val ASSET_FILE_NAME = "valnook-demo-v23.db"
+        const val ASSET_FILE_NAME = "valnook-demo-v30.db"
+        /** Bills from here on; the months before stay balance adjustments, as recorded before bills existed. */
+        val BILLS_FROM: YearMonth = YearMonth.of(2026, 9)
         const val FX_HISTORY_ASSET = "demo-fx-history.json"
     }
 }

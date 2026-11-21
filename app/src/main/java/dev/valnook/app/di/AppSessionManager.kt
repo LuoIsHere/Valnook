@@ -111,6 +111,8 @@ class AppSessionManager @Inject internal constructor(
         val displayPreferences = realDatabaseGraph.settings.observeSettings().first()
         clearAbandonedDemoDatabases()
         val databaseName = "$DEMO_DATABASE_PREFIX${UUID.randomUUID()}.db"
+        // The demo bills' pictures are in place before the database opens, so none is ever taken for missing.
+        withContext(kotlinx.coroutines.Dispatchers.IO) { copyDemoImages(databaseName) }
         val database = ValnookDatabase.fromAsset(context, databaseName, DEMO_DATABASE_ASSET)
         try {
             val raw = createDatabaseGraph(context, database, clock, realDatabaseGraph.portability.buildInfo(), persistentPrivateCards = false)
@@ -453,6 +455,17 @@ class AppSessionManager @Inject internal constructor(
             ?.forEach { it.deleteRecursively() }
     }
 
+    /** The bundled demo bills' pictures, into the folder [billImagesDir] gives this demo database. */
+    private fun copyDemoImages(databaseName: String) {
+        val target = java.io.File(context.filesDir, "bill_images_${databaseName.removeSuffix(".db")}")
+        target.mkdirs()
+        context.assets.list(DEMO_IMAGES_ASSET).orEmpty().forEach { name ->
+            context.assets.open("$DEMO_IMAGES_ASSET/$name").use { input ->
+                java.io.File(target, name).outputStream().use { input.copyTo(it) }
+            }
+        }
+    }
+
     /** A demo database's pictures go with it. */
     private fun deleteDemoImages(databaseName: String) {
         java.io.File(context.filesDir, "bill_images_${databaseName.removeSuffix(".db")}").deleteRecursively()
@@ -727,7 +740,8 @@ class AppSessionManager @Inject internal constructor(
     )
 
     private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v23.db"
+        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v30.db"
+        const val DEMO_IMAGES_ASSET = "database/demo-bill-images"
         const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

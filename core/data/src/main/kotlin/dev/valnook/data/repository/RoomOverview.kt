@@ -101,6 +101,8 @@ class RoomSettings(private val db: ValnookDatabase, private val clock: Clock,
                 dao.localizeInstruments(english)
                 dao.localizeCashNotes(english)
                 dao.localizeEntryNotes(english)
+                dao.localizeBillNotes(english)
+                dao.localizeBillCounterparties(english)
                 dao.localizeGroups(english)
                 dao.localizeWalletCards(english)
                 dao.localizeWalletFaces(english)

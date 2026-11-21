@@ -141,7 +141,9 @@ class AccountWalletRefreshUiTest {
         val points=runBlocking{graph.cash.observeTrends(savings.account_id,graph.clock.instant(),graph.clock.zone).first()}
         assertTrue(points.getValue(savings.id).count{it.balanceMinor!=null} >= 90)
         assertEquals(java.math.BigInteger.valueOf(savings.balance_minor),points.getValue(savings.id).last().balanceMinor)
-        waitTag("account-total-${savings.account_id}")
+        // The demo opens on Bills, as a new install does.
+        waitTag("nav-accounts");rule.onNodeWithTag("nav-accounts").performClick()
+                waitTag("account-total-${savings.account_id}")
         rule.onNodeWithTag("account-total-${savings.account_id}").performScrollTo().performClick()
         rule.waitUntil(15000){rule.onAllNodesWithText(savings.name).fetchSemanticsNodes().isNotEmpty()}
         capture("demo-subaccounts")

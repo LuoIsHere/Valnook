@@ -68,6 +68,16 @@ abstract class OverviewDao {
         WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='ENTRY' AND d.entity_id=cash_entries.id
         AND d.field_name='NOTE' AND cash_entries.note IN (d.zh_hans,d.english))""")
     abstract suspend fun localizeEntryNotes(english: Boolean)
+    @Query("""UPDATE bill_entries SET note=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='BILL' AND d.entity_id=bill_entries.id AND d.field_name='NOTE')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='BILL' AND d.entity_id=bill_entries.id
+        AND d.field_name='NOTE' AND bill_entries.note IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeBillNotes(english: Boolean)
+    @Query("""UPDATE bill_entries SET counterparty=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
+        FROM demo_labels d WHERE d.entity_kind='BILL' AND d.entity_id=bill_entries.id AND d.field_name='COUNTERPARTY')
+        WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='BILL' AND d.entity_id=bill_entries.id
+        AND d.field_name='COUNTERPARTY' AND bill_entries.counterparty IN (d.zh_hans,d.english))""")
+    abstract suspend fun localizeBillCounterparties(english: Boolean)
     @Query("""UPDATE account_groups SET name=(SELECT CASE WHEN :english THEN english ELSE zh_hans END
         FROM demo_labels d WHERE d.entity_kind='GROUP' AND d.entity_id=account_groups.id AND d.field_name='NAME')
         WHERE EXISTS(SELECT 1 FROM demo_labels d WHERE d.entity_kind='GROUP' AND d.entity_id=account_groups.id

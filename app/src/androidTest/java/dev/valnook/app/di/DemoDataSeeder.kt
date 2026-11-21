@@ -57,7 +57,11 @@ import kotlin.math.sin
  * towards today, as it does when someone starts by recording quarterly totals and later records every bill.
  * Every record goes through the app's own commands; dates are relative to the clock, so it can run on any day.
  */
-internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Clock) {
+/**
+ * [billsFrom]: from this month on the everyday money moves are left to bills (DemoBillSeeder), so the ledger does not
+ * hold them twice; null (tests) keeps the whole ledger as balance adjustments.
+ */
+internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Clock, private val billsFrom: YearMonth? = null) {
     private val today = LocalDate.now(clock)
     private val start = LocalDate.of(today.year - 9, 1, 3)
     private val random = Random(20261020)
@@ -212,12 +216,18 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
 
         // The last 34 months: every salary, transfer and card statement.
         months(detailed, YearMonth.from(today)).forEach { month ->
+            // Months kept as bills: only what the bank posts on its own (housing fund, mortgage) stays here.
+            val billed = billsFrom != null && month >= billsFrom
             val pay = when (month.year - detailed.year) { 0 -> 23_500_00L; 1 -> 25_000_00L; else -> 26_800_00L }
-            day(month, 10)?.let { adjust(salary, pay, it, "工资") }
+            if (!billed) day(month, 10)?.let { adjust(salary, pay, it, "工资") }
             if (month.monthValue == 2) day(month, 8)?.let { adjust(salary, pay * 2, it, "年终奖") }
             day(month, 15)?.let { adjust(housing, 5_640_00, it, "公积金缴存") }
             if (month.monthValue == 1) day(month, 20)?.let { adjust(housing, -36_000_00, it, "还贷提取") }
 
+            if (billed) {
+                day(month, 15)?.let { adjust(mortgage, -6_820_45L, it, "房贷月供") }
+                return@forEach
+            }
             // Statements post on the statement day and are repaid on the due day from the same bank.
             val visaBill = amount(2_600, 7_400)
             day(month, 7)?.let { adjust(visa, -visaBill, it, "本期账单") }
@@ -277,17 +287,19 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
             }
         }
 
-        // The latest four months, recorded as they happen.
-        dailySpending(alipay, wechat, today.minusMonths(4).withDayOfMonth(1))
+        // The latest four months, recorded as they happen (up to the bills, when there are any).
+        dailySpending(alipay, wechat, today.minusMonths(4).withDayOfMonth(1), billsFrom?.atDay(1)?.minusDays(1) ?: today)
 
         // Credit cards: spending since the last statement, a refund that leaves a credit balance, and a large
-        // purchase that takes the new card close to its limit.
-        adjust(visa, -amount(300, 900), today.minusDays(2), "超市")
-        adjust(icbcMain, -2_315_60, today.minusDays(3), "加油与超市")
-        adjust(icbcFamily, -1_048_00, today.minusDays(4), "网购")
-        adjust(white, 86_00, today.minusDays(5), "退款 · 网购退货")
+        // purchase that takes the new card close to its limit. With bills, the bills carry these.
+        if (billsFrom == null) {
+            adjust(visa, -amount(300, 900), today.minusDays(2), "超市")
+            adjust(icbcMain, -2_315_60, today.minusDays(3), "加油与超市")
+            adjust(icbcFamily, -1_048_00, today.minusDays(4), "网购")
+            adjust(white, 86_00, today.minusDays(5), "退款 · 网购退货")
+        }
         val dragonStart = YearMonth.from(start.plusYears(8))
-        months(dragonStart, YearMonth.from(today).minusMonths(1)).forEach { month ->
+        months(dragonStart, minOf(YearMonth.from(today).minusMonths(1), billsFrom?.minusMonths(1) ?: YearMonth.from(today))).forEach { month ->
             val bill = amount(200, 800)
             day(month, 18)?.let { adjust(dragon, -bill, it, "本期账单") }
             day(month.plusMonths(1), 2)?.let {
@@ -295,8 +307,10 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
                 adjust(reserve, -bill, it, "还建行信用卡")
             }
         }
-        adjust(dragon, -7_999_00, today.minusDays(9).coerceAtLeast(today.withDayOfMonth(1)), "家电 · 洗烘套装")
-        adjust(dragon, -936_20, today.minusDays(1), "加油")
+        if (billsFrom == null) {
+            adjust(dragon, -7_999_00, today.minusDays(9).coerceAtLeast(today.withDayOfMonth(1)), "家电 · 洗烘套装")
+            adjust(dragon, -936_20, today.minusDays(1), "加油")
+        }
 
         // Trips: currency exchanged from the salary card and spent abroad.
         trip(salary, cmbUsd, "USD", 7_10, LocalDate.of(start.year + 2, 7, 3), 1_500_00, "美国出差")
@@ -327,11 +341,11 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
     }
 
     /** Small Alipay and WeChat payments, most days, with the usual notes; some carry no note at all. */
-    private suspend fun dailySpending(alipay: Long, wechat: Long, from: LocalDate) {
+    private suspend fun dailySpending(alipay: Long, wechat: Long, from: LocalDate, until: LocalDate = today) {
         val alipayNotes = listOf("早餐", "午餐", "超市", "打车", "地铁", "水电燃气", "话费充值", "外卖", "网购", "")
         val wechatNotes = listOf("咖啡", "便利店", "停车", "水果", "早餐", "")
         var date = from
-        while (date <= today) {
+        while (date <= until) {
             if (random.nextInt(10) < 8) {
                 adjust(alipay, -amount(12, 128), date, alipayNotes[random.nextInt(alipayNotes.size)], hour = 12)
             }
