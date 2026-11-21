@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.valnook.designsystem.AnimatedGlassDialog
@@ -55,7 +56,7 @@ internal const val FOREGROUND_REMINDER_ABOVE = 20
     var skip by remember { mutableStateOf(false) }
     AnimatedGlassDialog(true, onCancel) {
         DialogCard(stringResource(R.string.cloud_foreground_title), Modifier.testTag("cloud-foreground-reminder")) {
-            Text(stringResource(if (fetching) R.string.cloud_foreground_fetch else R.string.cloud_foreground_upload, count),
+            Text(pluralStringResource(if (fetching) R.plurals.cloud_foreground_fetch else R.plurals.cloud_foreground_upload, count, count),
                 style = MaterialTheme.typography.bodyMedium)
             // Cancel sits at the start, apart from "Don't remind me" and Continue.
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -78,7 +79,7 @@ internal const val FOREGROUND_REMINDER_ABOVE = 20
 @Composable internal fun DisconnectPicturesDialog(count: Int, onFetch: () -> Unit, onDisconnect: () -> Unit, onCancel: () -> Unit) {
     AnimatedGlassDialog(true, onCancel) {
         DialogCard(stringResource(R.string.cloud_disconnect_title), Modifier.testTag("cloud-disconnect-pictures")) {
-            Text(stringResource(R.string.cloud_disconnect_pictures, count), style = MaterialTheme.typography.bodyMedium)
+            Text(pluralStringResource(R.plurals.cloud_disconnect_pictures, count, count), style = MaterialTheme.typography.bodyMedium)
             // Three long choices: stacked at the end rather than in one row.
             Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                 TextButton(onFetch, Modifier.testTag("cloud-disconnect-fetch")) { Text(stringResource(R.string.cloud_disconnect_fetch_first)) }

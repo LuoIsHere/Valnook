@@ -334,7 +334,7 @@ object BillCategoryPresets {
             c("finance.fees", "receipt", "手续费", "Fees"), c("finance.interest", "percent", "利息", "Interest"),
             c("finance.insurance", "shield-halved", "保险", "Insurance"), c("finance.taxes", "file-invoice-dollar", "税费", "Taxes")),
         group(E, "other", "shapes", "grey", "其他", "Other",
-            c("other.uncategorized", "circle-question", "未分类", "Uncategorised")),
+            c("other.uncategorized", "circle-question", "未分类", "Uncategorized")),
         group(I, "income.pay", "sack-dollar", "green", "薪酬", "Pay",
             c("income.pay.salary", "money-bill-wave", "工资", "Salary"), c("income.pay.bonus", "award", "奖金", "Bonus"),
             c("income.pay.allowance", "hand-holding-heart", "补贴", "Allowances")),
@@ -348,7 +348,7 @@ object BillCategoryPresets {
             c("income.social.red_packets", "envelope-open-text", "红包", "Red packets"), c("income.social.gifts", "envelope", "礼金", "Gift money")),
         group(I, "income.other", "shapes", "grey", "其他", "Other",
             c("income.other.tax_refund", "file-invoice", "退税", "Tax refunds"), c("income.other.prizes", "trophy", "中奖", "Prizes"),
-            c("income.other.uncategorized", "circle-question", "未分类", "Uncategorised")),
+            c("income.other.uncategorized", "circle-question", "未分类", "Uncategorized")),
     ).flatten()
 
     private val byKey = all.associateBy { it.key }

@@ -16,7 +16,7 @@
     <string name="accounts_partial_summary">Partial total · %1$s</string>
     <string name="accounts_missing_base">Base currency is not set</string>
     <string name="accounts_missing_rate">No rate for %1$s, left out; set one or turn on automatic rates in Settings › Exchange rates</string>
-    <string name="accounts_missing_current_cost">Current cost is incomplete</string>
+    <string name="accounts_missing_current_cost">Holding cost is incomplete</string>
     <string name="accounts_missing_historical_cost">Historical cost is incomplete</string>
     <string name="accounts_invalid_history">Transaction history is invalid</string>
     <string name="accounts_empty">Use + in the top right to add an account</string>
@@ -35,22 +35,22 @@
     <string name="account_statement_day">Statement day</string>
     <string name="account_statement_day_resplit">Past cycles will also be split by the new statement day</string>
     <string name="account_due_rule">Payment due rule</string>
-    <string name="account_due_after">Days after statement</string>
+    <string name="account_due_after">N days after statement day</string>
     <string name="account_due_fixed">Fixed day each month</string>
-    <string name="account_due_days_after">Days after statement</string>
+    <string name="account_due_days_after">Days after statement day</string>
     <string name="account_due_day">Payment due day</string>
     <string name="account_credit_usage">Used %1$s / %2$s %3$s</string>
     <string name="account_credit_over_limit">Over limit %1$s %2$s</string>
     <string name="account_balance">Balance</string>
     <string name="account_cancel_balance_account">Discard new subaccount</string>
-    <string name="account_delete_balance_account">Delete account</string>
+    <string name="account_delete_balance_account">Delete subaccount</string>
     <string name="account_delete_title">Delete this account?</string>
     <string name="account_delete_message">Only an empty account with no balance, history, linked deposits, trades, or shared-limit members can be deleted.</string>
     <string name="account_delete_confirm">Delete</string>
     <string name="account_add_balance_account">+ Add subaccount</string>
     <string name="account_review_retry">Review and retry</string>
     <string name="account_save">Save</string>
-    <string name="account_unknown_result">Save result not yet confirmed. Retry safely without creating a duplicate.</string>
+    <string name="account_unknown_result">The save hasn\'t been confirmed. Try again; it won\'t be recorded twice.</string>
     <string name="account_section_total">Total</string>
     <string name="account_trend_description">Net assets trend</string>
     <string name="account_trend_incomplete">%1$s · some currencies left out</string>
@@ -88,8 +88,8 @@
     <string name="account_show_investments">Show investment summary</string>
     <string name="account_show_cash">Show on Accounts page</string>
     <string name="account_include_available">Include in available cash</string>
-    <string name="account_delete_parent_scope">Delete this account, all subaccounts, cash entries, deposits, holdings and trades. Global instruments and other accounts are kept. Historical totals will be recalculated. This cannot be undone.</string>
-    <string name="account_delete_child_scope">Delete this subaccount and its cash entries. Deposits and trades are kept without their cash links to this subaccount. No balance is transferred. Other balances stay unchanged. Historical totals will be recalculated. This cannot be undone.</string>
+    <string name="account_delete_parent_scope">Delete this account, all subaccounts, cash entries, deposits, holdings and trades. Instruments in the library and other accounts are kept. Past statistics are recalculated. This cannot be undone.</string>
+    <string name="account_delete_child_scope">Delete this subaccount and its cash entries. Deposits and trades are kept without their cash links to this subaccount. No balance is transferred. Other balances stay unchanged. Past statistics are recalculated. This cannot be undone.</string>
     <string name="account_delete_counts">Subaccounts: %1$d · Cash entries: %2$d\nAffected deposits: %3$d · Trades: %4$d</string>
     <string name="account_delete_transfer">%1$s → Independent limit %2$s %3$s</string>
     <string name="account_delete_transfer_notice">Each linked credit account inherits the full limit, so the combined limit may increase. Their debts stay unchanged.</string>
@@ -107,7 +107,7 @@
         <item quantity="one">%1$d field to fix</item>
         <item quantity="other">%1$d fields to fix</item>
     </plurals>
-    <string name="account_delete_bills_kept">%1$d bills stay, showing this account as deleted.</string>
+    <string name="account_delete_bills_kept">Bills kept: %1$d. They show this account as deleted.</string>
     <string name="account_statement_day_included">Statement-day spending on that day\'s statement</string>
     <string name="account_statement_day_included_hint">When off, it goes on the next statement. Banks differ; check your statement.</string>
 </resources>

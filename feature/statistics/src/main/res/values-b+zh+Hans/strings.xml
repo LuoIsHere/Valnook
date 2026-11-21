@@ -29,7 +29,7 @@
     <string name="statistics_tab_income">收入</string>
     <string name="statistics_distribution">分布</string>
     <string name="statistics_by_account">按账户</string>
-    <string name="statistics_by_asset_type">按资产构成</string>
+    <string name="statistics_by_asset_type">按资产类型</string>
     <string name="statistics_by_currency">按币种</string>
     <string name="statistics_negative_left_out">负值账户不计入</string>
     <string name="statistics_type_default">未分类</string>

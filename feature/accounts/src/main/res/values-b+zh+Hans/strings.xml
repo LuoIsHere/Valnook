@@ -15,11 +15,11 @@
     <string name="accounts_summary_incomplete">汇总暂不完整：%1$s</string>
     <string name="accounts_partial_summary">部分汇总 · %1$s</string>
     <string name="accounts_missing_base">未设置主币种</string>
-    <string name="accounts_missing_rate">%1$s 没有汇率，未计入；可在「设置 › 汇率」中填写或开启自动获取</string>
-    <string name="accounts_missing_current_cost">当前成本待补全</string>
+    <string name="accounts_missing_rate">%1$s 没有汇率，未计入；可在“设置 › 汇率”中填写或开启自动获取</string>
+    <string name="accounts_missing_current_cost">持仓成本待补全</string>
     <string name="accounts_missing_historical_cost">历史成本待补全</string>
     <string name="accounts_invalid_history">历史记录异常</string>
-    <string name="accounts_empty">点按右上角＋新增账户</string>
+    <string name="accounts_empty">点按右上角 ＋ 新增账户</string>
     <string name="account_edit_load_failed">加载失败，请重试。</string>
     <string name="account_edit_title">编辑账户</string>
     <string name="account_name">名称</string>
@@ -43,7 +43,7 @@
     <string name="account_credit_over_limit">已超出信用额度 %1$s %2$s</string>
     <string name="account_balance">余额</string>
     <string name="account_cancel_balance_account">放弃新增子账户</string>
-    <string name="account_delete_balance_account">删除账户</string>
+    <string name="account_delete_balance_account">删除子账户</string>
     <string name="account_delete_title">删除这个账户？</string>
     <string name="account_delete_message">仅可删除余额为零，且没有流水、存单、交易关联或共享额度成员的空账户。</string>
     <string name="account_delete_confirm">删除</string>
@@ -72,11 +72,11 @@
     <string name="account_group_delete">删除</string>
     <string name="account_group_delete_title">删除分类</string>
     <plurals name="account_group_delete_message">
-        <item quantity="other">删除「%1$s」后，其中的 %2$d 个账户会移回「默认」。</item>
+        <item quantity="other">删除“%1$s”后，其中的 %2$d 个账户会移回“默认”。</item>
     </plurals>
     <string name="account_group_more">更多操作</string>
     <string name="account_group_add_accounts">添加账户</string>
-    <string name="account_group_add_title">添加账户到「%1$s」</string>
+    <string name="account_group_add_title">添加账户到“%1$s”</string>
     <string name="account_group_add_confirm">添加</string>
     <string name="account_group_add_empty">其他分类中没有账户</string>
     <string name="account_group_account_origin">%1$s（%2$s）</string>
@@ -87,11 +87,11 @@
     <string name="account_show_investments">显示投资汇总</string>
     <string name="account_show_cash">在账户页显示</string>
     <string name="account_include_available">计入可用现金</string>
-    <string name="account_delete_parent_scope">删除此主账户及其全部子账户、现金流水、存单、持仓和交易记录。保留全局标的及其他账户。历史统计会重新计算，此操作无法撤销。</string>
+    <string name="account_delete_parent_scope">删除此主账户及其全部子账户、现金流水、存单、持仓和交易记录。标的库中的标的和其他账户会保留。历史统计会重新计算，此操作无法撤销。</string>
     <string name="account_delete_child_scope">删除此子账户及其现金流水。存单与投资交易保留，并解除与此子账户的现金关联。余额不会转移，其他子账户余额不变。历史统计会重新计算，此操作无法撤销。</string>
-    <string name="account_delete_counts">子账户 %1$d 个 · 现金流水 %2$d 条\n涉及存单 %3$d 张 · 投资交易 %4$d 条</string>
+    <string name="account_delete_counts">子账户 %1$d 个 · 现金流水 %2$d 条\n涉及存单 %3$d 张 · 投资交易 %4$d 笔</string>
     <string name="account_delete_transfer">%1$s → 独立额度 %2$s %3$s</string>
-    <string name="account_delete_transfer_notice">关联信用账户将分别继承总额度，汇总授信额度可能增加；各自欠款不会改变。</string>
+    <string name="account_delete_transfer_notice">关联信用账户将分别继承总额度，汇总信用额度可能增加；各自欠款不会改变。</string>
     <string name="account_delete_code">请输入确认码：%1$s</string>
     <string name="account_delete_code_input">确认码</string>
     <string name="account_delete_refresh">重新检查并生成确认码</string>

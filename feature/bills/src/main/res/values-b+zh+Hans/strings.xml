@@ -28,7 +28,7 @@
     <string name="bill_clock">时间</string>
     <string name="bill_close">关闭</string>
     <string name="bill_confirm">确定</string>
-    <string name="bill_copy">再记一笔</string>
+    <string name="bill_copy">按这笔再记一笔</string>
     <string name="bill_count_in_stats">计入收支</string>
     <string name="bill_counterparty">对方名称（可不填）</string>
     <string name="bill_credit_no_limit">未设额度</string>
@@ -46,7 +46,7 @@
     <string name="bill_external_account">外部账户</string>
     <string name="bill_external_hint">转给别人或从别人处转入，不是你自己的账户</string>
     <string name="bill_favorites">收藏</string>
-    <string name="bill_favorites_hint">点星标把常用账户固定到这里</string>
+    <string name="bill_favorites_hint">点星标收藏常用账户，收藏的账户排在最前。</string>
     <string name="bill_fee">手续费</string>
     <string name="bill_future">未入账</string>
     <string name="bill_income">收入</string>
@@ -61,7 +61,7 @@
     <string name="bill_paid">实付</string>
     <string name="bill_problem_account">请选择账户。</string>
     <string name="bill_problem_amount">请输入大于 0 的金额。</string>
-    <string name="bill_problem_both_external">至少有一方是你自己的账户。</string>
+    <string name="bill_problem_both_external">至少一方要是你自己的账户。</string>
     <string name="bill_problem_category">请选择分类。</string>
     <string name="bill_problem_discount">优惠金额必须小于金额。</string>
     <string name="bill_problem_divide">不能除以 0。</string>
@@ -73,7 +73,7 @@
     <string name="bill_rate_source_one_time">仅本次使用</string>
     <string name="bill_rate_source_derived">按实际金额反推</string>
     <string name="bill_rate_flip">切换方向</string>
-    <string name="bill_rate_missing">未设置 %1$s→%2$s 汇率，请输入本次使用的汇率</string>
+    <string name="bill_rate_missing">未设置 %1$s→%2$s 汇率，请输入本次使用的汇率。</string>
     <string name="bill_rate_reset">恢复默认汇率</string>
     <string name="bill_refund">退款</string>
     <string name="bill_reimbursement">报销回款</string>
@@ -102,10 +102,10 @@
     <string name="bills_filter_counted_no">不计入</string>
     <string name="bills_filter_counted_yes">计入</string>
     <string name="bills_filter_type">类型</string>
-    <string name="bills_month_expense">本月支出</string>
+    <string name="bills_month_expense">支出</string>
     <string name="bills_none_filtered">没有符合条件的账单。</string>
     <string name="bills_none_found">没有找到备注相符的账单。</string>
-    <string name="bills_none_this_month">本月还没有账单。</string>
+    <string name="bills_none_this_month">这个月没有账单。</string>
     <string name="bills_totals_partial">没有汇率的币种未计入合计。</string>
     <string name="bills_month_income_balance">收入 %1$s · 结余 %2$s</string>
     <string name="bill_no_account">不计入账户</string>
@@ -120,11 +120,11 @@
     <string name="bill_category_delete_bills">删除这些账单</string>
     <string name="bill_category_delete_bills_detail">账户余额不变，账户里的流水保留为“已删除的账单”。这些账单的退款和报销回款也一起删除。</string>
     <string name="bill_reimbursable_pill">需要报销</string>
-    <string name="bill_not_reimbursable_pill">不需报销</string>
+    <string name="bill_not_reimbursable_pill">无需报销</string>
     <string name="bill_payer">回款方</string>
     <string name="bill_settlement_title">%1$s · %2$s</string>
     <string name="bill_refunded_tag">已退 %1$s</string>
-    <string name="bill_reimbursed_tag">已报 %1$s</string>
+    <string name="bill_reimbursed_tag">已回款 %1$s</string>
     <string name="bill_pending_tag">待回款 %1$s</string>
     <string name="bill_discount_tag">优惠 %1$s</string>
     <string name="bill_waived_tag">已放弃回款</string>
@@ -141,12 +141,12 @@
     <string name="bill_undo">撤销</string>
     <string name="bill_undo_title">撤销这笔记录？</string>
     <string name="bill_undo_message">记录会被删除，到账账户的余额一起回退。</string>
-    <string name="bill_delete_with_children">将同时删除 %1$d 条退款和报销回款记录，所有账户的余额一起回退。</string>
+    <string name="bill_delete_with_children">将同时删除 %1$d 笔退款和报销回款，所有账户的余额一起回退。</string>
     <string name="bill_settlements">退款和报销回款</string>
-    <string name="bill_waive">放弃回款</string>
+    <string name="bill_waive">放弃剩余回款</string>
     <string name="bill_unwaive">恢复待回款</string>
     <string name="bill_refunded">已退款</string>
-    <string name="bill_reimbursed">已报销</string>
+    <string name="bill_reimbursed">已回款</string>
     <string name="bill_reimbursable">报销状态</string>
     <string name="bill_left">还剩</string>
     <string name="bill_state_pending">待回款</string>
@@ -185,7 +185,7 @@
     <string name="bill_image_remove">移除图片</string>
     <string name="bill_image_missing">图片缺失</string>
     <string name="bill_image_close">关闭</string>
-    <string name="bill_image_in_cloud">在云端</string>
+    <string name="bill_image_in_cloud">在 OneDrive</string>
     <string name="bill_image_fetch">从 OneDrive 取回</string>
     <string name="bill_image_fetch_failed">没能从 OneDrive 取回，请稍后再试。</string>
     <string name="stats_total_expense">支出合计</string>
@@ -197,7 +197,7 @@
     <string name="stats_compare_less_plain">比上月少 %1$s</string>
     <string name="stats_compare_same">和上月持平</string>
     <string name="stats_savings">优惠共省 %1$s</string>
-    <string name="stats_by_category">分类</string>
+    <string name="stats_by_category">按分类</string>
     <string name="stats_no_expense">这个月没有支出</string>
     <string name="stats_no_income">这个月没有收入</string>
     <string name="stats_ring_description">分类占比：%1$s</string>
@@ -210,6 +210,6 @@
     </plurals>
     <string name="stats_subcategories">子分类</string>
     <string name="stats_no_subcategory">未细分</string>
-    <string name="stats_category_empty">这个月这个分类没有账单。</string>
+    <string name="stats_category_empty">这个月该分类下没有账单。</string>
     <string name="bill_net_tag">净额 %1$s</string>
 </resources>

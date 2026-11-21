@@ -5,11 +5,11 @@
     <string name="investment_set_base">请设置主币种</string>
     <string name="investment_incomplete">不完整 · %1$s</string>
     <string name="investment_missing_base">未设置主币种</string>
-    <string name="investment_missing_rate">%1$s 没有汇率，未计入；可在「设置 › 汇率」中填写或开启自动获取</string>
+    <string name="investment_missing_rate">%1$s 没有汇率，未计入；可在“设置 › 汇率”中填写或开启自动获取</string>
     <string name="investment_missing_current_cost">持仓成本待补全</string>
     <string name="investment_missing_historical_cost">历史成本待补全</string>
     <string name="investment_invalid_history">历史记录异常</string>
-    <string name="investment_total_value">总投资市值</string>
+    <string name="investment_total_value">投资总市值</string>
     <string name="investment_total_unrealized">浮动盈亏</string>
     <string name="investment_total_realized">累计已实现盈亏</string>
     <string name="investment_no_holdings_summary">暂无持仓，历史已实现盈亏仍参与汇总</string>
@@ -83,13 +83,13 @@
     <string name="instrument_type_delete">删除资产类型</string>
     <string name="instrument_type_delete_confirm">删除</string>
     <string name="instrument_delete_cancel">取消</string>
-    <string name="instrument_type_delete_empty">确定删除「%1$s」吗？它下面没有标的。</string>
+    <string name="instrument_type_delete_empty">确定删除“%1$s”吗？它下面没有标的。</string>
     <plurals name="instrument_type_delete_message">
-        <item quantity="other">删除「%1$s」后，它下面的 %2$d 个标的将移到「未分类」。</item>
+        <item quantity="other">删除“%1$s”后，它下面的 %2$d 个标的将移到“未分类”。</item>
     </plurals>
     <string name="instrument_delete">删除标的</string>
     <string name="instrument_delete_confirm">删除</string>
-    <string name="instrument_delete_simple">确定删除「%1$s」吗？它没有交易记录。</string>
+    <string name="instrument_delete_simple">确定删除“%1$s”吗？它没有交易记录。</string>
     <string name="instrument_delete_scope">将删除它在 %1$d 个账户中的持仓、%2$d 笔交易记录和 %3$d 条历史价格。</string>
     <string name="instrument_delete_value">当前市值 %1$s 将从净资产中移除。</string>
     <string name="instrument_delete_cash">交易产生的 %1$d 条现金流水会保留，现金余额不变；历史统计会重新计算。</string>
@@ -106,12 +106,12 @@
     <string name="instrument_edit">编辑标的</string>
     <string name="instrument_price_section">价格</string>
     <string name="instrument_unit_price">每份价格</string>
-    <string name="instrument_price_hint">最多 5 位小数；当前价格由此标的在所有账户中共用。</string>
+    <string name="instrument_price_hint">最多 5 位小数；持有此标的的所有账户共用这个价格。</string>
     <string name="instrument_type_default_tag">默认</string>
     <plurals name="instrument_type_row_count">
         <item quantity="other">%1$d 个标的</item>
     </plurals>
-    <string name="instrument_types_note">删除资产类型后，它下面的标的会移到「未分类」；「未分类」不能改名或删除。</string>
+    <string name="instrument_types_note">删除资产类型后，它下面的标的会移到“未分类”；“未分类”不能改名或删除。</string>
     <string name="investment_dividend">派息</string>
     <string name="instrument_dividend_to">派息到哪个账户</string>
     <string name="dividend_record_title">记录派息</string>
@@ -120,7 +120,7 @@
     <string name="dividend_date">派息日期</string>
     <string name="dividend_link_cash">同时计入现金</string>
     <string name="dividend_hint">派息计入已实现盈亏，不改变持有份额和成本。</string>
-    <string name="dividend_history_conflict">派息日期之前，这个账户没有买入记录。</string>
+    <string name="dividend_history_conflict">派息日期之前，这个账户没有买入记录，请核对日期。</string>
     <string name="instrument_dividends_part">其中派息 %1$s</string>
     <string name="dividend_row_detail">派息到账</string>
     <string name="instrument_type_no_match">该资产类型下暂无标的</string>
@@ -129,10 +129,10 @@
     <string name="investment_no_trades">暂无交易记录</string>
     <string name="investment_load_more">加载更多</string>
     <string name="instrument_not_found">标的不存在</string>
-    <string name="instrument_price_shared_hint">该当前价格由此标的在所有账户中共用。</string>
+    <string name="instrument_price_shared_hint">持有此标的的所有账户共用这个价格。</string>
     <string name="instrument_types_failed_short">资产类型加载失败，请返回后重试。</string>
     <string name="instrument_types_loading_short">正在加载资产类型</string>
-    <string name="instrument_add_type">新增类型</string>
+    <string name="instrument_add_type">新增资产类型</string>
     <string name="investment_fx_summary">按当前设置汇率折算 ⓘ</string>
     <string name="investment_search">搜索名称、代码或币种</string>
     <string name="investment_catalogue">管理标的</string>
@@ -169,5 +169,5 @@
     <string name="realized_unknown">无法计算</string>
     <string name="realized_in_base">≈ %1$s</string>
     <string name="realized_empty">还没有已实现盈亏</string>
-    <string name="realized_footer">按金额大小排列 · 点标的查看详情</string>
+    <string name="realized_footer">按金额大小排列 · 点按标的查看详情</string>
 </resources>

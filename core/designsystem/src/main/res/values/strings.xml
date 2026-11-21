@@ -55,7 +55,7 @@
     <string name="cash_set">Edit balance</string>
     <string name="balance">Current balance</string>
     <string name="currency_value">Currency: %1$s</string>
-    <string name="cash_link">Link cash in the same currency</string>
+    <string name="cash_link">Link this account\'s cash in the same currency</string>
     <string name="link_effect">%1$s · %2$s\nCash change after confirmation: %3$s</string>
     <string name="no_link_effect">%1$s · %2$s\nNo cash link: balance unchanged (amount %3$s)</string>
     <string name="open_deposit">Open deposit</string>
@@ -106,7 +106,7 @@
     <string name="error_overflow">The value is too large to save. Use a smaller value.</string>
     <string name="error_name">Name is required and must be at most 200 characters.</string>
     <string name="error_type">This class already exists. Choose the existing class.</string>
-    <string name="source_trade_removed_buy">Buy of a deleted instrument</string>
+    <string name="source_trade_removed_buy">Purchase of a deleted instrument</string>
     <string name="source_trade_removed_sell">Sale of a deleted instrument</string>
     <string name="source_dividend">Dividend</string>
     <string name="source_dividend_removed">Dividend of a deleted instrument</string>
@@ -120,14 +120,14 @@
     <string name="delete_dividend">Delete dividend</string>
     <string name="dividend_received">Received</string>
     <string name="error_default_type">Uncategorized is the default class and cannot be renamed or deleted.</string>
-    <string name="error_category_protected">This category always stays so bills always have somewhere to go. You can rename or hide it.</string>
+    <string name="error_category_protected">This category can\'t be deleted, so every bill always has a category. You can rename or hide it.</string>
     <string name="error_category_has_subcategories">Delete its subcategories first, hidden ones included.</string>
-    <string name="error_settlement_limit">That is more than is left of this expense to refund or pay back.</string>
+    <string name="error_settlement_limit">This is more than what is left of this expense to refund or pay back.</string>
     <string name="error_bill_settled">This bill has refunds or reimbursements: the amount cannot go below them, and its type and currency cannot change. Undo them first.</string>
     <string name="error_small">The trade amount is below the smallest currency unit.</string>
     <string name="error_date">Invalid date. The maturity date must be after the start date.</string>
-    <string name="error_positive">Values must be nonnegative; principal, price, and quantity must be positive.</string>
-    <string name="error_storage">Save result not yet confirmed. Retry safely without creating a duplicate. Inputs stay locked until confirmed.</string>
+    <string name="error_positive">Values can\'t be negative; principal, price and quantity must be greater than zero.</string>
+    <string name="error_storage">The save hasn\'t been confirmed. Try again; it won\'t be recorded twice. Inputs stay locked until it is confirmed.</string>
     <string name="error_account_type">The account type cannot be changed after creation.</string>
     <string name="error_credit_limit">Enter a credit limit of zero or more for an independent account, or choose a limit source.</string>
     <string name="error_statement_day">Statement day must be between 1 and 31.</string>
@@ -137,7 +137,7 @@
     <string name="error_credit_source_parent">Shared credit accounts must belong to the same main account.</string>
     <string name="error_credit_source_chain">Choose an independent credit account as the limit source.</string>
     <string name="error_credit_limit_in_use">Other credit accounts share this limit. Unlink them first.</string>
-    <string name="error_balance_account_in_use">This account has a balance, history, or business link and cannot be deleted.</string>
+    <string name="error_balance_account_in_use">This account has a balance, history or linked records and cannot be deleted.</string>
     <string name="error_format">Check field formats, currency, dates, and required information.</string>
     <string name="retry_loading">Try again</string>
     <string name="state_expanded">Expanded</string>
@@ -168,7 +168,7 @@
     <string name="bill_icon_group_leisure">Leisure</string>
     <string name="bill_icon_group_health">Health</string>
     <string name="bill_icon_group_learning">Learning</string>
-    <string name="bill_icon_group_family">Family &amp; people</string>
+    <string name="bill_icon_group_family">Family &amp; social</string>
     <string name="bill_icon_group_money">Work &amp; money</string>
     <string name="bill_icon_group_other">Other</string>
     <string name="bars_previous_day">Previous day</string>

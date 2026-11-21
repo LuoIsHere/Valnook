@@ -3,7 +3,7 @@
     <string name="webadmin_summary">Manage this device from a browser on the same LAN</string>
     <string name="webadmin_hero">Manage from a computer</string>
     <string name="webadmin_description">View and edit this device\'s data in a browser on the same network.</string>
-    <string name="webadmin_description_demo">View and edit the demo data in a browser on the same network. Your real data is not touched.</string>
+    <string name="webadmin_description_demo">View and edit the demo data in a browser on the same network. Real data is not affected.</string>
     <string name="webadmin_off">Off</string>
     <string name="webadmin_notes">Before you start</string>
     <string name="webadmin_note_network">Phone and computer on the same trusted network</string>
@@ -23,7 +23,7 @@
     <string name="webadmin_timeout">Closes if not paired within 5 minutes</string>
     <string name="webadmin_qr_description">Web administration pairing QR code</string>
     <string name="webadmin_lock_title">Web administration in progress</string>
-    <string name="webadmin_lock_message">The screen stays awake and editing on the phone is paused while web editing is active. The session ends after 5 minutes without browser activity, or when you lock or background the phone.</string>
+    <string name="webadmin_lock_message">The screen stays awake and editing on the phone is paused during web administration. The session ends after 5 minutes without browser activity, or when you lock or background the phone.</string>
     <string name="webadmin_connected_at">Connected %1$s</string>
     <string name="webadmin_last_seen">Last seen %1$s</string>
     <string name="webadmin_error_no_lan">Connect to a private Wi-Fi or Ethernet network first.</string>

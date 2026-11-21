@@ -1,18 +1,18 @@
 <resources>
     <string name="backup_title">备份与导出</string>
-    <string name="backup_description">创建离线可携带备份、从已验证备份覆盖当前数据，或导出分析工作簿。</string>
+    <string name="backup_description">创建本地备份、从备份恢复（覆盖当前数据），或导出 Excel 工作簿。</string>
     <string name="backup_demo_description">演示模式只能导出演示数据工作簿。</string>
     <string name="backup_create_local">创建本地备份</string>
     <string name="backup_restore">从备份恢复</string>
     <string name="backup_export_excel">导出 Excel</string>
     <string name="backup_export_demo_excel">导出演示 Excel</string>
-    <string name="backup_saved_verified">已保存并复核：%1$s</string>
-    <string name="backup_saved_unverified">已保存：%1$s。该文件提供方不支持回读复核。</string>
+    <string name="backup_saved_verified">已保存并验证：%1$s</string>
+    <string name="backup_saved_unverified">已保存：%1$s。该存储位置不支持读回验证。</string>
     <string name="backup_restore_preview">恢复预览</string>
     <string name="backup_source">来源文件</string>
     <string name="backup_created">备份时间</string>
     <string name="backup_versions">来源版本</string>
-    <string name="backup_counts">主账户 / 子账户 / 交易 / 审计事件</string>
+    <string name="backup_counts">主账户 / 子账户 / 交易 / 修改历史</string>
     <string name="backup_overwrite_warning">这会覆盖全部当前记录、卡包卡片及图片，并恢复财务和显示偏好，不会合并。不含卡包的旧备份会将卡包恢复为空。卡片背面私密内容及配色不参与备份，成功恢复后会永久清除。备份文件未加密。</string>
     <string name="backup_audit_incomplete">部分较早的操作发生在开始记录修改历史之前，因此没有修改前后的数值。</string>
     <string name="backup_continue">继续</string>
@@ -34,7 +34,7 @@
     <string name="backup_error_stale">预览后当前记录已变化，请重新检查文件并获取新的确认码。</string>
     <string name="backup_error_confirmation">确认码不正确。</string>
     <string name="backup_error_limit">文件超出安全限制或工作簿限制。</string>
-    <string name="backup_error_space">存储空间不足，无法安全校验该文件。</string>
+    <string name="backup_error_space">存储空间不足，无法校验该文件。请释放空间后重试。</string>
     <string name="backup_error_generic">文件操作未完成，当前记录没有改变。</string>
     <string name="cloud_title">OneDrive</string>
     <string name="cloud_connect">连接 OneDrive</string>
@@ -53,7 +53,7 @@
     <string name="cloud_cleanup_incomplete">备份已完成，但旧备份清理未完成。</string>
     <string name="cloud_backups">云端备份</string>
     <string name="cloud_backups_refreshed">上次刷新：%1$s</string>
-    <string name="cloud_backups_not_fetched">还没有获取列表，点「刷新」获取。</string>
+    <string name="cloud_backups_not_fetched">还没有获取列表，点按“刷新”获取。</string>
     <string name="cloud_error_backup_gone">这个备份已不在云端，列表已更新。</string>
     <string name="cloud_no_backups">没有找到 Valnook 云端备份。</string>
     <string name="cloud_verified">已验证</string>
@@ -76,8 +76,8 @@
     <string name="cloud_status_auth">需要重新授权</string>
     <string name="cloud_status_uploading">正在上传</string>
     <string name="cloud_status_verifying">正在验证</string>
-    <string name="cloud_status_success">已成功</string>
-    <string name="cloud_status_failed">已失败</string>
+    <string name="cloud_status_success">成功</string>
+    <string name="cloud_status_failed">失败</string>
     <string name="cloud_status_unknown">上传结果未知</string>
     <string name="cloud_status_cancelled">已取消</string>
     <string name="cloud_error_no_network">网络不可用，到期的备份会在联网后进行。</string>
@@ -87,7 +87,7 @@
     <string name="cloud_error_drive_permission">OneDrive 拒绝访问，请检查应用目录权限或组织策略。</string>
     <string name="cloud_error_drive_missing">云端备份目录或文件已不可用，请刷新或重新连接。</string>
     <string name="cloud_error_interval">请输入 1 到 720 之间的整数小时。</string>
-    <string name="cloud_error_generic">OneDrive 操作未能完成。</string>
+    <string name="cloud_error_generic">OneDrive 操作未能完成，请稍后重试。</string>
     <string name="cloud_microsoft_attribution">Microsoft 和 OneDrive 是 Microsoft Corporation 的商标。</string>
     <string name="cloud_error_config">此版本未配置 Microsoft 登录，请联系开发者。</string>
     <string name="cloud_error_quota">OneDrive 空间不足，请释放空间后重试。</string>
@@ -119,12 +119,18 @@
     <string name="cloud_images_fetch_all">全部取回</string>
     <string name="cloud_images_missing">有 %1$d 张图片缺失。</string>
     <string name="cloud_foreground_title">请保持屏幕常亮</string>
-    <string name="cloud_foreground_upload">要上传 %1$d 张图片。请保持屏幕常亮，并让 Valnook 留在前台，直到完成。切到后台或锁屏会中断，下次会从中断的地方接着传。</string>
-    <string name="cloud_foreground_fetch">要取回 %1$d 张图片。请保持屏幕常亮，并让 Valnook 留在前台，直到完成。切到后台或锁屏会中断，没取回的可以之后再取。</string>
-    <string name="cloud_foreground_skip">不再提醒</string>
+    <plurals name="cloud_foreground_upload">
+        <item quantity="other">要上传 %1$d 张图片。请保持屏幕常亮，并让 Valnook 留在前台，直到完成。切到后台或锁屏会中断，下次会从中断的地方接着传。</item>
+    </plurals>
+    <plurals name="cloud_foreground_fetch">
+        <item quantity="other">要取回 %1$d 张图片。请保持屏幕常亮，并让 Valnook 留在前台，直到完成。切到后台或锁屏会中断，没取回的可以之后再取。</item>
+    </plurals>
+    <string name="cloud_foreground_skip">不再提示</string>
     <string name="cloud_foreground_continue">开始</string>
     <string name="cloud_disconnect_title">断开 OneDrive</string>
-    <string name="cloud_disconnect_pictures">有 %1$d 张图片只在 OneDrive，断开后 App 里无法取回（OneDrive 里的文件不会被删除）。</string>
+    <plurals name="cloud_disconnect_pictures">
+        <item quantity="other">有 %1$d 张图片只在 OneDrive，断开后无法在应用内取回（OneDrive 里的文件不会被删除）。</item>
+    </plurals>
     <string name="cloud_disconnect_fetch_first">先全部取回</string>
     <string name="cloud_disconnect_anyway">仍然断开</string>
     <string name="backup_local_no_pictures">这份备份不包含账单图片（本机 %1$d 张）。换机或卸载后，图片只能从 OneDrive 找回。</string>
@@ -137,14 +143,18 @@
     <string name="bill_images_auto_clean">自动清理本机图片</string>
     <string name="bill_images_auto_clean_hint">已经备份到 OneDrive 的图片，在本机保存或取回超过所选时间后，从本机移除，需要时可以取回。不会删除 OneDrive 中的图片。</string>
     <string name="bill_images_auto_clean_needs_cloud">需要先连接 OneDrive。</string>
-    <string name="bill_images_months">%1$d 个月</string>
+    <plurals name="bill_images_months">
+        <item quantity="other">%1$d 个月</item>
+    </plurals>
     <string name="bill_images_clear">清理本机图片</string>
     <string name="bill_images_fetch_all">全部从 OneDrive 取回</string>
     <string name="bill_images_cleared">已清理 %1$d 张。</string>
     <string name="bill_images_cleared_kept">已清理 %1$d 张；%2$d 张还没备份到 OneDrive，已保留。</string>
     <string name="bill_images_deleted">已删除 %1$d 张。</string>
-    <string name="bill_images_clear_range">清理在本机保存了多久的图片：</string>
-    <string name="bill_images_older_than">超过 %1$d 个月</string>
+    <string name="bill_images_clear_range">按在本机保存的时长清理：</string>
+    <plurals name="bill_images_older_than">
+        <item quantity="other">超过 %1$d 个月</item>
+    </plurals>
     <string name="bill_images_all">全部</string>
     <string name="bill_images_also_cloud">同时从 OneDrive 删除</string>
     <string name="bill_images_clear_device">只清理已经备份到 OneDrive 的图片。清理后，账单里显示“在云端”，需要时可以取回。</string>

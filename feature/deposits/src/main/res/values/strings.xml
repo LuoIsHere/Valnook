@@ -16,10 +16,10 @@
     <string name="deposit_cash_missing">Create a subaccount in the same currency first</string>
     <string name="deposit_cash_account">Subaccount</string>
     <string name="deposit_settlement_cash_account">Settlement subaccount</string>
-    <string name="deposit_link_hint">Only enabled cash links change the selected account’s balance</string>
+    <string name="deposit_link_hint">Only checked cash links change this account\'s balance in that currency</string>
     <string name="deposit_cash_change">Cash change for this account %1$s</string>
     <string name="deposit_section_current">Current deposits</string>
-    <string name="deposit_term_title">%1$s term</string>
+    <string name="deposit_term_title">Term · %1$s</string>
     <plurals name="deposit_term_months"><item quantity="one">%d month</item><item quantity="other">%d months</item></plurals>
     <plurals name="deposit_term_years"><item quantity="one">%d year</item><item quantity="other">%d years</item></plurals>
     <plurals name="deposit_term_days"><item quantity="one">%d day</item><item quantity="other">%d days</item></plurals>
@@ -32,7 +32,7 @@
     <string name="deposit_settled_on">Settled %1$s</string>
     <string name="deposit_term_section">Term</string>
     <string name="deposit_cash_section">Cash link</string>
-    <string name="deposit_summary_interest">Interest</string>
+    <string name="deposit_summary_interest">Expected interest</string>
     <string name="deposit_summary_total">At maturity</string>
     <string name="deposit_info_section">Details</string>
 </resources>

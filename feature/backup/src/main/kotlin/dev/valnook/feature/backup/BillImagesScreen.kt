@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,7 +117,7 @@ internal fun sizeText(bytes: Long): String = if ((bytes + 1023) / 1024 < 1000) "
                     state.autoCleanMonths?.let { selected ->
                         CapsuleChoiceRow(BILL_IMAGE_CLEANUP_MONTHS, selected, vm::setAutoClean, Modifier.fillMaxWidth(),
                             optionModifier = { Modifier.testTag("bill-images-auto-$it") }) { months ->
-                            Text(stringResource(R.string.bill_images_months, months), style = MaterialTheme.typography.labelLarge,
+                            Text(pluralStringResource(R.plurals.bill_images_months, months, months), style = MaterialTheme.typography.labelLarge,
                                 maxLines = 1, autoSize = TextAutoSize.StepBased(9.sp, MaterialTheme.typography.labelLarge.fontSize, .5.sp))
                         }
                     }
@@ -176,7 +177,7 @@ internal fun sizeText(bytes: Long): String = if ((bytes + 1023) / 1024 < 1000) "
             Text(stringResource(R.string.bill_images_clear_range), style = MaterialTheme.typography.bodyMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                 BILL_IMAGE_CLEANUP_MONTHS.forEach { value ->
-                    FilterChip(months == value, { months = value }, { Text(stringResource(R.string.bill_images_older_than, value)) },
+                    FilterChip(months == value, { months = value }, { Text(pluralStringResource(R.plurals.bill_images_older_than, value, value)) },
                         Modifier.testTag("bill-images-clear-$value"))
                 }
                 FilterChip(months == null, { months = null }, { Text(stringResource(R.string.bill_images_all)) },

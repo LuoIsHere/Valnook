@@ -7,7 +7,7 @@
     <string name="ai_summary_failed">Checks not passed</string>
 
     <string name="ai_section_connection">Connection</string>
-    <string name="ai_base_url">Address</string>
+    <string name="ai_base_url">Base URL</string>
     <string name="ai_base_url_invalid">Enter an address starting with http:// or https://</string>
     <string name="ai_cleartext">This address is not encrypted; use it only on a trusted network</string>
     <string name="ai_api_key">API key</string>
@@ -23,9 +23,9 @@
     <string name="ai_models_empty">No models were returned; you can enter the model name</string>
     <string name="ai_advanced">Advanced parameters</string>
     <string name="ai_extra_params">Extra request parameters (JSON)</string>
-    <string name="ai_thinking_off_params">Thinking off parameters (JSON)</string>
-    <string name="ai_thinking_on_params">Thinking on parameters (JSON)</string>
-    <string name="ai_params_hint">Merged into every request as written; the thinking on and off parameters apply when deep thinking is on and off. The format differs between services; see the provider\'s documentation.</string>
+    <string name="ai_thinking_off_params">Thinking-off parameters (JSON)</string>
+    <string name="ai_thinking_on_params">Thinking-on parameters (JSON)</string>
+    <string name="ai_params_hint">Merged into every request as written; the thinking-on and thinking-off parameters apply when deep thinking is on and off. The format differs between services; see the provider\'s documentation.</string>
     <string name="ai_params_invalid">Must be one JSON object, or empty</string>
     <string name="ai_save">Save</string>
     <string name="ai_save_failed">Could not save; check the values entered</string>
@@ -47,28 +47,28 @@
     <string name="ai_state_passed">Passed</string>
     <string name="ai_state_failed">Not supported</string>
     <string name="ai_state_connect_failed">Failed</string>
-    <string name="ai_state_unknown">Undecided</string>
-    <string name="ai_state_not_configured">No thinking on parameters</string>
-    <string name="ai_problem_offline">Cannot connect to %1$s; check the network and the address</string>
+    <string name="ai_state_unknown">Inconclusive</string>
+    <string name="ai_state_not_configured">No thinking-on parameters</string>
+    <string name="ai_problem_offline">Cannot connect to %1$s; check the network and the base URL</string>
     <string name="ai_problem_timeout">The request timed out; try again</string>
-    <string name="ai_problem_unauthorized">The API key is invalid or not authorised</string>
-    <string name="ai_problem_payment">The provider reports an insufficient balance</string>
-    <string name="ai_problem_not_found">The address or model name is incorrect</string>
+    <string name="ai_problem_unauthorized">The API key is invalid or not authorized</string>
+    <string name="ai_problem_payment">The provider reports an insufficient balance; top up and try again</string>
+    <string name="ai_problem_not_found">The base URL or model name is incorrect</string>
     <string name="ai_problem_rate_limited">Too many requests; try again later</string>
     <string name="ai_problem_server">The provider returned an error; try again later</string>
     <string name="ai_problem_rejected">The provider rejected the request</string>
     <string name="ai_problem_bad_response">The response could not be read</string>
-    <string name="ai_problem_no_tool_call">This model does not call tools; choose another model</string>
+    <string name="ai_problem_no_tool_call">This model does not support tool calls; choose another model</string>
     <string name="ai_problem_wrong_answer">Incorrect answer</string>
-    <string name="ai_problem_no_thinking">No reasoning was returned</string>
+    <string name="ai_problem_no_thinking">No thinking content was returned</string>
     <string name="ai_problem_no_key_storage">The saved key cannot be read; enter it again</string>
-    <string name="ai_problem_thinking_still_on">The provider kept reasoning on and requires it to be sent back. Adjust the thinking off parameters under Advanced parameters</string>
+    <string name="ai_problem_thinking_still_on">The provider kept thinking on and requires the thinking content to be sent back. Adjust the thinking-off parameters under Advanced parameters</string>
 
     <string name="ai_section_defaults">Defaults</string>
     <string name="ai_defaults_note">Used when the AI provides no value or an invalid one</string>
     <string name="ai_default_time">Default time (when only a date is given)</string>
     <string name="ai_default_account">Default account</string>
-    <string name="ai_default_account_none">None (moves no account)</string>
+    <string name="ai_default_account_none">None (no account balance changes)</string>
     <string name="ai_default_expense">Default expense category</string>
     <string name="ai_default_income">Default income category</string>
 
@@ -79,11 +79,11 @@
     <string name="ai_my_rules_reset">Back to default (empty)</string>
     <string name="ai_user_nickname">Your nickname</string>
     <string name="ai_ai_nickname">The AI\'s nickname</string>
-    <string name="ai_avatar_user">Your picture</string>
-    <string name="ai_avatar_ai">The AI\'s picture</string>
+    <string name="ai_avatar_user">Your avatar</string>
+    <string name="ai_avatar_ai">The AI\'s avatar</string>
     <string name="ai_avatar_reset">Back to default</string>
     <string name="ai_avatar_failed">This picture cannot be read</string>
-    <string name="ai_personal_note">Nicknames and My rules are sent to the model; pictures are shown on this device only and are neither sent nor backed up.</string>
+    <string name="ai_personal_note">Nicknames and My rules are sent to the model; avatars are shown on this device only and are neither sent nor backed up.</string>
 
     <string name="ai_prompt_view">View the full prompt</string>
     <string name="ai_prompt_view_summary">Everything that is sent, including tool definitions</string>
@@ -97,7 +97,7 @@
 
     <string name="ai_chat_title">AI bookkeeping</string>
     <string name="ai_chat_entry">AI bookkeeping</string>
-    <string name="ai_chat_entry_pending">AI bookkeeping, drafts waiting</string>
+    <string name="ai_chat_entry_pending">AI bookkeeping, drafts to confirm</string>
     <string name="ai_chat_new">New conversation</string>
     <string name="ai_chat_history">Conversations</string>
     <string name="ai_chat_history_empty">No conversations</string>
@@ -129,8 +129,8 @@
     <string name="ai_chat_usage">This round %1$s tokens · in %2$s · out %3$s</string>
     <string name="ai_chat_usage_cached">%1$s cached</string>
     <string name="ai_chat_usage_calls">%1$d calls</string>
-    <string name="ai_chat_usage_unknown">Tokens of this round unknown</string>
-    <string name="ai_chat_cancelled">Cancelled</string>
+    <string name="ai_chat_usage_unknown">Usage for this round unknown</string>
+    <string name="ai_chat_cancelled">Canceled</string>
     <string name="ai_chat_retry">Try again</string>
     <string name="ai_chat_manual">Record by hand</string>
     <string name="ai_chat_confirm_all">Confirm all</string>
@@ -147,7 +147,7 @@
     <string name="ai_draft_replaced">Replaced by a later draft</string>
     <string name="ai_draft_flag_category">Check the category</string>
     <string name="ai_draft_flag_account">Default account used</string>
-    <string name="ai_draft_flag_time">Time not recognised; the current time is used</string>
+    <string name="ai_draft_flag_time">Time not recognized; the current time is used</string>
     <string name="ai_draft_flag_amount">Amount needed</string>
     <string name="ai_draft_add_amount">Add amount</string>
     <string name="ai_draft_keep_images">Keep the pictures with the bill</string>
@@ -155,13 +155,13 @@
     <string name="ai_draft_no_account">No account</string>
     <string name="ai_draft_no_category">No category</string>
     <string name="ai_draft_transfer">Transfer</string>
-    <string name="ai_draft_outside">Outside</string>
+    <string name="ai_draft_outside">External</string>
     <string name="ai_draft_reimbursable">Reimbursable</string>
     <string name="ai_draft_discount">Discount %1$s</string>
 
     <string name="ai_notice_ok">Got it</string>
     <string name="ai_picture_notice_title">Sending pictures</string>
-    <string name="ai_picture_notice">Payment screenshots may show names, the last digits of card numbers, order numbers and other details; these are sent to the address you configured along with the picture.</string>
+    <string name="ai_picture_notice">Payment screenshots may show the other party\'s name, the last four digits of a card number, order numbers and other details; these are sent with the picture to the address you configured.</string>
 
     <string name="ai_section_enable">On or off</string>
     <string name="ai_enable">Turn on AI features</string>
@@ -171,25 +171,25 @@
     <string name="ai_feature_bill_chat">Bookkeeping by chat</string>
     <string name="ai_feature_bill_chat_summary">Opened from the button above + on the bills page</string>
     <string name="ai_feature_thinking">Deep thinking on by default</string>
-    <string name="ai_feature_thinking_summary">New conversations start with deep thinking; switch it on the chat page at any time. Reasoning increases token usage and waiting time. Shares never use it</string>
+    <string name="ai_feature_thinking_summary">New conversations start with deep thinking on; you can switch it on the chat page at any time. Deep thinking uses more tokens and takes longer. Not used when reading shared content.</string>
     <string name="ai_feature_thinking_unavailable">Requires the deep thinking check</string>
-    <string name="ai_feature_chat">Chat</string>
+    <string name="ai_feature_chat">Casual chat</string>
     <string name="ai_feature_chat_summary">When on, replies are fuller; when off, replies are brief and limited to bookkeeping. No investment or financial advice either way</string>
     <string name="ai_feature_habits">Send recent bills as hints</string>
     <string name="ai_feature_habits_summary">Each request includes the notes and categories of the last 20 bills</string>
     <string name="ai_feature_keep_images">Keep pictures with bills by default</string>
-    <string name="ai_feature_keep_images_summary">New cards start with “Keep the pictures with the bill” ticked</string>
+    <string name="ai_feature_keep_images_summary">New cards start with \"Keep the pictures with the bill\" ticked</string>
     <string name="ai_section_data">Data</string>
-    <string name="ai_usage">This month</string>
+    <string name="ai_usage">Usage this month</string>
     <string name="ai_usage_value">%1$d requests · %2$s tokens</string>
     <string name="ai_clear_conversations">Clear conversations</string>
     <string name="ai_clear_conversations_confirm">All conversations and usage records will be cleared, including drafts not yet confirmed. Saved bills are not affected.</string>
     <string name="ai_clear">Clear</string>
-    <string name="ai_draft_charged">Account %1$s</string>
-    <string name="ai_draft_received">Arrives %1$s</string>
-    <string name="ai_draft_charged_rate">Account %1$s (at the given rate %2$s)</string>
-    <string name="ai_draft_received_rate">Arrives %1$s (at the given rate %2$s)</string>
-    <string name="ai_draft_charged_given">Account %1$s (as given)</string>
+    <string name="ai_draft_charged">Charged %1$s</string>
+    <string name="ai_draft_received">Received %1$s</string>
+    <string name="ai_draft_charged_rate">Charged %1$s (at the given rate %2$s)</string>
+    <string name="ai_draft_received_rate">Received %1$s (at the given rate %2$s)</string>
+    <string name="ai_draft_charged_given">Charged %1$s (as given)</string>
     <string name="ai_draft_rate_far">The rate is far from the reference rate; please check</string>
     <string name="ai_draft_no_rate">No %1$s → %2$s rate</string>
     <string name="ai_draft_rate_settings">Exchange rates</string>
@@ -198,20 +198,20 @@
     <string name="ai_share_new_bill">New bill</string>
     <string name="ai_share_back">Back</string>
     <string name="ai_share_nothing">Nothing to record was found</string>
-    <string name="ai_draft_flag_currency">Currency not recognised; the account currency is used</string>
+    <string name="ai_draft_flag_currency">Currency not recognized; the account currency is used</string>
     <string name="ai_base_url_hint">For example https://api.example.com/v1</string>
     <string name="ai_model_hint">Enter a model name or choose one from the list</string>
     <string name="ai_notice_provider">Provider: AI features are provided by the service at the address you enter on this page. Valnook provides no AI service and neither handles nor keeps what passes between you and that service.</string>
     <string name="ai_notice_when">When it connects: the app sends requests to that address only when you use bookkeeping by chat, ask about bills, read a share or run the checks.</string>
-    <string name="ai_notice_sent">Data sent: the text and pictures you enter or share, and the earlier text of the same conversation (earlier pictures are not sent again); the current date, time and base currency; the names of bill categories that are not hidden; the names, currencies and types of the sub-accounts shown on the Accounts page (up to 100), and which are favourites; My rules and both nicknames; with \"Send recent bills as hints\" on, the notes and categories of the last 20 bills; with \"Ask about bills\" on and when you ask, the query results: expense and income totals, the date, category, amount and note of up to 20 bills, and the shares of your assets by account, asset type and currency (percentages only). The API key is sent in a request header.</string>
-    <string name="ai_notice_not_sent">Data not sent: account balances, credit limits, net worth, asset amounts, wallet contents, investment holdings and trades, pictures of you and the AI, and device information.</string>
+    <string name="ai_notice_sent">Data sent: the text and pictures you enter or share, and the earlier text of the same conversation (earlier pictures are not sent again); the current date, time and base currency; the names of bill categories that are not hidden; the names, currencies and types of the subaccounts shown on the Accounts page (up to 100), and which are favorites; My rules and both nicknames; with \"Send recent bills as hints\" on, the notes and categories of the last 20 bills; with \"Ask about bills\" on and when you ask, the query results: expense and income totals, the date, category, amount and note of up to 20 bills, and the shares of your assets by account, asset type and currency (percentages only). The API key is sent in a request header.</string>
+    <string name="ai_notice_not_sent">Data not sent: account balances, credit limits, net worth, asset amounts, wallet contents, investment holdings and trades, avatars, and device information.</string>
     <string name="ai_notice_storage">API key storage: the API key is encrypted on this device only, with keys managed by Android Keystore and content encrypted with AES-GCM. It is never uploaded to Valnook (which has no server), never included in local or OneDrive backups or file exports, and cannot be accessed from Web administration. After uninstalling, clearing app data, clearing all data or moving to a new device, it must be entered again.</string>
     <string name="ai_notice_cost">Costs: any charges for using AI features are settled between you and the provider.</string>
     <string name="ai_notice_local">Local models: to keep data on your own devices or network, point the address at a model you run yourself.</string>
     <string name="ai_notice_disclaimer">AI-generated content may contain errors, is for reference only, does not represent Valnook\'s position and is not investment, financial or other advice; no bill is saved until you confirm it. To the fullest extent permitted by applicable law, the developer is not liable for the provider\'s availability, charges or handling of data, or for loss arising from misuse of the API key.</string>
     <string name="ai_notice_skip">Don\'t show again</string>
     <string name="ai_notice_enable">Turn on</string>
-    <string name="ai_notice_records">Conversations: conversations and usage records are stored on this device only for 30 days and are not included in backups. How the provider keeps and uses the data it receives is governed by its own policy, which Valnook cannot control.</string>
+    <string name="ai_notice_records">Conversations: conversations and usage records are stored only on this device, kept for 30 days, and not included in backups. How the provider keeps and uses the data it receives is governed by its own policy, which Valnook cannot control.</string>
     <string name="ai_notice_limit">Recommendation: set a usage or spending limit for this API key with the provider (for example a daily or monthly cap) and grant it only the permissions needed; if you suspect the key has leaked, revoke or replace it with the provider at once.</string>
     <string name="ai_chat_example_3">Salary 8000 received</string>
     <string name="ai_chat_shared">Shared</string>
@@ -258,9 +258,9 @@
     <string name="ai_guide_check_title">Save and check</string>
     <string name="ai_guide_check_body">When everything is entered, tap \"Save and check\". The check sends a few very small requests to the provider, which may cost a little.</string>
     <string name="ai_guide_check_required">Connection and tool calls: required to turn on the AI features.</string>
-    <string name="ai_guide_check_optional">Images and deep thinking: optional; each must pass before pictures can be sent or deep thinking turned on.</string>
-    <string name="ai_guide_check_fail">If a check fails, confirm in turn: the API key is correct and valid; the balance is sufficient; the base URL and model name are correct; the model supports tool calls.</string>
-    <string name="ai_guide_check_enable">Once the checks pass, turn on \"Turn on AI features\" at the top of the page.</string>
+    <string name="ai_guide_check_optional">Pictures and deep thinking: optional; each must pass before pictures can be sent or deep thinking turned on.</string>
+    <string name="ai_guide_check_fail">If a check fails, confirm in turn: the API key is correct and valid; your balance with the provider is sufficient; the base URL and model name are correct; the model supports tool calls.</string>
+    <string name="ai_guide_check_enable">Once the checks pass, use the \"Turn on AI features\" switch at the top of the page.</string>
     <string name="ai_guide_fill_title">Quick setup</string>
     <string name="ai_guide_fill_body">Tap the button below to enter these DeepSeek example values in the connection settings. The API key is not entered or changed.</string>
     <string name="ai_guide_fill_after">Nothing is saved yet. Return to Settings, enter your API key, then tap \"Save and check\".</string>
@@ -277,7 +277,7 @@
     <string name="ai_guide_filled_key">Example values entered. Enter your API key, then tap \"Save and check\".</string>
     <string name="ai_guide_filled">Example values entered. If the saved key is not for this service, enter a new API key here, then tap \"Save and check\".</string>
     <string name="ai_feature_query">Ask about bills</string>
-    <string name="ai_feature_query_summary">The AI can look up your bills and how your assets are spread to answer questions. The amounts, categories and notes of the bills it finds, and the shares of your accounts, asset types and currencies, are sent to the model. Asset amounts are not sent</string>
+    <string name="ai_feature_query_summary">When on, the AI can look up your bills and how your assets are spread to answer questions. The amounts, categories and notes of the bills it finds, and the shares of your accounts, asset types and currencies, are sent to the model. Asset amounts are not sent.</string>
     <string name="ai_chat_example_query">How much did food cost this month</string>
     <string name="ai_chat_querying">Looking up: %1$s</string>
     <plurals name="ai_query_process"><item quantity="one">Lookup · %1$d</item><item quantity="other">Lookups · %1$d</item></plurals>

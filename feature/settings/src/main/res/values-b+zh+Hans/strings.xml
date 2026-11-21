@@ -22,7 +22,7 @@
     <string name="settings_rate_precision">汇率最多支持 12 位小数。</string>
     <string name="settings_remove_rate">删除 %1$s 汇率</string>
     <string name="settings_add_rate">添加汇率</string>
-    <string name="settings_fx_rates_section">汇率 · 1 外币可兑换的 %1$s</string>
+    <string name="settings_fx_rates_section">汇率 · 每单位外币折合 %1$s</string>
     <string name="settings_rate_of">%1$s 汇率</string>
     <string name="settings_change_currency">更换币种</string>
     <string name="settings_saved">设置已保存</string>
@@ -35,7 +35,7 @@
     <string name="settings_error_precision">输入的小数位数过多。</string>
     <string name="settings_error_overflow">输入数值过大。</string>
     <string name="settings_error_positive">汇率必须大于零。</string>
-    <string name="settings_error_duplicate_currency">每个原币只能设置一次。</string>
+    <string name="settings_error_duplicate_currency">每个币种只能设置一个汇率。</string>
     <string name="settings_error_conflict">设置已在其他页面发生变化，当前草稿已保留。</string>
     <string name="settings_error_session_expired">当前数据会话已经结束，请重新进入设置。</string>
     <string name="settings_error_generic">设置保存失败，当前草稿已保留。</string>
@@ -48,10 +48,10 @@
     <string name="settings_color_loss">亏损 -100.00</string>
     <string name="settings_color_zero">零值 0.00</string>
     <string name="settings_clear_warning">此操作无法在应用内撤销。</string>
-    <string name="settings_clear_scope">将清空全部账户与子账户、存单、标的、持仓与交易、价格历史、资产类型、账户分类与图标、卡包卡片与卡面（含卡片背面私密内容）、主币种、汇率和修改历史，并关闭自动获取汇率。语言、主题、涨跌配色和导航栏设置会保留。</string>
+    <string name="settings_clear_scope">将清空全部账户与子账户、账单与账单分类、本机的账单图片、存单、标的、持仓与交易、价格历史、资产类型、账户分类与图标、卡包卡片与卡面（含卡片背面私密内容）、AI 设置与 API Key、检测结果、头像和对话记录、主币种、汇率和修改历史，并关闭自动获取汇率。语言、主题、涨跌配色和导航栏设置会保留。</string>
     <string name="settings_clear_input">请准确输入确认码</string>
     <string name="settings_clear_failed">清空失败，请重试。</string>
-    <string name="settings_clearing">正在清空</string>
+    <string name="settings_clearing">正在清空…</string>
     <string name="settings_confirm_clear">清空上述全部数据</string>
     <string name="settings_demo_banner">演示模式 · 不影响真实数据</string>
     <string name="settings_navigation">导航栏</string>
@@ -83,7 +83,7 @@
     <string name="settings_privacy_policy">隐私政策</string>
     <string name="settings_privacy_policy_summary">离线查看隐私政策与免责声明</string>
     <string name="settings_repository">GitHub 仓库</string>
-    <string name="settings_github_attribution">GitHub 名称及相关标志的商标权归 GitHub, Inc. 所有</string>
+    <string name="settings_github_attribution">GitHub 名称及相关标志的商标权归 GitHub, Inc. 所有。</string>
     <string name="settings_nav_bills">记账</string>
     <string name="settings_nav_wallet">卡包</string>
     <string name="settings_fx_auto">自动获取汇率</string>
@@ -96,7 +96,7 @@
     <string name="settings_fx_update_now">立即更新</string>
     <string name="settings_fx_missing">以下币种没有可用汇率：%1$s</string>
     <string name="settings_fx_readonly">汇率由自动获取更新；关闭后可以手动修改。</string>
-    <string name="settings_fx_row_date">数据日期 %1$s</string>
+    <string name="settings_fx_row_date">汇率日期 %1$s</string>
     <string name="settings_fx_discard_title">放弃未保存的修改？</string>
     <string name="settings_fx_discard_body">打开自动获取汇率后，未保存的修改将被丢弃。</string>
     <string name="settings_fx_discard_keep">继续编辑</string>
@@ -126,7 +126,7 @@
     <string name="settings_navigation_always">始终显示</string>
     <string name="settings_navigation_hide_page">隐藏%1$s</string>
     <string name="settings_navigation_show_page">显示%1$s</string>
-    <string name="settings_navigation_hint">隐藏的页面仍可在「设置 › 更多页面」中打开。</string>
+    <string name="settings_navigation_hint">隐藏的页面仍可在“设置 › 更多页面”中打开。</string>
     <string name="settings_navigation_full">导航栏最多显示 %1$d 个页面，先隐藏一个再添加。</string>
     <string name="settings_fx_summary">主币种 %1$s · %2$s</string>
     <string name="settings_fx_summary_unset">主币种未设置 · %1$s</string>
@@ -141,7 +141,7 @@
     <string name="quick_summary_share_on">分享记账已开启</string>
     <string name="quick_summary_share_off">分享记账已关闭</string>
     <string name="quick_launch">打开时直接记账</string>
-    <string name="quick_launch_summary">从桌面图标打开、且 App 不在后台时，直接进入记账页面</string>
+    <string name="quick_launch_summary">从桌面图标打开、且应用不在后台时，直接进入记账页面</string>
     <string name="quick_launch_shortcuts">也可以长按桌面图标，选择“记一笔”或“AI 记账”。</string>
     <string name="quick_target_manual">手动记账</string>
     <string name="quick_target_ai">AI 对话</string>

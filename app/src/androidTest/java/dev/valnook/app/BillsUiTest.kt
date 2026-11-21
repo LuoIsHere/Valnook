@@ -107,7 +107,7 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-delete-confirm").performClick()
         rule.waitUntil(8_000) { balance() == 100_000L }
         waitTag("bills-list")
-        rule.onNodeWithText("本月还没有账单。").assertExists()
+        rule.onNodeWithText("这个月没有账单。").assertExists()
     }
 
     @Test fun money_sent_to_an_outside_account_names_the_other_side() {
@@ -279,7 +279,7 @@ class BillsUiTest {
 
         // Deleting the bill takes its reimbursement along; the account ends where it started.
         rule.onNodeWithTag("bill-delete").performScrollTo().performClick()
-        rule.onNodeWithText("将同时删除 1 条退款和报销回款记录，所有账户的余额一起回退。").assertExists()
+        rule.onNodeWithText("将同时删除 1 笔退款和报销回款，所有账户的余额一起回退。").assertExists()
         rule.onNodeWithTag("bill-delete-confirm").performClick()
         waitTag("bills-list")
         rule.waitUntil(8_000) { runBlocking { db.openHelper.readableDatabase.query(

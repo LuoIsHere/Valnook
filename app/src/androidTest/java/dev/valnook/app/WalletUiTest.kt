@@ -107,7 +107,7 @@ class WalletUiTest {
         rule.onNodeWithText("0000 **** ---- 1234",useUnmergedTree=true).assertExists()
         listOf("number" to actual.number,"expiry" to actual.expiry,"cvv1" to actual.cvv1,"cvv2" to actual.cvv2).forEach{(field,value)->
             val clip=copiedClip("wallet-copy-$field")
-            rule.onNodeWithTag("wallet-copy-notice").assert(hasText("Copied") or hasText("复制成功"))
+            rule.onNodeWithTag("wallet-copy-notice").assert(hasText("Copied") or hasText("已复制"))
             assertEquals(value,clip.getItemAt(0).text.toString())
             assertTrue(clip.description.extras!!.getBoolean(android.content.ClipDescription.EXTRA_IS_SENSITIVE))
         }
@@ -153,7 +153,7 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-copy-cvv1",useUnmergedTree=true).assertDoesNotExist()
         rule.onNodeWithTag("wallet-copy-cvv2",useUnmergedTree=true).assertExists()
         val copied=copiedClip("wallet-copy-number")
-        rule.onNodeWithTag("wallet-copy-notice").assert(hasText("Copied") or hasText("复制成功"))
+        rule.onNodeWithTag("wallet-copy-notice").assert(hasText("Copied") or hasText("已复制"))
         rule.onNodeWithTag("wallet-copy-notice").captureToImage().asAndroidBitmap().let { bitmap->
             PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-copy-feedback.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
         }

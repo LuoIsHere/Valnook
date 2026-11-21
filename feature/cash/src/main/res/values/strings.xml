@@ -1,13 +1,13 @@
 <resources>
     <string name="cash_balance_load_failed">Could not load balances. Go back and try again.</string>
     <string name="cash_history_load_failed">Could not load cash history. Go back and try again.</string>
-    <string name="cash_account_load_failed">Could not load this subaccount</string>
+    <string name="cash_account_load_failed">Could not load this subaccount. Go back and try again.</string>
     <string name="cash_edit_balance">Edit balance</string>
     <string name="cash_current_balance">Current balance</string>
     <string name="cash_review_retry">Review and retry</string>
     <string name="cash_save">Save</string>
     <string name="cash_balance_change">Balance change %1$s</string>
-    <string name="cash_record_unavailable">Record unavailable</string>
+    <string name="cash_record_unavailable">This entry no longer exists.</string>
     <string name="cash_loading">Loading</string>
     <string name="cash_edit_change">Edit balance change</string>
     <string name="cash_change_direction">Direction</string>
@@ -17,13 +17,13 @@
     <string name="cash_record_date">Record date</string>
     <string name="cash_record_time">Record time</string>
     <string name="cash_note">Note</string>
-    <string name="cash_edit_entry_hint">Correct this record’s effect on the balance. Use Edit balance to set the current balance directly.</string>
+    <string name="cash_edit_entry_hint">Correct this entry\'s effect on the balance. To set the current balance directly, use Edit balance.</string>
     <string name="cash_correction_preview">Balance correction %1$s</string>
     <string name="cash_savings_account">Savings account</string>
     <string name="cash_credit_account">Credit account</string>
     <string name="cash_over_limit">Over limit %1$s %2$s</string>
     <string name="cash_limit_source">Limit source: %1$s</string>
-    <string name="cash_statement_day">Statement day: %1$d</string>
+    <string name="cash_statement_day">Statement day: day %1$d of each month</string>
     <string name="cash_previous_balance">Previous balance %1$s</string>
     <string name="cash_section_credit">Credit cards</string>
     <string name="cash_section_savings">Savings accounts</string>
@@ -38,7 +38,7 @@
     <string name="cash_limit_available">Available</string>
     <string name="cash_limit_total">Total limit</string>
     <string name="cash_count_in_stats">Count in income and expense</string>
-    <string name="cash_count_in_stats_hint">Saved as an expense or income under Other › Uncategorised and listed on the bills page; its category can be changed there.</string>
+    <string name="cash_count_in_stats_hint">Saved as an expense or income under Other › Uncategorized and listed on the bills page; its category can be changed there.</string>
     <string name="cash_balance_bill_note">Manual balance edit</string>
     <string name="cash_bill_external">External account</string>
     <string name="cash_bill_deleted_account">Deleted account</string>
@@ -60,12 +60,12 @@
     <string name="cash_cycle_nothing_due">Nothing to pay</string>
     <string name="cash_cycle_paid_off">Paid off</string>
     <string name="cash_cycle_overdue">Past the due date</string>
-    <string name="cash_cycle_no_record">This sub-account was added after that statement, so there are no records.</string>
+    <string name="cash_cycle_no_record">This subaccount was added after that statement, so there are no records.</string>
     <string name="cash_cycle_estimate">Worked out from your records. Your bank statement is what counts.</string>
     <string name="cash_cycle_open">Show this cycle\'s changes</string>
     <string name="cash_cycle_this_one">%1$s (this cycle)</string>
     <string name="cash_cycle_empty">No balance changes in this cycle</string>
     <string name="cash_view_cycle">By cycle</string>
     <string name="cash_view_month">By month</string>
-    <string name="cash_statement_day_value_next">Day %1$d of each month, that day on the next</string>
+    <string name="cash_statement_day_value_next">Day %1$d of each month; that day counts toward the next cycle</string>
 </resources>

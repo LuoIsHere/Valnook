@@ -212,7 +212,7 @@ class QuickEntryUiTest {
         rule.onNodeWithTag("settings-quick-entry").assertTextContains("打开时不跳转 · 分享记账已开启").performClick()
         waitTag("quick-entry")
         rule.onNodeWithTag("quick-target-manual").assertDoesNotExist()
-        rule.onNodeWithText("从桌面图标打开、且 App 不在后台时，直接进入记账页面").assertExists()
+        rule.onNodeWithText("从桌面图标打开、且应用不在后台时，直接进入记账页面").assertExists()
         rule.onNodeWithTag("quick-launch-shortcuts").assertTextEquals("也可以长按桌面图标，选择“记一笔”或“AI 记账”。")
         rule.onNodeWithTag("quick-launch").assertIsOff().performClick()
         rule.waitUntil(5_000) { quick.settings.value.launch }

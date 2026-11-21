@@ -57,7 +57,7 @@ class CashEntryDeleteUiTest {
         }
         rule.waitUntil(10_000) { rule.onAllNodesWithTag("cash-entry-delete").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("cash-entry-delete").performScrollTo().performClick()
-        rule.onNodeWithText("删除后余额 -200.00 CNY。").assertExists()
+        rule.onNodeWithText("删除后余额变化 -200.00 CNY。").assertExists()
         rule.onNodeWithTag("cash-entry-delete-confirm").performClick()
         rule.waitUntil(10_000) { left == 1 }
         assertEquals(100_000L, runBlocking { graph.cash.observe_cash(parent).first().single().balance_minor })

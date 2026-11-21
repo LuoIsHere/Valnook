@@ -1,6 +1,6 @@
 <resources>
     <string name="statistics_title">Statistics</string>
-    <string name="statistics_change_month">Change this month</string>
+    <string name="statistics_change_month">Asset change this month</string>
     <string name="statistics_total">Net assets</string>
     <string name="statistics_cash">Available cash</string>
     <string name="statistics_investment">Investment value</string>
