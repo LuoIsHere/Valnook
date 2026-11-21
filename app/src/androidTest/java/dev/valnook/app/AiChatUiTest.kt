@@ -42,6 +42,7 @@ class AiChatUiTest {
     private val graph get() = sessions.session.value.graph
     private var cashId = 0L
     private var calls = 0
+    private var keyboard: ScreenKeyboard? = null
 
     @Before fun seed() {
         hilt.inject()
@@ -66,7 +67,10 @@ class AiChatUiTest {
         waitTag("bills-list")
     }
 
-    @After fun clean() = ScriptedAiTransport.reset()
+    @After fun clean() {
+        keyboard?.restore()
+        ScriptedAiTransport.reset()
+    }
 
     private fun waitTag(tag: String, timeout: Long = 8_000) =
         rule.waitUntil(timeout) { rule.onAllNodesWithTag(tag).fetchSemanticsNodes().isNotEmpty() }
@@ -102,6 +106,29 @@ class AiChatUiTest {
 
     private fun tagStarting(prefix: String) = SemanticsMatcher("tag starts with $prefix") {
         it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
+    }
+
+    /** The keyboard shortens the list from below; the newest message moves up with it instead of going under. */
+    @Test fun opening_the_keyboard_keeps_the_newest_message_in_view() {
+        openChat()
+        // Four turns, each with a card: taller than the screen, so the newest is at the bottom.
+        repeat(4) { turn ->
+            drafts("合成回复 $turn", """{"type":"EXPENSE","amount":"1$turn","currency":"CNY","category_id":${category("food")},
+                "account_id":$cashId,"note":"合成午餐 $turn"}""")
+            send("合成午餐 1$turn 元")
+            rule.waitUntil(8_000) { rule.onAllNodes(hasText("合成午餐 $turn"), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty() }
+        }
+        // Back up through the history, then down to the end by hand, as a reader would.
+        val messages = rule.onNodeWithTag("ai-chat-messages")
+        repeat(2) { messages.performTouchInput { swipeDown() } }
+        repeat(4) { messages.performTouchInput { swipeUp() } }
+        val newest = rule.onNode(hasText("合成午餐 3"), useUnmergedTree = true)
+        rule.waitForIdle()
+        newest.assertIsDisplayed()
+        val screen = ScreenKeyboard { rule.activity.window.decorView }.also { keyboard = it; it.prepare() }
+        rule.onNode(hasSetTextAction() and hasTestTag("ai-chat-input")).performClick()
+        screen.show(rule)
+        screen.assertAbove(rule, "chat-newest-message", newest)
     }
 
     @Test fun a_rate_the_user_gives_is_used_for_that_bill_and_checked_against_the_app_rate() {
