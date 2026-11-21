@@ -59,6 +59,8 @@
     <string name="shortcut_new_bill_long">手动记一笔</string>
     <string name="shortcut_ai_chat">AI 记账</string>
     <string name="shortcut_ai_chat_long">用 AI 记账</string>
+    <string name="shortcut_ai_unavailable">AI 记账未开启或未通过检测，已打开手动记账。</string>
+    <string name="shortcut_ai_unavailable_ok">知道了</string>
     <string name="title_bill_stats_category">分类明细</string>
     <string name="title_bill_stats_expense">支出统计</string>
     <string name="title_bill_stats_income">收入统计</string>

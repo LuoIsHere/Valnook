@@ -60,13 +60,16 @@ object QuickShortcuts {
     }
 }
 
+/** A bill page asked for: [shortcut] when a launcher shortcut asked, not the "open to a new bill" setting. */
+data class LaunchRequest(val target: QuickLaunchTarget, val shortcut: Boolean)
+
 /** A bill page asked for by a fresh start or a shortcut, waiting for the app to open it once. */
 class LaunchRequests {
-    private val pending = MutableStateFlow<QuickLaunchTarget?>(null)
-    val requests: StateFlow<QuickLaunchTarget?> = pending.asStateFlow()
+    private val pending = MutableStateFlow<LaunchRequest?>(null)
+    val requests: StateFlow<LaunchRequest?> = pending.asStateFlow()
 
-    fun request(target: QuickLaunchTarget) { pending.value = target }
+    fun request(target: QuickLaunchTarget, shortcut: Boolean = false) { pending.value = LaunchRequest(target, shortcut) }
 
     /** The waiting request, now handled; null when there is none. */
-    fun take(): QuickLaunchTarget? = pending.getAndUpdate { null }
+    fun take(): LaunchRequest? = pending.getAndUpdate { null }
 }

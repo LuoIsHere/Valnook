@@ -321,15 +321,19 @@ private fun SessionRoot(
         .collectAsStateWithLifecycle(false)
     val quickEntry = remember { dev.valnook.app.quick.QuickEntryPreferences.of(appContext) }
     val quickSettings by quickEntry.settings.collectAsStateWithLifecycle()
+    // A pinned "AI bookkeeping" shortcut outlives turning the AI off; its bill page then says why it is not the chat.
+    var aiShortcutNotice by remember(graph.sessionId) { mutableStateOf(false) }
     // A fresh start with "open to a new bill" on, or a shortcut: on real data, the bill page or the AI chat (the bill
     // page while the chat cannot be used), above the current page. Demo data drops it and stays where it is.
     LaunchedEffect(graph.sessionId) {
         launchRequests.requests.collect {
-            val target = launchRequests.take() ?: return@collect
+            val request = launchRequests.take() ?: return@collect
             if (active.mode != DataMode.REAL || graph.bills == null) return@collect
-            val chat = target == dev.valnook.feature.settings.QuickLaunchTarget.AI && graph.assistant != null &&
-                graph.ai?.observeFeatures()?.first()?.chatEntry == true
+            val wantsChat = request.target == dev.valnook.feature.settings.QuickLaunchTarget.AI
+            val chat = wantsChat && graph.assistant != null && graph.ai?.observeFeatures()?.first()?.chatEntry == true
             open(if (chat) AiChatKey else BillEditorKey())
+            // Only the shortcut asks out loud: the start-up setting already says it falls back.
+            if (wantsChat && !chat && request.shortcut) aiShortcutNotice = true
         }
     }
     // The icon's long-press menu follows real data: "AI bookkeeping" only while the chat can be used.
@@ -418,6 +422,11 @@ private fun SessionRoot(
     val titleReserves = remember(graph.sessionId) { androidx.compose.runtime.mutableStateMapOf<NavKey, Int>() }
     val updateTitleReserve: (NavKey, Int) -> Unit = remember(graph.sessionId) { { key: NavKey, value: Int ->
         if (value == 0) titleReserves.remove(key) else titleReserves[key] = value } }
+    if (aiShortcutNotice) dev.valnook.designsystem.ValnookDialog({ aiShortcutNotice = false }, confirmButton = {
+        androidx.compose.material3.TextButton({ aiShortcutNotice = false }, Modifier.testTag("ai-shortcut-notice-ok")) {
+            Text(stringResource(R.string.shortcut_ai_unavailable_ok))
+        }
+    }, Modifier.testTag("ai-shortcut-notice"), text = { Text(stringResource(R.string.shortcut_ai_unavailable)) })
     if (leavePrompt) dev.valnook.feature.settings.UnsavedChangesDialog(onKeep = { leavePrompt = false },
         onDiscard = { leavePrompt = false; pop() })
     var deleteTarget by remember(graph.sessionId) { mutableStateOf<Pair<Long, Long?>?>(null) }

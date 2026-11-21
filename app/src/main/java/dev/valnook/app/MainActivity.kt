@@ -33,8 +33,9 @@ class MainActivity:ComponentActivity() {
     override fun onCreate(savedInstanceState:Bundle?) {
         super.onCreate(savedInstanceState)
         dev.valnook.app.quick.QuickEntryPreferences.of(this).launchTarget(intent, savedInstanceState != null)?.let { target ->
-            launchRequests.request(target)
-            if (dev.valnook.app.quick.QuickShortcuts.target(intent) != null) dev.valnook.app.quick.QuickShortcuts.reportUsed(this, target)
+            val shortcut = dev.valnook.app.quick.QuickShortcuts.target(intent) != null
+            launchRequests.request(target, shortcut)
+            if (shortcut) dev.valnook.app.quick.QuickShortcuts.reportUsed(this, target)
         }
         enableEdgeToEdge()
         window.isNavigationBarContrastEnforced=false
@@ -69,7 +70,7 @@ class MainActivity:ComponentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         dev.valnook.app.quick.QuickShortcuts.target(intent)?.let { target ->
-            launchRequests.request(target)
+            launchRequests.request(target, shortcut = true)
             dev.valnook.app.quick.QuickShortcuts.reportUsed(this, target)
         }
     }

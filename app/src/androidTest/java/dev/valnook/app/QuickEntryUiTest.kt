@@ -118,6 +118,9 @@ class QuickEntryUiTest {
         quick.setTarget(QuickLaunchTarget.AI)
         launch()
         waitTag("bill-editor")
+        // The setting's own summary already says it falls back, so starting up does not ask.
+        rule.waitForIdle()
+        rule.onNodeWithTag("ai-shortcut-notice").assertDoesNotExist()
         enableAi()
         launch()
         waitTag("ai-chat")
@@ -175,6 +178,16 @@ class QuickEntryUiTest {
         waitTag("ai-chat")
         runBlocking { graph.ai!!.setEnabled(false) }
         waitUntil { shortcutIds() == listOf(QuickShortcuts.NEW_BILL) }
+        // A copy pinned to the home screen stays: it opens the bill page and says why.
+        scenario!!.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        waitTag("floating-navigation-overlay")
+        use(chat)
+        waitTag("bill-editor")
+        waitTag("ai-shortcut-notice")
+        rule.onNodeWithTag("ai-chat").assertDoesNotExist()
+        rule.onNodeWithTag("ai-shortcut-notice-ok").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("ai-shortcut-notice").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("bill-editor").assertExists()
     }
 
     @Test fun demo_data_stays_where_it_is() {

@@ -59,6 +59,8 @@
     <string name="shortcut_new_bill_long">Add a bill</string>
     <string name="shortcut_ai_chat">AI bookkeeping</string>
     <string name="shortcut_ai_chat_long">Record with AI</string>
+    <string name="shortcut_ai_unavailable">AI bookkeeping is off or has not passed its checks, so the bill page opened instead.</string>
+    <string name="shortcut_ai_unavailable_ok">OK</string>
     <string name="title_bill_stats_category">Category details</string>
     <string name="title_bill_stats_expense">Expense statistics</string>
     <string name="title_bill_stats_income">Income statistics</string>
