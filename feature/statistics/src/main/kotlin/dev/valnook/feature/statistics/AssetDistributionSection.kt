@@ -36,6 +36,7 @@ import dev.valnook.designsystem.Space
 import dev.valnook.domain.calculation.AssetDistribution
 import dev.valnook.domain.calculation.DistributionPart
 import dev.valnook.domain.model.AssetTypeRules
+import dev.valnook.domain.model.Currency
 import dev.valnook.domain.repository.OverviewRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -67,26 +68,27 @@ internal fun AssetDistributionSection(vm: DistributionViewModel) {
     Column(Modifier.fillMaxWidth().testTag("statistics-distribution"), verticalArrangement = Arrangement.spacedBy(Space.md)) {
         Text(stringResource(R.string.statistics_distribution), Modifier.padding(start = 4.dp, top = Space.sm).semantics { heading() },
             style = MaterialTheme.typography.titleMedium)
-        DistributionCard("accounts", stringResource(R.string.statistics_by_account), value.accounts,
+        DistributionCard("accounts", stringResource(R.string.statistics_by_account), value.accounts, value.currency,
             note = stringResource(R.string.statistics_negative_left_out))
         DistributionCard("types", stringResource(R.string.statistics_by_asset_type),
-            value.assetTypes.map { if (AssetTypeRules.isDefaultName(it.label)) it.copy(label = uncategorized) else it })
-        DistributionCard("currencies", stringResource(R.string.statistics_by_currency), value.currencies)
+            value.assetTypes.map { if (AssetTypeRules.isDefaultName(it.label)) it.copy(label = uncategorized) else it }, value.currency)
+        DistributionCard("currencies", stringResource(R.string.statistics_by_currency), value.currencies, value.currency)
     }
 }
 
 /**
- * One distribution: a ring of the parts above zero, largest first, and a row for each. Tapping a row picks out its
- * part on the ring and shows its share in the middle; tapping it again lets go.
+ * One distribution: a ring of the parts above zero, largest first, and a row for each with its share and its value in
+ * the base [currency] (a currency also with its own amount). Tapping a row picks out its part on the ring and shows
+ * its share in the middle; tapping it again lets go.
  */
 @Composable
-private fun DistributionCard(key: String, title: String, all: List<DistributionPart>, note: String? = null) {
+private fun DistributionCard(key: String, title: String, all: List<DistributionPart>, currency: Currency?, note: String? = null) {
     // Two accounts may share a name: the n-th part with a label is told apart by n.
     val parts = remember(all) {
         val seen = mutableMapOf<String, Int>()
         all.filter { it.value.signum() > 0 }.sortedByDescending { it.value }.map { part ->
             val n = seen.merge(part.label, 1, Int::plus)!!
-            Part(if (n == 1) part.label else "${part.label}#$n", part.label, part.value)
+            Part(if (n == 1) part.label else "${part.label}#$n", part.label, part.value, part.native)
         }
     }
     val total = remember(parts) { parts.fold(BigDecimal.ZERO) { sum, part -> sum + part.value } }
@@ -130,7 +132,10 @@ private fun DistributionCard(key: String, title: String, all: List<DistributionP
             val long = parts.size > COLLAPSED_ROWS + 1
             val shown = if (long && !expanded) parts.take(COLLAPSED_ROWS) else parts
             shown.forEachIndexed { index, part ->
-                DistributionRow(part.label, shareText(part.value, total), colors[index], selected == part.id,
+                // A currency's own amount, unless it is the base currency the value is already in.
+                val native = part.native?.takeIf { part.label != currency?.code }?.let { money(it, Currency.of(part.label)) }
+                DistributionRow(part.label, native, shareText(part.value, total), money(part.value, currency), colors[index],
+                    selected == part.id,
                     Modifier.testTag("statistics-distribution-$key-row-$index")) {
                     chosen = if (selected == part.id) null else part.id
                 }
@@ -144,18 +149,29 @@ private fun DistributionCard(key: String, title: String, all: List<DistributionP
     }
 }
 
-private data class Part(val id: String, val label: String, val value: BigDecimal)
+private data class Part(val id: String, val label: String, val value: BigDecimal, val native: BigDecimal?)
 
+/** The part's name (over a currency's own amount) and its share over its value in the base currency. */
 @Composable
-private fun DistributionRow(label: String, share: String, color: Color, picked: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun DistributionRow(label: String, native: String?, share: String, amount: String, color: Color, picked: Boolean,
+    modifier: Modifier, onClick: () -> Unit) {
     Row(modifier.fillMaxWidth().padding(horizontal = Space.sm).clip(RoundedCornerShape(12.dp))
         .background(if (picked) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent)
         .clickable(role = Role.Button, onClick = onClick).semantics(mergeDescendants = true) { selected = picked }
         .padding(horizontal = Space.cardInset - Space.sm, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.md)) {
         Box(Modifier.size(10.dp).clip(CircleShape).background(color))
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(share, style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"))
+        val small = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum")
+        val faint = MaterialTheme.colorScheme.onSurfaceVariant
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (native != null) Text(native, Modifier.testTag("statistics-distribution-native"), style = small, color = faint,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Column(horizontalAlignment = Alignment.End) {
+            Text(share, style = MaterialTheme.typography.bodyLarge.copy(fontFeatureSettings = "tnum"))
+            Text(amount, Modifier.testTag("statistics-distribution-amount"), style = small, color = faint, maxLines = 1)
+        }
     }
 }
 

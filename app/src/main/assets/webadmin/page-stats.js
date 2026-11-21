@@ -165,9 +165,13 @@ export function distCard(title, items, note = "") {
     center.textContent = i == null ? t("itemCount").replace("{n}", sorted.length) : pctText(pct(sorted[i].value, total));
     centerLabel.textContent = i == null ? t("total") : sorted[i].label;
   };
+  // Each row: the name (a currency over its own amount, unless it is the base) and the share over its base-currency value.
   const rows = sorted.map((v, i) => el("div", { tabindex: "0", onmouseenter: () => focus(i), onmouseleave: () => focus(null), onfocus: () => focus(i), onblur: () => focus(null) },
-    el("span", { class: "sw", css: { background: `var(--cat-${Math.min(i + 1, 6)})` } }), el("span", { class: "lbl", title: v.label, text: v.label }),
-    el("span", { class: "pct num", text: pctText(pct(Math.max(0, Number(v.value)), total)) })));
+    el("span", { class: "sw", css: { background: `var(--cat-${Math.min(i + 1, 6)})` } }),
+    el("span", { class: "lbl-box" }, el("span", { class: "lbl", title: v.label, text: v.label }),
+      v.native != null && v.label !== B() ? el("span", { class: "sub mask num", text: fmt(v.native, v.label) }) : null),
+    el("span", { class: "val" }, el("span", { class: "pct num", text: pctText(pct(Math.max(0, Number(v.value)), total)) }),
+      el("span", { class: "sub mask num", text: fmt(v.value, B()) }))));
   segs.forEach((g, i) => { g.addEventListener("mouseenter", () => focus(i)); g.addEventListener("mouseleave", () => focus(null)); });
   return el("section", { class: "tile dist" }, el("h3", { text: title }), note ? el("p", { class: "faint small", text: note }) : null,
     sorted.length ? el("div", { class: "donut-row" }, el("svg", { class: "donut", viewBox: "0 0 120 120", role: "img", "aria-label": title },

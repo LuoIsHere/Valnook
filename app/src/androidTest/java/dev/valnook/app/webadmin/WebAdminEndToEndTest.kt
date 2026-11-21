@@ -603,6 +603,12 @@ class WebAdminEndToEndTest {
         val distribution = http(endpoint, "GET", "/api/v1/statistics/distribution", cookie = cookie)
         assertEquals(distribution.body, 200, distribution.status)
         assertTrue(JSONObject(distribution.body).has("currencies"))
+        // A currency also carries its own amount; accounts are in the base currency only.
+        JSONObject(distribution.body).let { body ->
+            val currencies = body.getJSONArray("currencies"); val accounts = body.getJSONArray("accounts")
+            assertTrue((0 until currencies.length()).all { currencies.getJSONObject(it).has("native") })
+            assertTrue((0 until accounts.length()).none { accounts.getJSONObject(it).has("native") })
+        }
         val generation = JSONObject(session.body).getLong("dataGeneration")
         val operationId = UUID.randomUUID().toString()
         val createBody = JSONObject().put("operationId", operationId).put("dataGeneration", generation)

@@ -395,6 +395,8 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
 .dist-list .sw{width:8px;height:8px;border-radius:50%}
 .dist-list .lbl{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
 .dist-list .pct{font-weight:650}
+.dist-list .lbl-box{display:flex;flex-direction:column;min-width:0}.dist-list .val{display:flex;flex-direction:column;align-items:flex-end}
+.dist-list .sub{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 
 /* Segmented control */
 .seg{display:flex;padding:3px;border-radius:99px;background:var(--fill);gap:2px;flex-shrink:0}

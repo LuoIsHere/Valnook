@@ -517,7 +517,10 @@ internal class WebAdminApiRouter(
         val snapshot = reads.snapshot()
         val distribution = dev.valnook.domain.calculation.AssetDistribution.calculate(snapshot)
         fun parts(values: List<dev.valnook.domain.calculation.DistributionPart>) = buildJsonArray {
-            values.forEach { add(buildJsonObject { put("label", it.label); put("value", decimal(it.value)) }) }
+            values.forEach { part -> add(buildJsonObject {
+                put("label", part.label); put("value", decimal(part.value))
+                part.native?.let { put("native", decimal(it)) }
+            }) }
         }
         return success(buildJsonObject {
             put("dataGeneration", reads.generation()); put("currency", distribution.currency?.code)

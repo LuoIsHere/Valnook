@@ -114,6 +114,42 @@ class StatisticsLoadingUiTest {
         save("statistics-slow-complete")
     }
 
+    /** Synthetic: 1,000 CNY in one bank and 500 USD (7.2 to the yuan) in another. */
+    @Test fun distribution_rows_show_the_share_with_the_base_amount_and_a_currency_its_own() {
+        val cny = Currency.of("CNY"); val usd = Currency.of("USD")
+        val snapshot = AssetSnapshot(listOf(SavingsAccount(1, "Synthetic bank", ""), SavingsAccount(2, "Synthetic broker", "")),
+            listOf(CashAccount(1, cny, 100_000, 1, 11, "Cash"), CashAccount(2, usd, 50_000, 1, 12, "Dollars")),
+            emptyList(), emptyList(), emptyList(), AppSettings(cny, listOf(FxRate(usd, cny, BigDecimal("7.2"))), 1))
+        val overview = object : dev.valnook.domain.repository.OverviewRepository {
+            override fun observeSnapshot() = MutableStateFlow(snapshot)
+            override suspend fun snapshot() = snapshot
+        }
+        rule.runOnUiThread {
+            vm = StatisticsViewModel(repository, Clock.fixed(Instant.parse("2026-10-07T12:00:00Z"), ZoneOffset.UTC), SavedStateHandle())
+            val distribution = dev.valnook.feature.statistics.DistributionViewModel(overview)
+            store.put("statistics-loading-test", vm); store.put("statistics-distribution-test", distribution)
+            rule.activity.setContent { ValnookTheme(dark_theme = false) { StatisticsScreen(vm, distribution = distribution) } }
+        }
+        rule.waitUntil(5_000) { !vm.state.value.loading }
+        rule.onNodeWithTag("statistics-list").performScrollToNode(hasTestTag("statistics-distribution-currencies"))
+        // USD: 3,600 of 4,600 yuan. Its row says the share, the yuan and the dollars; CNY is not said twice.
+        val usdRow = rule.onNodeWithTag("statistics-distribution-currencies-row-0")
+        usdRow.assertTextContains("USD").assertTextContains("78.3%").assertTextContains("3 600.00 CNY")
+            .assertTextContains("500.00 USD")
+        val cnyRow = rule.onNodeWithTag("statistics-distribution-currencies-row-1")
+        cnyRow.assertTextContains("21.7%").assertTextContains("1 000.00 CNY")
+        rule.onAllNodes(hasText("1 000.00 CNY") and hasAnyAncestor(hasTestTag("statistics-distribution-currencies-row-1")),
+            useUnmergedTree = true).assertCountEquals(1)
+        // An account row has the yuan only.
+        rule.onNodeWithTag("statistics-list").performScrollToNode(hasTestTag("statistics-distribution-accounts-row-0"))
+        rule.onNodeWithTag("statistics-distribution-accounts-row-0").assertTextContains("Synthetic broker")
+            .assertTextContains("3 600.00 CNY")
+        rule.onAllNodes(hasText("USD", substring = true) and hasAnyAncestor(hasTestTag("statistics-distribution-accounts")),
+            useUnmergedTree = true).assertCountEquals(0)
+        rule.onNodeWithTag("statistics-list").performScrollToNode(hasTestTag("statistics-distribution-currencies"))
+        save("statistics-distribution-amounts")
+    }
+
     private class ControlledRepository : StatisticsRepository {
         var gate: CompletableDeferred<Unit>? = null
         override fun observeRevision() = MutableStateFlow(1L)

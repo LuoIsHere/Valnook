@@ -32,6 +32,11 @@ class AssetDistributionTest {
         assertEquals(mapOf("Bonds" to "7200", "Stocks" to "7200"), values(result.assetTypes))
         assertEquals(listOf("Bonds", "Stocks"), result.assetTypes.map { it.label })
         assertEquals(mapOf("CNY" to "1500", "HKD" to "-180", "USD" to "21600"), values(result.currencies))
+        // Each currency also keeps its own amount: USD 1,000 deposit + 2,000 in funds; HKD -200.
+        assertEquals(mapOf("CNY" to "1500", "HKD" to "-200", "USD" to "3000"),
+            result.currencies.associate { it.label to it.native!!.stripTrailingZeros().toPlainString() })
+        // Accounts and asset types are in the base currency only.
+        assertTrue((result.accounts + result.assetTypes).all { it.native == null })
     }
 
     @Test fun a_currency_without_a_rate_is_left_out() {

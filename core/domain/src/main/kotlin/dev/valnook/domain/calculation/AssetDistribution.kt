@@ -4,8 +4,11 @@ import dev.valnook.domain.model.AssetSnapshot
 import dev.valnook.domain.model.Currency
 import java.math.BigDecimal
 
-/** One part of a distribution: a [label] and its value in the base currency. */
-data class DistributionPart(val label: String, val value: BigDecimal)
+/**
+ * One part of a distribution: a [label] and its value in the base currency. A currency part also has [native], its
+ * amount in that currency (the [label] is its code).
+ */
+data class DistributionPart(val label: String, val value: BigDecimal, val native: BigDecimal? = null)
 
 /**
  * How today's assets are spread, in the base [currency]: by account (in display order, negative totals included),
@@ -38,7 +41,7 @@ data class AssetDistribution(
             return AssetDistribution(snapshot.settings.baseCurrency,
                 overview.accounts.map { DistributionPart(it.account.name, it.total.amount) },
                 types.toSortedMap().map { (label, value) -> DistributionPart(label, value) },
-                currencies.toSortedMap().mapNotNull { (code, amount) -> convert(code, amount)?.let { DistributionPart(code, it) } })
+                currencies.toSortedMap().mapNotNull { (code, amount) -> convert(code, amount)?.let { DistributionPart(code, it, amount) } })
         }
     }
 }
