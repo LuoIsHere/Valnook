@@ -16,12 +16,13 @@ import dev.valnook.domain.model.BalanceAccountType
 internal fun SubaccountOrderSheet(rows: List<CashAccountRowDraft>, orderedKeys: List<String>,
     onReorder: (List<String>) -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val byKey = rows.associateBy { it.key }
-    ModalBottomSheet(onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        PopupBlurEffect()
+    ValnookBottomSheet(onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
+            // The list runs on behind the navigation bar, so the sheet is that much taller for the same rows.
+            val bottom = sheetBottomPadding()
             val contentHeight = minOf(maxHeight * 0.7f,
-                (96.dp + 64.dp * rows.size) * LocalDensity.current.fontScale.coerceAtLeast(1f))
+                (96.dp + 64.dp * rows.size) * LocalDensity.current.fontScale.coerceAtLeast(1f)) +
+                bottom.calculateBottomPadding()
             Column(Modifier.fillMaxWidth().height(contentHeight).padding(horizontal = Space.md)
                 .testTag("subaccount-sort-sheet")) {
                 SheetHeader(stringResource(R.string.account_order_children)) {
@@ -36,7 +37,7 @@ internal fun SubaccountOrderSheet(rows: List<CashAccountRowDraft>, orderedKeys: 
                             else R.string.account_type_savings) + " · " + row.currency.code)
                 } }, onReorder, stringResource(R.string.account_order_drag),
                     stringResource(R.string.account_order_up), stringResource(R.string.account_order_down),
-                    Modifier.fillMaxWidth().weight(1f))
+                    Modifier.fillMaxWidth().weight(1f), contentPadding = bottom)
             }
         }
     }

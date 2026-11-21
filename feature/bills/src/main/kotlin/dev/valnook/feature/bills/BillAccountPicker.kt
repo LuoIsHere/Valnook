@@ -85,8 +85,11 @@ enum class PickerOption { NO_ACCOUNT, EXTERNAL }
             Surface(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(height)
                 .clickable(MutableInteractionSource(), null) {}.testTag("bill-account-picker"),
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp), color = MaterialTheme.colorScheme.surfaceContainer) {
-                Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.navigationBars).nestedScroll(pull)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                // The lists run on behind the navigation bar (see listEnd); the keyboard lifts them above it.
+                Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                    .imePadding().nestedScroll(pull).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    val listEnd = sheetBottomPadding(16.dp)
                     // The handle: drag it to pull the sheet up or down.
                     Box(Modifier.fillMaxWidth().height(24.dp)
                         .draggable(rememberDraggableState { dragBy(it) }, Orientation.Vertical).testTag("bill-account-sheet-handle"),
@@ -117,19 +120,19 @@ enum class PickerOption { NO_ACCOUNT, EXTERNAL }
                             ReorderList(favorites.map { ReorderItem(it.cashAccountId.toString(), it.label(), it.currency.code) },
                                 { keys -> onFavorites(keys.map(String::toLong)) }, stringResource(R.string.bill_arrange),
                                 stringResource(R.string.bill_move_up), stringResource(R.string.bill_move_down), Modifier.weight(1f),
-                                leadingContent = { item -> byKey[item.key]?.let { AccountAvatar(it.iconSymbol, it.iconImageKey, size = 36.dp) } },
+                                contentPadding = listEnd, leadingContent = { item -> byKey[item.key]?.let { AccountAvatar(it.iconSymbol, it.iconImageKey, size = 36.dp) } },
                                 dividerInset = 56.dp)
                         }
                         expanded -> {
                             GlassTextField(query, { query = it }, stringResource(R.string.bill_search_accounts),
                                 Modifier.fillMaxWidth().testTag("bill-account-search"))
-                            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            LazyColumn(Modifier.weight(1f), contentPadding = listEnd, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 if (query.isBlank() && option != null) item { OptionRow(option, optionSelected) { onPick(null) } }
                                 allAccounts(accounts.filter { query.isBlank() || it.label().contains(query.trim(), ignoreCase = true) },
                                     selected.takeIf { !optionSelected }, favorites, onPick, onFavorites, stars = true)
                             }
                         }
-                        else -> LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        else -> LazyColumn(Modifier.weight(1f), contentPadding = listEnd, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             if (option != null) item { OptionRow(option, optionSelected) { onPick(null) } }
                             if (favorites.isEmpty()) {
                                 item { HintMessage(stringResource(R.string.bill_favorites_hint)) }

@@ -1049,6 +1049,8 @@ class UiFlowTest {
         rule.onNodeWithTag("accounts-group-${AccountGroup.DEFAULT_ID}").assertDoesNotExist()
         rule.onNodeWithTag("account-groups-open").performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-account-$account_id").fetchSemanticsNodes().isNotEmpty() }
+        rule.assertReachesScreenBottom("account-groups",
+            hasScrollAction() and hasAnyDescendant(hasTestTag("sort-row-account-$account_id")))
         drag_order_row("account-$account_id", "account-$second")
         rule.waitUntil(5000) { order() == listOf(second, account_id) } // Saved without a confirm button.
 
@@ -1130,6 +1132,8 @@ class UiFlowTest {
         rule.waitUntil(5000) { rule.onAllNodes(hasTestTag("subaccount-order-open") and SemanticsMatcher.keyNotDefined(SemanticsProperties.Disabled)).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("subaccount-order-open").performClick()
         rule.waitUntil(5000) { rule.onAllNodesWithTag("sort-row-${ids[0]}").fetchSemanticsNodes().isNotEmpty() }
+        rule.assertReachesScreenBottom("subaccount-sort-sheet",
+            hasScrollAction() and hasAnyDescendant(hasTestTag("sort-row-${ids[0]}")))
         drag_order_row(ids[0].toString(), ids[1].toString())
         shot("subaccount-sort-sheet", "subaccount-sort-sheet")
         rule.onNodeWithTag("subaccount-order-confirm").performClick()

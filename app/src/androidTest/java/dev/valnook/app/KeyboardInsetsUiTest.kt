@@ -3,18 +3,24 @@ package dev.valnook.app
 import android.graphics.Bitmap
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
+import androidx.activity.compose.setContent
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.lifecycle.SavedStateHandle
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dev.valnook.app.di.AppSessionManager
+import dev.valnook.designsystem.ValnookTheme
+import dev.valnook.domain.model.BalanceAccountType
 import dev.valnook.domain.model.Currency
 import dev.valnook.domain.model.FxRate
 import dev.valnook.domain.repository.SaveFinancialSettings
+import dev.valnook.feature.accounts.AccountEditScreen
+import dev.valnook.feature.accounts.AccountEditViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -86,6 +92,24 @@ class KeyboardInsetsUiTest {
         val confirm = rule.onNodeWithText(text(dev.valnook.feature.settings.R.string.settings_confirm_clear))
         confirm.performScrollTo()
         assertAboveKeyboard("clear-confirm", confirm)
+    }
+
+    /** A sheet is a window of its own, which the page's keyboard padding does not reach. */
+    @Test fun subaccount_panel_keeps_its_last_field_above_the_keyboard() {
+        val vm = rule.runOnUiThread { AccountEditViewModel(null, graph.overview, graph.commands, SavedStateHandle()) }
+        rule.waitUntil(10_000) { vm.state.value.loaded }
+        rule.runOnUiThread { rule.activity.setContent { ValnookTheme { AccountEditScreen(vm, {}) } } }
+        rule.onNodeWithTag("account-add-row").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("subaccount-sheet").fetchSemanticsNodes().isNotEmpty() }
+        // A credit card has the most fields, so its last one sits lowest in the panel.
+        val key = vm.state.value.rows.single().key
+        rule.runOnUiThread { vm.changeRow(key, type = BalanceAccountType.CREDIT) }
+        rule.waitForIdle()
+        val fields = hasSetTextAction() and hasAnyAncestor(hasTestTag("subaccount-sheet"))
+        val last = rule.onAllNodes(fields)[rule.onAllNodes(fields).fetchSemanticsNodes().lastIndex]
+        last.performScrollTo().performClick()
+        showScreenKeyboard()
+        assertAboveKeyboard("subaccount-last-field", last)
     }
 
     private fun openSettings() {

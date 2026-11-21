@@ -7,6 +7,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -56,7 +57,11 @@ fun AccountGroupsScreen(vm: AccountGroupsViewModel, onToolbarChange: (AccountGro
     SideEffect { onToolbarChange(toolbar) }
     DisposableEffect(Unit) { onDispose { onToolbarChange(null) } }
 
-    Column(Modifier.fillMaxSize().padding(pageContentPadding()), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+    // The list's bottom space goes inside it, so its rows scroll on behind the navigation bar.
+    val page = pageContentPadding()
+    val direction = LocalLayoutDirection.current
+    Column(Modifier.fillMaxSize().padding(start = page.calculateStartPadding(direction), top = page.calculateTopPadding(),
+        end = page.calculateEndPadding(direction)), verticalArrangement = Arrangement.spacedBy(Space.sm)) {
         if (!state.loaded) {
             if (state.loadFailed) TextButton(vm::reload) { Text(stringResource(R.string.account_edit_load_failed)) }
             else CircularProgressIndicator()
@@ -69,6 +74,7 @@ fun AccountGroupsScreen(vm: AccountGroupsViewModel, onToolbarChange: (AccountGro
         ReorderList(groupedRows(state.sections, stringResource(R.string.account_group_default)), vm::reorderAccounts,
             stringResource(R.string.account_order_drag), stringResource(R.string.account_order_up),
             stringResource(R.string.account_order_down), Modifier.fillMaxWidth().weight(1f), !state.busy,
+            contentPadding = PaddingValues(bottom = page.calculateBottomPadding()),
             leadingContent = { item ->
                 val icon = state.sections.firstNotNullOf { section -> section.items.firstOrNull { accountKey(it.id) == item.key } }.icon
                 AccountAvatar(icon.symbol, icon.imageKey)

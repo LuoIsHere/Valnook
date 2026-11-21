@@ -64,6 +64,7 @@ class AccountEditSheetUiTest {
         edit(vm)
         rule.onNodeWithTag("account-add-row").performClick()
         rule.waitUntil(5_000) { sheetOpen() }
+        rule.assertReachesScreenBottom("subaccount-sheet", hasTestTag("subaccount-sheet"))
         rule.onNodeWithText(string(AccountsR.string.account_balance_name)).performTextReplacement("Daily card")
         rule.onNodeWithText(string(AccountsR.string.account_balance)).performTextReplacement("12.5")
         closeSheet()

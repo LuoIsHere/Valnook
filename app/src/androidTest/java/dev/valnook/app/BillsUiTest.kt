@@ -116,6 +116,8 @@ class BillsUiTest {
         rule.onNodeWithTag("bill-tab-TRANSFER").performClick()
         rule.onNodeWithTag("bill-transfer-from").performClick()
         waitTag("bill-account-picker")
+        rule.assertReachesScreenBottom("bill-account-picker",
+            hasScrollAction() and hasAnyAncestor(hasTestTag("bill-account-picker")))
         rule.onNodeWithTag("bill-account-$cashId").performClick()
         // The account's balance shows under its name; an outside account has none.
         rule.onNodeWithTag("bill-transfer-from-balance", useUnmergedTree = true)

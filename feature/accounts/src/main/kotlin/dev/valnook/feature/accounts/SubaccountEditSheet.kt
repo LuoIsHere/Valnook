@@ -34,11 +34,9 @@ internal fun SubaccountEditSheet(row: CashAccountRowDraft, state: AccountEditUiS
     fun error(field: String) = errors["${row.key}:$field"]?.name
     fun attention(field: String) = first == "${row.key}:$field"
     val stacked = LocalDensity.current.fontScale > 1.3f
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.background) {
-        PopupBlurEffect()
+    ValnookBottomSheet(onDismiss, sheetState = sheetState, containerColor = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("subaccount-sheet")
-            .padding(start = Space.md, end = Space.md, bottom = Space.lg),
+            .padding(horizontal = Space.md).padding(sheetBottomPadding(Space.lg)),
             verticalArrangement = Arrangement.spacedBy(Space.md)) {
             SheetHeader(row.nameInput.ifBlank { stringResource(R.string.account_new_subaccount) }) {
                 TextButton(::close, Modifier.testTag("subaccount-sheet-done")) { Text(stringResource(R.string.account_sheet_done)) }

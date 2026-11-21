@@ -334,6 +334,7 @@ class AiChatUiTest {
         rule.onNodeWithTag("ai-chat-examples").assertExists()
         rule.onNodeWithTag("ai-chat-pending-elsewhere").performClick()
         waitTag("ai-chat-history")
+        rule.assertReachesScreenBottom("ai-chat-history", hasScrollAction() and hasAnyAncestor(hasTestTag("ai-chat-history")))
         rule.onNode(tagStarting("ai-chat-history-pending-"), useUnmergedTree = true).assertTextContains("1", substring = true)
         val row = rule.onNode(tagStarting("ai-chat-history-pending-"), useUnmergedTree = true).fetchSemanticsNode()
             .config[SemanticsProperties.TestTag].removePrefix("ai-chat-history-pending-")

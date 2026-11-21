@@ -448,13 +448,13 @@ private fun HistorySheet(ui: AiChatUi, vm: AiChatViewModel, onDismiss: () -> Uni
     val locale = LocalConfiguration.current.locales[0]
     val format = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT).withLocale(locale)
     val number = NumberFormat.getIntegerInstance(locale)
-    ModalBottomSheet(onDismiss, Modifier.testTag("ai-chat-history")) {
+    ValnookBottomSheet(onDismiss, Modifier.testTag("ai-chat-history")) {
         SheetHeader(stringResource(R.string.ai_chat_history), Modifier.padding(horizontal = Space.md))
         if (ui.conversations.isEmpty()) Text(stringResource(R.string.ai_chat_history_empty), Modifier.padding(Space.cardInset),
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         // Those with drafts waiting come first, the rest by time as before.
         val ordered = remember(ui.conversations) { ui.conversations.sortedByDescending { it.pending > 0 } }
-        LazyColumn(contentPadding = PaddingValues(bottom = Space.xl)) {
+        LazyColumn(contentPadding = sheetBottomPadding(Space.xl)) {
             items(ordered, key = { it.id }) { conversation ->
                 Row(Modifier.fillMaxWidth().clickable { vm.openConversation(conversation.id); onDismiss() }
                     .testTag("ai-chat-history-${conversation.id}").padding(horizontal = Space.cardInset, vertical = Space.sm),
