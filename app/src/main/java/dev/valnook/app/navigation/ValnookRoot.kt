@@ -275,7 +275,11 @@ private fun SessionRoot(
         val memory=object:android.content.ComponentCallbacks2 {
             override fun onConfigurationChanged(configuration:android.content.res.Configuration){}
             override fun onLowMemory(){walletOverview.trimMemory()}
-            override fun onTrimMemory(level:Int){if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)walletOverview.trimMemory()}
+            // Not on UI_HIDDEN: every trip to the background would throw the faces away and decode them again on return.
+            override fun onTrimMemory(level:Int){
+                if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW&&
+                    level!=android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN)walletOverview.trimMemory()
+            }
         }
         val lifecycle=androidx.lifecycle.LifecycleEventObserver { _,event->
             if(event==androidx.lifecycle.Lifecycle.Event.ON_START)walletOverview.start(walletPreloadEdge)

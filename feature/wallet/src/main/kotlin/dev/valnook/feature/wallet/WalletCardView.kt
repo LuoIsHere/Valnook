@@ -33,6 +33,8 @@ class WalletImageCache(private val repository: WalletRepository) {
     // Composed cards may outlive an LRU entry. Reuse their live bitmap without
     // retaining every decoded card or enlarging the strong cache budget.
     private val liveImages=java.util.concurrent.ConcurrentHashMap<String,java.lang.ref.WeakReference<WalletDecoded>>()
+    // A few bytes per face, so a card still waiting for its pixels is drawn in its own colour.
+    private val tints=java.util.concurrent.ConcurrentHashMap<String,Long>()
     private val images=object:LruCache<String,WalletDecoded>(24*1024*1024){
         override fun sizeOf(key:String,value:WalletDecoded)=value.bitmap.width*value.bitmap.height*4
     }
@@ -41,7 +43,12 @@ class WalletImageCache(private val repository: WalletRepository) {
     fun peek(key:String,edge:Int?=null):WalletDecoded? =
         edge?.let{cached("$key:${it.coerceIn(160,1120)}")}?:liveImages.entries
             .filter{it.key.startsWith("$key:")}.mapNotNull{it.value.get()}.maxByOrNull{it.bitmap.width}
-    fun clear(){generation.incrementAndGet();images.evictAll();liveImages.clear()}
+    fun tint(key:String):Long?=tints[key]
+    /**
+     * Drops only the strong cache. Faces still on screen keep their bitmaps alive anyway, and a card opened from
+     * them must find the same pixels on its first frame, so their weak entries and every tint stay.
+     */
+    fun clear(){generation.incrementAndGet();images.evictAll()}
     suspend fun load(key:String,edge:Int):WalletDecoded?=withContext(Dispatchers.IO) {
         val target=edge.coerceIn(160,1120)
         val cacheKey="$key:$target"
@@ -49,6 +56,7 @@ class WalletImageCache(private val repository: WalletRepository) {
         cached(cacheKey)?:decoders.withPermit {
             val ticket=generation.get()
             repository.image(key)?.let { image ->
+            tints[key]=image.tint
             val options=BitmapFactory.Options()
             var sample=1;while(image.width/(sample*2)>=target)sample*=2
             options.inSampleSize=sample
@@ -69,7 +77,7 @@ class WalletImageCache(private val repository: WalletRepository) {
 
 @Composable internal fun WalletCardView(card:WalletCard,cache:WalletImageCache,modifier:Modifier=Modifier,
     preview:WalletImage?=null,raised:Boolean=false,glow:(()->Float)?=null,shadow:()->Float={1f}) {
-    var tint by remember(card.imageKey,preview?.key) { mutableLongStateOf(card.imageKey?.let{cache.peek(it)?.tint}?:0xff555555L) }
+    var tint by remember(card.imageKey,preview?.key) { mutableLongStateOf(card.imageKey?.let{cache.tint(it)?:cache.peek(it)?.tint}?:0xff555555L) }
     val shape=RoundedCornerShape(18.dp)
     val elevation=if(raised)16.dp else 5.dp
     BoxWithConstraints(modifier.widthIn(max=440.dp).fillMaxWidth().aspectRatio(WalletRules.ASPECT)) {
@@ -81,7 +89,9 @@ class WalletImageCache(private val repository: WalletRepository) {
                 else card.imageKey?.let { runCatching { cache.load(it,edge) }.getOrNull() }
             value?.let { tint=it.tint }
         }
-        glow?.let { WalletGlow(it,shape,Modifier.matchParentSize()) { WalletCardFace(card,image) } }
+        // A face still loading has no glow: a blurred copy of its stand-in reads as a dark ghost card.
+        val ready=card.imageKey==null||image!=null
+        glow?.takeIf{ready}?.let { WalletGlow(it,shape,Modifier.matchParentSize()) { WalletCardFace(card,image,tint) } }
         // [shadow] is read while drawing, so fading it never recomposes the card.
         Box(Modifier.matchParentSize()
             .graphicsLayer{
@@ -89,13 +99,14 @@ class WalletImageCache(private val repository: WalletRepository) {
                 ambientShadowColor=Color(tint.toInt());spotShadowColor=Color(tint.toInt())
             }
             .clip(shape).testTag("wallet-card-${card.id}")) {
-            WalletCardFace(card,image)
+            WalletCardFace(card,image,tint)
         }
     }
 }
 
-@Composable private fun BoxScope.WalletCardFace(card:WalletCard,image:WalletDecoded?) {
-    val surface=MaterialTheme.colorScheme.surfaceContainerHigh
+/** A card with a picture shows its own colour [tint] until the pixels arrive, never the theme's dark surface. */
+@Composable private fun BoxScope.WalletCardFace(card:WalletCard,image:WalletDecoded?,tint:Long) {
+    val surface=if(card.imageKey!=null)Color(tint.toInt()) else MaterialTheme.colorScheme.surfaceContainerHigh
     Canvas(Modifier.matchParentSize()) {
         drawRect(Brush.linearGradient(listOf(surface,lerp(surface,Color.White,.08f),surface),Offset.Zero,Offset(size.width,size.height)))
         if(card.imageKey==null) {

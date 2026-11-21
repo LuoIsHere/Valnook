@@ -1024,7 +1024,7 @@ class WalletUiTest {
         assertEquals(position,rule.runOnUiThread{overview.scroll.firstVisibleItemIndex to overview.scroll.firstVisibleItemScrollOffset})
         save("wallet-warm-return")
     }
-    @Test fun concurrent_card_requests_share_one_decode_and_memory_trim_can_reload() {
+    @Test fun concurrent_card_requests_share_one_decode_and_memory_trim_keeps_shown_faces() {
         card("Shared image")
         val imageKey=requireNotNull(runBlocking{wallet.observeCards().first()}.single().imageKey)
         val reads=java.util.concurrent.atomic.AtomicInteger()
@@ -1038,8 +1038,11 @@ class WalletUiTest {
         assertEquals(1,reads.get());assertNotNull(images.first())
         assertTrue(images.all{it===images.first()})
         assertEquals(600,requireNotNull(images.first()).bitmap.width)
-        cache.clear();assertNull(cache.peek(imageKey))
-        assertNotNull(runBlocking{cache.load(imageKey,600)});assertEquals(2,reads.get())
+        // A trim drops the strong cache only: a face still held on screen is served as it is, with its tint.
+        cache.clear()
+        assertSame(images.first(),cache.peek(imageKey,600))
+        assertSame(images.first(),runBlocking{cache.load(imageKey,600)});assertEquals(1,reads.get())
+        assertEquals(images.first()!!.tint,cache.tint(imageKey))
     }
     @Test fun system_back_from_collapsed_detail_restores_the_card_stack() {
         root();switchDemo(true)
