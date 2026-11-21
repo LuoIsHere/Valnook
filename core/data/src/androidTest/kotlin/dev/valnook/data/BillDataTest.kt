@@ -380,4 +380,46 @@ class BillDataTest {
             assertEquals(RoomOverview(db).snapshot(), RoomOverview(target).snapshot())
         } finally { target.close() }
     }
+
+    /** A billing cycle's totals on one sub-account (the queries do not depend on the statement day). */
+    @Test fun cycle_totals_split_spending_refunds_and_repayments_and_follow_bill_edits() = runBlocking {
+        val (a, b, _) = accounts()
+        val cash = RoomCash(db.cash())
+        val hour = 3_600_000L
+        val cycle = LedgerPeriod(now + hour, now + 10 * hour)
+        fun revision(billId: Long) = db.openHelper.readableDatabase
+            .query("SELECT revision FROM bill_entries WHERE id=?", arrayOf(billId)).use { it.moveToFirst(); it.getLong(0) }
+        val lunch = save(expense(a, 2_000).copy(occurredAtMs = now + 2 * hour))
+        save(transfer(a, null, 3_000, TransferKind.TO_EXTERNAL, fee = 100, counterparty = "Synthetic shop").copy(occurredAtMs = now + 3 * hour))
+        save(transfer(b, a, 5_000, TransferKind.INTERNAL).copy(occurredAtMs = now + 4 * hour))
+        save(BillDraft(BillType.INCOME, now + 4 * hour, 50, "CNY", 0, a, 50, categoryId = category("income.other"),
+            subCategoryId = category("income.other.uncategorized")))
+        commands.execute(SettleBill(id(), lunch, revision(lunch), BillType.REFUND, SettlementDraft(now + 5 * hour, 800, a, 800)))
+        // Outside the cycle, and a balance edit made by hand: neither counts.
+        save(expense(a, 9_000).copy(occurredAtMs = now + 11 * hour))
+        val manual = db.cash().cashAccount(a)!!
+        commands.execute(SetCashBalance(id(), manual.savings_account_id, "CNY", manual.balance_minor - 700, manual.revision, a))
+
+        assertEquals(CreditCycleTotals(5_100, 800, 5_050), cash.observeCycleTotals(a, cycle).first())
+        assertEquals(4_300L, cash.observeCycleTotals(a, cycle).first().netSpentMinor)
+        // Before the cycle: today's balance with every later entry taken back out (the hand edit is dated now, earlier).
+        val balance = balance(a)
+        assertEquals(balance + 2_000 + 3_100 - 5_000 - 50 - 800 + 9_000, cash.observeBalanceBefore(a, cycle.startMs).first())
+        assertEquals(1_000_000L - 700, cash.observeBalanceBefore(a, cycle.startMs).first())
+        // Not there yet at its creation time, nor for an unknown sub-account.
+        assertNull(cash.observeBalanceBefore(a, now).first())
+        assertNull(cash.observeBalanceBefore(999_999, cycle.startMs).first())
+
+        // An old bill moved out of the cycle with the same amount: the totals and the ledger's revision both change.
+        val before = cash.observeCashAccountRevision(a).first()
+        save(expense(a, 2_000).copy(occurredAtMs = now + 12 * hour), lunch, revision(lunch))
+        assertEquals(CreditCycleTotals(3_100, 800, 5_050), cash.observeCycleTotals(a, cycle).first())
+        assertNotEquals(before, cash.observeCashAccountRevision(a).first())
+        // Only the note: the ledger's titles change, so its revision does too.
+        val noted = cash.observeCashAccountRevision(a).first()
+        save(expense(a, 2_000).copy(occurredAtMs = now + 12 * hour, note = "Synthetic dinner"), lunch, revision(lunch))
+        assertNotEquals(noted, cash.observeCashAccountRevision(a).first())
+        assertEquals(listOf("Synthetic dinner"), cash.cashAccountPeriodPage(a, LedgerPeriod(now + 12 * hour, now + 13 * hour), null, 50)
+            .filter { it.delta_minor == -2_000L }.map { it.bill!!.note })
+    }
 }

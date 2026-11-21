@@ -180,7 +180,7 @@ const currencyOk = c => /^[A-Z]{3}$/.test(c);
 const unchanged = v => ({ cashAccountId: v.id, expectedRevision: v.revision, currencyCode: v.currencyCode, balance: v.balance, name: v.name,
   note: v.note || "", type: v.type, showOnAccountsPage: v.showOnAccountsPage, includeInAvailableCash: v.includeInAvailableCash,
   credit: v.type === "CREDIT" && v.credit ? { limitSourceAccountId: v.credit.limitSourceAccountId ?? null, creditLimit: v.credit.creditLimit ?? "",
-    statementDay: v.credit.statementDay, dueRule: v.credit.dueRule } : null });
+    statementDay: v.credit.statementDay, statementDayIncluded: v.credit.statementDayIncluded ?? true, dueRule: v.credit.dueRule } : null });
 
 export function accountDialog(detail) {
   const a = detail?.account, isNew = !a;
@@ -236,12 +236,14 @@ export function subDialog(detail, x) {
   let dueType = x?.credit?.dueRule?.type || "AFTER_STATEMENT_DAYS";
   const dueValue = input("due", String(x?.credit?.dueRule?.value ?? 20), { inputmode: "numeric", maxlength: 3 });
   const dueField = field(t("dueDaysLabel"), dueValue);
+  const included = toggle(t("statementDayIncluded"), "included", x?.credit?.statementDayIncluded ?? true, t("statementDayIncludedHint"));
   const dueSeg = seg([{ value: "AFTER_STATEMENT_DAYS", label: t("dueAfter") }, { value: "FIXED_DAY_OF_MONTH", label: t("dueFixed") }], dueType, v => { dueType = v; sync(); });
   const balField = field(t("balance"), bal);
   const savingsBox = el("div", { class: "full" }, visible, available);
   const creditBox = el("div", { class: "form full" },
     el("p", { class: "form-sec", text: t("creditSettings") }), field(t("limitSource"), source), field(t("creditLimit"), limit),
     field(t("statementDay"), stmt), el("div", { class: "fld" }, el("span", { class: "lbl", text: t("dueRule") }), dueSeg), dueField,
+    el("div", { class: "full" }, included),
     el("div", { class: "full" }, toggle(t("showOnAccounts"), "visible2", x?.showOnAccountsPage ?? true)));
   const form = el("form", { class: "form", onsubmit: e => e.preventDefault() },
     isNew ? el("div", { class: "fld full" }, el("span", { class: "lbl", text: t("type") }), typeSeg) : null,
@@ -272,7 +274,8 @@ export function subDialog(detail, x) {
     const edited = { cashAccountId: x?.id ?? null, expectedRevision: x?.revision ?? null, currencyCode: c, balance: bal.value.trim(), name: name.value.trim(),
       note: note.value.trim(), type, showOnAccountsPage: shown, includeInAvailableCash: type === "SAVINGS" ? $("input", available).checked : false,
       credit: type === "CREDIT" ? { limitSourceAccountId: source.value ? Number(source.value) : null, creditLimit: source.value ? "" : limit.value.trim(),
-        statementDay: Number(stmt.value), dueRule: { type: dueType, value: Number(dueValue.value) } } : null };
+        statementDay: Number(stmt.value), statementDayIncluded: $("input", included).checked,
+        dueRule: { type: dueType, value: Number(dueValue.value) } } : null };
     const cashChanges = detail.cash.map(v => (v.id === x?.id ? edited : unchanged(v)));
     if (isNew) cashChanges.push(edited);
     await submit(d, ok, `/api/v1/accounts/${a.id}`, "PUT", write({ expectedRevision: a.revision, name: a.name, note: a.note || "",

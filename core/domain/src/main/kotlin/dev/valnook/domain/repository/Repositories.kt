@@ -25,12 +25,12 @@ interface InvestmentRepository {
     /** The dividends received on an instrument across accounts, in its currency's minor units. */
     fun observeInstrumentDividends(instrumentId: Long): Flow<Long> = kotlinx.coroutines.flow.flowOf(0L)
     suspend fun tradeMonthPage(positionId: Long, month: LedgerMonth, cursor: TradeCursor?, size: Int): List<Trade> =
-        readMonthPage(month, cursor, size, { it: Trade -> it.occurred_at_ms },
+        readMonthPage(month.period, cursor, size, { it: Trade -> it.occurred_at_ms },
             { TradeCursor(it.occurred_at_ms, it.id) }) { next, limit -> trade_page(positionId, next, limit) }
 
     /** One month of an instrument's trades across every account holding it, newest first. */
     suspend fun instrumentTradeMonthPage(instrumentId: Long, month: LedgerMonth, cursor: TradeCursor?, size: Int): List<Trade> =
-        readMonthPage(month, cursor, size, { it: Trade -> it.occurred_at_ms },
+        readMonthPage(month.period, cursor, size, { it: Trade -> it.occurred_at_ms },
             { TradeCursor(it.occurred_at_ms, it.id) }) { next, limit -> instrumentTradePage(instrumentId, next, limit) }
     suspend fun instrumentTradePage(instrumentId: Long, cursor: TradeCursor?, limit: Int = 50): List<Trade> = emptyList()
     /** Changes whenever a position of the instrument does, including a new one. */

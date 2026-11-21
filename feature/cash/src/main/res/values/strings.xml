@@ -48,4 +48,24 @@
     <string name="cash_entry_delete_title">Delete this balance adjustment?</string>
     <string name="cash_entry_delete_message">The balance changes by %1$s.</string>
     <string name="cash_entry_delete_unchanged">The balance stays the same.</string>
+    <string name="cash_cycle_current">This cycle · %1$s</string>
+    <string name="cash_cycle_previous">Last statement · %1$s</string>
+    <string name="cash_cycle_spent">Spent</string>
+    <string name="cash_cycle_spending">Spending</string>
+    <string name="cash_cycle_refunded">Refunds</string>
+    <string name="cash_cycle_repaid">Repaid</string>
+    <string name="cash_cycle_owed">Owed at statement</string>
+    <string name="cash_cycle_paid">Paid since</string>
+    <string name="cash_cycle_remaining">Left to pay</string>
+    <string name="cash_cycle_nothing_due">Nothing to pay</string>
+    <string name="cash_cycle_paid_off">Paid off</string>
+    <string name="cash_cycle_overdue">Past the due date</string>
+    <string name="cash_cycle_no_record">This sub-account was added after that statement, so there are no records.</string>
+    <string name="cash_cycle_estimate">Worked out from your records. Your bank statement is what counts.</string>
+    <string name="cash_cycle_open">Show this cycle\'s changes</string>
+    <string name="cash_cycle_this_one">%1$s (this cycle)</string>
+    <string name="cash_cycle_empty">No balance changes in this cycle</string>
+    <string name="cash_view_cycle">By cycle</string>
+    <string name="cash_view_month">By month</string>
+    <string name="cash_statement_day_value_next">Day %1$d of each month, that day on the next</string>
 </resources>

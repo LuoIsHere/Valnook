@@ -23,13 +23,14 @@ internal fun CreditAccountProfileEntity.toModel(): CreditAccountProfile = Credit
         "AFTER_STATEMENT_DAYS" -> CreditDueRule.AfterStatementDays(due_rule_value)
         "FIXED_DAY_OF_MONTH" -> CreditDueRule.FixedDayOfMonth(due_rule_value)
         else -> throw DomainException(ErrorCode.INVALID_DUE_RULE)
-    }, limit_source_account_id)
+    }, limit_source_account_id, statement_day_included)
 
 internal fun BalanceAccountRow.toModel(): CashAccount {
     val value = account
     val profile = profile_account_id?.let {
         CreditAccountProfileEntity(it, credit_limit_minor, requireNotNull(statement_day),
-            requireNotNull(due_rule_type), requireNotNull(due_rule_value), limit_source_account_id).toModel()
+            requireNotNull(due_rule_type), requireNotNull(due_rule_value), limit_source_account_id,
+            statement_day_included ?: true).toModel()
     }
     return CashAccount(value.savings_account_id, Currency.of(value.currency_code), value.balance_minor,
         value.revision, value.id, value.name, value.note, value.currency_locked, profile, value.include_in_available_cash, value.show_on_accounts_page)

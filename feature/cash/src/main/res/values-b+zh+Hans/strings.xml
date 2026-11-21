@@ -48,4 +48,24 @@
     <string name="cash_entry_delete_title">删除这条余额调整？</string>
     <string name="cash_entry_delete_message">删除后余额 %1$s。</string>
     <string name="cash_entry_delete_unchanged">删除后余额不变。</string>
+    <string name="cash_cycle_current">本期 · %1$s</string>
+    <string name="cash_cycle_previous">上期 · %1$s</string>
+    <string name="cash_cycle_spent">已消费</string>
+    <string name="cash_cycle_spending">消费</string>
+    <string name="cash_cycle_refunded">退款</string>
+    <string name="cash_cycle_repaid">还款</string>
+    <string name="cash_cycle_owed">出账时欠款</string>
+    <string name="cash_cycle_paid">已还</string>
+    <string name="cash_cycle_remaining">待还</string>
+    <string name="cash_cycle_nothing_due">无需还款</string>
+    <string name="cash_cycle_paid_off">已还清</string>
+    <string name="cash_cycle_overdue">已过还款日</string>
+    <string name="cash_cycle_no_record">这期出账时还没有添加这个子账户，没有记录。</string>
+    <string name="cash_cycle_estimate">按记录推算，以银行账单为准。</string>
+    <string name="cash_cycle_open">查看这一期的变动</string>
+    <string name="cash_cycle_this_one">%1$s（本期）</string>
+    <string name="cash_cycle_empty">这一期没有余额变化</string>
+    <string name="cash_view_cycle">按账期</string>
+    <string name="cash_view_month">按月</string>
+    <string name="cash_statement_day_value_next">每月 %1$d 日，当天计入下期</string>
 </resources>

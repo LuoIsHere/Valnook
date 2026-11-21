@@ -89,7 +89,8 @@ internal object BackupContract {
         ), "savings_account_id,id"),
         PortableTable("data/credit_account_profiles.jsonl", "credit_account_profiles", listOf(
             long("account_id"), long("credit_limit_minor", true), long("statement_day"),
-            text("due_rule_type"), long("due_rule_value"), long("limit_source_account_id", true)
+            text("due_rule_type"), long("due_rule_value"), long("limit_source_account_id", true),
+            bool("statement_day_included")
         ), "account_id"),
         PortableTable("data/operation_receipts.jsonl", "operations", listOf(
             text("operation_id"), text("kind"), text("request_fingerprint"), text("result_kind", true),
@@ -223,7 +224,8 @@ internal object BackupContract {
         "label" to 9, "added_at_ms" to 9,
         "is_favorite" to 11, "favorite_order" to 11,
         "account_deleted" to 12,
-        "default_keep_images" to 15
+        "default_keep_images" to 15,
+        "statement_day_included" to 16
     )
 
     /** The tables and columns an archive of [dataSchemaVersion] contains; empty for unknown versions. */

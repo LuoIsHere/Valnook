@@ -42,7 +42,8 @@ data class CashAccountRowDraft(
     val dueRuleType: String = "AFTER_STATEMENT_DAYS",
     val dueRuleValueInput: String = "20",
     val limitSourceAccountId: Long? = null,
-    val includeInAvailableCash: Boolean = true, val showOnAccountsPage: Boolean = true
+    val includeInAvailableCash: Boolean = true, val showOnAccountsPage: Boolean = true,
+    val statementDayIncluded: Boolean = true
 ) {
     val currencyLocked: Boolean get() = cashAccountId != null
 }
@@ -95,7 +96,8 @@ class AccountEditViewModel(
                 BalanceAccountType.valueOf(saved["type-$key"] ?: BalanceAccountType.SAVINGS.name),
                 saved["limit-$key"] ?: "", saved["statement-$key"] ?: "12",
                 saved["dueType-$key"] ?: "AFTER_STATEMENT_DAYS", saved["dueValue-$key"] ?: "20",
-                saved["source-$key"], saved["available-$key"] ?: true, saved["visible-$key"] ?: true)
+                saved["source-$key"], saved["available-$key"] ?: true, saved["visible-$key"] ?: true,
+                saved["included-$key"] ?: true)
         }, expectedRevision = saved["accountRevision"], loaded = true,
             icon = AccountIcon(AccountIconType.valueOf(saved["iconType"] ?: "SYMBOL"), saved["iconValue"] ?: "account_balance"),
             iconImage = saved["iconImage"], iconChanged = saved["iconChanged"] ?: false,
@@ -138,6 +140,7 @@ class AccountEditViewModel(
             saved["source-${row.key}"] = row.limitSourceAccountId
             saved["available-${row.key}"] = row.includeInAvailableCash
             saved["visible-${row.key}"] = row.showOnAccountsPage
+            saved["included-${row.key}"] = row.statementDayIncluded
         }
     }
 
@@ -164,7 +167,7 @@ class AccountEditViewModel(
                             profile?.statementDay?.toString() ?: "12",
                             if (profile?.dueRule is CreditDueRule.FixedDayOfMonth) "FIXED_DAY_OF_MONTH" else "AFTER_STATEMENT_DAYS",
                             profile?.dueRule?.value?.toString() ?: "20", profile?.limitSourceAccountId,
-                            cash.includeInAvailableCash, cash.showOnAccountsPage)
+                            cash.includeInAvailableCash, cash.showOnAccountsPage, profile?.statementDayIncluded ?: true)
                     }, account?.revision, sources, true, icon = account?.icon ?: AccountIcon(),
                     showDepositSummary = account?.showDepositSummary ?: true, showInvestmentSummary = account?.showInvestmentSummary ?: true))
             } catch (cancelled: CancellationException) {
@@ -234,7 +237,8 @@ class AccountEditViewModel(
         dueRuleValue: String? = null,
         limitSourceAccountId: Long? = null,
         clearLimitSource: Boolean = false,
-        includeInAvailableCash: Boolean? = null, showOnAccountsPage: Boolean? = null
+        includeInAvailableCash: Boolean? = null, showOnAccountsPage: Boolean? = null,
+        statementDayIncluded: Boolean? = null
     ) {
         if (!submission.value.editable) return
         persist(state.value.copy(rows = state.value.rows.map { row ->
@@ -261,7 +265,8 @@ class AccountEditViewModel(
                     dueRuleValueInput = dueRuleValue ?: row.dueRuleValueInput,
                     limitSourceAccountId = nextSource,
                     includeInAvailableCash = includeInAvailableCash ?: row.includeInAvailableCash,
-                    showOnAccountsPage = showOnAccountsPage ?: row.showOnAccountsPage)
+                    showOnAccountsPage = showOnAccountsPage ?: row.showOnAccountsPage,
+                    statementDayIncluded = statementDayIncluded ?: row.statementDayIncluded)
             }
         }))
     }
@@ -304,7 +309,8 @@ class AccountEditViewModel(
                     else -> CreditDueRule.AfterStatementDays(
                         row.dueRuleValueInput.toIntOrNull() ?: throw DomainException(ErrorCode.INVALID_DUE_RULE))
                 },
-                limitSourceAccountId = row.limitSourceAccountId
+                limitSourceAccountId = row.limitSourceAccountId,
+                statementDayIncluded = row.statementDayIncluded
             ) else null
             CashBalanceChange(row.currency.code, R.parse_signed_minor(row.balanceInput, row.currency),
                 row.expectedRevision, row.cashAccountId, row.nameInput, row.noteInput, row.type, credit, index.toLong(),

@@ -815,6 +815,37 @@ class BackupPortabilityTest {
         assertEquals(FxLocalStateEntity(auto_enabled = false, notice_dismissed = true), target.fx().localState())
     }
 
+    @Test fun a_card_with_statement_day_spending_on_the_next_statement_saves_and_round_trips() = runBlocking {
+        val source = database("cycle-source")
+        val commands = RoomFinancialCommands(source, clock)
+        fun card(included: Boolean, limit: Long = 500_000, revision: Long? = null, id: Long? = null) =
+            CashBalanceChange("CNY", -12_000, revision, id, name = "Synthetic card", type = BalanceAccountType.CREDIT,
+                credit = CreditAccountInput(limit, 12, CreditDueRule.AfterStatementDays(20), null, statementDayIncluded = included))
+        val accountId = commands.execute(SaveAccount(testOperationId(), null, null, "Synthetic bank", "",
+            listOf(card(included = false)))).id
+        fun saved() = kotlinx.coroutines.runBlocking { RoomOverview(source).snapshot().cash.single { it.account_id == accountId } }
+        assertEquals(false, saved().creditProfile?.statementDayIncluded)
+        // Another edit keeps the switch where it is; turning it on is saved too.
+        val owner = requireNotNull(source.accounts().account(accountId))
+        commands.execute(SaveAccount(testOperationId(), accountId, owner.revision, owner.name, owner.note,
+            listOf(card(included = false, limit = 600_000, revision = saved().revision, id = saved().id))))
+        assertEquals(false to 600_000L, saved().creditProfile?.let { it.statementDayIncluded to it.creditLimitMinor })
+
+        val output = ByteArrayOutputStream()
+        engine(source).createBackup(testOperationId(), output) {}
+        val target = database("cycle-target")
+        restore(target, output.toByteArray())
+        assertEquals(false, RoomOverview(target).snapshot().cash.single { it.name == "Synthetic card" }.creditProfile?.statementDayIncluded)
+        // A backup from before the switch existed reads cycles as they were read then.
+        restore(target, downgradeToLegacySchema(output.toByteArray(), 15))
+        assertEquals(true, RoomOverview(target).snapshot().cash.single { it.name == "Synthetic card" }.creditProfile?.statementDayIncluded)
+
+        val again = requireNotNull(source.accounts().account(accountId))
+        commands.execute(SaveAccount(testOperationId(), accountId, again.revision, again.name, again.note,
+            listOf(card(included = true, limit = 600_000, revision = saved().revision, id = saved().id))))
+        assertEquals(true, saved().creditProfile?.statementDayIncluded)
+    }
+
     @Test fun ai_settings_round_trip_and_an_older_backup_restores_the_defaults() = runBlocking {
         val source = database("ai-source")
         val keys = dev.valnook.data.ai.MemoryAiKeyStore()
@@ -969,6 +1000,9 @@ class BackupPortabilityTest {
             .lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
                 JSONObject(line).apply { remove("label"); remove("added_at_ms") }.toString() + "\n" }.toByteArray()
         if (version == 1) files.remove("data/credit_account_profiles.jsonl")
+        if (version in 2..15) files["data/credit_account_profiles.jsonl"] = files.getValue("data/credit_account_profiles.jsonl")
+            .toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }.joinToString("") { line ->
+                JSONObject(line).apply { remove("statement_day_included") }.toString() + "\n" }.toByteArray()
         listOf("data/accounts.jsonl", "data/cash_accounts.jsonl").forEach { path ->
             files[path] = files.getValue(path).toString(Charsets.UTF_8).lineSequence().filter { it.isNotBlank() }
                 .joinToString("\n", postfix = "\n") { line -> JSONObject(line).apply { if (version < 8) remove("group_id"); if (version < 3) remove("display_order"); if(version < 4) { remove("icon_type"); remove("icon_value") }; if(version < 5) listOf("show_deposit_summary", "show_investment_summary", "include_in_available_cash", "show_on_accounts_page").forEach { remove(it) }; if (version < 11) { remove("is_favorite"); remove("favorite_order") } }.toString() }.toByteArray()
@@ -1008,7 +1042,7 @@ class BackupPortabilityTest {
             val path = row.getString("path")
             if (path in files) {
                 if (path in setOf("verification/snapshot_totals.json", "data/accounts.jsonl", "data/cash_accounts.jsonl", "data/wallet_card_images.jsonl",
-                        "data/ai_settings.jsonl")) {
+                        "data/ai_settings.jsonl", "data/credit_account_profiles.jsonl")) {
                     val value = files.getValue(path)
                     row.put("uncompressedBytes", value.size)
                     row.put("sha256", MessageDigest.getInstance("SHA-256").digest(value)

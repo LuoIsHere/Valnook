@@ -51,7 +51,9 @@ data class CreditAccountProfileEntity(
     val statement_day: Int,
     val due_rule_type: String,
     val due_rule_value: Int,
-    val limit_source_account_id: Long?
+    val limit_source_account_id: Long?,
+    /** Whether the statement day's own spending goes on that day's statement; see CreditAccountProfile. */
+    @ColumnInfo(defaultValue = "1") val statement_day_included: Boolean = true
 )
 
 @Entity(tableName = "term_deposits", foreignKeys = [ForeignKey(entity = AccountEntity::class, parentColumns = ["id"], childColumns = ["savings_account_id"], onDelete = ForeignKey.RESTRICT), ForeignKey(entity = CurrencyEntity::class, parentColumns = ["code"], childColumns = ["currency_code"], onDelete = ForeignKey.RESTRICT),
@@ -127,6 +129,9 @@ data class CashEntryEntity(@PrimaryKey(autoGenerate = true) val id: Long = 0,
     val cash_account_id: Long, val source_kind: String, val source_id: Long?, val delta_minor: Long,
     val occurred_at_ms: Long, val note: String, val revision: Long,
     val is_deleted: Boolean, val created_at_ms: Long, val updated_at_ms: Long)
+
+/** [CashDao.creditCycleTotals]: positive minor units in the sub-account's currency. */
+data class CreditCycleTotalsRow(val spent: Long, val refunded: Long, val repaid: Long)
 
 data class CashEntryWithSource(@Embedded val entry: CashEntryEntity, val investment_id: Long?,
     val cash_account_name: String)

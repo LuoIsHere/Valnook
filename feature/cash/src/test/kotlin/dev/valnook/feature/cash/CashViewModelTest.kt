@@ -165,6 +165,71 @@ class CashViewModelTest {
         assertEquals(-2500L, request!!.balance_minor)
         assertEquals("Balance reconciliation", request!!.entryNote)
     }
+    @Test fun a_credit_card_reads_its_changes_by_billing_cycle_and_follows_bill_edits() = runTest(dispatcher) {
+        val card = CashAccount(1, Currency.of("KWD"), -80_000, 1, 1, "Card", creditProfile =
+            CreditAccountProfile(500_000, 12, CreditDueRule.AfterStatementDays(20), null))
+        val other = card.copy(id = 2, name = "Second card")
+        val repository = object : CashRepository by reads {
+            override fun observeCashAccount(cashAccountId: Long) = flowOf<CashAccount?>(listOf(card, other).firstOrNull { it.id == cashAccountId })
+        }
+        val periods = mutableListOf<LedgerPeriod>()
+        val totals = MutableStateFlow(CreditCycleTotals(30_000, 2_000, 10_000))
+        val pages = object : PagedCashRepository {
+            override fun observeRevision(accountId: Long, currencyCode: String) = flowOf(1L)
+            override suspend fun page(accountId: Long, currencyCode: String, cursor: LedgerCursor?, size: Int) = emptyList<CashEntry>()
+            override fun observeCashAccountRevision(cashAccountId: Long) = flowOf(1L)
+            override suspend fun cashAccountPage(cashAccountId: Long, cursor: LedgerCursor?, size: Int) = emptyList<CashEntry>()
+            override suspend fun cashAccountPeriodPage(cashAccountId: Long, period: LedgerPeriod, cursor: LedgerCursor?, size: Int): List<CashEntry> {
+                periods += period
+                return emptyList()
+            }
+            override fun observeCycleTotals(cashAccountId: Long, period: LedgerPeriod) = totals
+            override fun observeBalanceBefore(cashAccountId: Long, timeMs: Long) = flowOf<Long?>(-50_000)
+        }
+        val zone = clock.zone
+        fun cycle(statement: String) = dev.valnook.domain.calculation.CreditBillingCalendar.cycle(YearMonth.parse(statement), 12,
+            CreditDueRule.AfterStatementDays(20))
+        val vm = CashViewModel(1, repository, pages, SavedStateHandle(), clock = clock)
+        vm.watchCashAccount(1)
+        val collector = backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
+            launch { vm.entries.collect() }; launch { vm.shownCycleTotals.collect() }; launch { vm.cycleSummary.collect() }
+        }
+        runCurrent()
+        // 30 September with a statement on the 12th: this cycle is 13 September to 12 October.
+        var ready = vm.entries.value as CashLedgerState.Ready
+        assertEquals(cycle("2026-10"), ready.cycle)
+        assertEquals(cycle("2026-10"), ready.currentCycle)
+        assertEquals(cycle("2026-10").period(zone), periods.last())
+        assertEquals(28_000L, vm.cycleSummary.value!!.currentTotals.netSpentMinor)
+        assertEquals(50_000L, vm.cycleSummary.value!!.previousOwedMinor)
+        assertEquals(40_000L, vm.cycleSummary.value!!.previousRemainingMinor)
+        assertEquals(30_000L, vm.shownCycleTotals.value!!.spentMinor)
+
+        // An older bill edited: the totals follow without paging again.
+        totals.value = CreditCycleTotals(45_000, 2_000, 10_000)
+        runCurrent()
+        assertEquals(45_000L, vm.shownCycleTotals.value!!.spentMinor)
+        assertEquals(43_000L, vm.cycleSummary.value!!.currentTotals.netSpentMinor)
+
+        vm.selectView(CashLedgerView.MONTH)
+        runCurrent()
+        ready = vm.entries.value as CashLedgerState.Ready
+        assertNull(ready.cycle)
+        assertEquals(LedgerMonth(YearMonth.parse("2026-09"), zone).period, periods.last())
+        assertNull(vm.shownCycleTotals.value)
+
+        // Opening the previous cycle from the card returns to cycles.
+        vm.selectCycle(YearMonth.parse("2026-09"))
+        runCurrent()
+        assertEquals(cycle("2026-09"), (vm.entries.value as CashLedgerState.Ready).cycle)
+        assertEquals(cycle("2026-09").period(zone), periods.last())
+
+        // Another card starts from its own current cycle.
+        vm.watchCashAccount(2)
+        runCurrent()
+        assertEquals(cycle("2026-10"), (vm.entries.value as CashLedgerState.Ready).cycle)
+        collector.cancel()
+    }
     /** Only the preset "other" categories, for a counted adjustment. */
     private val bills = object : BillRepository {
         private fun category(id: Long, kind: BillCategoryKind, parent: Long?, key: String) =

@@ -105,4 +105,6 @@
         <item quantity="other">%1$d 项需修改</item>
     </plurals>
     <string name="account_delete_bills_kept">%1$d 笔账单会保留，账户显示为已删除。</string>
+    <string name="account_statement_day_included">账单日消费计入当日账单</string>
+    <string name="account_statement_day_included_hint">关闭后计入下一期账单。各银行规则不同，以账单为准。</string>
 </resources>

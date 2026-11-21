@@ -31,7 +31,8 @@ import dev.valnook.domain.money.DecimalRules
     val lines = buildList {
         if (profile != null) {
             add(InfoLine("statement", stringResource(R.string.cash_statement_day_label),
-                stringResource(R.string.cash_statement_day_value, profile.statementDay)))
+                stringResource(if (profile.statementDayIncluded) R.string.cash_statement_day_value
+                    else R.string.cash_statement_day_value_next, profile.statementDay)))
             profile.limitSourceAccountId?.let { sourceId ->
                 add(InfoLine("source", stringResource(R.string.cash_limit_source_label),
                     creditSourceLabels[sourceId] ?: allAccounts.firstOrNull { it.id == sourceId }?.name ?: "#$sourceId"))

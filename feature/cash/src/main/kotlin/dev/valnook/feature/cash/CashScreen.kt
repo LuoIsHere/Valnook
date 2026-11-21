@@ -73,6 +73,8 @@ import java.time.*
     onTitleReserve:(Int)->Unit={}) {
     val ledgerState by vm.entries.collectAsStateWithLifecycle()
     val trends by vm.trends.collectAsStateWithLifecycle()
+    val cycleSummary by vm.cycleSummary.collectAsStateWithLifecycle()
+    val cycleTotals by vm.shownCycleTotals.collectAsStateWithLifecycle()
     LaunchedEffect(cashAccountId){vm.watchCashAccount(cashAccountId)}
     if (ledgerState == CashLedgerState.Failed) {
         Text(stringResource(CashR.string.cash_history_load_failed))
@@ -86,9 +88,21 @@ import java.time.*
     val entries = ledger.rows
     val balance=ledger.account
     val listState = rememberLazyListState()
-    var displayedMonth by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(ledger.month?.toString()) }
-    LaunchedEffect(ledger.month) {
-        if (displayedMonth != ledger.month?.toString()) { listState.scrollToItem(0); displayedMonth = ledger.month?.toString() }
+    // A cycle and a month are told apart, so switching between them is a new page of changes too.
+    val shownPeriod = ledger.cycle?.let { "cycle-${it.month}" } ?: "month-${ledger.month}"
+    var displayedMonth by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(shownPeriod) }
+    // The cycle opened from the card: once its changes are shown the list goes to their heading, not its top.
+    var revealPeriod by remember { mutableStateOf<String?>(null) }
+    val profile = balance.creditProfile
+    val summary = cycleSummary?.takeIf { profile != null && it.current == ledger.currentCycle }
+    val headerIndex = if (summary != null) 2 else 1
+    LaunchedEffect(shownPeriod, revealPeriod) {
+        val reveal = revealPeriod == shownPeriod
+        if (displayedMonth != shownPeriod) {
+            if (reveal) listState.animateScrollToItem(headerIndex) else listState.scrollToItem(0)
+            displayedMonth = shownPeriod
+        } else if (reveal) listState.animateScrollToItem(headerIndex)
+        if (reveal) revealPeriod = null
     }
     val collapse=rememberHeaderCollapse("cash-$cashAccountId")
     val background=MaterialTheme.colorScheme.background
@@ -97,14 +111,25 @@ import java.time.*
         LazyColumn(Modifier.fillMaxWidth().weight(1f).background(background).testTag("cash-detail-list"),state=listState,
             contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(0.dp)) {
             item(key="info") { CashDetailInfo(balance,ledger.allAccounts,ledger.creditSourceLabels,Modifier.padding(bottom=Space.md)) }
-            item(key="changes-header"){CashChangesHeader(ledger.month,vm::selectMonth,Modifier.padding(top=Space.sm))}
-            if(entries.isEmpty())item(key="empty"){Box(Modifier.padding(top=8.dp)){CashMonthEmpty()}}
+            if(summary!=null)item(key="cycle"){
+                CreditCycleCard(summary,balance,{ month -> revealPeriod="cycle-$month"; vm.selectCycle(month) },Modifier.padding(bottom=Space.md),ledger.today)
+            }
+            item(key="changes-header"){
+                if(profile!=null && ledger.currentCycle!=null) CreditChangesHeader(ledger,profile,vm::selectView,vm::selectCycle,
+                    vm::selectMonth,Modifier.padding(top=Space.sm),ledger.today)
+                else CashChangesHeader(ledger.month,vm::selectMonth,Modifier.padding(top=Space.sm))
+            }
+            val totals=cycleTotals
+            if(ledger.cycle!=null && totals!=null)item(key="cycle-totals"){CycleTotalsRow(totals,balance,Modifier.padding(top=8.dp))}
+            if(entries.isEmpty())item(key="empty"){Box(Modifier.padding(top=8.dp)){
+                if(ledger.cycle!=null) CashMonthEmpty(text=stringResource(CashR.string.cash_cycle_empty)) else CashMonthEmpty()
+            }}
             // One card per day, newest first, as the rows arrive page by page.
             entries.groupBy{it.localDate()}.forEach{(date,group)->
                 item(key="day-$date"){CashDayGroup(date,group,on_entry)}
             }
             if(ledger.hasMore)item(key="more"){
-                LaunchedEffect(entries.size,ledger.month){vm.load_more_entries()}
+                LaunchedEffect(entries.size,shownPeriod){vm.load_more_entries()}
                 Box(Modifier.fillMaxWidth().padding(top=12.dp),contentAlignment=androidx.compose.ui.Alignment.Center){CircularProgressIndicator()}
             }
         }

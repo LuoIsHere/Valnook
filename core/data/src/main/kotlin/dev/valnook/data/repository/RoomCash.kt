@@ -41,7 +41,12 @@ class RoomCash(private val dao:CashDao):CashRepository, PagedCashRepository {
 
     override fun observeMonthBounds(cashAccountId: Long) = dao.monthBounds(cashAccountId)
     override suspend fun cashAccountMonthPage(cashAccountId: Long, month: dev.valnook.domain.repository.LedgerMonth, cursor: LedgerCursor?, size: Int) =
-        dao.cashAccountMonthPage(cashAccountId, month.startMs, month.endMs, cursor?.time, cursor?.id, size.coerceIn(1,100)).map { it.to_model() }
+        cashAccountPeriodPage(cashAccountId, month.period, cursor, size)
+    override suspend fun cashAccountPeriodPage(cashAccountId: Long, period: dev.valnook.domain.repository.LedgerPeriod, cursor: LedgerCursor?, size: Int) =
+        dao.cashAccountMonthPage(cashAccountId, period.startMs, period.endMs, cursor?.time, cursor?.id, size.coerceIn(1,100)).map { it.to_model() }
+    override fun observeCycleTotals(cashAccountId: Long, period: dev.valnook.domain.repository.LedgerPeriod) =
+        dao.creditCycleTotals(cashAccountId, period.startMs, period.endMs).map { CreditCycleTotals(it.spent, it.refunded, it.repaid) }
+    override fun observeBalanceBefore(cashAccountId: Long, timeMs: Long) = dao.balanceBefore(cashAccountId, timeMs)
 
     override fun observeRevision(accountId:Long,currencyCode:String)=dao.ledgerRevision(accountId,currencyCode)
     override suspend fun page(accountId:Long,currencyCode:String,cursor:LedgerCursor?,size:Int)=

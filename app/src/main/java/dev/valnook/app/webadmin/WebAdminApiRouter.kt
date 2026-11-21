@@ -233,6 +233,8 @@ internal class WebAdminApiRouter(
 
     private suspend fun saveAccount(sessionId: String, id: Long?, request: WebHttpRequest): WebHttpResponse {
         val body = body(request)
+        // A page from before the statement-day switch sends none: the card keeps what it has.
+        val profiles = reads.snapshot().cash.associate { it.id to it.creditProfile }
         val changes = body["cashChanges"]?.jsonArray?.map { value ->
             val row = value.jsonObject
             val currency = Currency.of(row.text("currencyCode"))
@@ -248,7 +250,9 @@ internal class WebAdminApiRouter(
                         "AFTER_STATEMENT_DAYS" -> CreditDueRule.AfterStatementDays(due.long("value").toInt())
                         "FIXED_DAY_OF_MONTH" -> CreditDueRule.FixedDayOfMonth(due.long("value").toInt())
                         else -> throw IllegalArgumentException()
-                    }, source)
+                    }, source,
+                    value.optionalBoolean("statementDayIncluded")
+                        ?: row.optionalLong("cashAccountId")?.let { profiles[it]?.statementDayIncluded } ?: true)
             } else null
             CashBalanceChange(currency.code, DecimalRules.parse_signed_minor(row.text("balance"), currency),
                 row.optionalLong("expectedRevision"), row.optionalLong("cashAccountId"),
@@ -548,6 +552,7 @@ internal class WebAdminApiRouter(
                 put("creditLimit", profile.creditLimitMinor?.let {
                     DecimalRules.format_units(it, value.currency.fraction_digits) })
                 put("statementDay", profile.statementDay)
+                put("statementDayIncluded", profile.statementDayIncluded)
                 put("dueRule", buildJsonObject {
                     put("type", if (profile.dueRule is CreditDueRule.FixedDayOfMonth)
                         "FIXED_DAY_OF_MONTH" else "AFTER_STATEMENT_DAYS")

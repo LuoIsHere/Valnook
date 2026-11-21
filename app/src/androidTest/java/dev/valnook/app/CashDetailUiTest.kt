@@ -126,6 +126,72 @@ class CashDetailUiTest {
         rule.waitForIdle()
     }
 
+    /**
+     * A synthetic card (statement on the 7th, made now) with bills on both sides of 7 June 2027, seen on 11 June 2027:
+     * the page's clock runs ahead, so the card already existed at the last statement.
+     */
+    private fun cycleCard(): Long {
+        val parent = create(creditChange())
+        val card = runBlocking { graph.cash.observe_cash(parent).first().single().id }
+        vmClock = Clock.fixed(Instant.parse("2027-06-11T04:00:00Z"), clock.zone)
+        val categories = runBlocking { graph.bills!!.observeCategories().first() }
+        fun category(key: String) = categories.first { it.builtinKey == key }.id
+        fun at(date: String) = java.time.LocalDateTime.parse(date).atZone(clock.zone).toInstant().toEpochMilli()
+        fun expense(date: String, amount: Long) = dev.valnook.domain.model.BillDraft(dev.valnook.domain.model.BillType.EXPENSE,
+            at(date), amount, "CNY", 0, card, amount, categoryId = category("food"), subCategoryId = category("food.lunch"),
+            note = "Synthetic lunch")
+        fun save(draft: dev.valnook.domain.model.BillDraft) = runBlocking {
+            graph.commands.execute(dev.valnook.domain.repository.SaveBill(UUID.randomUUID().toString(), null, null, draft)).id }
+        save(expense("2027-05-20T12:00", 30_000))
+        val lunch = save(expense("2027-06-09T12:00", 12_000))
+        runBlocking { graph.commands.execute(dev.valnook.domain.repository.SettleBill(UUID.randomUUID().toString(), lunch, 1,
+            dev.valnook.domain.model.BillType.REFUND, dev.valnook.domain.model.SettlementDraft(at("2027-06-10T09:00"), 2_000, card, 2_000))) }
+        save(dev.valnook.domain.model.BillDraft(dev.valnook.domain.model.BillType.TRANSFER, at("2027-06-10T10:00"), 50_000, "CNY", 0,
+            null, 50_000, transferKind = dev.valnook.domain.model.TransferKind.FROM_EXTERNAL, toCashAccountId = card,
+            toAmountMinor = 50_000))
+        return parent
+    }
+
+    @Test fun credit_card_reads_its_billing_cycles_and_pages_changes_by_cycle() {
+        show(cycleCard())
+        rule.onNodeWithTag("cash-detail-list").performScrollToNode(hasTestTag("cash-cycle-card"))
+        rule.onNodeWithTag("cash-cycle-current").assertTextContains("本期 · 6/8–7/7", substring = true)
+        // 120.00 spent less a 20.00 refund; 500.00 paid in.
+        rule.onNodeWithTag("cash-cycle-spent").assertTextContains("100.00", substring = true)
+        rule.onNodeWithTag("cash-cycle-refunded").assertTextContains("20.00", substring = true)
+        rule.onNodeWithTag("cash-cycle-repaid").assertTextContains("500.00", substring = true)
+        rule.onNodeWithTag("cash-cycle-previous").assertTextContains("上期 · 5/8–6/7", substring = true)
+        rule.onNodeWithTag("cash-cycle-paid").assertTextContains("500.00", substring = true)
+        save("cycle-card")
+
+        // Changes default to this cycle, with its totals before refunds.
+        rule.onNodeWithTag("cash-detail-list").performScrollToNode(hasTestTag("cash-cycle-totals"))
+        rule.onNodeWithTag("ledger-month").assertTextEquals("6/8–7/7（本期）")
+        rule.onNodeWithTag("cash-cycle-totals-spent").assertTextContains("120.00", substring = true)
+        rule.onNodeWithTag("cash-view-cycle").assertIsSelected()
+        save("cycle-changes")
+
+        // The last statement from the card: its own changes, scrolled to their heading.
+        rule.onNodeWithTag("cash-detail-list").performScrollToNode(hasTestTag("cash-cycle-previous"))
+        rule.onNodeWithTag("cash-cycle-previous").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithText("5/8–6/7", substring = true).fetchSemanticsNodes().size >= 2 }
+        rule.onNodeWithTag("ledger-month").assertTextEquals("5/8–6/7")
+        rule.onNodeWithTag("cash-cycle-totals-spent").assertTextContains("300.00", substring = true)
+
+        // By month: the calendar month, without cycle totals.
+        rule.onNodeWithTag("cash-view-month").performClick()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag("cash-cycle-totals").fetchSemanticsNodes().isEmpty() }
+        rule.onNodeWithTag("cash-view-month").assertIsSelected()
+        save("month-changes")
+    }
+
+    @Test fun credit_cycle_card_in_dark_mode_with_large_text() {
+        show(cycleCard(), dark = true, fontScale = 1.5f)
+        rule.onNodeWithTag("cash-detail-list").performScrollToNode(hasTestTag("cash-cycle-card"))
+        rule.onNodeWithTag("cash-cycle-remaining").assertExists()
+        save("cycle-card-dark-large-font")
+    }
+
     @Test fun credit_header_shows_the_debt_and_bill_then_collapses_into_the_bar() {
         show(credit = true)
         label().assertTextContains("欠款", substring = true)
@@ -174,10 +240,12 @@ class CashDetailUiTest {
         rule.onAllNodesWithTag("cash-info-source").assertCountEquals(0)
         rule.onAllNodesWithTag("cash-info-note").assertCountEquals(0)
         rule.onAllNodesWithTag("cash-over-limit").assertCountEquals(0)
-        // The header says it; the cards no longer repeat the debt or the bill.
-        rule.onAllNodes(hasText("欠款", substring = true)).assertCountEquals(1)
+        // The header says it; the limit and details cards no longer repeat the debt or the bill. (The billing-cycle
+        // card has its own: what the last statement owed and when each cycle closes or is due.)
+        val outsideCycles = !hasAnyAncestor(hasTestTag("cash-cycle-card"))
+        rule.onAllNodes(hasText("欠款", substring = true) and outsideCycles).assertCountEquals(1)
         // Every statement or due reminder ends in 天 (days / today); only the header's tag says one.
-        rule.onAllNodes(hasText("天", substring = true)).assertCountEquals(1)
+        rule.onAllNodes(hasText("天", substring = true) and outsideCycles).assertCountEquals(1)
         rule.onAllNodes(hasText("账单日：", substring = true)).assertCountEquals(0)
     }
 

@@ -482,6 +482,7 @@ private fun SessionRoot(
         }) { padding ->
             CompositionLocalProvider(dev.valnook.designsystem.LocalAccountImageLoader provides accountImages,
                 dev.valnook.feature.bills.LocalBillImages provides graph.billImages,
+                dev.valnook.feature.cash.LocalCreditCycles provides graph.cashPages,
                 LocalPageBottomSpace provides bottomSpace,
                 LocalPageTopSpace provides if (glassTop) padding.calculateTopPadding() else 0.dp,
                 dev.valnook.designsystem.LocalPageTopBarHeight provides barHeight,

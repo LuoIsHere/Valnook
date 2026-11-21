@@ -92,6 +92,10 @@ internal fun SubaccountEditSheet(row: CashAccountRowDraft, state: AccountEditUiS
                             else stringResource(R.string.account_due_days_after), row.dueRuleValueInput,
                             { vm.changeRow(row.key, dueRuleValue = it) }, numeric = true, enabled = editable,
                             error = error("due"), requestAttention = attention("due"))
+                        SwitchRow(stringResource(R.string.account_statement_day_included), row.statementDayIncluded,
+                            { vm.changeRow(row.key, statementDayIncluded = it) }, Modifier.testTag("account-statement-day-included"),
+                            summary = stringResource(R.string.account_statement_day_included_hint), enabled = editable,
+                            contentPadding = PaddingValues(vertical = 4.dp))
                     }
                     val switchPadding = PaddingValues(vertical = 4.dp)
                     FormSwitchRow(stringResource(R.string.account_show_cash), row.showOnAccountsPage,

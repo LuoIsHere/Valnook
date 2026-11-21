@@ -22,8 +22,39 @@ interface CashDao {
     @Query("SELECT COALESCE(SUM(revision),0) FROM cash_accounts WHERE savings_account_id=:accountId AND currency_code=:code")
     fun ledgerRevision(accountId: Long, code: String): Flow<Long>
 
-    @Query("SELECT COALESCE((SELECT revision FROM cash_accounts WHERE id=:cashAccountId),0)")
+    /**
+     * Changes whenever the sub-account's ledger would read differently: its balance, any of its entries (added,
+     * removed, moved or edited, which bumps the entry's revision even when the amount stays) and the bills behind
+     * them (a new note or category). A bill edit that keeps the amount leaves the account row untouched.
+     */
+    @Query("""SELECT COALESCE((SELECT revision FROM cash_accounts WHERE id=:cashAccountId),0)
+        +COALESCE((SELECT COUNT(*)*1000003+SUM(revision)+MAX(id)*31 FROM cash_entries WHERE cash_account_id=:cashAccountId),0)
+        +COALESCE((SELECT SUM(b.revision) FROM cash_entries e JOIN bill_entries b ON b.id=e.source_id
+            WHERE e.cash_account_id=:cashAccountId AND e.source_kind IN ('BILL','BILL_TRANSFER_IN')),0)""")
     fun cashAccountRevision(cashAccountId: Long): Flow<Long>
+
+    /**
+     * A credit sub-account's bills within [startMs, endMs), as positive amounts: what left it, refunds and
+     * reimbursements that came back, and everything else a bill brought in. Entries not made by a bill are left out.
+     */
+    @Query("""SELECT
+        COALESCE(SUM(CASE WHEN e.source_kind='BILL' AND e.delta_minor<0 THEN -e.delta_minor ELSE 0 END),0) AS spent,
+        COALESCE(SUM(CASE WHEN e.delta_minor>0 AND b.type IN ('REFUND','REIMBURSEMENT') THEN e.delta_minor ELSE 0 END),0) AS refunded,
+        COALESCE(SUM(CASE WHEN e.delta_minor>0 AND b.type NOT IN ('REFUND','REIMBURSEMENT') THEN e.delta_minor ELSE 0 END),0) AS repaid
+        FROM cash_entries e
+        JOIN bill_entries b ON e.source_kind IN ('BILL','BILL_TRANSFER_IN') AND b.id=e.source_id
+        WHERE e.cash_account_id=:cashAccountId AND e.is_deleted=0
+        AND e.occurred_at_ms>=:startMs AND e.occurred_at_ms<:endMs""")
+    fun creditCycleTotals(cashAccountId: Long, startMs: Long, endMs: Long): Flow<CreditCycleTotalsRow>
+
+    /**
+     * The balance just before [timeMs]: today's balance less every entry from then on, as the ledger works out each
+     * row's balance. Null when the sub-account was created at or after [timeMs] (or does not exist).
+     */
+    @Query("""SELECT c.balance_minor-COALESCE((SELECT SUM(n.delta_minor) FROM cash_entries n
+            WHERE n.cash_account_id=c.id AND n.is_deleted=0 AND n.occurred_at_ms>=:timeMs),0)
+        FROM cash_accounts c WHERE c.id=:cashAccountId AND c.created_at_ms<:timeMs""")
+    fun balanceBefore(cashAccountId: Long, timeMs: Long): Flow<Long?>
 
     @Query("""SELECT e.*,t.investment_id,c.name AS cash_account_name FROM cash_entries e
         JOIN cash_accounts c ON c.id=e.cash_account_id
@@ -78,7 +109,7 @@ interface CashDao {
     suspend fun cashAccountMonthPage(cashAccountId: Long, startMs: Long, endMs: Long, time: Long?, id: Long?, size: Int): List<CashEntryWithBalance>
 
     @Query("""SELECT c.*,p.account_id AS profile_account_id,p.credit_limit_minor,p.statement_day,
-        p.due_rule_type,p.due_rule_value,p.limit_source_account_id FROM cash_accounts c
+        p.due_rule_type,p.due_rule_value,p.limit_source_account_id,p.statement_day_included FROM cash_accounts c
         LEFT JOIN credit_account_profiles p ON p.account_id=c.id
         WHERE c.savings_account_id=:accountId ORDER BY c.display_order,c.id""")
     fun cash(accountId: Long): Flow<List<BalanceAccountRow>>
@@ -99,7 +130,7 @@ interface CashDao {
     suspend fun cashAccount(cashAccountId: Long): CashEntity?
 
     @Query("""SELECT c.*,p.account_id AS profile_account_id,p.credit_limit_minor,p.statement_day,
-        p.due_rule_type,p.due_rule_value,p.limit_source_account_id FROM cash_accounts c
+        p.due_rule_type,p.due_rule_value,p.limit_source_account_id,p.statement_day_included FROM cash_accounts c
         LEFT JOIN credit_account_profiles p ON p.account_id=c.id WHERE c.id=:cashAccountId""")
     fun observeCashAccount(cashAccountId: Long): Flow<BalanceAccountRow?>
 
@@ -203,7 +234,8 @@ data class BalanceAccountRow(
     val statement_day: Int?,
     val due_rule_type: String?,
     val due_rule_value: Int?,
-    val limit_source_account_id: Long?
+    val limit_source_account_id: Long?,
+    val statement_day_included: Boolean?
 )
 
 data class CashTrendRow(val cashId:Long,val balance:Long,val createdAt:Long,val baseline:Long?,val occurredAt:Long?,val delta:Long?)

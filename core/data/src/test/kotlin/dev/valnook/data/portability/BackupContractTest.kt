@@ -85,6 +85,12 @@ class BackupContractTest {
         assertTrue("default_keep_images" in columns(15, "ai_settings"))
     }
 
+    @Test fun the_statement_day_switch_backs_up_from_version_sixteen() {
+        assertTrue("statement_day_included" !in columns(15, "credit_account_profiles"))
+        assertTrue("statement_day_included" in columns(16, "credit_account_profiles"))
+        assertTrue("statement_day" in columns(15, "credit_account_profiles"))
+    }
+
     @Test fun unknown_versions_have_no_tables() {
         assertTrue(BackupContract.tablesFor(0).isEmpty())
         assertTrue(BackupContract.tablesFor(BackupContract.DATA_SCHEMA_VERSION + 1).isEmpty())

@@ -705,7 +705,7 @@ class WebAdminEndToEndTest {
             .getLong("dataGeneration")
 
         fun creditChange(name: String, balance: String, sourceId: Long? = null,
-            limit: String = "5000.00", cashId: Long? = null, revision: Long? = null) =
+            limit: String = "5000.00", cashId: Long? = null, revision: Long? = null, included: Boolean? = null) =
             JSONObject().put("cashAccountId", cashId ?: JSONObject.NULL)
                 .put("expectedRevision", revision ?: JSONObject.NULL)
                 .put("currencyCode", "CNY").put("balance", balance).put("name", name).put("note", "Web credit")
@@ -713,6 +713,7 @@ class WebAdminEndToEndTest {
                     .put("limitSourceAccountId", sourceId ?: JSONObject.NULL)
                     .put("creditLimit", if (sourceId == null) limit else JSONObject.NULL)
                     .put("statementDay", 25)
+                    .apply { if (included != null) put("statementDayIncluded", included) }
                     .put("dueRule", JSONObject().put("type", "AFTER_STATEMENT_DAYS").put("value", 20)))
 
         fun createParent(name: String, change: JSONObject): JSONObject {
@@ -726,13 +727,15 @@ class WebAdminEndToEndTest {
             return JSONObject(response.body).also { generation = it.getLong("dataGeneration") }
         }
 
-        val rootParent = createParent("Web credit root", creditChange("Root card", "-1200.00"))
+        // Statement-day spending on the next statement for the root card.
+        val rootParent = createParent("Web credit root", creditChange("Root card", "-1200.00", included = false))
         var rootDetail = JSONObject(http(endpoint, "GET", "/api/v1/accounts/${rootParent.getLong("id")}",
             cookie = cookie).body)
         val rootCash = rootDetail.getJSONArray("cash").getJSONObject(0)
         assertEquals("CREDIT", rootCash.getString("type"))
         assertEquals("5000.00", rootCash.getJSONObject("credit").getString("creditLimit"))
         assertEquals("1200", rootCash.getJSONObject("credit").getString("used"))
+        assertFalse(rootCash.getJSONObject("credit").getBoolean("statementDayIncluded"))
 
         var rootAccount = rootDetail.getJSONObject("account")
         val addChild = JSONObject().put("operationId", UUID.randomUUID().toString())
@@ -750,6 +753,8 @@ class WebAdminEndToEndTest {
         val childCash = (0 until rootCashRows.length()).map(rootCashRows::getJSONObject)
             .single { it.getString("name") == "Supplementary card" }
         assertEquals(rootCash.getLong("id"), childCash.getJSONObject("credit").getLong("limitSourceAccountId"))
+        // Sent without the switch: a new card starts with it on.
+        assertTrue(childCash.getJSONObject("credit").getBoolean("statementDayIncluded"))
 
         val crossParent = JSONObject().put("operationId", UUID.randomUUID().toString())
             .put("dataGeneration", generation).put("expectedRevision", JSONObject.NULL)
@@ -786,6 +791,8 @@ class WebAdminEndToEndTest {
             cookie = cookie).body)
         assertEquals("6000.00", rootDetail.getJSONArray("cash").getJSONObject(0)
             .getJSONObject("credit").getString("creditLimit"))
+        // That edit came without the statement-day switch, as an older page sends it: the card keeps it off.
+        assertFalse(rootDetail.getJSONArray("cash").getJSONObject(0).getJSONObject("credit").getBoolean("statementDayIncluded"))
 
         val stale = JSONObject(edit.toString()).put("operationId", UUID.randomUUID().toString())
             .put("dataGeneration", generation)

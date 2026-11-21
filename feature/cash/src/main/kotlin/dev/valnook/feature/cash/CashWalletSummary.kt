@@ -71,6 +71,7 @@ import java.time.LocalDate
         if (account.note.isNotBlank()) Text(account.note, Modifier.padding(top = 4.dp).testTag("wallet-cash-note"),
             style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
         CashDetailInfo(account, allAccounts, creditSourceLabels, Modifier.padding(top = 16.dp), showNote = false)
+        WalletCreditCycleCard(account, Modifier.padding(top = 12.dp))
     }
 }
 

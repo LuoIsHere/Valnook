@@ -99,9 +99,9 @@ private val WHITESPACE = Regex("\\s+")
     }
 }
 
-@Composable fun CashMonthEmpty(modifier: Modifier = Modifier) {
+@Composable fun CashMonthEmpty(modifier: Modifier = Modifier, text: String = stringResource(R.string.cash_month_empty)) {
     GlassCard(modifier.testTag("cash-month-empty")) {
-        Text(stringResource(R.string.cash_month_empty), Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+        Text(text, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center)
     }

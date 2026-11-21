@@ -98,7 +98,8 @@ class AccountEditSheetUiTest {
         runBlocking {
             graph.commands.execute(SaveAccount(UUID.randomUUID().toString(), null, null, "Bank", "", listOf(
                 BalanceAccountChange("CNY", -500, null, name = "Card", type = BalanceAccountType.CREDIT,
-                    credit = CreditAccountInput(500000, 7, CreditDueRule.AfterStatementDays(20), null)))))
+                    credit = CreditAccountInput(500000, 7, CreditDueRule.AfterStatementDays(20), null,
+                        statementDayIncluded = false)))))
         }
         val account = runBlocking { graph.overview.snapshot().accounts.single { it.name == "Bank" } }
         val vm = draft(account.id)
@@ -109,6 +110,12 @@ class AccountEditSheetUiTest {
         rule.onNode(hasText(string(AccountsR.string.account_type_savings)) and isSelectable()).assertIsNotEnabled()
         rule.onNodeWithContentDescription("${string(dev.valnook.core.designsystem.R.string.currency)}: CNY").assertIsNotEnabled()
         rule.onNodeWithText(string(AccountsR.string.account_credit_limit)).assertExists()
+        // The card was saved with statement-day spending on the next statement; the switch shows it and can turn it on.
+        val included = rule.onNodeWithTag("account-statement-day-included")
+        included.performScrollTo().assertIsOff()
+        included.performClick()
+        included.assertIsOn()
+        rule.runOnIdle { assertTrue(vm.state.value.rows.single().statementDayIncluded) }
     }
 
     @Test fun large_text_puts_currency_above_balance() {

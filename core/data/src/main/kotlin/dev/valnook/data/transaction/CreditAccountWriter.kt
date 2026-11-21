@@ -58,7 +58,7 @@ internal class CreditAccountWriter(private val db: ValnookDatabase) {
             if (sourceAccount.currency_code != currencyCode) throw DomainException(ErrorCode.CREDIT_SOURCE_CURRENCY)
         }
         return CreditAccountProfileEntity(accountId, localLimit, credit.statementDay,
-            dueType, dueValue, sourceId)
+            dueType, dueValue, sourceId, credit.statementDayIncluded)
     }
 
     suspend fun save(value: CreditAccountProfileEntity?) {

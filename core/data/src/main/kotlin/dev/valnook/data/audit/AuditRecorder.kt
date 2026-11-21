@@ -330,7 +330,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
         val rows = JSONArray()
         db.openHelper.readableDatabase.query(
             """SELECT c.*,p.credit_limit_minor,p.statement_day,p.due_rule_type,p.due_rule_value,
-                p.limit_source_account_id FROM cash_accounts c LEFT JOIN credit_account_profiles p
+                p.limit_source_account_id,p.statement_day_included FROM cash_accounts c LEFT JOIN credit_account_profiles p
                 ON p.account_id=c.id WHERE c.savings_account_id=? ORDER BY c.id""",
             arrayOf(id.toString())).use { cursor -> while (cursor.moveToNext()) rows.put(cursorObject(cursor)) }
         account.put("balance_accounts", rows)
@@ -356,7 +356,7 @@ class AuditRecorder(private val db: ValnookDatabase, private val clock: Clock) {
 
     private fun balanceAccountJson(id: Long): JSONObject? = queryObject(db.openHelper.readableDatabase,
         """SELECT c.*,p.credit_limit_minor,p.statement_day,p.due_rule_type,p.due_rule_value,
-            p.limit_source_account_id FROM cash_accounts c LEFT JOIN credit_account_profiles p
+            p.limit_source_account_id,p.statement_day_included FROM cash_accounts c LEFT JOIN credit_account_profiles p
             ON p.account_id=c.id WHERE c.id=?""", arrayOf(id.toString()))
 
     private fun queryObject(database: SupportSQLiteDatabase, sql: String, args: Array<out Any?>): JSONObject? =

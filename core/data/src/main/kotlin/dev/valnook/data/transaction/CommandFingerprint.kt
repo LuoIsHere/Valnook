@@ -25,7 +25,12 @@ internal object CommandFingerprint {
                     listOf("ACCOUNT_PRESENTATION", command.showDepositSummary, command.showInvestmentSummary) +
                         command.cashChanges.sortedBy { it.cashAccountId ?: Long.MAX_VALUE }.flatMap {
                             listOf(it.cashAccountId, it.name.trim(), it.includeInAvailableCash, it.showOnAccountsPage)
-                        } else emptyList())
+                        } else emptyList()) +
+                // Only a card whose statement-day spending goes on the next statement adds to the fingerprint.
+                (if (command.cashChanges.any { it.credit?.statementDayIncluded == false })
+                    listOf("STATEMENT_DAY_NEXT") + command.cashChanges.sortedBy { it.cashAccountId ?: Long.MAX_VALUE }.flatMap {
+                        listOf(it.cashAccountId, it.name.trim(), it.credit?.statementDayIncluded)
+                    } else emptyList())
             is DeleteBalanceAccount -> listOf("BALANCE_ACCOUNT_DELETE", command.accountId,
                 command.balanceAccountId, command.expectedRevision, command.confirmation?.ticket, command.confirmation?.code)
             is DeleteAccount -> listOf("ACCOUNT_DELETE", command.accountId, command.expectedRevision,

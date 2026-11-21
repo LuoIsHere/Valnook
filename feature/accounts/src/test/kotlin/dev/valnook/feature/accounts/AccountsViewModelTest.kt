@@ -35,13 +35,15 @@ class AccountsViewModelTest {
         vm.submit();runCurrent()
         assertNull(request)
         assertTrue(vm.state.value.fieldErrors.keys.containsAll(listOf("$key:name","$key:limit","$key:statement")))
-        vm.changeRow(key,name="Card",creditLimit="0",statementDay="12",showOnAccountsPage=false,includeInAvailableCash=false)
+        vm.changeRow(key,name="Card",creditLimit="0",statementDay="12",showOnAccountsPage=false,includeInAvailableCash=false,
+            statementDayIncluded=false)
         vm.changeVisibility(deposits=false,investments=false)
         val restored=AccountEditViewModel(null,repository,commands,SavedStateHandle(saved.keys().associateWith { saved.get<Any?>(it) }))
         runCurrent();restored.submit();runCurrent()
         assertEquals(0L,request!!.cashChanges.single().credit!!.creditLimitMinor)
         assertEquals(false,request!!.cashChanges.single().showOnAccountsPage)
         assertEquals(false,request!!.cashChanges.single().includeInAvailableCash)
+        assertEquals(false,request!!.cashChanges.single().credit!!.statementDayIncluded)
         assertEquals(false,request!!.showDepositSummary)
         assertEquals(false,request!!.showInvestmentSummary)
     }
