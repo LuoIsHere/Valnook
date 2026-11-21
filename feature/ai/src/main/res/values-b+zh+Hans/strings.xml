@@ -200,9 +200,9 @@
     <string name="ai_base_url_hint">例如 https://api.example.com/v1</string>
     <string name="ai_model_hint">填写模型名，或从列表中选择</string>
     <string name="ai_notice_provider">服务提供方：AI 功能由您在本页填写的接口地址所对应的服务提供。Valnook 不提供 AI 服务，不经手、不保存您与该服务之间传输的内容。</string>
-    <string name="ai_notice_when">联网时机：仅在您使用对话记账、分享识别或执行能力检测时，应用才会向该地址发送请求。</string>
-    <string name="ai_notice_sent">发送的数据：您输入或分享的文字和图片；当前日期时间与主币种；未隐藏的账单分类名称；收藏账户（无收藏账户时为全部账户）的名称和币种；“我的规则”与双方昵称；开启“发送最近的记账习惯作为参考”后，最近 20 条账单的备注及分类。API Key 通过请求头发送。</string>
-    <string name="ai_notice_not_sent">不发送的数据：账户余额、信用额度、净资产、卡包内容、投资持仓与交易记录、头像及设备信息。</string>
+    <string name="ai_notice_when">联网时机：仅在您使用对话记账、对话查询、分享识别或执行能力检测时，应用才会向该地址发送请求。</string>
+    <string name="ai_notice_sent">发送的数据：您输入或分享的文字和图片，以及同一对话中之前的文字往来（之前的图片不再发送）；当前日期时间与主币种；未隐藏的账单分类名称；账户页上显示的子账户（最多 100 个）的名称、币种、类型和是否收藏；“我的规则”与双方昵称；开启“发送最近的记账习惯作为参考”后，最近 20 条账单的备注及分类；开启“对话查询”并提问时的查询结果，包括收支汇总金额，最多 20 笔账单的日期、分类、金额和备注，以及按账户、资产类型、币种的资产占比（只有百分比）。API Key 通过请求头发送。</string>
+    <string name="ai_notice_not_sent">不发送的数据：账户余额、信用额度、净资产、各项资产的金额、卡包内容、投资持仓与交易记录、头像及设备信息。</string>
     <string name="ai_notice_storage">API Key 保存：API Key 仅加密保存在本设备，使用 Android Keystore 管理密钥，并通过 AES-GCM 加密内容。不会上传至 Valnook 的服务器（Valnook 没有服务器），不会纳入本地备份、OneDrive 等云备份或其他文件导出，网页端管理也无法访问。卸载应用、清除应用数据、清空全部数据或换机后需重新填写。</string>
     <string name="ai_notice_cost">费用：使用 AI 功能产生的费用由您与服务提供方结算。</string>
     <string name="ai_notice_local">本地部署：如不希望数据离开您的设备或网络，可将接口地址指向本地部署的模型。</string>
