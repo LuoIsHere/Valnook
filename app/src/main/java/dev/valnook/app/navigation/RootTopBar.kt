@@ -70,7 +70,7 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     is PositionCreateKey -> stringResource(dev.valnook.feature.investments.R.string.investment_add_to_account)
     is CashKey -> cashName(current.cashAccountId).orEmpty()
     is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
-    is CashEntryKey -> stringResource(R.string.title_cash_entry)
+    is CashEntryKey -> stringResource(dev.valnook.core.designsystem.R.string.cash_entry_detail)
     is CashEntryEditKey -> stringResource(R.string.title_edit_cash_entry)
     is DepositFormKey -> dev.valnook.feature.deposits.depositFormTitle(current.mode)
     is DepositDetailKey -> stringResource(dev.valnook.core.designsystem.R.string.deposit_detail_title)

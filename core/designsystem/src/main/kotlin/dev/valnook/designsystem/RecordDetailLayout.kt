@@ -8,9 +8,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 /** A shared, scrollable record layout; feature modules supply values and actions. */
-@Composable fun RecordDetailLayout(title:String,rows:List<Pair<String,String>>,actions:@Composable ColumnScope.()->Unit) {
+/** [title] heads the page; null when the top bar already names it, so the name is not shown twice. */
+@Composable fun RecordDetailLayout(title:String?,rows:List<Pair<String,String>>,actions:@Composable ColumnScope.()->Unit) {
     LazyColumn(Modifier.fillMaxSize(),contentPadding=pageContentPadding(),verticalArrangement=Arrangement.spacedBy(Space.md)) {
-        item{Text(title,style=MaterialTheme.typography.titleLarge)}
+        if(title!=null)item{Text(title,style=MaterialTheme.typography.titleLarge)}
         item {
             GlassCard {
             Column(Modifier.fillMaxWidth().padding(horizontal = Space.cardInset, vertical = Space.xs)) {

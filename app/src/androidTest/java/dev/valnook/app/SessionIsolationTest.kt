@@ -89,7 +89,8 @@ class SessionIsolationTest {
         }
         val demoTrades = snapshot.positions.flatMap { trades(it.id) }
         assertTrue(snapshot.positions.any { trades(it.id).size > 100 })
-        assertEquals(209, demoTrades.size)
+        // The bundled demo as built on 2026-11-21 (its monthly plans run up to then).
+        assertEquals(211, demoTrades.size)
         assertTrue(snapshot.positions.map { it.holding_quantity_e8 }.distinct().size > 8)
         assertTrue(demoTrades.map { it.quantity_e8 }.distinct().size > 10)
         assertTrue(demoTrades.map { it.fee_minor }.distinct().size > 20)
@@ -213,7 +214,7 @@ class SessionIsolationTest {
         stored=active.graph.settingsWriter.applyChange(SaveGainLossColors(stored.revision,GainLossColorScheme.RED_GAIN))
         val navigation = NavigationConfiguration(
             listOf(NavigationItemId.STATISTICS, NavigationItemId.SETTINGS, NavigationItemId.ACCOUNTS,
-                NavigationItemId.WALLET, NavigationItemId.INVESTMENTS),
+                NavigationItemId.WALLET, NavigationItemId.INVESTMENTS, NavigationItemId.BILLS),
             setOf(NavigationItemId.STATISTICS, NavigationItemId.SETTINGS))
         active.graph.settingsWriter.applyChange(SaveNavigationConfiguration(stored.revision, navigation))
 

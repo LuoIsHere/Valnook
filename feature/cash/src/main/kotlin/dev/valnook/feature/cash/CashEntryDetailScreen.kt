@@ -47,7 +47,8 @@ import dev.valnook.feature.cash.R as CashR
         stringResource(R.string.record_date) to time.toLocalDate().toString(),
         stringResource(R.string.record_time) to time.format(rememberClockFormatter()),
         stringResource(R.string.note) to entry.note.ifBlank{stringResource(R.string.no_note)})
-    RecordDetailLayout(stringResource(R.string.cash_entry_detail),rows) {
+    // The top bar names the page; it is not repeated here.
+    RecordDetailLayout(null,rows) {
         // A deleted instrument's trade, or a bill deleted with its category, has nothing left to open.
         if(entry.source!in REMOVED_SOURCES) SecondaryButton(onClick={on_edit(entry)},modifier=Modifier.fillMaxWidth()) {
             Text(stringResource(when(entry.source) {
