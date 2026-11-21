@@ -2,7 +2,7 @@ import { api, state, t } from "./core.js";
 import { decAdd, decNeg } from "./decimal.js";
 import { el, sym, money, fmt, gradient, btn, iconBtn, dialog, field, input, textarea, select, toggle, seg, menu, validDecimal, markInvalid,
   digitsOf, pct, $, $$, relative, toast, epochDay, localDay, confirmDialog } from "./ui.js";
-import { go, render } from "./router.js";
+import { go } from "./router.js";
 import { pageHead, detailPanel, split, sparkline, emptyState, rowKeys, tabBar } from "./layout.js";
 import { submit, write } from "./forms.js";
 import { avatar, iconPicker } from "./icons.js";
@@ -94,11 +94,18 @@ function accountRow(a, selected) {
 function accountDetail(detail, data) {
   const a = detail.account, row = data.items.find(v => v.id === a.id);
   const held = detail.positions.filter(p => Number(p.quantity) > 0);
-  const tab = state.accountTab;
-  const body = el("div", {},
-    tabBar([["subs", t("subaccounts"), detail.cash.length], ["deposits", t("deposits"), detail.deposits.filter(d => !d.closed).length], ["positions", t("positions"), held.length]], tab,
-      v => { state.accountTab = v; render(); }),
-    tab === "subs" ? subsTab(detail) : tab === "deposits" ? depositsTab(detail) : positionsTab(held));
+  // Switching tabs swaps only the panel's content: no reload, and the panel itself stays still.
+  const content = tab => tab === "subs" ? subsTab(detail) : tab === "deposits" ? depositsTab(detail) : positionsTab(held);
+  const bar = tab => tabBar([["subs", t("subaccounts"), detail.cash.length], ["deposits", t("deposits"), detail.deposits.filter(d => !d.closed).length],
+    ["positions", t("positions"), held.length]], tab, v => {
+    if (v === state.accountTab) return;
+    state.accountTab = v;
+    const next = bar(v); tabs.replaceWith(next); tabs = next;
+    pane.replaceChildren(content(v)); pane.classList.remove("tab-swap"); void pane.offsetWidth; pane.classList.add("tab-swap");
+  });
+  let tabs = bar(state.accountTab);
+  const pane = el("div", {}, content(state.accountTab));
+  const body = el("div", {}, tabs, pane);
   const more = iconBtn("more", t("moreActions"), e => menu(e.currentTarget, [
     { label: t("editAccount"), icon: "pen", run: () => accountDialog(detail) },
     { label: t("addSubaccount"), icon: "plus", run: () => subDialog(detail, null) },

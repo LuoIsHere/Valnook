@@ -44,6 +44,7 @@ import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.ByteArrayOutputStream
 import java.net.BindException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -83,7 +84,8 @@ interface LocalWebServerCallbacks {
     suspend fun admitWebSocket(request: WebHttpRequest): WebSocketAdmission
     suspend fun webSocketOpened(connectionKey: String, peer: WebSocketPeer)
     suspend fun webSocketMessage(connectionKey: String, text: String)
-    suspend fun webSocketClosed(connectionKey: String)
+    /** [pageClosed]: the browser said it left the page (close code 1001), as on closing a tab or reloading. */
+    suspend fun webSocketClosed(connectionKey: String, pageClosed: Boolean = false)
 }
 
 data class LocalWebServerBinding(val address: String, val port: Int)
@@ -126,6 +128,7 @@ class LocalWebServer {
                                 }
                             }
                         }
+                        var pageClosed = false
                         try {
                             callbacks.webSocketOpened(key, peer)
                             for (frame in incoming) {
@@ -138,8 +141,11 @@ class LocalWebServer {
                                     callbacks.webSocketMessage(key, text)
                                 }
                             }
+                            // The loop ends when the browser sends its close frame or the connection drops.
+                            val reason = withTimeoutOrNull(500) { closeReason.await() }
+                            pageClosed = reason?.code == CloseReason.Codes.GOING_AWAY.code
                         } finally {
-                            callbacks.webSocketClosed(key)
+                            callbacks.webSocketClosed(key, pageClosed)
                         }
                     }
                     dispatchAll("/", callbacks)

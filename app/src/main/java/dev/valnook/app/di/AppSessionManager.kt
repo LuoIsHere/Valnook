@@ -279,6 +279,10 @@ class AppSessionManager @Inject internal constructor(
     internal fun webAdminReads(): dev.valnook.domain.webadmin.WebAdminReadRepository =
         webAdminGraph().webAdminReads
 
+    /** One instrument's recent prices in the database the web session uses, read-only. */
+    internal suspend fun webAdminPriceHistory(instrumentId: Long): List<dev.valnook.domain.model.InstrumentPricePoint> =
+        webAdminGraph().instruments.observePriceHistory(instrumentId).first()
+
     /** Bills of the database the web session uses, read-only. */
     internal fun webAdminBills(): dev.valnook.app.webadmin.WebBillSource =
         webAdminGraph().let { dev.valnook.app.webadmin.WebBillSource(it.bills, it.overview, it.settings, it.clock) }

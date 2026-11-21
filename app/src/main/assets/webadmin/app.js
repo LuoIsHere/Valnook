@@ -101,7 +101,7 @@ async function preload() {
   state.billCategories = categories.items;
   state.lastSync = Date.now();
 }
-let idleTimer = null, lastPage = null, enterTimer = 0, switchTimer = 0, shownNumbers = {}, refreshing = false;
+let idleTimer = null, lastPage = null, enterTimer = 0, switchTimer = 0, shownNumbers = {}, shownDetail = null, refreshing = false;
 async function workspace() {
   app.replaceChildren(shell());
   setHidden(state.hidden); applyTheme();
@@ -153,7 +153,15 @@ setRenderer(async () => {
     nodes = [el("div", { class: "load-error" }, el("p", { text: `${t("loadFailed")}: ${errorMessage(error)}` }), btn(t("refresh"), () => render(), "tonal"))];
   } finally { if (epoch === state.viewEpoch) { clearTimeout(loadingTimer); $(".page-loading")?.remove(); } }
   if (epoch !== state.viewEpoch) return;
+  // A detail panel already open on this page stays put when the page redraws; only a newly opened one slides in.
+  const keptDetail = samePage && $(".detail", main) ? shownDetail : null;
   main.replaceChildren(el("div", { class: "wrap" }, ...nodes));
+  const detail = $(".detail", main);
+  if (detail && keptDetail != null) {
+    detail.classList.add("still"); $(".detail-scrim", main)?.classList.add("still");
+    if (keptDetail !== location.hash) detail.classList.add("swap");
+  }
+  shownDetail = detail ? location.hash : null;
   $$(".topnav a, .tabbar a").forEach(a => { if (a.dataset.page === r.page) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   document.title = `${t(r.page)} · Valnook`;
   // Headline amounts remember what they showed, so a switched month moves them from the old value to the new one.

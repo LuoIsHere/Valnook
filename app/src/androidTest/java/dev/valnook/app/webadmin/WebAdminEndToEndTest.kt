@@ -21,7 +21,9 @@ import dev.valnook.domain.webadmin.WEB_DEFAULT_PORT
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
@@ -520,6 +522,14 @@ class WebAdminEndToEndTest {
             assertEquals(receipt.body, 200, receipt.status)
             assertEquals(committed, database.audit().generation())
             assertEquals(listOf(20_12345L, 0L), RoomOverview(database).snapshot().instruments.map { it.currentPriceE5 })
+            // The price trend, oldest first. The saved price is dated by the app's clock, fixed in tests before the
+            // day the instrument was made with the real clock, so it comes first.
+            val trend = http(endpoint, "GET", "/api/v1/instruments/${ids[0]}/prices", cookie = cookie)
+            assertEquals(trend.body, 200, trend.status)
+            val points = JSONObject(trend.body).getJSONArray("items").let { a -> (0 until a.length()).map(a::getJSONObject) }
+            assertEquals(listOf("20.12345", "10.00000"), points.map { it.getString("price") })
+            assertTrue(points.zipWithNext().all { (a, b) -> a.getLong("atMs") < b.getLong("atMs") })
+            assertEquals(404, http(endpoint, "GET", "/api/v1/instruments/999999/prices", cookie = cookie).status)
         }
     }
 
@@ -941,6 +951,48 @@ class WebAdminEndToEndTest {
             .put("iconChange", JSONObject().put("type", "SYMBOL").put("value", "../arbitrary"))
         assertEquals(400, http(endpoint, "PUT", "/api/v1/accounts/$id", origin = origin, cookie = cookie, csrf = csrf, body = invalid.toString()).status)
         socket.close()
+    }
+
+    /**
+     * The lock screen ends the session from a scope that is disposed when the phone gets its writes back (the data
+     * session is republished). Cancelling the caller at that moment must still close the service, and it must start
+     * again afterwards.
+     */
+    @Test fun stop_finishes_when_its_caller_is_cancelled_midway() = runBlocking<Unit> {
+        val (endpoint, origin, cookie) = pairedSession()
+        val socket = openWebSocket(endpoint, origin, cookie)
+        awaitPhase(WebAdminPhase.ACTIVE)
+        val before = sessions.session.value.id
+        val stopper = CoroutineScope(Dispatchers.Default).launch { web.stop() }
+        withTimeout(5_000) { sessions.session.first { it.id != before } }
+        stopper.cancel()
+        awaitPhase(WebAdminPhase.CLOSED)
+        socket.close()
+        web.start()
+        awaitPhase(WebAdminPhase.WAITING)
+    }
+
+    /** A browser leaving the page (close code 1001) gets a short wait for a reload, not the one for a dropped network. */
+    @Test fun closing_the_page_returns_to_waiting_after_a_short_wait() = runBlocking<Unit> {
+        val (endpoint, origin, cookie) = pairedSession()
+        val socket = openWebSocket(endpoint, origin, cookie)
+        awaitPhase(WebAdminPhase.ACTIVE)
+        sendMaskedFrame(socket, 0x8, byteArrayOf(0x03, 0xE9.toByte()))
+        delay(3_000)
+        assertEquals(WebAdminPhase.ACTIVE, web.state.value.phase)
+        withTimeout(15_000) { web.state.first { it.phase == WebAdminPhase.WAITING } }
+        socket.close()
+    }
+
+    private suspend fun pairedSession(): Triple<URI, String, String> {
+        web.start()
+        val waiting = web.state.value
+        val endpoint = URI(requireNotNull(waiting.url))
+        val origin = "http://${endpoint.host}:${endpoint.port}"
+        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
+            body = JSONObject().put("code", waiting.pairingCode).toString())
+        assertEquals(200, paired.status)
+        return Triple(endpoint, origin, paired.headers["set-cookie"].orEmpty().substringBefore(';'))
     }
 
     @Test fun phone_stays_awake_until_idle_timeout_and_background_ends_session() = runBlocking<Unit> {

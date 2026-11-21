@@ -104,6 +104,9 @@ internal class WebAdminApiRouter(
         INSTRUMENT.matchEntire(path)?.let { match ->
             if (method == "PUT") return saveInstrument(sessionId, match.groupValues[1].toLong(), request)
         }
+        INSTRUMENT_PRICES.matchEntire(path)?.let { match ->
+            if (method == "GET") return instrumentPrices(match.groupValues[1].toLong())
+        }
         if (method == "GET" && path == "/api/v1/positions") return positions()
         if (method == "POST" && path == "/api/v1/trades") return recordTrade(sessionId, 0L, request)
         if (method == "POST" && path == "/api/v1/positions") return createPosition(sessionId, request)
@@ -338,6 +341,17 @@ internal class WebAdminApiRouter(
         return success(buildJsonObject {
             put("dataGeneration", reads.generation())
             put("items", buildJsonArray { snapshot.instruments.forEach { add(instrument(it)) } })
+        })
+    }
+
+    /** The price trend the phone draws: the last price of each of the latest days that have one, oldest first. */
+    private suspend fun instrumentPrices(id: Long): WebHttpResponse {
+        if (reads.snapshot().instruments.none { it.id == id }) return failure(404, "NOT_FOUND")
+        val points = sessions.webAdminPriceHistory(id).sortedBy { it.atMs }
+        return success(buildJsonObject {
+            put("dataGeneration", reads.generation())
+            put("items", buildJsonArray { points.forEach { add(buildJsonObject {
+                put("atMs", it.atMs); put("price", DecimalRules.format_units(it.priceE5, 5)) }) } })
         })
     }
 
@@ -694,6 +708,7 @@ internal class WebAdminApiRouter(
         val CASH_ENTRY = Regex("/api/v1/cash-entries/([0-9]+)")
         val ASSET_TYPE = Regex("/api/v1/asset-types/([0-9]+)")
         val INSTRUMENT = Regex("/api/v1/instruments/([0-9]+)")
+        val INSTRUMENT_PRICES = Regex("/api/v1/instruments/([0-9]+)/prices")
         val POSITION = Regex("/api/v1/positions/([0-9]+)")
         val POSITION_TRADES = Regex("/api/v1/positions/([0-9]+)/trades")
         val TRADE = Regex("/api/v1/trades/([0-9]+)")

@@ -3,7 +3,7 @@ import { decAdd, decSub, priceUnits } from "./decimal.js";
 import { el, sym, money, fmt, gradient, btn, iconBtn, dialog, field, input, select, toggle, seg, menu, toast, validDecimal, markInvalid, digitsOf,
   $, $$, when, relative, localInput, keptTime, confirmDialog, confirmDiscard, tone, pct, pctText, qtyText, paren } from "./ui.js";
 import { go, render } from "./router.js";
-import { pageHead, detailPanel, split, emptyState, rowKeys, tabBar, kpi, kv } from "./layout.js";
+import { pageHead, detailPanel, split, emptyState, rowKeys, tabBar, kpi, kv, chartDefs } from "./layout.js";
 import { submit, write, errorMessage } from "./forms.js";
 import { avatar } from "./icons.js";
 
@@ -14,7 +14,9 @@ const price = (v, c) => fmt(v, c, { digits: 5, min: 2 });
 
 export async function investmentsPage(r) {
   const tab = r.a === "instruments" ? "instruments" : "positions", id = r.b ? Number(r.b) : null;
-  const [detail] = await Promise.all([id && tab === "positions" && !priceEdit ? api(`/api/v1/positions/${id}`).catch(e => (e.code === "NOT_FOUND" ? null : Promise.reject(e))) : null]);
+  const missing = e => (e.code === "NOT_FOUND" ? null : Promise.reject(e));
+  const [detail, prices] = await Promise.all([id && tab === "positions" && !priceEdit ? api(`/api/v1/positions/${id}`).catch(missing) : null,
+    id && tab === "instruments" && !priceEdit ? api(`/api/v1/instruments/${id}/prices`).then(r => r.items).catch(missing) : null]);
   const held = state.positions.filter(p => Number(p.quantity) > 0);
   const sum = key => decAdd(...state.accounts.map(a => a[key] ?? "0"));
   const value = sum("investments"), unrealized = sum("unrealized"), realized = sum("realized"), cost = decSub(value, unrealized);
@@ -32,7 +34,7 @@ export async function investmentsPage(r) {
     kpi(t("holdingCost"), money(cost, B(), { count: true })));
   const tabs = tabBar([["positions", t("positions"), held.length], ["instruments", t("instruments"), state.instruments.length]], tab, k => { if (!priceEdit) go(`investments/${k}`); });
   const main = el("div", {}, kpis, el("div", { class: "reveal spaced-l" }, tabs, tab === "positions" ? positionGroups(id) : instrumentList(id)));
-  const panel = priceEdit || !id ? null : tab === "positions" ? (detail ? positionDetail(detail) : null) : instrumentDetail(id);
+  const panel = priceEdit || !id ? null : tab === "positions" ? (detail ? positionDetail(detail) : null) : instrumentDetail(id, prices || []);
   return [head, el("div", { class: "page" }, split(main, panel))];
 }
 
@@ -205,7 +207,7 @@ function startPriceEdit() {
 export const isPriceEditing = () => !!priceEdit && priceEdit.size > 0;
 export function cancelPriceEdit() { priceEdit = null; }
 
-function instrumentDetail(id) {
+function instrumentDetail(id, prices) {
   const i = state.instruments.find(v => v.id === id); if (!i) return null;
   const holders = state.positions.filter(p => p.instrumentId === id && (Number(p.quantity) > 0 || p.closed));
   return detailPanel({ back: "investments/instruments", title: i.name, sub: `${i.symbol} · ${typeLabel(i.typeName)} · ${i.currencyCode}`,
@@ -213,6 +215,8 @@ function instrumentDetail(id) {
     total: el("div", {}, el("div", { class: "muted small", text: t("currentPrice") }), el("div", { class: "big num", text: price(i.currentPrice, i.currencyCode) }),
       el("span", { class: "faint small", text: i.priceUpdatedAtMs ? t("updatedWhen").replace("{when}", when(i.priceUpdatedAtMs)) : "" })),
     body: el("div", {},
+      el("div", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: t("priceTrend") }),
+        prices.length ? el("span", { class: "faint small", text: t("priceDays").replace("{n}", prices.length) }) : null), priceChart(prices, i.currencyCode)),
       el("div", { class: "section" }, el("div", { class: "section-head" }, el("h2", { text: t("heldIn") })),
         holders.length ? holders.map(p => { const a = state.accounts.find(v => v.id === p.accountId);
           return rowKeys(el("div", { class: "mini-row" }, avatar(a?.icon, "sm"),
@@ -220,6 +224,59 @@ function instrumentDetail(id) {
             el("div", { class: "r" }, money(p.marketValue, i.currencyCode)), sym("chevron_right", "sm faint")), () => go(`investments/positions/${p.id}`)); })
           : el("p", { class: "faint small", text: t("noHolders") })),
       el("div", { class: "section" }, btn(t("newTradeFor"), () => tradeDialog(null, null, { instrumentId: i.id }), "tonal", "plus"))) });
+}
+
+let priceChartSeq = 0;
+const shortDay = ms => new Date(ms).toLocaleDateString(state.locale, { month: "numeric", day: "numeric" });
+/** The latest days' prices, placed by date as on the phone; hover or the arrow keys read a day's price. */
+function priceChart(items, currency) {
+  if (!items.length) return el("p", { class: "faint small", text: t("noPriceHistory") });
+  const pts = items.map(p => ({ t: p.atMs, v: Number(p.price), text: p.price }));
+  const id = `pc${++priceChartSeq}`;
+  const wrap = el("div", { class: "chart-wrap price-chart", tabindex: "0", role: "img", "aria-label": t("priceTrendAria") });
+  function draw() {
+    const W = wrap.clientWidth || 440, H = wrap.clientHeight || 180, L = 10, R = 10, T = 14, Bm = 24;
+    const vs = pts.map(p => p.v); let min = Math.min(...vs), max = Math.max(...vs);
+    const pad = (max - min) * .12 || Math.abs(max) * .05 || 1; min -= pad; max += pad;
+    const t0 = pts[0].t, span = pts.at(-1).t - t0;
+    const x = p => span ? L + (p.t - t0) / span * (W - L - R) : W / 2, y = v => T + (max - v) / (max - min) * (H - T - Bm);
+    const line = pts.map((p, i) => `${i ? "L" : "M"}${x(p).toFixed(1)},${y(p.v).toFixed(1)}`).join("");
+    const last = pts.at(-1), lx = x(last), ly = y(last.v);
+    const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H }, chartDefs(id),
+      el("g", { class: "axis" }, el("text", { x: pts.length > 1 ? L : W / 2, y: H - 6, "text-anchor": pts.length > 1 ? "start" : "middle" }, shortDay(pts[0].t)),
+        pts.length > 1 ? el("text", { x: W - R, y: H - 6, "text-anchor": "end" }, shortDay(last.t)) : null),
+      el("g", { class: "draw" },
+        pts.length > 1 ? el("path", { d: `${line}L${lx},${H - Bm}L${x(pts[0])},${H - Bm}Z`, fill: `url(#${id}-f)` }) : null,
+        pts.length > 1 ? el("path", { class: "glow", d: line, stroke: `url(#${id}-s)`, filter: `url(#${id}-b)` }) : null,
+        pts.length > 1 ? el("path", { class: "line", d: line, stroke: `url(#${id}-s)` }) : null,
+        el("circle", { class: "last-dot", cx: lx, cy: ly, r: 4 })),
+      el("line", { class: "cross", x1: 0, x2: 0, y1: T, y2: H - Bm, visibility: "hidden" }),
+      el("circle", { class: "dot", r: 5, visibility: "hidden" }));
+    const tip = el("div", { class: "tip", hidden: true });
+    wrap.replaceChildren(svg, tip);
+    let at = -1;
+    const show = i => {
+      at = Math.max(0, Math.min(pts.length - 1, i)); const p = pts[at], px = x(p), py = y(p.v);
+      const cross = svg.querySelector(".cross"), dot = svg.querySelector(".dot");
+      cross.setAttribute("x1", px); cross.setAttribute("x2", px); cross.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", px); dot.setAttribute("cy", py); dot.setAttribute("visibility", "visible");
+      const change = pts[0].v ? pct(String(p.v - pts[0].v), String(pts[0].v)) : 0;
+      tip.replaceChildren(...[el("span", { class: "faint", text: when(p.t, "date") }), el("strong", { text: price(p.text, currency) }),
+        at ? el("span", { class: tone(change), text: `${t("sinceStart")} ${change >= 0 ? "+" : ""}${pctText(change)}` }) : null].filter(Boolean));
+      tip.hidden = false; tip.style.setProperty("left", `${Math.max(80, Math.min(W - 80, px))}px`); tip.style.setProperty("top", `${py}px`);
+    };
+    const hide = () => { at = -1; tip.hidden = true; svg.querySelectorAll(".cross,.dot").forEach(n => n.setAttribute("visibility", "hidden")); };
+    const nearest = mx => pts.reduce((best, p, i) => (Math.abs(x(p) - mx) < Math.abs(x(pts[best]) - mx) ? i : best), 0);
+    wrap.onmousemove = e => show(nearest(e.clientX - wrap.getBoundingClientRect().left));
+    wrap.onmouseleave = hide; wrap.onblur = hide;
+    wrap.onkeydown = e => {
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); show((at < 0 ? pts.length - 1 : at) + (e.key === "ArrowLeft" ? -1 : 1)); }
+    };
+  }
+  let first = true;
+  new ResizeObserver(() => { if (first) { first = false; return; } draw(); }).observe(wrap);
+  setTimeout(draw); // once the panel is in the document and its width is known
+  return wrap;
 }
 
 /* ---------- Dialogs ---------- */

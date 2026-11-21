@@ -204,6 +204,8 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
 .split-main{container-type:inline-size;min-width:0}
 .detail{position:sticky;top:calc(var(--bar-h) + 20px);max-height:calc(100dvh - var(--bar-h) - 40px);display:flex;flex-direction:column;border-radius:var(--r-lg);background:var(--tile);box-shadow:var(--lift),inset 0 1px 0 var(--edge);overflow:hidden;animation:detail-in .5s var(--ease)}
 @keyframes detail-in{from{opacity:0;transform:translateX(24px) scale(.98)}}
+.detail.still,.detail-scrim.still{animation:none}
+.detail.swap>*,.tab-swap{animation:fade .3s var(--ease)}
 .detail-head{display:flex;align-items:flex-start;gap:12px;padding:22px 22px 6px}
 .detail-head .title{flex:1;min-width:0}
 .detail-head h2{font-size:22px;font-weight:700;letter-spacing:-.03em;overflow-wrap:anywhere}
@@ -374,6 +376,7 @@ kbd{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 
 .chart-wrap .cross{stroke:var(--text-3);stroke-width:1;stroke-dasharray:3 4}
 .chart-wrap .dot{fill:var(--tile);stroke:var(--accent);stroke-width:3}
 .chart-wrap .halo{fill:var(--accent);opacity:.2}
+.chart-wrap.price-chart{height:180px;margin-top:8px}
 .tip{position:absolute;pointer-events:none;padding:10px 14px;border-radius:14px;background:var(--bar);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:var(--shadow-lg),inset 0 0 0 1px var(--line);font-size:12px;white-space:nowrap;transform:translate(-50%,calc(-100% - 16px))}
 .tip strong{display:block;font-size:17px;letter-spacing:-.02em}
 .dist-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}

@@ -85,8 +85,17 @@ class AppWebAdminCoordinator @Inject constructor(
 
     override suspend fun stop() = stopWithReason("PHONE_ENDED")
 
+    /**
+     * Ends the server. Runs to the end even when the caller is cancelled midway: handing writes back to the phone
+     * republishes the data session, which can dispose the screen whose scope called this. Stopping halfway would leave
+     * the service marked as stopping, so it would ignore every later stop and stay ACTIVE.
+     */
     internal suspend fun stopWithReason(reason: String) {
         val caller = currentCoroutineContext()[Job]
+        withContext(NonCancellable) { stopNow(reason, caller) }
+    }
+
+    private suspend fun stopNow(reason: String, caller: Job?) {
         val shutdown = lifecycle.withLock {
             if ((binding == null && reservationId == null) || stopping) {
                 if (!stopping) mutable.value = WebAdminRuntimeState()
@@ -109,19 +118,22 @@ class AppWebAdminCoordinator @Inject constructor(
                 value
             }
         } ?: return
-        shutdown.timer?.cancel()
-        shutdown.reconnectTimer?.cancel()
-        shutdown.networkWatch?.close()
-        shutdown.peer?.let { peer ->
-            withTimeoutOrNull(500) { runCatching { peer.sendText(buildJsonObject { put("type", "serverClosing"); put("reason", reason) }.toString()) } }
-            withTimeoutOrNull(500) { runCatching { peer.close(1000, "closed by phone") } }
-        }
-        shutdown.webSessionId?.let { sessions.releaseWebWriteLease(it) }
-        shutdown.reservationId?.let { sessions.releaseWebAdminServer(it) }
-        withTimeoutOrNull(2_500) { runCatching { server.stop() } }
-        lifecycle.withLock {
-            stopping = false
-            mutable.value = WebAdminRuntimeState()
+        try {
+            shutdown.timer?.cancel()
+            shutdown.reconnectTimer?.cancel()
+            runCatching { shutdown.networkWatch?.close() }
+            shutdown.peer?.let { peer ->
+                withTimeoutOrNull(500) { runCatching { peer.sendText(buildJsonObject { put("type", "serverClosing"); put("reason", reason) }.toString()) } }
+                withTimeoutOrNull(500) { runCatching { peer.close(1000, "closed by phone") } }
+            }
+            shutdown.webSessionId?.let { sessions.releaseWebWriteLease(it) }
+            shutdown.reservationId?.let { sessions.releaseWebAdminServer(it) }
+            withTimeoutOrNull(2_500) { runCatching { server.stop() } }
+        } finally {
+            lifecycle.withLock {
+                stopping = false
+                mutable.value = WebAdminRuntimeState()
+            }
         }
     }
 
@@ -240,7 +252,7 @@ class AppWebAdminCoordinator @Inject constructor(
         }.toString())
     }
 
-    override suspend fun webSocketClosed(connectionKey: String) {
+    override suspend fun webSocketClosed(connectionKey: String, pageClosed: Boolean) {
         val sessionId = socketSessions.remove(connectionKey) ?: return
         lifecycle.withLock {
             if (activeConnectionKey != connectionKey || activeSessionId != sessionId || binding == null) {
@@ -249,8 +261,9 @@ class AppWebAdminCoordinator @Inject constructor(
             activeConnectionKey = null
             activePeer = null
             reconnectJob?.cancel()
+            // A reload reconnects within a second or two; a dropped network may take longer to come back.
             reconnectJob = scope.launch {
-                delay(WEB_SOCKET_RECONNECT_GRACE_MS)
+                delay(if (pageClosed) WEB_PAGE_CLOSED_GRACE_MS else WEB_SOCKET_RECONNECT_GRACE_MS)
                 disconnectToWaiting(sessionId)
             }
         }
@@ -289,8 +302,13 @@ class AppWebAdminCoordinator @Inject constructor(
         }
     }
 
+    /** Returns to waiting for pairing; like stop, it finishes even when the caller is cancelled. */
     private suspend fun disconnectToWaiting(sessionId: String) {
         val caller = currentCoroutineContext()[Job]
+        withContext(NonCancellable) { disconnectNow(sessionId, caller) }
+    }
+
+    private suspend fun disconnectNow(sessionId: String, caller: Job?) {
         var timer: Job? = null
         var peer: WebSocketPeer? = null
         val release = lifecycle.withLock {
@@ -433,6 +451,7 @@ class AppWebAdminCoordinator @Inject constructor(
 
     private companion object {
         const val WEB_SOCKET_RECONNECT_GRACE_MS = 45_000L
+        const val WEB_PAGE_CLOSED_GRACE_MS = 10_000L
         val CODE_PATTERN = Regex("[0-9]{6}")
         val STATIC_PATHS = setOf("/app.js", "/styles.css", "/core.js", "/session.js", "/icons.js", "/photo-validation.js", "/symbols.js", "/valnook.svg",
             "/decimal.js", "/theme-boot.js", "/ui.js", "/layout.js", "/router.js", "/forms.js",

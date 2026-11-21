@@ -416,6 +416,8 @@ const v3 = {
   categoryShares: ["分类占比", "Category shares"], noExpenseThisMonth: ["这个月没有支出", "No expense this month"], noIncomeThisMonth: ["这个月没有收入", "No income this month"],
   reimburse_PENDING: ["待回款", "To be paid back"], reimburse_PARTIAL: ["部分回款", "Partly paid back"], reimburse_DONE: ["已回款", "Paid back"],
   reimburse_WAIVED: ["已放弃", "Given up"], reimburse_NONE: ["—", "—"],
+  priceTrend: ["价格走势", "Price trend"], priceDays: ["{n} 天", "{n} days"], noPriceHistory: ["还没有价格记录", "No prices recorded yet"],
+  priceTrendAria: ["价格走势，用左右方向键查看每天的价格", "Price trend; arrow keys read each day's price"],
 };
 Object.entries(v3).forEach(([key, [zh, en]]) => { copy["zh-CN"][key] = zh; copy.en[key] = en; });
 // The built-in class is stored under its Chinese name; other classes read as the user named them.
