@@ -282,9 +282,13 @@ export function select(name, options, value) {
   const s = el("select", { name }, options.map(o => el("option", { value: o.value, text: o.label, disabled: o.disabled })));
   s.value = String(value ?? options[0]?.value ?? ""); return s;
 }
+let toggleSeq = 0;
+/** A switch named by its title alone; the hint, when given, is read as its description. */
 export function toggle(label, name, checked, hintText = "") {
-  return el("label", { class: "switch-row" }, el("span", { class: "t" }, el("div", { text: label }), hintText ? el("small", { text: hintText }) : null),
-    el("span", { class: "switch" }, el("input", { type: "checkbox", name, checked, role: "switch" }), el("i")));
+  const hintId = hintText ? `switch-hint-${++toggleSeq}` : null;
+  return el("label", { class: "switch-row" }, el("span", { class: "t" }, el("div", { text: label }), hintText ? el("small", { id: hintId, text: hintText }) : null),
+    el("span", { class: "switch" }, el("input", { type: "checkbox", name, checked, role: "switch", "aria-label": label,
+      "aria-describedby": hintId }), el("i")));
 }
 export function seg(options, value, onchange, cls = "") {
   const box = el("div", { class: `seg ${cls}`, role: "radiogroup" });
