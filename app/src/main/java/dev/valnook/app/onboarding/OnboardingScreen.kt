@@ -68,7 +68,7 @@ internal fun OnboardingFlow(vm: OnboardingViewModel, content: @Composable () -> 
         if (privacy) privacy = false else if (!state.busy) vm.back()
     }
     if (privacy) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))) {
+        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 BackButton(backLabel) { privacy = false }
                 Text(stringResource(dev.valnook.feature.settings.R.string.settings_privacy_policy),

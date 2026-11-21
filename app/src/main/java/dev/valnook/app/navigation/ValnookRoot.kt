@@ -21,6 +21,10 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.background
@@ -144,7 +148,7 @@ fun ValnookRoot(
                         val noticeScope = rememberCoroutineScope()
                         // Background failures stack under the status bar, above every page.
                         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth()
-                            .padding(top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()),
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)),
                             verticalArrangement = Arrangement.spacedBy(Space.sm)) {
                             CloudFailureBanner(cloudState, sessions)
                             FxNoticeBanner(fxNotice, { id -> noticeScope.launch { active.graph.fxSync.consumeNotice(id) } })
@@ -378,7 +382,9 @@ private fun SessionRoot(
     val keyboardOpen by remember(ime, density) { derivedStateOf { ime.getBottom(density) > 0 } }
     val showCapsule = current.isRoot() && !keyboardOpen && !walletDetail
     var overlayHeightPx by remember { mutableIntStateOf(0) }
-    val systemBottom = WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding()
+    // The bars and cutout only: the viewport's own padding keeps pages above the keyboard, and leaving it out here
+    // keeps the keyboard's animation from recomposing the whole scaffold on every frame.
+    val systemBottom = WindowInsets.systemBars.union(WindowInsets.displayCutout).asPaddingValues().calculateBottomPadding()
     val bottomSpace = if (showCapsule) with(density) { overlayHeightPx.toDp() } else systemBottom
     // The bottom navigation folds to one tab while a root page scrolls down (see NavigationCollapse). It is left
     // alone under a card's details, the keyboard or a sub-page, so it comes back as it was.

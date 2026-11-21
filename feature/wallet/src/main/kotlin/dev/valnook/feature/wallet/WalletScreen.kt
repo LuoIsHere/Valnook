@@ -211,10 +211,15 @@ internal val WalletSelectionEasing=CubicBezierEasing(.28f,0f,.2f,1f)
     select:(Long)->Unit,reorder:(List<Long>,List<Long>)->Unit,list:LazyListState,add:()->Unit,
     cardModifier:@Composable (WalletCard)->Modifier,cardGlow:(WalletCard)->(()->Float)?) {
     if(cards.isEmpty()) {
-        Column(Modifier.fillMaxSize().padding(pageContentPadding()).padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
-            Text(stringResource(R.string.wallet_place_your_cards),style=MaterialTheme.typography.headlineSmall)
-            Spacer(Modifier.height(12.dp));Text(stringResource(R.string.wallet_collect_card_face_link_existing),color=MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(24.dp));PrimaryButton(add,Modifier.testTag("wallet-add-empty")){Text(stringResource(R.string.wallet_add_card))}
+        // Centred, and scrolling where it does not fit (landscape, large text), behind the bars like the cards would.
+        val padding=pageContentPadding()
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min=maxHeight).padding(padding).padding(24.dp),
+                verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally) {
+                Text(stringResource(R.string.wallet_place_your_cards),style=MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(12.dp));Text(stringResource(R.string.wallet_collect_card_face_link_existing),color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(24.dp));PrimaryButton(add,Modifier.testTag("wallet-add-empty")){Text(stringResource(R.string.wallet_add_card))}
+            }
         };return
     }
     val haptics=androidx.compose.ui.platform.LocalHapticFeedback.current

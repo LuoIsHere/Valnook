@@ -1,6 +1,7 @@
 package dev.valnook.designsystem
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -40,8 +41,12 @@ fun ValnookDialog(onDismissRequest: () -> Unit, confirmButton: @Composable () ->
             dismissButton?.invoke()
             confirmButton()
         }) {
-            if (text != null) CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
-                ProvideTextStyle(MaterialTheme.typography.bodyMedium) { text() }
+            // Measured after the title and buttons: in a short window (landscape, the keyboard up) the buttons keep
+            // their place and a scrolling text scrolls in what is left.
+            if (text != null) Box(Modifier.weight(1f, fill = false)) {
+                CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
+                    ProvideTextStyle(MaterialTheme.typography.bodyMedium) { text() }
+                }
             }
         }
     }

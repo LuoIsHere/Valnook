@@ -364,10 +364,10 @@ private fun InputBar(ui: AiChatUi, vm: AiChatViewModel) {
         vm.addPictures(uris.map { uri -> suspend { BillImageCodec.prepare(resolver, uri) } })
     }
     fun pick() = picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-    // Clear of the system bar; with the keyboard open the page already ends above it.
-    val keyboardOpen = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
-    val bottom = if (keyboardOpen) 0.dp else LocalPageBottomSpace.current
-    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = Space.sm, bottom = Space.sm + bottom),
+    // Clear of the system bar. The page already ends above the keyboard, which takes up the bar's share as it rises,
+    // so the bar stays put through the keyboard's animation. This is a sub-page: no floating navigation below it.
+    Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))
+        .testTag("ai-chat-input-bar").padding(start = 16.dp, end = 16.dp, top = Space.sm, bottom = Space.sm),
         verticalArrangement = Arrangement.spacedBy(Space.xs)) {
         if (ui.pictures.isNotEmpty() || ui.picturesWorking > 0) LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.xs)) {
             items(ui.pictures, key = { it.key }) { picture ->

@@ -208,19 +208,22 @@ private fun Notes() {
 fun WebAdminLockScreen(client: WebAdminClient?, onEnd: () -> Unit) {
     BackHandler(enabled = true) { /* ACTIVE can only be ended with the explicit action below. */ }
     Surface(Modifier.fillMaxSize().testTag("webadmin-lock"), color = MaterialTheme.colorScheme.background) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(Space.xl),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center) {
-            Text(stringResource(R.string.webadmin_lock_title), style = MaterialTheme.typography.headlineMedium,
-                textAlign = TextAlign.Center)
-            Spacer(Modifier.height(Space.md))
-            Text(stringResource(R.string.webadmin_lock_message), style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(Space.lg))
-            ClientDetails(client)
-            Spacer(Modifier.height(Space.xl))
-            PrimaryButton(onEnd, Modifier.fillMaxWidth().testTag("webadmin-lock-end")) {
-                Text(stringResource(R.string.webadmin_end))
+        // Centred, and scrolling where it does not fit (landscape, large text): the end button is the only way out.
+        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).heightIn(min = maxHeight).padding(Space.xl),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center) {
+                Text(stringResource(R.string.webadmin_lock_title), style = MaterialTheme.typography.headlineMedium,
+                    textAlign = TextAlign.Center)
+                Spacer(Modifier.height(Space.md))
+                Text(stringResource(R.string.webadmin_lock_message), style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+                Spacer(Modifier.height(Space.lg))
+                ClientDetails(client)
+                Spacer(Modifier.height(Space.xl))
+                PrimaryButton(onEnd, Modifier.fillMaxWidth().testTag("webadmin-lock-end")) {
+                    Text(stringResource(R.string.webadmin_end))
+                }
             }
         }
     }

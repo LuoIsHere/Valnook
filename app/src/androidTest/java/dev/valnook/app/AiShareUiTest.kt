@@ -3,6 +3,7 @@ package dev.valnook.app
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.view.View
 import androidx.compose.ui.test.*
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -35,6 +36,7 @@ import org.junit.Test
 import java.io.File
 import java.util.UUID
 import javax.inject.Inject
+import kotlin.math.abs
 
 /** Sharing text and pictures into Valnook, with AI and without; synthetic data, a scripted service. */
 @HiltAndroidTest
@@ -47,6 +49,7 @@ class AiShareUiTest {
     private val graph get() = sessions.session.value.graph
     private var cashId = 0L
     private var scenario: ActivityScenario<ShareActivity>? = null
+    private var keyboard: ScreenKeyboard? = null
 
     @Before fun seed() {
         hilt.inject()
@@ -64,6 +67,7 @@ class AiShareUiTest {
     }
 
     @After fun clean() {
+        keyboard?.restore()
         scenario?.close()
         ScriptedAiTransport.reset()
     }
@@ -150,6 +154,26 @@ class AiShareUiTest {
         }
         scenario!!.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         rule.waitUntil(8_000) { closed() }
+    }
+
+    /** The input bar sits on the navigation bar, then on the keyboard: never under it, nor floating above it. */
+    @Test fun the_chat_input_bar_sits_on_the_navigation_bar_and_then_on_the_keyboard() {
+        enableAi(pictures = false)
+        drafts("""{"type":"EXPENSE","amount":"12","currency":"CNY","category_id":${category("food")},"account_id":$cashId,"note":"合成午餐"}""")
+        share("合成午餐 12 元")
+        waitTag("ai-draft-d1-pending")
+        lateinit var window: View
+        scenario!!.onActivity { window = it.window.decorView }
+        val screen = ScreenKeyboard { window }.also { keyboard = it; it.prepare() }
+        val bar = rule.onNodeWithTag("ai-chat-input-bar")
+        val navigationBar = screen.navigationBar()
+        assertTrue("the navigation bar has no height", navigationBar > 0)
+        val closed = bar.fetchSemanticsNode().let { it.positionOnScreen.y + it.size.height }
+        assertTrue("closed bottom=$closed windowBottom=${screen.windowBottom()} navigationBar=$navigationBar",
+            abs(closed - (screen.windowBottom() - navigationBar)) <= 1f)
+        rule.onNode(hasSetTextAction() and hasAnyAncestor(hasTestTag("ai-chat-input-bar"))).performClick()
+        screen.show(rule)
+        screen.assertOn(rule, "share-chat-input-bar", bar)
     }
 
     @Test fun with_ai_off_the_bill_page_opens_with_the_text_in_the_note() {

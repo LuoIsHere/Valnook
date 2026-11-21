@@ -160,7 +160,8 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
             if (request != null && !request.closesShare) { editor = null; chat?.refresh() } else onClose(false)
         }
         BackHandler(onBack = back)
-        Scaffold(topBar = {
+        // As in the app: the sides here, the top in the bar, and the bottom left to each page (and the keyboard below).
+        Scaffold(contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal), topBar = {
             TopAppBar(title = { Text(if (request?.billId != null) stringResource(dev.valnook.app.R.string.title_edit_bill)
                 else if (request != null) stringResource(dev.valnook.feature.ai.R.string.ai_share_new_bill)
                 else chatToolbar?.title ?: stringResource(dev.valnook.feature.ai.R.string.ai_chat_title)) }, navigationIcon = {
@@ -170,7 +171,7 @@ internal fun ShareRoot(sessions: AppSessionManager, shared: SharedContent, onClo
             val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
             CompositionLocalProvider(dev.valnook.feature.bills.LocalBillImages provides graph.billImages,
                 LocalAccountImageLoader provides accountImages, LocalPageBottomSpace provides bottom) {
-                Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()).consumeWindowInsets(padding).imePadding()
+                Box(Modifier.fillMaxSize().padding(padding).consumeWindowInsets(padding).imePadding()
                     .testTag("share-root")) {
                     if (request != null) {
                         val editorVm: BillEditorViewModel = viewModel(key = "editor-${request.key}", factory = viewModelFactory { initializer {

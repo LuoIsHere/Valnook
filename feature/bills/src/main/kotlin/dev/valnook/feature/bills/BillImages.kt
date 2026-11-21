@@ -166,7 +166,9 @@ private object BillImageCache {
             HorizontalPager(pager, Modifier.fillMaxSize(), userScrollEnabled = !zoomed, key = { keys[it] }) { page ->
                 ZoomableImage(keys[page], onZoom = { if (page == pager.currentPage) zoomed = it })
             }
-            Row(Modifier.fillMaxWidth().statusBarsPadding().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Clear of the status bar, and in landscape of a cutout or the navigation bar at either side.
+            Row(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onDismiss, Modifier.testTag("bill-image-close")) {
                     FaIcon(FaIcons.xmark, stringResource(R.string.bill_image_close), Modifier.size(20.dp), tint = Color.White)
                 }
