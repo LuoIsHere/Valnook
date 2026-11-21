@@ -35,13 +35,19 @@ class WalletImageCache(private val repository: WalletRepository) {
     private val liveImages=java.util.concurrent.ConcurrentHashMap<String,java.lang.ref.WeakReference<WalletDecoded>>()
     // A few bytes per face, so a card still waiting for its pixels is drawn in its own colour.
     private val tints=java.util.concurrent.ConcurrentHashMap<String,Long>()
-    private val images=object:LruCache<String,WalletDecoded>(24*1024*1024){
+    /** Room for about twenty phone-width faces where the heap allows it, never less than the old fixed 24 MB. */
+    val budgetBytes:Int=(Runtime.getRuntime().maxMemory()/8).coerceIn(24L*1024*1024,64L*1024*1024).toInt()
+    private val images=object:LruCache<String,WalletDecoded>(budgetBytes){
         override fun sizeOf(key:String,value:WalletDecoded)=value.bitmap.width*value.bitmap.height*4
     }
     // A newly composed shared card must have the same pixels on its very first frame.
-    private fun cached(key:String)=images.get(key)?:liveImages[key]?.get()
+    // Widths a few pixels apart (the preload rounds the screen width differently from the laid-out card) share one
+    // decode: the face is cropped to the card anyway, so a 1/32 difference cannot be seen.
+    private fun cached(key:String,face:String,target:Int)=images.get(key)?:liveImages[key]?.get()?:
+        liveImages.entries.asSequence().filter{it.key.startsWith("$face:")}.mapNotNull{it.value.get()}
+            .filter{kotlin.math.abs(it.bitmap.width-target)<=target/32}.minByOrNull{kotlin.math.abs(it.bitmap.width-target)}
     fun peek(key:String,edge:Int?=null):WalletDecoded? =
-        edge?.let{cached("$key:${it.coerceIn(160,1120)}")}?:liveImages.entries
+        edge?.let{it.coerceIn(160,1120).let{target->cached("$key:$target",key,target)}}?:liveImages.entries
             .filter{it.key.startsWith("$key:")}.mapNotNull{it.value.get()}.maxByOrNull{it.bitmap.width}
     fun tint(key:String):Long?=tints[key]
     /**
@@ -53,19 +59,11 @@ class WalletImageCache(private val repository: WalletRepository) {
         val target=edge.coerceIn(160,1120)
         val cacheKey="$key:$target"
         requests.getOrPut(cacheKey){Mutex()}.withLock {
-        cached(cacheKey)?:decoders.withPermit {
+        cached(cacheKey,key,target)?:decoders.withPermit {
             val ticket=generation.get()
             repository.image(key)?.let { image ->
             tints[key]=image.tint
-            val options=BitmapFactory.Options()
-            var sample=1;while(image.width/(sample*2)>=target)sample*=2
-            options.inSampleSize=sample
-            BitmapFactory.decodeByteArray(image.bytes,0,image.bytes.size,options)?.let { decoded ->
-                val sized=if(decoded.width>target)android.graphics.Bitmap.createScaledBitmap(decoded,target,
-                    (decoded.height.toFloat()*target/decoded.width).toInt().coerceAtLeast(1),true) else decoded
-                if(sized!==decoded)decoded.recycle()
-                WalletDecoded(sized.asImageBitmap(),image.tint)
-            }?.also { if(ticket==generation.get()) {
+            decode(image.bytes,target)?.let { WalletDecoded(it.asImageBitmap(),image.tint) }?.also { if(ticket==generation.get()) {
                 liveImages.entries.removeAll{entry->entry.value.get()==null}
                 liveImages[cacheKey]=java.lang.ref.WeakReference(it)
                 images.put(cacheKey,it)
@@ -73,6 +71,19 @@ class WalletImageCache(private val repository: WalletRepository) {
         }}
         }
     }
+
+    /**
+     * Decodes straight to [target] wide: the decoder scales while reading, so no full-size copy is made and then
+     * scaled. A software bitmap measured faster here than a GPU one (whose upload moves into the decode); it is
+     * handed to the GPU ahead of its first draw instead.
+     */
+    private fun decode(bytes:ByteArray,target:Int):android.graphics.Bitmap? = runCatching {
+        android.graphics.ImageDecoder.decodeBitmap(android.graphics.ImageDecoder.createSource(java.nio.ByteBuffer.wrap(bytes))) { decoder,info,_ ->
+            decoder.allocator=android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+            val width=info.size.width
+            if(width>target)decoder.setTargetSize(target,(info.size.height.toLong()*target/width).toInt().coerceAtLeast(1))
+        }.also{it.prepareToDraw()}
+    }.getOrNull()
 }
 
 @Composable internal fun WalletCardView(card:WalletCard,cache:WalletImageCache,modifier:Modifier=Modifier,

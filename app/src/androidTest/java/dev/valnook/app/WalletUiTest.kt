@@ -1038,6 +1038,9 @@ class WalletUiTest {
         assertEquals(1,reads.get());assertNotNull(images.first())
         assertTrue(images.all{it===images.first()})
         assertEquals(600,requireNotNull(images.first()).bitmap.width)
+        // The preload and the laid-out card can round the width a pixel apart; that must not decode again.
+        assertSame(images.first(),runBlocking{cache.load(imageKey,601)});assertSame(images.first(),cache.peek(imageKey,599))
+        assertEquals(1,reads.get())
         // A trim drops the strong cache only: a face still held on screen is served as it is, with its tint.
         cache.clear()
         assertSame(images.first(),cache.peek(imageKey,600))

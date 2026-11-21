@@ -27,9 +27,10 @@ class WalletOverviewViewModel(private val repository:WalletRepository):ViewModel
         if(warming?.isActive!=true)warming=viewModelScope.launch {
             combine(cards.filterNotNull(),preloadEdge,snapshotFlow{scroll.firstVisibleItemIndex}){items,width,index->Triple(items,width,index)}
                 .collectLatest{(items,width,index)->
-                    // Keep startup decoding bounded; scrolling raises nearby cards' priority.
+                    // Enough for the cards a first screen shows, within three quarters of the cache so they all stay;
+                    // scrolling raises nearby cards' priority.
                     val bytesPerCard=(width.toLong()*width*4/1.586).toLong()
-                    val count=(16L*1024*1024/bytesPerCard).toInt().coerceIn(2,12)
+                    val count=(cache.budgetBytes*3L/4/bytesPerCard).toInt().coerceIn(2,16)
                     val candidates=items.asReversed().drop((index-1).coerceAtLeast(0)).take(count)
                     coroutineScope{candidates.mapNotNull{it.imageKey}.distinct().map{key->async{
                         try { cache.load(key,width) }
