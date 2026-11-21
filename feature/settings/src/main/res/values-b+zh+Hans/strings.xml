@@ -63,8 +63,10 @@
     <string name="settings_card_faces_summary">查看、上传、保存和删除卡包卡面</string>
     <string name="settings_webadmin">网页端管理</string>
     <string name="settings_webadmin_summary">通过同一局域网中的浏览器管理此设备</string>
-    <string name="settings_hidden_pages">隐藏的页面</string>
-    <string name="settings_hidden_page_summary">打开页面但不显示底部导航</string>
+    <string name="settings_more_pages">更多页面</string>
+    <string name="settings_section_bookkeeping">记账</string>
+    <string name="settings_section_interface">界面</string>
+    <string name="settings_section_data">数据</string>
     <string name="settings_nav_accounts">账户</string>
     <string name="settings_nav_investments">投资</string>
     <string name="settings_nav_statistics">统计</string>
@@ -124,7 +126,7 @@
     <string name="settings_navigation_always">始终显示</string>
     <string name="settings_navigation_hide_page">隐藏%1$s</string>
     <string name="settings_navigation_show_page">显示%1$s</string>
-    <string name="settings_navigation_hint">隐藏的页面仍可在「设置 › 隐藏的页面」中打开。</string>
+    <string name="settings_navigation_hint">隐藏的页面仍可在「设置 › 更多页面」中打开。</string>
     <string name="settings_navigation_full">导航栏最多显示 %1$d 个页面，先隐藏一个再添加。</string>
     <string name="settings_fx_summary">主币种 %1$s · %2$s</string>
     <string name="settings_fx_summary_unset">主币种未设置 · %1$s</string>

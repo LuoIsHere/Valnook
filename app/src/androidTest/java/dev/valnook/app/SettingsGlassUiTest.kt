@@ -105,6 +105,22 @@ class SettingsGlassUiTest {
         rule.onNodeWithTag("colors-picker").assertIsDisplayed()
     }
 
+    @Test fun hidden_pages_open_from_the_first_group_without_a_summary() {
+        val store = Store()
+        val vm = SettingsViewModel(store, store, SavedStateHandle())
+        var opened: NavigationItemId? = null
+        rule.setContent { ValnookTheme {
+            SettingsHome(vm, false, false, false, {}, {}, {}, {}, {}, {}, { opened = it }, "0.0.9", "test", 909)
+        } }
+        val label = InstrumentationRegistry.getInstrumentation().targetContext
+            .getString(dev.valnook.feature.settings.R.string.settings_nav_statistics)
+        val group = rule.onNodeWithTag("settings-more-pages").assertIsDisplayed().getUnclippedBoundsInRoot()
+        assertTrue(group.top < rule.onNodeWithTag("settings-fx").getUnclippedBoundsInRoot().top)
+        capture("settings-list", "settings-groups-light")
+        rule.onNodeWithTag("settings-page-STATISTICS").assertTextEquals(label).performClick()
+        assertEquals(NavigationItemId.STATISTICS, opened)
+    }
+
     @Test fun frosted_rate_input_edits_decimal_at_narrow_width_and_large_font() {
         val store = Store()
         val vm = SettingsViewModel(store, store, SavedStateHandle())

@@ -45,6 +45,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.graphics.Color
@@ -125,6 +128,22 @@ fun SettingsHome(
     AppearanceSettingsDialog(vm, language = false, visible = appearancePicker == "colors", onClose = { appearancePicker = null })
     LazyColumn(Modifier.fillMaxSize().testTag("settings-list"), contentPadding = pageContentPadding(),
         verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+        // Pages left out of the navigation bar open from here, so they come first; without any the group is gone.
+        val hidden = state.savedSettings.navigation.hiddenInOrder
+        if (hidden.isNotEmpty()) {
+            item { SettingsSectionTitle(stringResource(R.string.settings_more_pages)) }
+            item {
+                GlassCard(Modifier.testTag("settings-more-pages")) {
+                    hidden.forEachIndexed { index, page ->
+                        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                        SettingEntry(navigationLabel(page), null, { onHiddenPage(page) },
+                            Modifier.testTag("settings-page-${page.name}"),
+                            leadingIcon = { FaIcon(navigationIcon(page)) })
+                    }
+                }
+            }
+        }
+        item { SettingsSectionTitle(stringResource(R.string.settings_section_bookkeeping)) }
         item {
             GlassCard {
             // One entry for one page: the base currency is set there with the rates, so both are summed up here.
@@ -132,8 +151,23 @@ fun SettingsHome(
             SettingEntry(stringResource(R.string.settings_exchange_rates),
                 state.savedSettings.baseCurrency?.let { stringResource(R.string.settings_fx_summary, it.code, rates) }
                     ?: stringResource(R.string.settings_fx_summary_unset, rates), onRates, Modifier.testTag("settings-fx"))
+            if (onQuickEntry != null) {
+                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                SettingEntry(stringResource(R.string.settings_quick_entry), quickEntrySummary,
+                    onQuickEntry, Modifier.testTag("settings-quick-entry"))
+            }
+            if (onAi != null) {
+                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                SettingEntry(stringResource(R.string.settings_ai), aiSummary, onAi, Modifier.testTag("settings-ai"))
+            }
+            if (onReimbursements != null) {
+                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+                SettingEntry(stringResource(R.string.settings_reimbursements), reimbursementSummary, onReimbursements,
+                    Modifier.testTag("settings-reimbursements"))
+            }
             }
         }
+        item { SettingsSectionTitle(stringResource(R.string.settings_section_interface)) }
         item {
             GlassCard {
             ThemeSetting(themeMode, onThemeChange)
@@ -151,27 +185,14 @@ fun SettingsHome(
                 stringResource(R.string.settings_navigation_summary), onNavigation)
             }
         }
-        if (onReimbursements != null) item {
-            GlassCard {
-                SettingEntry(stringResource(R.string.settings_reimbursements), reimbursementSummary, onReimbursements,
-                    Modifier.testTag("settings-reimbursements"))
-                if (onBillImages != null) {
-                    HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
-                    SettingEntry(stringResource(R.string.settings_bill_images), billImagesSummary, onBillImages,
-                        Modifier.testTag("settings-bill-images"))
-                }
-            }
-        }
-        if (onAi != null || onQuickEntry != null) item {
-            GlassCard {
-                if (onQuickEntry != null) SettingEntry(stringResource(R.string.settings_quick_entry), quickEntrySummary,
-                    onQuickEntry, Modifier.testTag("settings-quick-entry"))
-                if (onQuickEntry != null && onAi != null) HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
-                if (onAi != null) SettingEntry(stringResource(R.string.settings_ai), aiSummary, onAi, Modifier.testTag("settings-ai"))
-            }
-        }
+        item { SettingsSectionTitle(stringResource(R.string.settings_section_data)) }
         item {
             GlassCard {
+            if (onBillImages != null) {
+                SettingEntry(stringResource(R.string.settings_bill_images), billImagesSummary, onBillImages,
+                    Modifier.testTag("settings-bill-images"))
+                HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
+            }
             SettingEntry(stringResource(R.string.settings_card_faces),
                 stringResource(R.string.settings_card_faces_summary), onCardFaces,
                 Modifier.testTag("settings-card-faces"))
@@ -186,23 +207,8 @@ fun SettingsHome(
                 Modifier.testTag("settings-webadmin"))
             }
         }
-        if (state.savedSettings.navigation.hiddenInOrder.isNotEmpty()) {
-            item {
-                GlassCard(Modifier.fillMaxWidth()) {
-                    Column {
-                        Text(stringResource(R.string.settings_hidden_pages),
-                            modifier = Modifier.padding(horizontal = Space.cardInset, vertical = Space.md),
-                            style = MaterialTheme.typography.titleMedium)
-                        HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
-                        state.savedSettings.navigation.hiddenInOrder.forEachIndexed { index, item ->
-                            SettingEntry(navigationLabel(item), stringResource(R.string.settings_hidden_page_summary),
-                                { onHiddenPage(item) })
-                            if (index < state.savedSettings.navigation.hiddenInOrder.lastIndex) HorizontalDivider(Modifier.padding(horizontal = Space.cardInset))
-                        }
-                    }
-                }
-            }
-        }
+        // The untitled entries below sit apart from the last group as the titled ones do.
+        item { Spacer(Modifier.height(Space.md)) }
         item {
             SwitchRow(stringResource(R.string.settings_demo_mode), demoMode, { onDemoChange(it) },
                 Modifier.testTag("settings-demo-switch"), summary = stringResource(R.string.settings_demo_summary),
@@ -248,8 +254,16 @@ fun SettingsHome(
     }
 }
 
+/** A group's name above its card on the settings page. */
 @Composable
-internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, modifier: Modifier = Modifier,
+private fun SettingsSectionTitle(text: String) {
+    Text(text, Modifier.padding(start = Space.cardInset, top = Space.md).semantics { heading() },
+        style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+}
+
+/** A row that opens a page; a null [summary] leaves the title on its own line. */
+@Composable
+internal fun SettingEntry(title: String, summary: String?, onClick: () -> Unit, modifier: Modifier = Modifier,
     leadingIcon: (@Composable () -> Unit)? = null, titleColor: Color = Color.Unspecified) {
     Row(modifier.fillMaxWidth().heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
         .clickable(role = Role.Button, onClick = onClick)
@@ -258,7 +272,7 @@ internal fun SettingEntry(title: String, summary: String, onClick: () -> Unit, m
         if (leadingIcon != null) Box(Modifier.padding(end = Space.md)) { leadingIcon() }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.xs)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = titleColor)
-            Text(summary, style = MaterialTheme.typography.bodySmall,
+            if (summary != null) Text(summary, style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         RowChevron()

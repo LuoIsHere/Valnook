@@ -63,8 +63,10 @@
     <string name="settings_card_faces_summary">View, upload, save and delete wallet card faces</string>
     <string name="settings_webadmin">Web administration</string>
     <string name="settings_webadmin_summary">Manage this device from a browser on the same LAN</string>
-    <string name="settings_hidden_pages">Hidden pages</string>
-    <string name="settings_hidden_page_summary">Open without showing the navigation bar</string>
+    <string name="settings_more_pages">More pages</string>
+    <string name="settings_section_bookkeeping">Bookkeeping</string>
+    <string name="settings_section_interface">Interface</string>
+    <string name="settings_section_data">Data</string>
     <string name="settings_nav_accounts">Accounts</string>
     <string name="settings_nav_investments">Investments</string>
     <string name="settings_nav_statistics">Statistics</string>
@@ -130,7 +132,7 @@
     <string name="settings_navigation_always">Always shown</string>
     <string name="settings_navigation_hide_page">Hide %1$s</string>
     <string name="settings_navigation_show_page">Show %1$s</string>
-    <string name="settings_navigation_hint">Hidden pages can still be opened from Settings › Hidden pages.</string>
+    <string name="settings_navigation_hint">Hidden pages can still be opened from Settings › More pages.</string>
     <!-- The limit is always more than one page, so the plural wording is always right. -->
     <string name="settings_navigation_full" tools:ignore="PluralsCandidate">The bar shows up to %1$d pages. Hide one to add another.</string>
     <string name="settings_fx_summary">Base currency %1$s · %2$s</string>
