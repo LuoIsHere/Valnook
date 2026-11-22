@@ -56,6 +56,7 @@ class GlassUiTest {
     }
 
     private fun save(name: String, bitmap: Bitmap) {
+        if (!TestShots.enabled) return
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
         }
@@ -64,7 +65,7 @@ class GlassUiTest {
     @Test fun root_glass_gallery_preserves_readable_overlays_in_both_themes() {
         val activity = rule.activity
         val graph = activity.sessions.session.value.graph
-        runBlocking { DemoDataSeeder(graph, graph.clock).seed(AppSettings()) }
+        runBlocking { DemoDataSeeder(graph, graph.clock).seed() }
         for (dark in listOf(false, true)) {
             val configuration = android.content.res.Configuration(activity.resources.configuration).apply {
                 uiMode = (uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK.inv()) or

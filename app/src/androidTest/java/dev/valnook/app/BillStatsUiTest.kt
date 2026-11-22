@@ -18,6 +18,7 @@ import dev.valnook.domain.repository.SaveFinancialSettings
 import dev.valnook.domain.repository.SaveNavigationConfiguration
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -101,9 +102,9 @@ class BillStatsUiTest {
         onPage("bill-stats-category-$food").assertTextContains("2 笔 · 80.0%", substring = true)
             .assertTextContains("48.00", substring = true)
         onPage("bill-stats-category-$transport").assertTextContains("1 笔 · 20.0%", substring = true)
-        val rows = rule.onAllNodes(hasTestTag("bill-stats-category-$food") or hasTestTag("bill-stats-category-$transport"))
-            .fetchSemanticsNodes().map { it.boundsInRoot.top }
-        assert(rows[0] < rows[1]) { "food should come before transport" }
+        // Kotlin's assert is off on the device, so these are plain JUnit checks.
+        assertTrue("food should come before transport", onPage("bill-stats-category-$food").fetchSemanticsNode().boundsInRoot.top <
+            onPage("bill-stats-category-$transport").fetchSemanticsNode().boundsInRoot.top)
 
         // A day's bar tells what was spent that day; by default the line gives the daily average.
         // To the end of the page, so the bars sit above the navigation bar rather than under it.
@@ -236,7 +237,7 @@ class BillStatsUiTest {
         val top = onPage("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top
         onPage("bill-stats-bars").performTouchInput { swipeDown() }
         rule.waitForIdle()
-        assert(onPage("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top > top + 20f) { "the page should scroll" }
+        assertTrue("the page should scroll", onPage("bill-stats-bars").fetchSemanticsNode().boundsInRoot.top > top + 20f)
         onPage("bill-stats-readout").assertTextContains("15.00 CNY", substring = true)
     }
 

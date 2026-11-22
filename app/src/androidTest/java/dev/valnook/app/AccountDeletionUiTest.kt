@@ -31,6 +31,7 @@ class AccountDeletionUiTest {
     @Before fun prepare(){hilt.inject()}
     private fun scene(content: @Composable () -> Unit){rule.runOnUiThread{rule.activity.setContent(content=content)};rule.waitForIdle()}
     private fun image(name:String){
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val node=if(rule.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty()) rule.onNode(isDialog()) else rule.onRoot()
         val bitmap=node.captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}

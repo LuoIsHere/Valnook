@@ -101,6 +101,7 @@ class OnboardingTest {
 
     private fun waitFor(condition: () -> Boolean) { rule.waitUntil(8_000, condition) }
     private fun capture(name: String) {
+        if (!dev.valnook.app.TestShots.enabled) return
         val output = File(context.getExternalFilesDir(null), "onboarding-test/$name.png")
         output.parentFile!!.mkdirs()
         val image = rule.onNodeWithTag("onboarding-test-root").captureToImage().asAndroidBitmap()

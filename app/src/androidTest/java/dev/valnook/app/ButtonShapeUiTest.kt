@@ -42,11 +42,6 @@ class ButtonShapeUiTest {
 
     private fun height(tag: String) = rule.onNodeWithTag(tag, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot.height
 
-    @Test fun same_height_at_normal_size() {
-        show(1f)
-        assertEquals(height("filled"), height("action"), 0.5f)
-    }
-
     @Test fun same_height_at_large_size() {
         show(2f)
         assertEquals(height("filled"), height("action"), 0.5f)

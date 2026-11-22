@@ -49,6 +49,7 @@ class NeutralMotionUiTest {
         assertTrue(indicator.left >= item.left - 1 && indicator.right <= item.right + 1)
     }
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -146,7 +147,7 @@ class NeutralMotionUiTest {
     @Test fun investment_expansion_can_reverse_without_opening_account() {
         val activity = rule.activity
         val graph = activity.sessions.session.value.graph
-        runBlocking { DemoDataSeeder(graph, graph.clock).seed(AppSettings()) }
+        runBlocking { DemoDataSeeder(graph, graph.clock).seed() }
         val position = runBlocking { graph.overview.snapshot() }.positions.first { it.holding_quantity_e8 > 0 }
         scene { ValnookRoot(activity.sessions, activity.webAdmin) }
         rule.onNodeWithTag("nav-investments").performClick()

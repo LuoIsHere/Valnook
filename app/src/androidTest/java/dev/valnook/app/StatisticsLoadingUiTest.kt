@@ -71,6 +71,7 @@ class StatisticsLoadingUiTest {
     }
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)

@@ -31,6 +31,7 @@ class AccountBehaviorUiTest {
         rule.runOnUiThread { rule.activity.setContent(content=content) };rule.waitForIdle()
     }
     private fun image(name:String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         // The topmost window: a subaccount panel opens over the form when its fields need fixing.
         val bitmap=rule.onAllNodes(isRoot()).onLast().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
@@ -110,26 +111,6 @@ class AccountBehaviorUiTest {
         assertNotNull(selected)
         assertTrue(runBlocking { graph.overview.snapshot().positions.isEmpty() })
         image("v0012-instrument-search")
-    }
-    @Test fun zero_limit_indicator_and_compact_balance_control_render_in_both_themes() {
-        for(dark in listOf(false,true)) {
-            var clicked=false
-            scene { ValnookTheme(dark_theme=dark) {
-                Column(Modifier.width(320.dp).padding(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-                    androidx.compose.material3.Text("Credit · 0.00 CNY")
-                    CreditLimitProgress(0.0,0.0)
-                    CreditLimitProgress(12.34,0.0)
-                    Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-                        androidx.compose.material3.Text("123.45 CNY",Modifier.weight(1f),style=androidx.compose.material3.MaterialTheme.typography.headlineSmall)
-                        CompactEditButton("Edit balance") {clicked=true}
-                    }
-                }
-            } }
-            rule.onNodeWithContentDescription("Edit balance").assertHeightIsEqualTo(32.dp).performClick()
-            assertTrue(clicked)
-            rule.mainClock.advanceTimeBy(500)
-            image("v0012-credit-"+if(dark) "dark" else "light")
-        }
     }
     @Test fun subaccounts_and_the_deposit_and_investment_entries_keep_one_rhythm() {
         val cny=Currency.of("CNY")

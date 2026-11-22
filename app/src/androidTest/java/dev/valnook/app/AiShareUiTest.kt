@@ -67,6 +67,8 @@ class AiShareUiTest {
     }
 
     @After fun clean() {
+        // The shared pictures sit in the camera folder the bill form also uses; none is left for later tests.
+        shared.forEach { it.delete() }
         keyboard?.restore()
         scenario?.close()
         ScriptedAiTransport.reset()
@@ -106,10 +108,12 @@ class AiShareUiTest {
         scenario = ActivityScenario.launch(intent)
     }
 
+    private val shared = mutableListOf<File>()
+
     /** A small synthetic picture, shared through the app's own file provider as another app's would be. */
     private fun picture(color: Int): android.net.Uri {
         val dir = File(context.cacheDir, "bill_camera").apply { mkdirs() }
-        val file = File(dir, "share-${UUID.randomUUID()}.png")
+        val file = File(dir, "share-${UUID.randomUUID()}.png").also { shared += it }
         val bitmap = Bitmap.createBitmap(64, 48, Bitmap.Config.ARGB_8888).apply { eraseColor(color) }
         file.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         return FileProvider.getUriForFile(context, "${context.packageName}.billcamera", file)

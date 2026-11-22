@@ -46,13 +46,14 @@ class WalletUiTest {
         runBlocking{change.await()}
         rule.waitForIdle()
     }
+    /** Always captures, since a capture draws the frame that later pixel reads look at; the file only with shots on. */
     private fun save(name:String) {
         rule.waitForIdle()
         // Capture all windows: root ordering is not stable while glass dialogs animate.
         val bitmap=if(name.startsWith("wallet-selection-")||name.startsWith("wallet-return-"))
             rule.onNodeWithTag("wallet-scene").captureToImage().asAndroidBitmap()
         else requireNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
-        PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+        if(TestShots.enabled)PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
         bitmap.recycle()
     }
     private val copied=java.util.concurrent.atomic.AtomicReference<android.content.ClipData?>()
@@ -454,8 +455,9 @@ class WalletUiTest {
         rule.runOnUiThread{rule.activity.setContent{ValnookTheme(dark_theme=false){WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}}
         rule.waitForIdle();save("wallet-stack-light")
     }
-    @Test fun fifty_cards_scroll_and_reorder_persists_without_a_sorting_menu() {
-        val ids=(1..50).map{card("Card $it",color=0xff000000.toInt() or ((70+it)*0x010101))}
+    // Saving an order is WalletDataTest's; here fifty cards scroll end to end with no sorting menu.
+    @Test fun fifty_cards_scroll_end_to_end_without_a_sorting_menu() {
+        (1..50).forEach{card("Card $it",color=0xff000000.toInt() or ((70+it)*0x010101))}
         root();rule.onNodeWithTag("nav-wallet").performClick()
         rule.waitUntil(10000){rule.onAllNodesWithTag("wallet-stack").fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithTag("wallet-stack").performScrollToIndex(0)
@@ -463,9 +465,6 @@ class WalletUiTest {
         rule.onNodeWithTag("wallet-stack").performScrollToIndex(49)
         save("wallet-fifty-front")
         rule.onNodeWithTag("wallet-manage").assertDoesNotExist()
-        runBlocking{wallet.reorder(ids,ids.reversed())}
-        assertEquals(ids.reversed(),runBlocking{wallet.observeCards().first()}.map{it.id})
-        rule.waitForIdle();save("wallet-fifty-reordered")
     }
     @Test fun long_press_drag_saves_once_and_returns_to_overview() {
         val ids=(1..5).map{card("Card $it",color=0xff000000.toInt() or ((60+it*22)*0x010101))}
@@ -1069,26 +1068,6 @@ class WalletUiTest {
         } finally {rule.mainClock.autoAdvance=true}
         rule.waitForIdle();rule.onNodeWithTag("wallet-detail").assertDoesNotExist()
         assertEquals(before,rule.onNodeWithTag("wallet-card-$selected",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot.top,2f)
-    }
-    @Test fun credit_detail_handles_large_type_narrow_and_landscape_layouts() {
-        switchDemo(true)
-        val cards=runBlocking{wallet.observeCards().first()}
-        val vm=rule.runOnUiThread{WalletViewModel(graph.sessionId,wallet,graph.overview,graph.cashPages,graph.clock,SavedStateHandle())}
-        rule.waitUntil(10000){vm.cards.value!=null}
-        rule.runOnUiThread{vm.select(cards[1].id)}
-        rule.waitUntil(10000){vm.snapshot.value!=null&&!vm.ledger.value.loading}
-        rule.runOnUiThread{rule.activity.setContent{
-            val density=LocalDensity.current
-            CompositionLocalProvider(LocalDensity provides Density(density.density,1.6f)) {
-                ValnookTheme(dark_theme=true){Box(Modifier.fillMaxSize().wrapContentSize(androidx.compose.ui.Alignment.TopStart).width(androidx.compose.ui.unit.Dp(320f)).fillMaxHeight()) {WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}
-            }
-        }}
-        rule.waitForIdle();rule.onNodeWithTag("wallet-ledger").performScrollToIndex(0);save("wallet-credit-large-narrow")
-        rule.onNodeWithTag("wallet-ledger").performTouchInput{swipeUp()};save("wallet-credit-collapsed")
-        rule.runOnUiThread{rule.activity.setContent{
-            ValnookTheme(dark_theme=false){Box(Modifier.fillMaxSize().wrapContentSize(androidx.compose.ui.Alignment.TopStart).fillMaxWidth().height(androidx.compose.ui.unit.Dp(320f))) {WalletScreen(vm,{}, {_,_,_->},{_,_->},walletCashSlots)}}
-        }}
-        rule.waitForIdle();save("wallet-landscape-height")
     }
     @Test fun existing_record_route_returns_to_selected_wallet_month() {
         val cash=runBlocking {

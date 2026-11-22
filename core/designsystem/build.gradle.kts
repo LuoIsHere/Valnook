@@ -25,3 +25,10 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 }
 
+
+// StringResourcesTest reads every module's text, so a change to any of it reruns the unit tests here.
+tasks.withType<Test>().configureEach {
+    inputs.files(fileTree(rootDir) {
+        include("app/src/main/res/values*/*.xml", "core/*/src/main/res/values*/*.xml", "feature/*/src/main/res/values*/*.xml")
+    }).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("stringResources")
+}

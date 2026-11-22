@@ -29,7 +29,6 @@
     <string name="cash">Cash</string>
     <string name="deposits">Deposits</string>
     <string name="investments">Investments</string>
-    <string name="edit">Edit</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="confirm">Confirm</string>
@@ -57,7 +56,6 @@
     <string name="execution_price">Execution price</string>
     <string name="buy">Buy</string>
     <string name="sell">Sell</string>
-    <string name="history">Trade history</string>
     <string name="trade_date">Trade date</string>
     <string name="trade_time">Trade time</string>
     <string name="linked">Cash linked</string>

@@ -114,6 +114,7 @@ class ThemeSettingsUiTest {
     }
 
     private fun screenshot(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val node = if (name.startsWith("theme-picker")) rule.onNodeWithTag("theme-picker") else rule.onRoot()
         val bitmap = node.captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use {
@@ -129,7 +130,7 @@ class ThemeSettingsUiTest {
         rule.onNodeWithTag("theme-option-SYSTEM").assertIsSelected()
         rule.onNodeWithTag("theme-option-DARK").assertIsNotSelected()
         rule.onNodeWithTag("theme-option-LIGHT").assertIsNotSelected()
-        rule.onNodeWithText(rule.activity.getString(dev.valnook.feature.settings.R.string.settings_cancel)).performClick()
+        rule.onNodeWithText(rule.activity.getString(dev.valnook.core.designsystem.R.string.cancel)).performClick()
         assertEquals(AppThemeMode.SYSTEM, ThemePreferences(context).read())
 
         choose(AppThemeMode.DARK)

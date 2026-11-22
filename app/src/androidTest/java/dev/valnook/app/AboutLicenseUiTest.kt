@@ -24,6 +24,7 @@ class AboutLicenseUiTest {
     @Before fun prepare() { hilt.inject(); rule.waitForIdle() }
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         rule.waitForIdle()
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("about-license-$name.png").use {

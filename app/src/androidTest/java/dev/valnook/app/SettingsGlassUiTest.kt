@@ -56,6 +56,7 @@ class SettingsGlassUiTest {
     }
 
     private fun capture(tag: String, name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val output = File(context.getExternalFilesDir(null), "ui-glass-test/$name.png")
         output.parentFile!!.mkdirs()

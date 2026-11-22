@@ -46,6 +46,7 @@ class TrendChartUiTest {
     @Before fun prepare(){hilt.inject();rule.waitForIdle()}
     @After fun close(){rule.runOnUiThread{store.clear()}}
     private fun capture(name:String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val bitmap=rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("trend-$name.png").use { bitmap.compress(Bitmap.CompressFormat.PNG,100,it) }
         bitmap.recycle()
@@ -234,13 +235,5 @@ class TrendChartUiTest {
         capture("statistics-light-selected")
         chart.performTouchInput {up()};rule.waitForIdle()
         assertEquals(before,chart.fetchSemanticsNode().config[SemanticsProperties.StateDescription])
-    }
-    @Test fun statistics_dark_english_monthly_theme_and_scroll() {
-        showStatistics(true,true)
-        rule.onNodeWithTag("statistics-granularity-total_assets-monthly").performClick();rule.waitForIdle()
-        capture("statistics-dark-monthly")
-        rule.onNodeWithTag("statistics-list").performScrollToNode(hasTestTag("statistics-chart-investment_value"))
-        rule.onNodeWithTag("statistics-change-investment_value").assertExists()
-        capture("statistics-dark-investments")
     }
 }

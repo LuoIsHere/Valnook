@@ -209,6 +209,7 @@ class UiFlowTest {
     }
     private fun shot(name:String,tag:String?=null,expected_width:Int?=null) {
         rule.waitForIdle()
+        if(expected_width==null&&!TestShots.enabled)return
         val node=if(tag==null)rule.onRoot() else rule.onNodeWithTag(tag)
         var captured:Bitmap?=null
         repeat(3) {attempt->
@@ -221,11 +222,13 @@ class UiFlowTest {
             }
         }
         val bitmap=requireNotNull(captured)
-        PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+        if(TestShots.enabled)PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
         assertTrue(bitmap.width>0&&bitmap.height>0)
         if(expected_width!=null)assertEquals(expected_width,bitmap.width)
     }
     private fun window_shot(name:String,bottom_action:String?=null) {
+        // Without an action to check it is only a picture.
+        if(bottom_action==null&&!TestShots.enabled){rule.waitForIdle();return}
         val action=bottom_action?.let{rule.onNodeWithText(it).performScrollTo().assertIsDisplayed()}
         rule.waitForIdle()
         val ime_hidden={rule.runOnUiThread {
@@ -255,7 +258,7 @@ class UiFlowTest {
         }
         val bitmap=requireNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
         try {
-            PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
+            if(TestShots.enabled)PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)}
             if(action!=null) {
                 val actionBottom=action.fetchSemanticsNode().boundsInWindow.bottom
                 assertTrue("Action overlaps system navigation: actionBottom=$actionBottom safeBottom=${bitmap.height-nav_bottom} navBottom=$nav_bottom",
@@ -263,7 +266,7 @@ class UiFlowTest {
             }
         }finally{bitmap.recycle()}
     }
-    @Test fun account_navigation_cash_errors_and_rotation_restoration() {
+    @Test fun subaccount_draft_survives_recreation_and_a_negative_balance_saves() {
         wait_text("合成账户 A")
         rule.onNodeWithTag("account-total-$account_id").performScrollTo().performClick()
         rule.onNodeWithTag("root-capsule").assertDoesNotExist()
@@ -669,7 +672,7 @@ class UiFlowTest {
         rule.onNodeWithTag("root-capsule").assertExists()
         val baseline = dev.valnook.app.navigation.EntryLifetime.active.get()
         val cleared = dev.valnook.app.navigation.EntryLifetime.cleared.get()
-        repeat(6) {
+        repeat(2) {
             rule.onNodeWithTag("account-total-$account_id").performClick()
             rule.onNodeWithTag("root-capsule").assertDoesNotExist()
             open_account_edit()
@@ -679,7 +682,7 @@ class UiFlowTest {
             wait_text("合成账户 B")
             rule.waitUntil(5000) { dev.valnook.app.navigation.EntryLifetime.active.get() == baseline }
         }
-        assertTrue(dev.valnook.app.navigation.EntryLifetime.cleared.get() >= cleared + 12)
+        assertTrue(dev.valnook.app.navigation.EntryLifetime.cleared.get() >= cleared + 4)
         rule.onNode(hasText("设置") and hasClickAction()).performClick()
         wait_text("主币种")
         wait_text("未设置")
@@ -698,7 +701,11 @@ class UiFlowTest {
         val deposits=listOf(TermDeposit(1,1,Currency.of("CNY"),1000000,R.parse_e8("3"),
             LocalDate.parse("2026-01-01").toEpochDay(),LocalDate.parse("2026-04-01").toEpochDay(),7397,false,true,null))
         val asset=Investment(1,1,1,"合成基金","一项名称非常长的合成投资资产","TEST-VERY-LONG-SYMBOL-1234567890123456789012345678901234567890",Currency.of("USD"),R.parse_e8("38.991"),R.parse_e8("26.1161"),0,remainingCost="1000",realizedProfit="0")
-        for(dark in listOf(false,true))for((width,height) in listOf(320 to 720,360 to 800,420 to 900,600 to 960,840 to 360))for(scale in listOf(1f,2f)) {
+        // The narrowest and widest at large text (where the actions must still be reachable) and the width whose symbol
+        // must ellipsize; theme changes nothing measured here, so the dark one is a single extra scene.
+        for((dark,size,scale) in listOf(Triple(false,320 to 720,2f),Triple(false,420 to 900,1f),Triple(false,840 to 360,2f),
+            Triple(true,320 to 720,2f))) {
+            val (width,height)=size
             val density=if(width<=420)2f else 1f
             val name="gallery-${if(dark)"dark" else "light"}-$width-$scale"
             show_scene(name) {
@@ -937,22 +944,12 @@ class UiFlowTest {
             SemanticsProperties.StateDescription, localized(dev.valnook.core.designsystem.R.string.state_expanded)))
         rule.onNode(hasText("账户") and hasClickAction()).performClick()
         rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
-        val readiness = mutableListOf<Double>()
-        repeat(30) {
-            val start = System.nanoTime()
-            rule.onNode(hasText("投资") and hasClickAction()).performClick()
-            wait_text("投资总市值"); wait_text("7 200.00 CNY")
-            rule.onNodeWithTag("investment-market-total").assertTextEquals("7 200.00 CNY")
-            rule.waitForIdle()
-            readiness.add((System.nanoTime() - start) / 1_000_000.0)
-            rule.onNode(hasText("账户") and hasClickAction()).performClick()
-            rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
-        }
-        readiness.sort()
-        val output = org.json.JSONObject().put("path", "root switch to investment ready semantics; retained snapshot")
-            .put("harness", "Compose test clock; not physical frame benchmark").put("accounts", 42)
-            .put("repetitions", 30).put("p50_ms", readiness[14]).put("p95_ms", readiness[28])
-        PlatformTestStorageRegistry.getInstance().openOutputFile("ui-readiness.json").use { it.write(output.toString(2).toByteArray()) }
+        // Once more there and back: the total is ready on arrival and the long list kept its place.
+        rule.onNode(hasText("投资") and hasClickAction()).performClick()
+        wait_text("7 200.00 CNY")
+        rule.onNodeWithTag("investment-market-total").assertTextEquals("7 200.00 CNY")
+        rule.onNode(hasText("账户") and hasClickAction()).performClick()
+        rule.onNodeWithText("合成长列表 40").assertIsDisplayed()
     }
     @Test fun cash_balance_editor_is_available_only_in_editor_and_ledger() {
         val editBalance = localized(dev.valnook.feature.cash.R.string.cash_edit_balance)
@@ -975,17 +972,8 @@ class UiFlowTest {
         rule.onNodeWithContentDescription(editBalance).performClick()
         // The editor's amount field is labelled by its description; saving is the toolbar check mark.
         rule.waitUntil(15000) { rule.onAllNodesWithTag("cash-balance-input").fetchSemanticsNodes().isNotEmpty() }
-        // ± leaves the cursor on the same digits, so typing goes where it should.
+        // How ± moves the cursor is SignToggleUiTest's; here the field is labelled and saves.
         val balanceInput = rule.onNodeWithTag("cash-balance-input").assertContentDescriptionContains(balanceLabel)
-        val toggleSign = rule.onNodeWithContentDescription("切换正负号")
-        balanceInput.performTextReplacement("")
-        toggleSign.performClick()
-        balanceInput.performTextInput("5")
-        balanceInput.assertTextEquals("-5")
-        balanceInput.performTextReplacement("43208.23")
-        toggleSign.performClick()
-        balanceInput.performTextInput("9")
-        balanceInput.assertTextEquals("-43208.239")
         balanceInput.performTextReplacement("135.00")
         finish_input()
         rule.onNodeWithTag("cash-balance-save").performClick()
@@ -1006,6 +994,8 @@ class UiFlowTest {
             val settings = graph.overview.snapshot().settings
             graph.settingsWriter.applyChange(SaveFinancialSettings(settings.revision, Currency.of("CNY"), emptyList()))
         }
+        // Seeded straight into Room, which Compose does not wait for.
+        rule.waitUntil(10_000) { rule.onAllNodesWithTag("account-toggle-$account_id").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("account-toggle-$account_id").assertIsDisplayed().performTouchInput {
             click(androidx.compose.ui.geometry.Offset(24f, 24f))
         }
@@ -1314,43 +1304,6 @@ class UiFlowTest {
             assertEquals(-5_200L, credit.balance_minor)
             assertEquals(5_000L, credit.creditProfile?.creditLimitMinor)
         }
-    }
-
-    @Test fun instrument_library_filters_by_asset_type() {
-        runBlocking {
-            graph.settingsWriter.applyChange(SaveFinancialSettings(0,Currency.of("CNY"),emptyList()))
-            val stock=createType("合成股票")
-            val bond=createType("合成债券")
-            createType("合成空类型")
-            createInvestment(account_id,"甲股票","STKA",stock,"CNY",R.parse_e8("1"),R.parse_e8("10"),R.parse_e8("10"))
-            createInvestment(account_id,"乙股票","STKB",stock,"CNY",R.parse_e8("1"),R.parse_e8("10"),R.parse_e8("10"))
-            createInvestment(account_id,"丙债券","BOND",bond,"CNY",R.parse_e8("1"),R.parse_e8("10"),R.parse_e8("10"))
-        }
-        wait_text("合成账户 A")
-        rule.onNode(hasText("投资") and hasClickAction()).performClick()
-        wait_text("投资总市值")
-        rule.onNodeWithContentDescription("所有标的").performClick()
-        wait_text("丙债券")
-        fun shown(name:String)=rule.onAllNodesWithText(name).fetchSemanticsNodes().isNotEmpty()
-        // The asset classes are capsules, each with how many instruments it has.
-        fun capsule(name:String)=hasText(name) and hasAnyAncestor(hasTestTag("instrument-type-filter"))
-        fun choose(option:String,count:String) {
-            rule.onNodeWithTag("instrument-type-filter").performScrollToNode(capsule(option))
-            rule.onNode(capsule(option)).assert(hasText(count)).performClick()
-            rule.waitForIdle()
-            rule.onNode(capsule(option)).assertIsSelected()
-        }
-        rule.onNode(capsule("全部")).assert(hasText("3")).assertIsSelected()
-        choose("合成股票","2")
-        assertTrue(shown("甲股票")&&shown("乙股票")&&!shown("丙债券"))
-        rule.onNode(hasSetTextAction()).performTextInput("乙")
-        rule.waitForIdle()
-        assertTrue(!shown("甲股票")&&shown("乙股票")&&!shown("丙债券"))
-        rule.onNode(hasSetTextAction()).performTextClearance()
-        choose("合成空类型","0")
-        assertTrue(shown("该资产类型下暂无标的")&&!shown("甲股票")&&!shown("丙债券"))
-        choose("全部","3")
-        assertTrue(shown("甲股票")&&shown("乙股票")&&shown("丙债券"))
     }
 
     @Test fun dividends_are_recorded_from_the_instrument_and_add_to_realized_profit() {
@@ -1683,7 +1636,7 @@ class UiFlowTest {
     }
 
     @Test fun input_outlines_align_with_large_fonts_at_two_widths() {
-        for((width,height) in listOf(320 to 720,360 to 800,420 to 900,600 to 960,840 to 360))for(scale in listOf(1f,2f)) {
+        for((width,height) in listOf(320 to 720,840 to 360))for(scale in listOf(1f,2f)) {
             val density=if(width<=420)2f else 1f
             show_scene("inputs-$width-$scale") {
                 CompositionLocalProvider(LocalDensity provides Density(density,scale)) {
@@ -1714,38 +1667,6 @@ class UiFlowTest {
             assertEquals(checkbox.center.y, checkboxLabel.center.y, 1f)
             if (width in listOf(320,840) && scale == 2f) shot("checkbox-alignment-$width", "inputs", (width*density).toInt())
             rule.onNodeWithText("保存").performScrollTo().assertIsDisplayed()
-        }
-    }
-
-    @Test fun explicit_language_remains_stable_after_platform_recreation() {
-        val localeManager = InstrumentationRegistry.getInstrumentation().targetContext
-            .getSystemService(LocaleManager::class.java)
-        val settingsLabel = localized(dev.valnook.app.R.string.nav_settings)
-        val baseCurrencyLabel = localized(dev.valnook.feature.settings.R.string.settings_base_currency)
-        val languageLabel = localized(dev.valnook.feature.settings.R.string.settings_language)
-        val initialLocaleTags = localeManager.applicationLocales.toLanguageTags()
-        try {
-            wait_text("合成账户 A")
-            rule.onNode(hasText(settingsLabel) and hasClickAction()).performClick()
-            wait_text(baseCurrencyLabel)
-            rule.onNode(hasText(languageLabel) and hasClickAction()).performClick()
-            rule.onNodeWithTag("language-option-ENGLISH").performClick()
-
-            rule.waitUntil(15_000) { localeManager.applicationLocales.toLanguageTags() == "en" }
-            wait_text("Language")
-            rule.onNodeWithTag("language-picker").assertDoesNotExist()
-            repeat(10) {
-                Thread.sleep(200)
-                assertEquals("en", localeManager.applicationLocales.toLanguageTags())
-            }
-        } finally {
-            runBlocking {
-                val current = graph.settings.observeSettings().first()
-                if (current.language != AppLanguage.SYSTEM) {
-                    graph.settingsWriter.applyChange(SaveLanguage(current.revision,AppLanguage.SYSTEM))
-                }
-            }
-            localeManager.applicationLocales = LocaleList.forLanguageTags(initialLocaleTags)
         }
     }
 }

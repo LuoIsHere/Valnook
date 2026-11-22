@@ -101,6 +101,7 @@ class InstrumentDetailUiTest {
     }
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         rule.waitForIdle()
         // The whole screen, so a dialog in its own window is included.
         val bitmap = requireNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())

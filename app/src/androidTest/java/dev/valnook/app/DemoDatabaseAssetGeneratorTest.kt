@@ -61,8 +61,10 @@ import java.util.UUID
  */
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
+    /** Builds the bundled asset, not a check of the app: runs only with `-e generateDemo true`. */
     @Test
     fun exportDemoDatabase() = runBlocking {
+        org.junit.Assume.assumeTrue(InstrumentationRegistry.getArguments().getString("generateDemo") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.deleteDatabase(EXPORT_DATABASE_NAME)
         val pictures = java.io.File(context.filesDir, "bill_images_${EXPORT_DATABASE_NAME.removeSuffix(".db")}")

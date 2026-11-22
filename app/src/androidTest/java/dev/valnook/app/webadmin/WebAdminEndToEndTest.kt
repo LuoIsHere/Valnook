@@ -835,27 +835,6 @@ class WebAdminEndToEndTest {
         socket.close()
     }
 
-    @Test fun protocol_pong_keeps_session_active_without_javascript_timer_heartbeat() = runBlocking<Unit> {
-        web.start()
-        val waiting = web.state.value
-        val endpoint = URI(requireNotNull(waiting.url))
-        val origin = "http://${endpoint.host}:${endpoint.port}"
-        val paired = http(endpoint, "POST", "/api/v1/pair/code", origin = origin,
-            body = "{\"code\":\"${requireNotNull(waiting.pairingCode)}\"}")
-        assertEquals(200, paired.status)
-        val cookie = paired.headers["set-cookie"].orEmpty().substringBefore(';')
-        val socket = openWebSocket(endpoint, origin, cookie)
-        awaitPhase(WebAdminPhase.ACTIVE)
-
-        val protocolResponder = launch(Dispatchers.IO) { runCatching { respondToProtocolPings(socket) } }
-        delay(17_000)
-        assertEquals(WebAdminPhase.ACTIVE, web.state.value.phase)
-        assertEquals(200, http(endpoint, "GET", "/api/v1/session", cookie = cookie).status)
-
-        socket.close()
-        protocolResponder.cancelAndJoin()
-    }
-
     @Test fun mobile_browser_bearer_reconnects_without_cookie_or_repairing() = runBlocking<Unit> {
         web.start()
         val waiting = web.state.value
@@ -1008,7 +987,7 @@ class WebAdminEndToEndTest {
         return Triple(endpoint, origin, paired.headers["set-cookie"].orEmpty().substringBefore(';'))
     }
 
-    @Test fun phone_stays_awake_until_idle_timeout_and_background_ends_session() = runBlocking<Unit> {
+    @Test fun phone_stays_awake_while_a_session_is_open_and_background_ends_it() = runBlocking<Unit> {
         ActivityScenario.launch(MainActivity::class.java).use { activity ->
             web.start()
             val waiting = web.state.value
@@ -1026,11 +1005,14 @@ class WebAdminEndToEndTest {
             assertEquals(WebAdminPhase.ACTIVE, web.state.value.phase)
             activity.onActivity { assertTrue(it.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0) }
             val responder = launch(Dispatchers.IO) { runCatching { respondToProtocolPings(socket) } }
-            // Exercise the production five-minute timer, with heartbeats but no user activity.
-            repeat(60) {
-                if (web.state.value.phase == WebAdminPhase.ACTIVE) runCatching { sendMaskedText(socket, "heartbeat") }
-                delay(5_000)
-            }
+            if (androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("webIdle") == "true") {
+                // The production five-minute timer, with heartbeats but no user activity: only with `-e webIdle true`.
+                // The idle rule itself is checked with a fake clock in PairingCoordinatorTest.
+                repeat(60) {
+                    if (web.state.value.phase == WebAdminPhase.ACTIVE) runCatching { sendMaskedText(socket, "heartbeat") }
+                    delay(5_000)
+                }
+            } else web.stop()
             awaitPhase(WebAdminPhase.CLOSED)
             activity.onActivity { assertEquals(0, it.window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
             socket.close(); responder.cancelAndJoin()

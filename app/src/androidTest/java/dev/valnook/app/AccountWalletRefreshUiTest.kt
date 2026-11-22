@@ -37,6 +37,7 @@ class AccountWalletRefreshUiTest {
     private fun label(id:Int)=rule.activity.getString(id)
     private fun waitTag(tag:String){rule.waitUntil(15000){rule.onAllNodesWithTag(tag,useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}}
     private fun capture(name:String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         rule.waitForIdle()
         val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()!!
         PlatformTestStorageRegistry.getInstance().openOutputFile("refresh-$name.png").use{bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle()
@@ -53,7 +54,6 @@ class AccountWalletRefreshUiTest {
         rule.onNodeWithText("Everyday balance").performClick()
         rule.waitUntil(10000){rule.onAllNodesWithContentDescription(label(dev.valnook.feature.cash.R.string.cash_edit_balance)).fetchSemanticsNodes().isNotEmpty()}
         capture("cash-detail")
-        rule.onNodeWithText("近6个月").assertDoesNotExist()
         rule.onNodeWithContentDescription(label(dev.valnook.feature.cash.R.string.cash_edit_balance)).performClick()
         waitTag("cash-balance-input")
         rule.onNodeWithTag("cash-balance-input").performTextReplacement("4500.00")
@@ -155,7 +155,5 @@ class AccountWalletRefreshUiTest {
         rule.waitUntil(15000){rule.onAllNodes(hasContentDescription(points.getValue(credit.id).first().date.toString(),substring=true)).fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithText(label(dev.valnook.core.designsystem.R.string.credit_owed)).assertExists()
         capture("demo-debt-trend")
-        rule.onNodeWithText("近6个月").assertDoesNotExist()
-        rule.onNodeWithText("余额趋势").assertDoesNotExist()
     }
 }

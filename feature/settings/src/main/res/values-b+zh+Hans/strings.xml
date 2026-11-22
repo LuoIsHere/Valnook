@@ -67,7 +67,6 @@
     <string name="settings_nav_investments">投资</string>
     <string name="settings_nav_statistics">统计</string>
     <string name="settings_nav_settings">设置</string>
-    <string name="settings_cancel">取消</string>
     <string name="settings_move_up">上移</string>
     <string name="settings_move_down">下移</string>
     <string name="settings_reorder">拖动排序</string>

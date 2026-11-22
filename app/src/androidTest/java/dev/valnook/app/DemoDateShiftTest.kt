@@ -104,9 +104,17 @@ class DemoDateShiftTest {
         }
     }
 
+    @Test fun the_bundled_demo_opens_at_the_current_schema_without_a_cloud_connection() = demo(0) { database ->
+        assertEquals(dev.valnook.data.database.DATABASE_SCHEMA_VERSION, database.openHelper.readableDatabase.version)
+        val cloud = runBlocking { database.cloudBackup().state() }
+        org.junit.Assert.assertNull(cloud.account_reference)
+        org.junit.Assert.assertFalse(cloud.automatic_enabled)
+    }
+
     @Test fun cards_owe_what_they_owed_wherever_today_is() {
         val base = owed(0)
-        listOf(11L, 40L, 101L, 365L, -49L).forEach { days ->
+        // Within a month, across a year end, and back to the tests' fixed date.
+        listOf(11L, 365L, -49L).forEach { days ->
             val moved = owed(days)
             Log.i("DemoDateShiftTest", "shift $days: $moved (base $base)")
             assertEquals("shift $days", base, moved)

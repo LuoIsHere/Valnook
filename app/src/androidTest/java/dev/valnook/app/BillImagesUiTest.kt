@@ -34,6 +34,7 @@ import dev.valnook.feature.bills.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -86,13 +87,17 @@ class BillImagesUiTest {
             subCategoryId = key("food.lunch"), note = "合成午饭", images = images))).id
     }
 
+    /** The name of the file the camera was asked to write, once it was. */
+    private var cameraFile: String? = null
+
     /** Answers the photo picker with [picked] and the camera by writing [photo] where it asks. */
     private fun registry(picked: List<File>, photo: ByteArray) = object : ActivityResultRegistry() {
         override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I,
             options: androidx.core.app.ActivityOptionsCompat?) {
             val result = when (contract) {
                 is ActivityResultContracts.TakePicture -> {
-                    rule.activity.contentResolver.openOutputStream(input as Uri)!!.use { it.write(photo) }
+                    cameraFile = (input as Uri).lastPathSegment
+                    rule.activity.contentResolver.openOutputStream(input)!!.use { it.write(photo) }
                     android.content.Intent()
                 }
                 else -> android.content.Intent().apply {
@@ -147,8 +152,8 @@ class BillImagesUiTest {
         rule.onNodeWithTag("bill-image-take-photo").performClick()
         waitTag("bill-editor-image-2")
         rule.onNodeWithTag("bill-images-pill").assertTextEquals("图片 3/4")
-        // The camera's file is read and gone; only the stored copy is left.
-        assertTrue(File(rule.activity.cacheDir, "bill_camera").listFiles().orEmpty().isEmpty())
+        // The camera's file is read and gone; only the stored copy is left. (Other tests share that folder.)
+        assertFalse(File(File(rule.activity.cacheDir, "bill_camera"), requireNotNull(cameraFile)).exists())
 
         // A picture added here and taken off again is deleted at once.
         val removed = vm.state.value.form.images.first().key

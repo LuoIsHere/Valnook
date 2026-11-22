@@ -328,12 +328,10 @@ class AiChatUiTest {
             val fingerprint = ai.observeSettings().first().connection.fingerprint
             TestGraphs.real.aiChecks.save(AiCheckReport(fingerprint, 0, AiCheckItem.entries.associateWith { AiCheck(AiCheckState.PASSED) }))
         }
-        // Once the check is in, a tap turns it on.
-        rule.waitUntil(8_000) {
-            rule.onNodeWithTag("ai-chat-thinking").performClick()
-            rule.waitForIdle()
-            runCatching { rule.onNodeWithTag("ai-chat-thinking").assertIsOn() }.isSuccess
-        }
+        // Once the check is in, the switch can be used, and one tap turns it on (tapping in a loop could turn it back off).
+        rule.waitUntil(8_000) { runCatching { rule.onNodeWithTag("ai-chat-thinking").assertIsEnabled() }.isSuccess }
+        rule.onNodeWithTag("ai-chat-thinking").performClick()
+        rule.waitUntil(5_000) { runCatching { rule.onNodeWithTag("ai-chat-thinking").assertIsOn() }.isSuccess }
         drafts("One bill", """{"type":"EXPENSE","amount":"12"}""")
         send("Lunch 12")
         waitTag("ai-draft-d1-pending")

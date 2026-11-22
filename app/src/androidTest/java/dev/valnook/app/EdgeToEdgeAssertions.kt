@@ -135,10 +135,10 @@ class ScreenKeyboard(private val view: () -> View) {
         // The IME and its inset animation run on the platform clock, not the Compose test clock.
         SystemClock.sleep(500)
         rule.waitForIdle()
-        PlatformTestStorageRegistry.getInstance().openOutputFile("keyboard-$name.png").use {
+        if (TestShots.enabled) PlatformTestStorageRegistry.getInstance().openOutputFile("keyboard-$name.png").use {
             requireNotNull(automation.takeScreenshot()).compress(Bitmap.CompressFormat.PNG, 100, it)
         }
-        // Measure after the screenshot, so a late scroll back would still be caught.
+        // Measure a moment later, so a late scroll back would still be caught.
         SystemClock.sleep(300)
         rule.waitForIdle()
     }

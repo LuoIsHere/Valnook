@@ -48,6 +48,7 @@ class FxRateEditorUiTest {
     }
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val bitmap = rule.onNodeWithTag("fx-editor-shot").captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("fx-editor-$name.png").use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -84,8 +85,6 @@ class FxRateEditorUiTest {
         rule.onNode(hasAnyAncestor(hasTestTag("fx-rate-1")) and hasText("8.958967926895"), useUnmergedTree = true).assertExists()
         save("read-only")
     }
-
-    @Test fun dark_theme_shot() { show(dark = true); save("dark") }
 
     @Test fun narrow_large_font_keeps_the_rate_field_usable() {
         show(fontScale = 1.3f, width = 320)

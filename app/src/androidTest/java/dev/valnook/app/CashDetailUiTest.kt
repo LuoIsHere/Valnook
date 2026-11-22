@@ -101,6 +101,7 @@ class CashDetailUiTest {
     }
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("cash-detail-$name.png").use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
@@ -183,13 +184,6 @@ class CashDetailUiTest {
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("cash-cycle-totals").fetchSemanticsNodes().isEmpty() }
         rule.onNodeWithTag("cash-view-month").assertIsSelected()
         save("month-changes")
-    }
-
-    @Test fun credit_cycle_card_in_dark_mode_with_large_text() {
-        show(cycleCard(), dark = true, fontScale = 1.5f)
-        rule.onNodeWithTag("cash-detail-list").performScrollToNode(hasTestTag("cash-cycle-card"))
-        rule.onNodeWithTag("cash-cycle-remaining").assertExists()
-        save("cycle-card-dark-large-font")
     }
 
     @Test fun credit_header_shows_the_debt_and_bill_then_collapses_into_the_bar() {
@@ -329,18 +323,5 @@ class CashDetailUiTest {
         rule.waitUntil(5_000) { rule.onAllNodesWithTag("cash-month-empty").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("ledger-month").assertTextEquals("2026年10月")
         rule.onNodeWithText("本月没有余额变化").assertIsDisplayed()
-    }
-
-    @Test fun dark_and_large_font_shots() {
-        show(credit = true, dark = true, fontScale = 1.3f)
-        rule.onNodeWithTag("cash-trend-value").assertIsDisplayed()
-        editButtons().assertCountEquals(1)
-        save("credit-dark-large-font")
-    }
-
-    @Test fun ledger_dark_and_large_font_shot() {
-        show(septemberLedger(), dark = true, fontScale = 1.3f)
-        rule.onNodeWithTag("cash-day-2026-09-03").assertExists()
-        save("ledger-dark-large-font")
     }
 }

@@ -40,9 +40,8 @@ class DemoWalkthroughUiTest {
     private val english = Words("Bank cards", "China Merchants Bank", "CMB debit card", "Salary", "CMB debit card",
         "CSI 300 ETF")
 
+    // Both languages and both themes, in two walks: the checks are the same in every pairing.
     @Test fun demo_reads_in_chinese_light() = walk(english = false, dark = false)
-    @Test fun demo_reads_in_chinese_dark() = walk(english = false, dark = true)
-    @Test fun demo_reads_in_english_light() = walk(english = true, dark = false)
     @Test fun demo_reads_in_english_dark() = walk(english = true, dark = true)
 
     private fun walk(english: Boolean, dark: Boolean) {
@@ -184,6 +183,7 @@ class DemoWalkthroughUiTest {
     }
 
     private fun capture(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         rule.waitForIdle()
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("demo-$name.png").use {

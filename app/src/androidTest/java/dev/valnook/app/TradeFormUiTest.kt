@@ -81,6 +81,7 @@ class TradeFormUiTest {
     }
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         rule.waitForIdle()
         val bitmap = requireNotNull(androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot())
         PlatformTestStorageRegistry.getInstance().openOutputFile("trade-form-$name.png").use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }

@@ -66,6 +66,7 @@ class AccountInvestmentsUiTest {
     }
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         rule.waitForIdle()
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("account-investments-$name.png").use {
@@ -111,7 +112,7 @@ class AccountInvestmentsUiTest {
     /** On the account page itself: the profit card holds its numbers, and the section's title sits close to both cards. */
     @Test fun account_tab_keeps_the_profit_card_whole_and_the_title_tight() {
         val graph = rule.activity.sessions.session.value.graph
-        runBlocking { dev.valnook.app.di.DemoDataSeeder(graph, graph.clock).seed(AppSettings()) }
+        runBlocking { dev.valnook.app.di.DemoDataSeeder(graph, graph.clock).seed() }
         val accountId = runBlocking { graph.overview.snapshot() }.positions.first { it.holding_quantity_e8 > 0 }.account_id
         rule.waitUntil(15_000) { rule.onAllNodesWithTag("account-total-$accountId").fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("account-total-$accountId").performScrollTo().performClick()

@@ -66,12 +66,16 @@ internal class DemoDataSeeder(private val graph: AppGraph, private val clock: Cl
     private val start = LocalDate.of(today.year - 9, 1, 3)
     private val random = Random(20261020)
 
-    /** [rates] defaults to round figures; the bundled demo database passes its fixed fetched rates instead. */
-    suspend fun seed(displayPreferences: AppSettings, rates: List<FxRate> = DEFAULT_RATES) {
+    /**
+     * [rates] defaults to round figures; the bundled demo database passes its fixed fetched rates instead. Language and
+     * colours change only when [displayPreferences] is given: UI tests seed a live app, where a language change
+     * restarts the activity and outlives the test.
+     */
+    suspend fun seed(displayPreferences: AppSettings? = null, rates: List<FxRate> = DEFAULT_RATES) {
         var stored = graph.settingsWriter.applyChange(SaveFinancialSettings(0, Currency.of("CNY"), rates))
-        if (stored.language != displayPreferences.language) stored = graph.settingsWriter.applyChange(
+        if (displayPreferences != null && stored.language != displayPreferences.language) stored = graph.settingsWriter.applyChange(
             SaveLanguage(stored.revision, displayPreferences.language))
-        if (stored.gainLossColors != displayPreferences.gainLossColors) graph.settingsWriter.applyChange(
+        if (displayPreferences != null && stored.gainLossColors != displayPreferences.gainLossColors) graph.settingsWriter.applyChange(
             SaveGainLossColors(stored.revision, displayPreferences.gainLossColors))
 
         val accounts = createAccounts()

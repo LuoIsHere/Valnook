@@ -109,9 +109,10 @@ class AiQueryChatUiTest {
                 "tool_calls":[{"id":"q1","type":"function","function":{"name":"query_summary","arguments":${JsonPrimitive(arguments)}}}]}}],
                 "usage":{"prompt_tokens":900,"completion_tokens":40,"total_tokens":940}}""")
         }
-        // The answer takes a moment, so the page can show what it looked up meanwhile.
+        // The answer waits until the page has shown what it looked up meanwhile.
+        val answer = kotlinx.coroutines.CompletableDeferred<Unit>()
         ScriptedAiTransport.reply {
-            delay(2_500)
+            answer.await()
             AiHttpResponse(200, """{"choices":[{"message":{"role":"assistant","content":"这个月餐饮 35.00。"}}],
                 "usage":{"prompt_tokens":1000,"completion_tokens":20,"total_tokens":1020}}""")
         }
@@ -119,6 +120,7 @@ class AiQueryChatUiTest {
         waitTag("ai-chat-querying")
         rule.onNodeWithTag("ai-chat-querying").assertTextContains("正在查询：", substring = true)
             .assertTextContains("支出 · 按分类", substring = true)
+        answer.complete(Unit)
         rule.waitUntil(10_000) { rule.onAllNodes(tagStarting("ai-chat-queries-")).fetchSemanticsNodes().isNotEmpty() }
         rule.onNodeWithTag("ai-chat-querying").assertDoesNotExist()
         // No bill was asked for, so there is nothing to record by hand.

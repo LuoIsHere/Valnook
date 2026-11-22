@@ -80,6 +80,7 @@ class WalletDetailSummaryUiTest {
     private fun textBounds(text: String): Rect = rule.onNodeWithText(text, useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("wallet-summary-$name.png").use {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)

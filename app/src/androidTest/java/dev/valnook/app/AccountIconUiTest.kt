@@ -46,6 +46,7 @@ class AccountIconUiTest {
         rule.waitForIdle()
     }
     private fun save(name: String, tag: String? = null) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         val node = if (tag == null) rule.onRoot() else rule.onNodeWithTag(tag)
         val bitmap = node.captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("$name.png").use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }

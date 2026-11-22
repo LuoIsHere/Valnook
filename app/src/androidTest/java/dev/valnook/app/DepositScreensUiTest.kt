@@ -50,6 +50,7 @@ class DepositScreensUiTest {
         if (closed) false else null, closedAtMs = closedAt)
 
     private fun save(name: String) {
+        if (!TestShots.enabled) { rule.waitForIdle(); return }
         rule.waitForIdle()
         val bitmap = rule.onRoot().captureToImage().asAndroidBitmap()
         PlatformTestStorageRegistry.getInstance().openOutputFile("deposit-$name.png").use {
