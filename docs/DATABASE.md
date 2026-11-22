@@ -1,16 +1,19 @@
 # Valnook Database Structure
 
-This document describes how Valnook stores data on the device. It covers database schema 24, used by Valnook 0.0.18.
+This document describes how Valnook stores data on the device. It covers database schema 30, used by Valnook 0.0.19.
 
-The database is the app's internal storage, not a stable interface. Tables and columns can change in any version, and the app migrates existing data automatically when it is updated. The exported Room schema, [`24.json`](../core/data/schemas/dev.valnook.data.database.ValnookDatabase/24.json), is the authoritative definition; this document explains what the tables mean.
+The database is the app's internal storage, not a stable interface. Tables and columns can change in any version, and the app migrates existing data automatically when it is updated. The exported Room schema, [`30.json`](../core/data/schemas/dev.valnook.data.database.ValnookDatabase/30.json), is the authoritative definition; this document explains what the tables mean.
 
 ## Storage overview
 
 - **Main database:** `valnook.db` in the app's private storage, an SQLite database managed by Room in write-ahead logging mode.
-- **Demo data:** demo mode copies a bundled database into a separate temporary file and never touches `valnook.db`. The copy is removed when demo mode ends.
+- **Demo data:** demo mode copies a bundled database into a separate temporary file and never touches `valnook.db`. The copy, and the demo bill pictures beside it, are removed when demo mode ends.
+- **AI conversations:** `valnook_ai_chat.db`, a separate Room database (version 3) holding conversations, messages, draft cards, small copies of pictures sent, bill lookups the AI ran, and token usage. It belongs to the device: it is never included in backups, conversations are deleted 30 days after their last message, and usage records after about 13 months. Losing it loses nothing that was saved as a bill. Demo mode and tests use a temporary one.
 - **Outside the database:**
   - Private card-back details (card number, cardholder name, expiry date, CVVs, and back and edge colors) are encrypted with AES-GCM using a key held in Android Keystore, and stored in the app's no-backup directory. The database only keeps a random link to each file in `local_wallet_identity`.
-  - The theme and the first-launch setup state are kept in Android shared preferences.
+  - Bill pictures are WebP files in `files/bill_images/`, each named by the SHA-256 of its bytes, so bills with the same picture share one file. `bill_attachments` records which bill holds which picture; `bill_image_files` records what this device knows about each file.
+  - The AI service's API key is encrypted in the same way as card-back details, under its own Keystore key, and stored in the no-backup directory.
+  - The theme and the first-launch setup state are kept in Android shared preferences, together with the automatic clean-up period for bill pictures.
   - Microsoft sign-in tokens are kept by Microsoft's sign-in library (MSAL) in its own cache.
   - Web management sessions exist only in memory.
 - **Protection:** the database itself is not encrypted. It relies on Android's app isolation and device security, and Android system backup and device transfer are turned off for it. See the [Privacy Policy](PRIVACY_POLICY_EN.md).
@@ -49,6 +52,11 @@ erDiagram
     investments ||--o{ investment_trades : trades
     cash_accounts |o--o{ investment_trades : "pays or receives"
     cash_accounts |o--o{ wallet_cards : "linked card"
+    cash_accounts |o--o{ bill_entries : "moves"
+    bill_categories ||--o{ bill_categories : subcategories
+    bill_categories |o--o{ bill_entries : classifies
+    bill_entries ||--o{ bill_entries : "refunds and reimbursements"
+    bill_entries ||--o{ bill_attachments : pictures
     wallet_card_images |o--o{ wallet_cards : "face"
     wallet_cards ||--o| local_wallet_identity : "private link"
     audit_events ||--o{ audit_event_accounts : touches
@@ -127,6 +135,8 @@ Subaccounts: one balance in one currency inside a main account. Savings and cred
 | `display_order` | INTEGER |  | Position inside the main account. |
 | `include_in_available_cash` | INTEGER |  | Boolean. Count this balance in available cash. Total assets always include it. |
 | `show_on_accounts_page` | INTEGER |  | Boolean. Show the subaccount on the Accounts page. |
+| `is_favorite` | INTEGER |  | Boolean. Pinned at the top of the account picker in the bill form. |
+| `favorite_order` | INTEGER |  | Position among pinned subaccounts. |
 
 Keys: `savings_account_id` → `savings_accounts` (on delete: RESTRICT). `currency_code` → `currencies` (on delete: RESTRICT).
 
@@ -142,6 +152,7 @@ Credit-card settings for credit subaccounts.
 | `due_rule_type` | TEXT |  | `FIXED_DAY_OF_MONTH` or `AFTER_STATEMENT_DAYS`. |
 | `due_rule_value` | INTEGER |  | The due day of the month, or the number of days after the statement. |
 | `limit_source_account_id` | INTEGER | yes | Subaccount whose limit this card shares, if any. |
+| `statement_day_included` | INTEGER |  | Boolean. Spending on the statement day itself goes on that day's statement; otherwise it goes on the next one. Changing it also regroups past cycles. |
 
 Keys: `account_id` → `cash_accounts` (on delete: RESTRICT). `limit_source_account_id` → `cash_accounts` (on delete: RESTRICT).
 
@@ -328,7 +339,7 @@ The records shown in a subaccount's history, dated by when they happened. Each p
 | `savings_account_id` | INTEGER |  | Main account. |
 | `currency_code` | TEXT |  | Currency. |
 | `cash_account_id` | INTEGER |  | Subaccount. |
-| `source_kind` | TEXT |  | `CASH_SET` (balance adjustment), `TRADE`, `DIVIDEND`, `TERM_OPEN` or `TERM_CLOSE`. `TRADE_REMOVED` and `DIVIDEND_REMOVED` mark cash moved by an instrument that was later deleted. |
+| `source_kind` | TEXT |  | `CASH_SET` (balance adjustment), `TRADE`, `DIVIDEND`, `TERM_OPEN`, `TERM_CLOSE`, `BILL` (a bill's own side) or `BILL_TRANSFER_IN` (the receiving side of a transfer). `TRADE_REMOVED` and `DIVIDEND_REMOVED` mark cash moved by an instrument that was later deleted, and `BILL_REMOVED` the cash of bills deleted together with their category, whose balances were kept. |
 | `source_id` | INTEGER | yes | ID of the trade, dividend or deposit behind the record. Empty for balance adjustments and for records of a deleted instrument. |
 | `delta_minor` | INTEGER |  | Change in minor units. |
 | `occurred_at_ms` | INTEGER |  | When it happened (UTC ms). |
@@ -339,6 +350,100 @@ The records shown in a subaccount's history, dated by when they happened. Each p
 | `updated_at_ms` | INTEGER |  | When the row was last changed (UTC ms). |
 
 Keys: Unique: (`original_operation_id`, `cash_account_id`). Unique: (`source_kind`, `source_id`). `cash_account_id` → `cash_accounts` (on delete: RESTRICT). `original_operation_id` → `operations` (on delete: RESTRICT).
+
+### Bills
+
+#### `bill_categories`
+
+Expense and income categories for bills, two levels deep. Presets keep a built-in key, and their name follows the app language until renamed.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `id` (PK) | INTEGER |  | Category ID. |
+| `kind` | TEXT |  | `EXPENSE` or `INCOME`. |
+| `parent_id` | INTEGER | yes | Parent category for a subcategory; empty for a top-level category. |
+| `builtin_key` | TEXT | yes | Key of a preset category; empty for categories the user added. |
+| `custom_name` | TEXT | yes | Name set by the user. Empty while a preset keeps its translated name. |
+| `icon_key` | TEXT |  | Icon, named after its Font Awesome icon. |
+| `color_key` | TEXT |  | Color from the app's category palette. |
+| `sort_order` | INTEGER |  | Position among its siblings. |
+| `hidden` | INTEGER |  | Boolean. Hidden from the bill form; existing bills keep it. |
+| `last_cash_account_id` | INTEGER | yes | Subaccount last used with this category, offered first next time. |
+| `revision` | INTEGER |  | Revision for optimistic concurrency; increases on every change. |
+| `created_at_ms` | INTEGER |  | When the row was created (UTC ms). |
+| `updated_at_ms` | INTEGER |  | When the row was last changed (UTC ms). |
+
+Keys: Unique: (`builtin_key`). `parent_id` → `bill_categories` (on delete: RESTRICT). `last_cash_account_id` → `cash_accounts` (on delete: RESTRICT).
+
+#### `bill_entries`
+
+Bills: expenses, income, transfers, and refunds and reimbursements of expenses. A bill that moves money has rows in `cash_entries` with `source_kind` `BILL` (and `BILL_TRANSFER_IN` for a transfer's receiving side) and `source_id` set to the bill ID.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `id` (PK) | INTEGER |  | Bill ID. |
+| `operation_id` | TEXT |  | Receipt of the write that created the bill. |
+| `type` | TEXT |  | `EXPENSE`, `INCOME`, `TRANSFER`, `REFUND` or `REIMBURSEMENT`. |
+| `occurred_at_ms` | INTEGER |  | When the bill happened (UTC ms). |
+| `amount_minor` | INTEGER |  | Amount in `currency_code`, before any discount. For a transfer, the amount leaving the source subaccount. |
+| `currency_code` | TEXT |  | Currency the bill was paid in. |
+| `discount_minor` | INTEGER |  | Discount in `currency_code`. The amount paid is `amount_minor` minus this. |
+| `cash_account_id` | INTEGER | yes | Subaccount the money moved in. Empty for an expense or income kept on no account, for a transfer from outside, and after the subaccount was deleted. |
+| `account_currency_code` | TEXT |  | Currency of that subaccount, or of the bill when there is none. |
+| `account_amount_minor` | INTEGER |  | How much the subaccount moved, in its own currency. |
+| `rate` | TEXT |  | Decimal text: units of the account currency per unit of the bill currency; for a transfer, units of the receiving currency per unit of the source currency. |
+| `rate_source` | TEXT |  | Where the rate came from: `SAME` (same currency), `AUTO` (the app's rate), `MANUAL` (the app's rate in manual mode), `ONE_TIME` (entered for this bill) or `DERIVED` (worked out from the amount the account moved). |
+| `transfer_kind` | TEXT | yes | For transfers: `INTERNAL`, `TO_EXTERNAL` or `FROM_EXTERNAL`. |
+| `to_cash_account_id` | INTEGER | yes | Receiving subaccount of a transfer. |
+| `to_currency_code` | TEXT | yes | Currency of the receiving subaccount. |
+| `to_amount_minor` | INTEGER | yes | Amount the receiving subaccount gained. |
+| `fee_minor` | INTEGER |  | Transfer fee taken from the source subaccount, in its currency. |
+| `counterparty` | TEXT |  | Who the bill was with, or who is to pay back a reimbursable expense. |
+| `category_id` | INTEGER | yes | Category (`bill_categories.id`). Refunds and reimbursements carry their expense's category. |
+| `sub_category_id` | INTEGER | yes | Subcategory, if any. |
+| `count_in_stats` | INTEGER |  | Boolean. Counted in income and expense statistics. |
+| `reimbursable` | INTEGER |  | Boolean. An expense someone is to pay back. |
+| `reimburse_state` | TEXT |  | `NONE`, `PENDING`, `PARTIAL`, `DONE` or `WAIVED` (paying back was given up; what was not paid back then counts as the user's own spending). |
+| `parent_id` | INTEGER | yes | For a refund or reimbursement, the expense it belongs to. |
+| `batch_id` | TEXT | yes | Groups reimbursements recorded together in one step. |
+| `note` | TEXT |  | Free-text note. |
+| `revision` | INTEGER |  | Revision for optimistic concurrency; increases on every change. |
+| `is_deleted` | INTEGER |  | Boolean. Soft delete. |
+| `created_at_ms` | INTEGER |  | When the row was created (UTC ms). |
+| `updated_at_ms` | INTEGER |  | When the row was last changed (UTC ms). |
+| `account_deleted` | INTEGER |  | Boolean. `cash_account_id` was emptied because the subaccount was deleted, as opposed to a bill kept on no account. |
+
+Keys: Unique: (`operation_id`). `operation_id` → `operations` (on delete: RESTRICT). `currency_code` → `currencies` (on delete: RESTRICT). `account_currency_code` → `currencies` (on delete: RESTRICT). `to_currency_code` → `currencies` (on delete: RESTRICT). `cash_account_id` → `cash_accounts` (on delete: RESTRICT). `to_cash_account_id` → `cash_accounts` (on delete: RESTRICT). `category_id` → `bill_categories` (on delete: RESTRICT). `sub_category_id` → `bill_categories` (on delete: RESTRICT). `parent_id` → `bill_entries` (on delete: RESTRICT).
+
+#### `bill_attachments`
+
+Pictures on bills, in order. The picture files are kept outside the database, named by content; see Storage overview.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `id` (PK) | INTEGER |  | Attachment ID. |
+| `bill_id` | INTEGER |  | The bill (`bill_entries.id`). |
+| `image_key` | TEXT |  | SHA-256 of the picture file. Bills with the same picture share one file. |
+| `byte_size` | INTEGER |  | File size in bytes. |
+| `width` | INTEGER |  | Width in pixels. |
+| `height` | INTEGER |  | Height in pixels. |
+| `sort_order` | INTEGER |  | Position on the bill, from 0. |
+| `created_at_ms` | INTEGER |  | When the row was created (UTC ms). |
+
+Keys: Unique: (`bill_id`, `sort_order`). Unique: (`bill_id`, `image_key`). `bill_id` → `bill_entries` (on delete: RESTRICT).
+
+#### `bill_image_files`
+
+What this device knows about each picture file: whether it is on the device and what OneDrive last showed for it.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `image_key` (PK) | TEXT |  | SHA-256 of the picture file. |
+| `local_saved_at_ms` | INTEGER | yes | When the file was saved on this device or fetched back (UTC ms). Empty while it is not on the device. Automatic clean-up counts from here. |
+| `cloud_size` | INTEGER | yes | Size of the copy in OneDrive's picture folder, if one was seen. |
+| `cloud_quick_xor` | TEXT | yes | OneDrive's QuickXorHash of that copy. |
+| `cloud_seen_at_ms` | INTEGER | yes | When that copy was last seen (UTC ms). |
+| `cloud_delete_requested_at_ms` | INTEGER | yes | When the user asked to delete the OneDrive copy as well (UTC ms); the next backup deletes it. |
 
 ### Wallet
 
@@ -440,6 +545,38 @@ Daily exchange rates retrieved by automatic exchange rates, used to value each p
 | `fetched_at_ms` | INTEGER |  | When the rate was retrieved (UTC ms). |
 
 Rows are never changed once written. Keys: Primary key: (`base_currency`, `quote_currency`, `local_day`). `base_currency` → `currencies` (on delete: RESTRICT). `quote_currency` → `currencies` (on delete: RESTRICT).
+
+#### `ai_settings`
+
+AI settings: a single row with `id` 1, or none while the defaults apply. The API key is not stored here; see Storage overview. Default account and category IDs are not declared foreign keys: one deleted later is skipped when used.
+
+| Column | Type | Null | Description |
+| --- | --- | --- | --- |
+| `id` (PK) | INTEGER |  | Always `1`. |
+| `preset_id` | TEXT | yes | Example the connection was filled from, if any. |
+| `base_url` | TEXT |  | Base URL of the OpenAI-compatible service. |
+| `model` | TEXT |  | Model name. |
+| `extra_params` | TEXT |  | JSON object added to every request. |
+| `thinking_off_params` | TEXT |  | JSON object added while deep thinking is off. |
+| `thinking_on_params` | TEXT |  | JSON object added while deep thinking is on. |
+| `enabled` | INTEGER |  | Boolean. AI features are on. |
+| `bill_chat` | INTEGER |  | Boolean. Bookkeeping by chat. |
+| `share_text` | INTEGER |  | Boolean. Text shared from other apps is read by the AI. |
+| `share_image` | INTEGER |  | Boolean. Pictures shared from other apps are read by the AI. |
+| `query_enabled` | INTEGER |  | Boolean. The AI may look up bills to answer questions. |
+| `thinking` | INTEGER |  | Boolean. Deep thinking for new conversations. |
+| `chat` | INTEGER |  | Boolean. Casual chat: fuller replies, not limited to bookkeeping. |
+| `send_habits` | INTEGER |  | Boolean. Each request includes the notes and categories of the last 20 bills. |
+| `default_time_minutes` | INTEGER |  | Time of day, in minutes after midnight, used when a bill names a date but no time. |
+| `default_cash_account_id` | INTEGER | yes | Subaccount used when the AI cannot tell. |
+| `default_expense_category_id` | INTEGER | yes | Expense category used when the AI cannot tell. |
+| `default_income_category_id` | INTEGER | yes | Income category used when the AI cannot tell. |
+| `my_rules` | TEXT |  | The user's own instructions, sent with requests. |
+| `user_nickname` | TEXT |  | What the AI calls the user. |
+| `ai_nickname` | TEXT |  | The AI's name in the chat. |
+| `revision` | INTEGER |  | Revision for optimistic concurrency; increases on every change. |
+| `updated_at_ms` | INTEGER |  | When the row was last changed (UTC ms). |
+| `default_keep_images` | INTEGER |  | Boolean. New draft cards keep their pictures on the bill by default. |
 
 ### Statistics cache
 
@@ -666,9 +803,9 @@ Keys: Primary key: (`entity_kind`, `entity_id`, `field_name`).
 
 ## Source data, derived data, and device-local state
 
-- **Source data** is what you entered, or what automatic exchange rates retrieved: accounts, groups, subaccounts, credit settings, deposits, asset types, instruments, holdings, trades and dividends, balance records, prices, settings, exchange rates and their history, wallet cards and faces, operation receipts, and operation history.
+- **Source data** is what you entered, or what automatic exchange rates retrieved: accounts, groups, subaccounts, credit settings, deposits, asset types, instruments, holdings, trades and dividends, balance records, bills, bill categories and the pictures on bills, prices, settings including AI settings, exchange rates and their history, wallet cards and faces, operation receipts, and operation history.
 - **Derived data** can be rebuilt from source data at any time: `statistics_cache`, from the starting point kept in `statistics_state` and `statistics_baseline_items`. The holding fields `holding_quantity_e8`, `remaining_cost`, `realized_profit`, and `position_state` are also recomputed from the trades whenever they change.
-- **Device-local state** belongs to this installation and never leaves it: `local_maintenance_state`, `cloud_backup_state`, `cloud_backup_attempts`, `cloud_backup_index`, `fx_local_state`, and `local_wallet_identity`.
+- **Device-local state** belongs to this installation and never leaves it: `local_maintenance_state`, `cloud_backup_state`, `cloud_backup_attempts`, `cloud_backup_index`, `fx_local_state`, `bill_image_files`, and `local_wallet_identity`, as well as the AI conversation database and the API key.
 - **Demo text** lives in `demo_labels`, which is only filled in the bundled demo database.
 
 ## Backups
@@ -691,6 +828,10 @@ A full backup (`.val_backup`) is a ZIP archive with a manifest and one file per 
 | `operations` | `data/operation_receipts.jsonl` |
 | `cash_movements` | `data/cash_movements.jsonl` |
 | `cash_entries` | `data/cash_entries.jsonl` |
+| `bill_categories` | `data/bill_categories.jsonl`, from backup data version 11 (0.0.19) |
+| `bill_entries` | `data/bill_entries.jsonl`, from backup data version 11 (0.0.19) |
+| `bill_attachments` | `data/bill_attachments.jsonl`, from backup data version 13 (0.0.19). The picture files are not in the archive. |
+| `bill_image_files` | Not included. Device-local. |
 | `wallet_cards` | `data/wallet_cards.jsonl` |
 | `wallet_card_images` | `data/wallet_card_images.jsonl` |
 | `local_wallet_identity` | Not included. Device-local; restored cards start with empty backs. |
@@ -698,6 +839,7 @@ A full backup (`.val_backup`) is a ZIP archive with a manifest and one file per 
 | `app_settings` | `preferences/financial.json` and `preferences/appearance.json` |
 | `fx_rates` | `preferences/financial.json` |
 | `fx_rate_history` | `data/fx_rate_history.jsonl`, from backup data version 10 (0.0.18) |
+| `ai_settings` | `data/ai_settings.jsonl`, from backup data version 14 (0.0.19). The API key is not included. |
 | `statistics_state` | `data/valuation_baselines.jsonl` |
 | `statistics_baseline_items` | `data/valuation_baselines.jsonl` |
 | `statistics_cache` | Not included. Rebuilt after a restore. |
@@ -707,11 +849,25 @@ A full backup (`.val_backup`) is a ZIP archive with a manifest and one file per 
 | `local_maintenance_state` | Not included. Device-local. |
 | `cloud_backup_state` | Not included. Device-local. |
 | `cloud_backup_attempts` | Not included. Device-local. |
-| `cloud_backup_index` | Not included. Device-local; a restore leaves it as it is. |
 | `fx_local_state` | Not included. Device-local; a restore keeps the automatic rate switch and clears the latest update result. |
+| `cloud_backup_index` | Not included. Device-local; a restore leaves it as it is. |
 | `demo_labels` | Not included. Demo only. |
 
-The archive also contains `verification/snapshot_totals.json`, which lets a restore confirm that totals match. Restoring replaces the local data in one transaction, rebuilds the statistics cache, and leaves card backs empty. Backups from earlier versions can be restored; a backup without exchange rate history restores with an empty history. Backups from 0.0.18 use backup data version 10 and cannot be restored by earlier versions. See [How OneDrive Backup Works](ONEDRIVE_BACKUP.md) for cloud backups.
+The archive also contains `verification/snapshot_totals.json`, which lets a restore confirm that totals match. Restoring replaces the local data in one transaction, rebuilds the statistics cache, and leaves card backs empty.
+
+Bill picture files are not in the archive, only the list of which bill holds which picture. The restore preview says so. After a restore, pictures on the device are used at once, pictures in OneDrive's picture folder are fetched when a bill is opened or all at once from the backup page, and the rest are shown as missing. See [How OneDrive Backup Works](ONEDRIVE_BACKUP.md).
+
+Backups from earlier versions can be restored. A backup without exchange rate history restores with an empty history, and one without bills restores with the preset bill categories, no bills and default AI settings. Backups from 0.0.19 use backup data version 16 and cannot be restored by earlier versions.
+
+| Backup data version | Version | Adds |
+| --- | --- | --- |
+| 10 | 0.0.18 | Exchange rate history. |
+| 11 | 0.0.19 | Bills, bill categories, and pinned subaccounts for the bill form. |
+| 12 | 0.0.19 | Bills kept on no account, told apart from bills whose subaccount was deleted. |
+| 13 | 0.0.19 | Bill pictures (`bill_attachments`). |
+| 14 | 0.0.19 | AI settings, without the API key. |
+| 15 | 0.0.19 | Whether new AI draft cards keep their pictures. |
+| 16 | 0.0.19 | Whether a credit card's statement day belongs to that day's statement. |
 
 ## How the app writes data
 
@@ -721,7 +877,8 @@ The archive also contains `verification/snapshot_totals.json`, which lets a rest
 - Every change, including wallet changes, advances `local_maintenance_state.dataset_generation`.
 - Balance changes are written twice: as an applied change with the balance before and after (`cash_movements`), and as a dated record in the subaccount's history (`cash_entries`).
 - Changes mark the affected days of the statistics cache as invalid; they are recomputed the next time statistics are read.
-- Clear data deletes all source data and history, including exchange rates and their history, keeps display settings and the cloud connection, and recreates the default account group and the Uncategorized asset type. It also turns automatic exchange rates off.
+- Bills change balances through `cash_entries` like other records. Deleting a bill moves its balances back; deleting a category together with its bills keeps the balances and marks their entries `BILL_REMOVED`.
+- Clear data deletes all source data and history, including bills, exchange rates and their history, bill pictures on the device, AI settings, the API key and AI conversations. It keeps display settings and the cloud connection, recreates the default account group, the Uncategorized asset type and the preset bill categories, and turns automatic exchange rates off. Pictures already in OneDrive are not deleted by it.
 
 ## Schema history
 
@@ -750,3 +907,9 @@ The archive also contains `verification/snapshot_totals.json`, which lets a rest
 | 21 → 22 | Exchange rate history, the device-local automatic rate state, and the completeness flag in the statistics cache. |
 | 22 → 23 | Device-local copy of the cloud backup list, and when it was last fetched. |
 | 23 → 24 | Account photos no account shows are removed; no table changes. |
+| 24 → 25 | Bills and bill categories with the presets; pinned subaccounts for the bill form. |
+| 25 → 26 | A flag that tells bills kept on no account apart from bills whose subaccount was deleted. |
+| 26 → 27 | Bill pictures and the device's picture file state. |
+| 27 → 28 | AI settings. |
+| 28 → 29 | Whether new AI draft cards keep their pictures. |
+| 29 → 30 | Whether a credit card's statement day belongs to that day's statement. |

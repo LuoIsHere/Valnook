@@ -6,7 +6,8 @@ own terms. The MIT License in LICENSE does not apply to this material.
 
 The library list covers the Android release build, including the web admin
 assets it serves. It was generated on 2026-11-08 from the resolved
-releaseRuntimeClasspath, with each license as declared in the library's POM.
+releaseRuntimeClasspath, with each license as declared in the library's POM,
+and checked again against the 0.0.19 release build on 2026-11-22.
 
 ==============================================================================
 1. ICON ARTWORK
@@ -24,10 +25,12 @@ Modifications: SVG icons converted to Android vector drawables and web path data
 2. TRADEMARKS
 ==============================================================================
 
-The GitHub logo appears only to identify GitHub's service. GitHub, Microsoft,
-OneDrive and other names of third-party services are trademarks of their
+The GitHub logo appears only to identify GitHub's service. DeepSeek is named
+only in the AI setup guide and its example settings, and OpenAI only to
+describe the compatible chat interface. GitHub, Microsoft, OneDrive, DeepSeek,
+OpenAI and other names of third-party services are trademarks of their
 respective owners. They are not covered by Valnook's license and do not imply
-endorsement.
+endorsement or affiliation.
 
 ==============================================================================
 3. LIBRARIES

@@ -1,5 +1,109 @@
 # Changelog
 
+## 0.0.19
+
+### Bills
+- Added bookkeeping. A new Bills page lists expenses, income and transfers by day with daily subtotals, and shows the month's expense, income and balance with a month switch. Bills can be filtered by type, category, account and whether they count in income and expense.
+- Searching bill notes covers the month on screen by default, or a chosen month, a chosen year, or all bills.
+- A + button above the navigation bar on every main page opens a new bill with Expense, Income and Transfer tabs. The amount keypad accepts sums such as 35+12.5×2.
+- A bill records an optional discount (or the amount paid instead), a time that can be in the past or future, a note with suggestions from earlier bills in the same category, and whether it counts in income and expense.
+- An expense or income can be kept on No account, which changes no balance. Each category remembers the account last used with it.
+- The account picker lists favorites first, has a search and a sortable favorites list, and shows each account's balance or a credit card's available credit.
+- A bill paid in another currency shows the amount taken from the account. The rate is suggested from that day's rate, and can be replaced for this bill only or worked out from the actual amount taken.
+- Transfers move money between your own accounts, including across currencies, or to and from an outside account with an optional name. A fee can be added on the sending side. The transfer form shows the balance under each of your accounts.
+- Bill details show the rate with its source, and, when neither the bill's currency nor the account's currency is the base currency, the amount in the base currency at that day's rate. A bill can be edited, recorded again, or deleted, which moves the balance back. Long-pressing a bill also records it again.
+- Added 88 built-in categories in Chinese and English with Font Awesome Free icons. Categories can be added, renamed, recolored, hidden, sorted and deleted. Deleting a category moves its bills to another category or deletes them; bills deleted this way keep their effect on balances and stay in the account history as deleted bills. Expense Other › Uncategorized and income Other cannot be deleted.
+- Expenses can be refunded, in parts and to any account, including in another currency. Refunds are listed under the original bill and can be undone.
+- An expense can be marked To be paid back with the name of who pays. Settings > Reimbursements shows the total still owed and lets you record one or several paybacks at once, filter by payer, waive a payback, or mark it as owed again. A waived bill counts the part not paid back.
+- Bills with a discount show it in the list.
+- Deleting an account or subaccount keeps its bills. Transfers that lose one side become transfers with an outside account, and the deletion preview shows how many bills are kept.
+
+### Bill pictures
+- A bill can hold up to 4 pictures from Photos or the camera. Valnook uses the system camera and does not ask for the camera permission. Pictures are stored as compressed WebP files without location or other metadata.
+- Bill details show the pictures, which open full screen with swipe and zoom. The bill list marks bills with pictures.
+- When OneDrive backup is connected, pictures are backed up to a separate bill_images folder inside Valnook_backup, and only new pictures are uploaded. A folder of the same name that Valnook did not make is reported and left untouched; the data backup still runs.
+- Added Settings > Bill pictures, which shows the space used, clears pictures already in OneDrive from this device automatically after 1, 3, 6 or 12 months, clears pictures by age (optionally also from OneDrive), and fetches all pictures back from OneDrive.
+- A picture that is only in OneDrive shows a cloud mark and is fetched when opened.
+
+### AI bookkeeping
+- Added optional AI bookkeeping in Settings > AI. It is off by default. You connect an OpenAI-compatible service of your choice with your own API key; Valnook does not provide or relay an AI service. A Quick start walks through the settings using DeepSeek as an example and can fill in the example values.
+- The API key is encrypted on the device and is not included in backups, exports or web management. Plain http addresses are allowed only for the AI connection and are marked as unencrypted.
+- Checks test the connection, tool calls, pictures and deep thinking. AI features can be turned on after the connection and tool call checks pass, and turn off again if the connection changes. Before AI is turned on, a notice explains what is sent, what is kept and who charges for it.
+- AI bookkeeping turns a sentence or a screenshot into bill drafts. Nothing is saved until you confirm a draft. Drafts can be confirmed together, changed in the bill form, discarded, or undone after saving, and a saved card follows later edits to its bill.
+- Drafts follow discounts, refunds, shared costs, currencies written on receipts, and a rate or amount you state. A rate far from the reference rate is flagged for checking.
+- The AI receives the subaccounts shown on the Accounts page (name, currency, type and whether it is a favorite, up to 100), the categories, and optionally the notes and categories of the last 20 bills. Balances and account numbers are not sent.
+- Ask about bills lets the AI look up bill totals, bill lists and the shares of your assets by account, asset type and currency to answer questions, in up to three lookup steps. The lookups are shown under the answer, with a link to the matching statistics. Asset amounts are not sent.
+- The chat page has a deep thinking switch per conversation, shows each round's token use, keeps earlier conversations, and points to drafts waiting in other conversations. Settings also cover default time, account and categories, your own rules, avatars and nicknames, casual chat, whether pictures are kept with bills by default, and the full prompt.
+- Conversations are kept on this device for 30 days, and usage records (time and tokens of each request) for about 13 months. Neither is included in backups. AI features are not available in demo mode.
+
+### Quick bookkeeping
+- Added Settings > Quick bookkeeping. Open to a new bill (off by default) opens a new bill or the AI chat when the app is started from its icon and was not running in the background.
+- Record from sharing (on by default) adds Valnook to the system share menu for text and up to 4 pictures. With AI bookkeeping on, the shared content is sent to the AI chat; otherwise it opens a new bill with the text as its note and the pictures attached.
+- Long-pressing the app icon offers New bill and, while the AI chat can be used, AI bookkeeping. A pinned AI bookkeeping shortcut opens a new bill and says why when the AI chat is not available.
+- These settings stay on this device and are not included in backups.
+
+### Statistics
+- Statistics now have Assets, Expense and Income tabs that follow a swipe.
+- The Expense and Income tabs show the month's total, the change from the previous month, a category ring with a ranking, daily bars, and the discounts saved. Dragging across the bars shows each day, and View bills opens that day's bills.
+- A category opens Category details with its subcategory shares and the month's bills, including those not counted and the net amount of refunded or paid-back bills.
+- Bills are counted at the exchange rate of each bill's own day, falling back to the current rate. Bills without any rate are left out and marked. The Bills page totals use the same rules.
+- The Assets tab adds Distribution by account, asset type and currency, with the share and amount of each part.
+
+### Accounts and credit cards
+- Credit card subaccounts can now be read By cycle or By month. By cycle shows this cycle's spending, refunds and repayments, and how much was owed at the last statement, paid since and left to pay.
+- Added a setting for whether spending on the statement day goes on that day's statement. Changing a saved card's statement day notes that past cycles are split again by the new day.
+- Available credit now counts overpayments: limit minus amount owed plus overpayment, across a shared limit. A card is over its limit only when this is negative.
+- Changing a balance can count the change in income and expense. It is saved as an expense or income under Other › Uncategorized and appears on the Bills page.
+- Hand-made balance adjustments can now be deleted from the entry details, which moves the balance back.
+- Balance changes from bills show the bill's note or category, and open the bill.
+- The Accounts, Deposits and Investments sections of an account page follow a swipe.
+
+### Wallet
+- A card's balance changes include its bills, which open the bill details, and credit cards show the billing cycle.
+- Opening the wallet with many cards is smoother: card faces are decoded at card size and the first screen of cards is loaded ahead.
+- The wallet card edit dialogs keep their buttons in view.
+
+### Interface
+- New installs show Bills, Accounts, Wallet, Investments and Settings on the navigation bar, with Statistics under Settings > More pages. On upgrade, Bills is added first; Statistics moves to More pages only if all five places were already in use.
+- Regrouped Settings into More pages, Bookkeeping, Interface and Data. Hidden pages are now listed first as More pages.
+- Saving the navigation bar settings now returns to Settings.
+- Buttons, text fields, switches, dialogs and bottom sheets now share one style across the app.
+- Clarified wording throughout the app in Chinese and English.
+
+### Demo
+- Demo data now includes bills from the last three months, covering transfers, other currencies, discounts, refunds, reimbursements and pictures.
+- Demo dates now move onto today when demo mode opens.
+
+### Backups and OneDrive
+- Full backups now use data format 16, which adds bills, categories, bill picture references, AI settings and the statement-day setting. Backups created with 0.0.19 cannot be restored in earlier versions; backups from earlier versions can still be restored and receive the built-in categories.
+- Local backups do not include bill pictures. After a restore, pictures come back from OneDrive or show as missing.
+- Restoring does not download pictures. They show as in OneDrive and can be fetched one by one or all at once.
+- Connecting OneDrive now first shows About OneDrive backup, which lists what is uploaded and what is not. Pictures are uploaded only after it has been read.
+- The screen stays on while a backup or a picture transfer runs, and uploading or fetching more than 20 pictures first reminds you to keep Valnook open. Disconnecting warns when some pictures are only in OneDrive.
+
+### Export
+- Excel exports now include a Bills sheet with refunds, reimbursements and the number of pictures on each bill.
+
+### Web management
+- Redesigned web management with a new layout, quick search (Ctrl K), and an option to hide amounts.
+- Added a read-only Bills page with month, type, category and account filters, note search, and details with refunds and paybacks. Pictures are not sent; the page shows how many a bill has.
+- Statistics add Expense and Income tabs, and the distribution shows amounts beside the shares.
+- Records separate bill entries, which link to their bill, from other cash entries. Hand-made balance adjustments can be deleted.
+- Instruments now show a price trend.
+- Subaccount settings include the statement-day setting.
+- Redesigned the web management page in the app, with the pairing steps and the usage notes.
+- Closing the browser page now returns the phone to waiting after about 10 seconds.
+- Fixed End sometimes not responding after the browser page was closed, leaving web management shown as connected.
+
+### Other fixes
+- Fixed automatic exchange rates failing every time when the earliest record was more than a year old.
+- Fixed the first letter of Realized P/L to date being clipped.
+- Fixed the wallet's title and navigation bar flashing when going back from entry details to a card.
+- Fixed a dark placeholder flashing when opening a card after the app had been in the background.
+- Fixed entry details, entry editing, trade details, dividend records and the trade form showing "Valnook" in the top bar.
+- Fixed bottom sheets and the account groups page stopping above the navigation bar. Dialogs, the web management lock screen and the empty wallet now fit short screens.
+- Updated the privacy policy for bookkeeping, bill pictures and AI.
+
 ## 0.0.18
 
 ### Exchange rates

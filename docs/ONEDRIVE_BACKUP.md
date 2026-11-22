@@ -1,6 +1,6 @@
 # How OneDrive Backup Works
 
-Valnook backs up to OneDrive. The Android app creates a complete local backup archive and uploads it directly to the signed-in user's OneDrive. Backups are snapshots for recovery, not continuous synchronization between devices.
+Valnook backs up to OneDrive. The Android app creates a complete local backup archive and uploads it directly to the signed-in user's OneDrive, followed by any bill pictures OneDrive does not have yet. Backups are snapshots for recovery, not continuous synchronization between devices.
 
 ## Platforms and components
 
@@ -10,7 +10,7 @@ Valnook backs up to OneDrive. The Android app creates a complete local backup ar
 | Microsoft Entra / Microsoft identity platform | Provides application registration, user sign-in, and delegated consent. |
 | Microsoft Authentication Library for Android (MSAL) | Handles browser-based sign-in, its token cache, silent token acquisition, and local sign-out. |
 | Microsoft Graph v1.0 | Provides the user-profile and OneDrive file APIs. |
-| OneDrive | Stores backup archives and their verification metadata in the application's dedicated folder. |
+| OneDrive | Stores backup archives, their verification metadata, and bill pictures in the application's dedicated folder. |
 | Android WorkManager | Schedules automatic backups subject to network availability and Android background-execution limits. |
 
 The authentication configuration allows personal Microsoft accounts and work or school accounts. Access still depends on the account having OneDrive available and any applicable organization policies. The implementation uses the global Microsoft Graph endpoint; it does not select national-cloud endpoints or expose a separate SharePoint-site picker.
@@ -68,9 +68,28 @@ Application folder resolved through approot/
     {backup-id}/
       snapshot.val_backup
       metadata.json
+    bill_images/
+      README_DO_NOT_EDIT.txt
+      {sha256}.webp
+      refs/
+        {backup-id}.json
 ```
 
 Metadata records the backup and attempt identifiers, the file name, the archive checksum, the snapshot time, the format, data-schema, and database-schema versions, the app version and build, and the verification state. Once verified, it also records the archive ID and the ETag that was checked. It is not an additional copy of the financial records.
+
+## Bill pictures
+
+Bill pictures are not inside the archive. They go to a shared picture folder, `Valnook_backup/bill_images`, where each picture is stored once under the SHA-256 of its bytes, whichever backups and bills use it.
+
+- **When:** pictures go up as part of each backup, manual or automatic, once the user has read the backup screen's notice that pictures are included. Someone who has never added a picture gets no picture folder.
+- **Order:** before the archive is uploaded, the app writes the list of pictures that snapshot holds to `refs/{backup-id}.json`. After the archive is uploaded and verified, it uploads each picture that bills use and OneDrive lacks, one at a time. The data backup counts as successful even if pictures are left; the rest go up with the next backup, and the backup screen shows the progress and a stop button.
+- **Checks:** a picture whose bytes no longer match its name is not uploaded. Uploads never replace an existing file, since the same name means the same bytes. After each upload, the size and OneDrive's QuickXorHash are compared with the local file; a mismatch deletes the upload and fails the step.
+- **Folder ownership:** the folder holds a notice file marking it as Valnook's. If a `bill_images` item exists without that notice and holds anything other than Valnook's own files, or is not a folder, the app leaves it alone, uploads no pictures, and reports the conflict.
+- **Clean-up in OneDrive:** after pictures are uploaded, a picture that no bill holds and no verified backup's list names is deleted three days after it was uploaded, so a backup still being made on another device is never affected. If a verified backup has no list, no picture is deleted. Lists of backups that no longer exist are deleted after the same three days. Pictures the user chose to delete from OneDrive as well are deleted by the next backup, unless a bill holds them again. OneDrive keeps deleted files in its recycle bin.
+- **On the device:** pictures can be cleared from the device by hand, optionally deleting the OneDrive copies too. Automatic clean-up, off by default, removes pictures older than the chosen period from the device only after they are confirmed in OneDrive, and never deletes them there.
+- **Fetching back:** a picture that is not on the device is downloaded when its bill is opened, or all at once from the backup page. Each download is limited to the largest size a stored picture can have. A picture OneDrive no longer has is shown as missing.
+
+Before uploading or fetching pictures by hand, the app asks the user to keep the screen on and Valnook in front, because the transfer stops when the app is switched away or the screen locks. The next transfer continues from where it stopped.
 
 ## APIs called
 
@@ -93,7 +112,14 @@ Graph paths below are relative to `https://graph.microsoft.com/v1.0`. Braced nam
 | `PUT {uploadUrl}` | Transfer sequential archive chunks. |
 | `GET /drives/{drive}/items/{archive}/content` | Download a specific archive version (`If-Match`) for verification, local saving, or restoration. |
 | `GET {downloadUrl}` | Follow a content redirect over HTTPS without forwarding the Graph token. |
-| `DELETE /drives/{drive}/items/{item}` | Delete the archive and metadata files of an older or stale unverified backup during cleanup (`If-Match`). OneDrive keeps them in its recycle bin. |
+| `DELETE /drives/{drive}/items/{item}` | Delete the archive and metadata files of an older or stale unverified backup during cleanup (`If-Match`), and pictures or picture lists no longer needed. OneDrive keeps them in its recycle bin. |
+| `GET /drives/{drive}/items/{folder}:/bill_images` | Find the picture folder. |
+| `GET /drives/{drive}/items/{pictures}/children?$top=200` | List pictures and picture lists, following Graph pagination. |
+| `PUT /drives/{drive}/items/{pictures}:/{sha256}.webp:/content?@microsoft.graph.conflictBehavior=fail` | Upload one picture without replacing an existing file. |
+| `GET /drives/{drive}/items/{pictures}:/{sha256}.webp:/content` | Download one picture. |
+| `PUT /drives/{drive}/items/{refs}:/{backup-id}.json:/content` | Write the list of pictures a backup holds. |
+| `GET /drives/{drive}/items/{pictures}:/refs/{backup-id}.json:/content` | Read a backup's picture list before clean-up. |
+| `PUT` and `GET /drives/{drive}/items/{pictures}:/README_DO_NOT_EDIT.txt:/content` | Write and check the folder's notice file. |
 
 Authentication calls use MSAL's `signIn`, `signInAgain`, `acquireTokenSilent`, and `signOut`. OAuth requests and token refresh are handled by MSAL rather than a custom token endpoint implementation.
 
@@ -107,6 +133,7 @@ Authentication calls use MSAL's `signIn`, `signInAgain`, `acquireTokenSilent`, a
 - A successful restore replaces the local portable dataset in a database transaction; it does not merge two ledgers. Validation failure or transaction rollback preserves the existing data.
 - Successful restoration leaves card backs empty and invalidates old private-card associations. Failed restoration preserves existing private content.
 - After any successful restore, from OneDrive or from a local file, automatic backups pause until the user resumes them. Manual backups remain available during the pause.
+- A restore brings back which bill holds which picture, not the picture files. Pictures already on the device show at once, pictures in OneDrive are fetched as described under Bill pictures, and the rest show as missing. The restore preview says so.
 
 ## Automatic backups and failure handling
 
@@ -120,10 +147,12 @@ Authentication calls use MSAL's `signIn`, `signInAgain`, `acquireTokenSilent`, a
 
 ## Disconnecting and data boundaries
 
-Disconnecting clears the local cloud connection and the device's copy of the backup list, cancels scheduled work, invalidates in-flight generations, and signs out of the local MSAL client. It does not delete existing OneDrive backups. Removing the server-side grant is a separate action through Microsoft's account consent-management page or the organizational My Apps portal; the backup screen links to the right page for the connected account.
+Disconnecting clears the local cloud connection and the device's copy of the backup list, cancels scheduled work, invalidates in-flight generations, and signs out of the local MSAL client. It does not delete existing OneDrive backups or pictures. Removing the server-side grant is a separate action through Microsoft's account consent-management page or the organizational My Apps portal; the backup screen links to the right page for the connected account.
 
-The archive contains the supported financial records, operation history (which may include the earlier values of edited records and records marked as deleted), price history, exchange rate history, account icons, account groups, wallet-front images and built-in designs, the card face library with its names, card links, ordering, and portable settings. It excludes OAuth tokens, authentication caches, Android Keystore keys, and all private card-back content: card numbers, cardholder names, expiry dates, CVVs, back/edge colors, encrypted vault files, and their local-only associations.
+The archive contains the supported financial records, including bills, bill categories and which bill holds which picture, operation history (which may include the earlier values of edited records and records marked as deleted), price history, exchange rate history, account icons, account groups, wallet-front images and built-in designs, the card face library with its names, card links, ordering, and portable settings, including AI settings. It excludes the picture files themselves, which are in the picture folder, OAuth tokens, authentication caches, Android Keystore keys, the AI service's API key, AI conversations, and all private card-back content: card numbers, cardholder names, expiry dates, CVVs, back/edge colors, encrypted vault files, and their local-only associations.
 
-The `.val_backup` archive is **not encrypted by Valnook**. HTTPS protects transfers; checksum verification checks consistency and is not encryption or a digital signature. A person with access to the archive can read its included data. See the [Privacy Policy](PRIVACY_POLICY_EN.md).
+Local backup files contain the same data and no picture files. Pictures exist only on the device and in OneDrive's picture folder.
+
+The `.val_backup` archive and the picture files are **not encrypted by Valnook**. HTTPS protects transfers; checksum verification checks consistency and is not encryption or a digital signature. A person with access to the archive or the picture folder can read its contents. See the [Privacy Policy](PRIVACY_POLICY_EN.md).
 
 For implementation details, see [MicrosoftAuthorizationGateway](../app/src/main/java/dev/valnook/app/cloud/MicrosoftAuthorizationGateway.kt), [OneDriveRestApi](../core/data/src/main/kotlin/dev/valnook/data/cloud/OneDriveRestApi.kt), [CloudBackupCoordinator](../core/data/src/main/kotlin/dev/valnook/data/cloud/CloudBackupCoordinator.kt), and [BackupContract](../core/data/src/main/kotlin/dev/valnook/data/portability/BackupContract.kt).
