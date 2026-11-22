@@ -29,6 +29,7 @@ import java.util.UUID
  * conversation, "[off] " asks with questions switched off). Reports each answer, its lookups and usage, and what the
  * app itself counts, never the key.
  */
+@OptInTest
 class AiQueryLiveTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext

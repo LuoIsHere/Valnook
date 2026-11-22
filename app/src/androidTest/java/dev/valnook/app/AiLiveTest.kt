@@ -22,6 +22,7 @@ import java.io.File
  * `-e liveAiThinkingOff <json>` replaces the thinking off parameters. With `liveAiStore` the connection is also saved
  * to the app's real database, so the settings page shows it.
  */
+@OptInTest
 class AiLiveTest {
     @Test fun the_preset_passes_its_checks_against_the_real_service() = runBlocking {
         val arguments = InstrumentationRegistry.getArguments()

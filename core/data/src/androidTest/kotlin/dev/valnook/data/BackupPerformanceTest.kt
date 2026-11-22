@@ -35,6 +35,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 
+@OptInTest
 @RunWith(AndroidJUnit4::class)
 class BackupPerformanceTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()

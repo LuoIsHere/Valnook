@@ -23,6 +23,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 
 /** Explicit opt-in only. No credentials, account identity or Graph response bodies in results. */
+@OptInTest
 @HiltAndroidTest
 class OneDriveLiveTest {
     @get:Rule val hilt = HiltAndroidRule(this)

@@ -78,6 +78,8 @@ android {
 
         buildConfigField("String", "MICROSOFT_CLIENT_ID", "\"${microsoftClientId.get()}\"")
         testInstrumentationRunner = "dev.valnook.app.HiltTestRunner"
+        // Gradle device runs leave out tests that only run on request (see OptInTest); am instrument still runs them.
+        testInstrumentationRunnerArguments["notAnnotation"] = "dev.valnook.app.OptInTest"
     }
 
     buildTypes {

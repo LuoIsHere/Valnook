@@ -90,6 +90,8 @@ class UnsavedLeaveUiTest {
         systemBack()
         rule.waitUntil(5_000) { prompt() }
         rule.onNodeWithTag("leave-keep").performClick()
+        // The prompt must be gone first: a tap while it is still closing lands on its scrim and saves nothing.
+        rule.waitUntil(5_000) { !prompt() }
         rule.onNodeWithTag("ai-connection-save").performScrollTo().performClick()
         rule.waitUntil(5_000) { runBlocking { graph.ai!!.observeSettings().first().connection.model } == "synthetic-model" }
         // The save button goes once nothing is left unsaved, as the user sees it.

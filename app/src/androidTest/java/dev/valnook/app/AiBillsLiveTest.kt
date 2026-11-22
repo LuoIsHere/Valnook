@@ -32,6 +32,7 @@ import java.util.UUID
  * thinking-off parameters, one per line) and `ai_live_prompts.txt` (one message per line; a line starting with "> "
  * continues the previous conversation). Reports each reply's drafts and usage, never the key.
  */
+@OptInTest
 class AiBillsLiveTest {
     private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private val context = instrumentation.targetContext

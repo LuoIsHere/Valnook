@@ -59,6 +59,7 @@ import java.util.UUID
  * wallet, the price history, the fixed exchange rate history and the English labels, checks that the ledger reads
  * like a real one, and writes the file and the bills' pictures (`demo-bill-image-<key>.webp`) to test storage.
  */
+@OptInTest
 @RunWith(AndroidJUnit4::class)
 class DemoDatabaseAssetGeneratorTest {
     /** Builds the bundled asset, not a check of the app: runs only with `-e generateDemo true`. */

@@ -36,6 +36,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Three years of daily rates: cold rebuild against the same data valued at today's rates, history reads and size growth. */
+@OptInTest
 @LargeTest
 class StatisticsFxPerformanceTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()

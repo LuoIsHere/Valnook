@@ -6,7 +6,11 @@ plugins {
 android {
     namespace = "dev.valnook.core.data"
     compileSdk { version = release(37) }
-    defaultConfig { minSdk = 33; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    defaultConfig {
+        minSdk = 33; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Gradle device runs leave out tests that only run on request (see OptInTest); am instrument still runs them.
+        testInstrumentationRunnerArguments["notAnnotation"] = "dev.valnook.data.OptInTest"
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_11; targetCompatibility = JavaVersion.VERSION_11 }
 
 }

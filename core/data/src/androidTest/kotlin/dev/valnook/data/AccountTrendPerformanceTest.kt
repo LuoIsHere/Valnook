@@ -36,6 +36,7 @@ import org.junit.Test
  * whole-book series, with a checksum of every value so a change to how they are worked out can show the same results.
  * Every day, the accounts' trends add up to the whole book.
  */
+@OptInTest
 @LargeTest
 class AccountTrendPerformanceTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
