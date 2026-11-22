@@ -32,7 +32,10 @@ fun PrivacyPolicyScreen() {
         buildAnnotatedString {
             append(policy)
             listOf("在适用法律允许的最大范围内，开发者不对卡片信息泄露造成的财产损失承担责任。",
-                "To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.").forEach { notice ->
+                "To the fullest extent permitted by applicable law, the developer is not liable for financial loss arising from disclosure of card details.",
+                // The AI section's liability sentence, bold in the public policy as well.
+                "在适用法律允许的最大范围内，开发者不对服务提供方的可用性、收费、数据处理，以及 API Key 被盗用造成的损失承担责任。",
+                "To the fullest extent permitted by applicable law, the developer is not liable for the provider's availability, charges, or handling of data, or for loss arising from misuse of the API key.").forEach { notice ->
                 val start=policy.indexOf(notice)
                 if(start>=0)addStyle(SpanStyle(fontWeight=FontWeight.Bold),start,start+notice.length)
             }

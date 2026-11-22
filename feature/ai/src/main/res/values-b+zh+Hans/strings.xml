@@ -209,7 +209,7 @@
     <string name="ai_notice_disclaimer">AI 生成的内容可能存在错误，仅供参考，不代表 Valnook 的立场，不构成投资、理财或其他财务建议，所有账单须经您确认后方可保存。在适用法律允许的最大范围内，开发者不对服务提供方的可用性、收费、数据处理，以及 API Key 被盗用造成的损失承担责任。</string>
     <string name="ai_notice_skip">不再提示</string>
     <string name="ai_notice_enable">开启</string>
-    <string name="ai_notice_records">对话记录保存：对话记录与用量统计仅保存在本设备，保留 30 天，不纳入备份。服务提供方如何保存和使用其收到的数据，以其自身政策为准，Valnook 无法控制。</string>
+    <string name="ai_notice_records">对话记录保存：对话记录与用量统计仅保存在本设备，不纳入备份。对话记录保留 30 天；用量统计只记每次请求的时间和 token 数，保留约 13 个月。服务提供方如何保存和使用其收到的数据，以其自身政策为准，Valnook 无法控制。</string>
     <string name="ai_notice_limit">使用建议：建议在服务提供方处为该 API Key 设置用量或消费上限（如每日或每月限额），并仅授予所需权限；如怀疑 Key 已泄露，请立即在服务提供方处停用或更换。</string>
     <string name="ai_chat_example_3">工资到账 8000</string>
     <string name="ai_chat_shared">来自分享</string>

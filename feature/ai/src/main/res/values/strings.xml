@@ -211,7 +211,7 @@
     <string name="ai_notice_disclaimer">AI-generated content may contain errors, is for reference only, does not represent Valnook\'s position and is not investment, financial or other advice; no bill is saved until you confirm it. To the fullest extent permitted by applicable law, the developer is not liable for the provider\'s availability, charges or handling of data, or for loss arising from misuse of the API key.</string>
     <string name="ai_notice_skip">Don\'t show again</string>
     <string name="ai_notice_enable">Turn on</string>
-    <string name="ai_notice_records">Conversations: conversations and usage records are stored only on this device, kept for 30 days, and not included in backups. How the provider keeps and uses the data it receives is governed by its own policy, which Valnook cannot control.</string>
+    <string name="ai_notice_records">Conversations: conversations and usage records are stored only on this device and not included in backups. Conversations are kept for 30 days; usage records hold only each request\'s time and token counts and are kept for about 13 months. How the provider keeps and uses the data it receives is governed by its own policy, which Valnook cannot control.</string>
     <string name="ai_notice_limit">Recommendation: set a usage or spending limit for this API key with the provider (for example a daily or monthly cap) and grant it only the permissions needed; if you suspect the key has leaked, revoke or replace it with the provider at once.</string>
     <string name="ai_chat_example_3">Salary 8000 received</string>
     <string name="ai_chat_shared">Shared</string>
