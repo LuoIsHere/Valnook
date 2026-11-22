@@ -13,6 +13,7 @@ import dev.valnook.domain.repository.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -60,10 +61,13 @@ class BillStatsDataTest {
     @Test fun stored_rates_follow_new_days_and_the_base_currency() = runBlocking {
         store(Triple("USD", 1, "0.14"))
         val flow = bills.observeStoredRates(setOf("USD", "CNY"), day(1), day(3))
-        val seen = async(start = CoroutineStart.UNDISPATCHED) { flow.first { it["USD"]?.size == 2 } }
-        delay(200)
+        // The first reading is seen before the second rate is stored, so the update really comes from invalidation.
+        val sizes = kotlinx.coroutines.channels.Channel<Int?>(kotlinx.coroutines.channels.Channel.UNLIMITED)
+        val collecting = launch { flow.collect { sizes.send(it["USD"]?.size) } }
+        assertEquals(1, withTimeout(5_000) { sizes.receive() })
         store(Triple("USD", 2, "0.15"))
-        withTimeout(5_000) { seen.await() }
+        withTimeout(5_000) { while (sizes.receive() != 2) Unit }
+        collecting.cancel()
         // Under USD as the base, the rates stored for that base are the ones read, now for CNY.
         store(Triple("CNY", 1, "7.2"), base = "USD")
         RoomSettings(db, clock).applyChange(SaveFinancialSettings(1, Currency.of("USD"), emptyList()))

@@ -91,6 +91,13 @@ class BackupContractTest {
         assertTrue("statement_day" in columns(15, "credit_account_profiles"))
     }
 
+    @Test fun cloud_connection_tables_stay_out_of_portable_backups() {
+        val tables = BackupContract.tables.map { it.table }
+        listOf("cloud_backup_state", "cloud_backup_attempts", "cloud_backup_index").forEach {
+            org.junit.Assert.assertFalse(it, it in tables)
+        }
+    }
+
     @Test fun unknown_versions_have_no_tables() {
         assertTrue(BackupContract.tablesFor(0).isEmpty())
         assertTrue(BackupContract.tablesFor(BackupContract.DATA_SCHEMA_VERSION + 1).isEmpty())

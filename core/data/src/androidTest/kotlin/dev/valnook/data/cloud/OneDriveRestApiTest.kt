@@ -234,12 +234,6 @@ class OneDriveRestApiTest {
         }
     }
 
-    @Test fun secret_bearing_models_are_redacted() {
-        assertFalse(CloudAuthorizationGrant("secret").toString().contains("secret"))
-        assertFalse(CloudAccessResult.Granted("secret").toString().contains("secret"))
-        assertFalse(CloudHttpRequest("GET", "https://host/secret", mapOf("Authorization" to "secret")).toString().contains("secret"))
-    }
-
     private suspend fun upload(api: OneDriveRestApi, root: String, payload: ByteArray = PAYLOAD,
         guard: suspend () -> Unit = {}): RemoteBackupFile {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()

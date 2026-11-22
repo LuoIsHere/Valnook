@@ -413,7 +413,7 @@ class StatisticsRepositoryTest {
         decimal("330", requireNotNull(series.points[0].value))
     }
 
-    @Test fun allHistoricalPointsUseCurrentManualRateAndMissingRateIsLeftOut() = runBlocking {
+    @Test fun currentValueUsesTheManualRateAndLeavesOutAMissingOne() = runBlocking {
         db.openHelper.writableDatabase.execSQL("UPDATE instruments SET currency_code='USD'")
         db.openHelper.writableDatabase.execSQL("UPDATE instrument_price_history SET currency_code='USD'")
         db.statistics().invalidate(octoberFirst.toEpochDay())

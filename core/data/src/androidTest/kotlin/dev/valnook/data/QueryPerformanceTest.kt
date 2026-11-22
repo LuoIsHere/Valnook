@@ -245,7 +245,9 @@ class QueryPerformanceTest {
         }
     }
 
-    private suspend fun measure(db: ValnookDatabase, name: String, expectedRows: Int, repetitions: Int = 30,
+    private val timing = androidx.test.platform.app.InstrumentationRegistry.getArguments().getString("queryTiming") == "true"
+
+    private suspend fun measure(db: ValnookDatabase, name: String, expectedRows: Int, repetitions: Int = if (timing) 30 else 1,
         action: suspend () -> Int): JSONObject {
         val samples = ArrayList<Double>()
         val counts = ArrayList<Int>()
@@ -312,8 +314,11 @@ class QueryPerformanceTest {
     @Test fun persistent_production_paths_small_wide_and_single_position_hotspot() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val datasets = JSONArray()
-        val fixtures = listOf(Fixture("small", 5, 20, 1000), Fixture("wide", 120, 2000, 100000),
+        // The query-count and no-replay checks run every time on small books; the large books and the timings that
+        // are worth reading only with `-e queryTiming true`.
+        val fixtures = if (timing) listOf(Fixture("small", 5, 20, 1000), Fixture("wide", 120, 2000, 100000),
             Fixture("hotspot", 1, 1, 50000, true))
+            else listOf(Fixture("small", 5, 20, 1000), Fixture("hotspot", 1, 1, 2000, true))
         var sqliteVersion = ""
         try {
             for (fixture in fixtures) {

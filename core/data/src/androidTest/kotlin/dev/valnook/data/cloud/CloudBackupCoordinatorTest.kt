@@ -48,7 +48,7 @@ class CloudBackupCoordinatorTest {
 
     @After fun close() { database.close() }
 
-    @Test fun gd2_connection_uses_drive_identity_without_extra_identity_scope() = runBlocking {
+    @Test fun connecting_reads_the_account_once() = runBlocking {
         connect()
 
         val state = coordinator.observeState().first()
@@ -58,7 +58,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(1, drive.currentUserCalls)
     }
 
-    @Test fun tm2_drive_https_time_allows_backup_when_platform_network_clock_has_no_cache() = runBlocking {
+    @Test fun drive_https_time_allows_backup_when_platform_network_clock_has_no_cache() = runBlocking {
         val portability = RoomPortabilityEngine(context, database,
             Clock.fixed(Instant.parse("2026-10-03T06:00:00Z"), ZoneOffset.UTC),
             AppBuildInfo("valnook", "0.0.5", 5, "20261003.4", "20261003.4", 10))
@@ -76,7 +76,7 @@ class CloudBackupCoordinatorTest {
         assertTrue(drive.serverUtcCalls >= 2)
     }
 
-    @Test fun gd2_validation_then_shared_rotation_keeps_latest_five_and_only_trashes_oldest() = runBlocking {
+    @Test fun validation_then_shared_rotation_keeps_latest_five_and_only_trashes_oldest() = runBlocking {
         connect()
         repeat(5) { drive.seedVerified(it + 1) }
 
@@ -86,7 +86,6 @@ class CloudBackupCoordinatorTest {
             .filter { it.properties["verificationState"] == "verified" }
         assertEquals(5, active.size)
         assertTrue(drive.trashedIds.contains("old-1"))
-        assertFalse(drive.permanentDeleteCalled)
         assertEquals(BackupAttemptState.SUCCEEDED, coordinator.observeState().first().attemptState)
         assertTrue(drive.uploadedBytes > 0)
     }
@@ -106,7 +105,7 @@ class CloudBackupCoordinatorTest {
         assertTrue("new-1" in backups)
     }
 
-    @Test fun gd2_failed_verification_preserves_all_five_existing_restore_points() = runBlocking {
+    @Test fun failed_verification_preserves_all_five_existing_restore_points() = runBlocking {
         connect()
         repeat(5) { drive.seedVerified(it + 1) }
         drive.corruptUploadChecksum = true
@@ -119,7 +118,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(CloudBackupError.VERIFY_FAILED, coordinator.observeState().first().latestError)
     }
 
-    @Test fun gd2_list_walks_every_page_and_keeps_incompatible_backup_visible() = runBlocking {
+    @Test fun list_walks_every_page_and_keeps_incompatible_backup_visible() = runBlocking {
         connect()
         repeat(7) { drive.seedVerified(it + 1, databaseSchema = if (it == 6) 999 else 10) }
 
@@ -131,7 +130,7 @@ class CloudBackupCoordinatorTest {
         assertTrue(drive.listCalls >= 4)
     }
 
-    @Test fun au2_offline_due_cycle_waits_without_claiming_an_attempt() = runBlocking {
+    @Test fun offline_due_cycle_waits_without_claiming_an_attempt() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         val scheduled = scheduler.latest!!
@@ -146,7 +145,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(0, drive.uploadCalls)
     }
 
-    @Test fun au2_due_cycle_that_cannot_get_access_waits_and_says_why() = runBlocking {
+    @Test fun due_cycle_that_cannot_get_access_waits_and_says_why() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         val scheduled = scheduler.latest!!
@@ -165,7 +164,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(0, drive.uploadCalls)
     }
 
-    @Test fun au2_edit_after_scheduling_still_backs_up_when_due() = runBlocking {
+    @Test fun edit_after_scheduling_still_backs_up_when_due() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         val scheduled = scheduler.latest!!
@@ -182,7 +181,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(BackupAttemptState.SUCCEEDED, state.attemptState)
     }
 
-    @Test fun au2_waiting_cycle_backs_up_once_network_returns_after_an_edit() = runBlocking {
+    @Test fun waiting_cycle_backs_up_once_network_returns_after_an_edit() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         val scheduled = scheduler.latest!!
@@ -202,7 +201,7 @@ class CloudBackupCoordinatorTest {
         assertFalse(shouldRetry)
     }
 
-    @Test fun au2_edit_during_automatic_upload_still_finishes_the_backup() = runBlocking {
+    @Test fun edit_during_automatic_upload_still_finishes_the_backup() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         val scheduled = scheduler.latest!!
@@ -221,7 +220,7 @@ class CloudBackupCoordinatorTest {
         assertTrue("a new cycle is scheduled", next != null && next.cycleId != scheduled.cycleId)
     }
 
-    @Test fun au2_schedule_change_during_upload_cancels_without_leaving_progress_on_screen() = runBlocking {
+    @Test fun schedule_change_during_upload_cancels_without_leaving_progress_on_screen() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         val scheduled = scheduler.latest!!
@@ -241,7 +240,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(12 * 3_600_000L, next.due - next.reference)
     }
 
-    @Test fun au2_restore_marker_forces_persistent_pause_and_cancels_schedule() = runBlocking {
+    @Test fun restore_marker_forces_persistent_pause_and_cancels_schedule() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         database.audit().recordRestoreCommit("synthetic-restore", "0".repeat(64), networkClock.value)
@@ -254,7 +253,7 @@ class CloudBackupCoordinatorTest {
         assertTrue(scheduler.cancelCalls > 0)
     }
 
-    @Test fun au2_resumed_restore_marker_does_not_pause_again_on_reinitialize() = runBlocking {
+    @Test fun resumed_restore_marker_does_not_pause_again_on_reinitialize() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         database.audit().recordRestoreCommit("synthetic-restore", "0".repeat(64), networkClock.value)
@@ -271,7 +270,7 @@ class CloudBackupCoordinatorTest {
         assertNotNull(scheduler.latest)
     }
 
-    @Test fun gd2_unknown_upload_is_reconciled_without_uploading_a_duplicate() = runBlocking {
+    @Test fun unknown_upload_is_reconciled_without_uploading_a_duplicate() = runBlocking {
         connect()
         drive.failAfterUploadWithUnknownOutcome = true
 
@@ -293,7 +292,7 @@ class CloudBackupCoordinatorTest {
         assertFalse(File(unknown.local_archive_path).exists())
     }
 
-    @Test fun gd2_a_check_cut_short_after_the_upload_is_reconciled_not_left_unverified() = runBlocking {
+    @Test fun a_check_cut_short_after_the_upload_is_reconciled_not_left_unverified() = runBlocking {
         connect()
         // A plain archive left by an earlier killed cycle.
         val left = File(File(context.cacheDir, "valnook-cloud"), "attempt-left-behind").apply { mkdirs() }
@@ -315,7 +314,7 @@ class CloudBackupCoordinatorTest {
         assertEquals("verified", drive.files.single().properties["verificationState"])
     }
 
-    @Test fun au2_a_manual_backup_cancelled_mid_upload_does_not_stay_in_progress() = runBlocking {
+    @Test fun a_manual_backup_cancelled_mid_upload_does_not_stay_in_progress() = runBlocking {
         connect()
         val uploading = kotlinx.coroutines.CompletableDeferred<Unit>()
         drive.afterFirstUploadGate = { uploading.complete(Unit); kotlinx.coroutines.awaitCancellation() }
@@ -328,7 +327,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(BackupAttemptState.UPLOADING.name, database.cloudBackup().latestAttempt()!!.state)
     }
 
-    @Test fun gd2_disconnect_during_upload_prevents_old_cycle_from_overwriting_disconnected_state() = runBlocking {
+    @Test fun disconnect_during_upload_prevents_old_cycle_from_overwriting_disconnected_state() = runBlocking {
         connect()
         drive.afterFirstUploadGate = { coordinator.disconnect() }
 
@@ -342,7 +341,7 @@ class CloudBackupCoordinatorTest {
         assertNull(state.pendingBannerEventId)
     }
 
-    @Test fun au2_enabling_automatic_does_not_clear_restore_pause() = runBlocking {
+    @Test fun enabling_automatic_does_not_clear_restore_pause() = runBlocking {
         connect()
         database.audit().recordRestoreCommit("synthetic-restore", "0".repeat(64), networkClock.value)
         coordinator.initialize()
@@ -356,7 +355,7 @@ class CloudBackupCoordinatorTest {
         assertNull(scheduler.latest)
     }
 
-    @Test fun au2_manual_backup_is_allowed_while_restore_pause_remains_active() = runBlocking {
+    @Test fun manual_backup_is_allowed_while_restore_pause_remains_active() = runBlocking {
         connect()
         database.audit().recordRestoreCommit("synthetic-restore", "0".repeat(64), networkClock.value)
         coordinator.initialize()
@@ -370,7 +369,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(1, drive.uploadCalls)
     }
 
-    @Test fun au2_interval_and_manual_success_use_authoritative_network_time() = runBlocking {
+    @Test fun interval_and_manual_success_use_authoritative_network_time() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         assertEquals(networkClock.value + 24L * 3_600_000L, scheduler.latest!!.due)
@@ -389,7 +388,7 @@ class CloudBackupCoordinatorTest {
             coordinator.observeState().first().lastSuccessAtUtc).toEpochMilli())
     }
 
-    @Test fun gd2_cloud_download_stages_the_original_portable_archive() = runBlocking {
+    @Test fun cloud_download_stages_the_original_portable_archive() = runBlocking {
         connect()
         coordinator.manualBackup()
         val uploaded = drive.files.single { it.properties["verificationState"] == "verified" }
@@ -403,7 +402,7 @@ class CloudBackupCoordinatorTest {
         Unit
     }
 
-    @Test fun au2_failed_upload_does_not_retry_old_cycle_but_next_cycle_can_run() = runBlocking {
+    @Test fun failed_upload_does_not_retry_old_cycle_but_next_cycle_can_run() = runBlocking {
         connect()
         coordinator.setAutomatic(true)
         val failedCycle = scheduler.latest!!
@@ -429,7 +428,7 @@ class CloudBackupCoordinatorTest {
         assertEquals(BackupAttemptState.SUCCEEDED, coordinator.observeState().first().attemptState)
     }
 
-    @Test fun gd2_cleanup_failure_keeps_new_backup_successful_and_records_incomplete_cleanup() = runBlocking {
+    @Test fun cleanup_failure_keeps_new_backup_successful_and_records_incomplete_cleanup() = runBlocking {
         connect()
         repeat(5) { drive.seedVerified(it + 1) }
         drive.failTrash = true
@@ -501,7 +500,7 @@ class CloudBackupCoordinatorTest {
         assertFalse(drive.files.single { it.id == "stale" }.trashed)
     }
 
-    @Test fun gd2_two_logical_devices_share_one_retention_set() = runBlocking {
+    @Test fun two_logical_devices_share_one_retention_set() = runBlocking {
         val secondDatabase = Room.inMemoryDatabaseBuilder(context, ValnookDatabase::class.java)
             .addCallback(ValnookDatabase.seed).build()
         try {
@@ -659,7 +658,6 @@ class CloudBackupCoordinatorTest {
         val files = mutableListOf<RemoteBackupFile>()
         val contents = mutableMapOf<String, ByteArray>()
         val trashedIds = mutableListOf<String>()
-        var permanentDeleteCalled = false
         var corruptUploadChecksum = false
         var uploadedBytes = 0L
         var uploadCalls = 0

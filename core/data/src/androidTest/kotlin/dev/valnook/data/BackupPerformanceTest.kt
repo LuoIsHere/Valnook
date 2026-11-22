@@ -40,8 +40,10 @@ class BackupPerformanceTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val clock = Clock.fixed(Instant.parse("2026-10-03T08:30:00Z"), ZoneOffset.UTC)
 
+    /** A measurement, not a check: runs only with `-e backupTiming true` (and optionally `-e trades N`). */
     @Test fun streams_large_backup_and_restore_with_measured_resources() = runBlocking {
         val arguments = InstrumentationRegistry.getArguments()
+        org.junit.Assume.assumeTrue(arguments.getString("backupTiming") == "true")
         val tradeCount = arguments.getString("trades")?.toIntOrNull() ?: 100_000
         require(tradeCount in 1..250_000)
         val sourceName = "backup-performance-source-${UUID.randomUUID()}.db"

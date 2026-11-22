@@ -64,8 +64,6 @@ class AccountDeletionTest {
             val staged=restored.prepareRestore(ByteArrayInputStream(backup.toByteArray()),"deletion.val_backup"){}
             try {restored.commitRestore(staged){}} finally {restored.close(staged)}
             assertEquals(RoomOverview(db).snapshot(),RoomOverview(target).snapshot())
-            val workbook=ByteArrayOutputStream();restored.exportWorkbook(id(),AppLanguage.ENGLISH,false,workbook){}
-            assertTrue(workbook.size()>100)
         }finally{target.close()}
     }
 

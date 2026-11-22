@@ -134,10 +134,10 @@ class WalletDataTest {
         assertTrue(runCatching{engine.prepareRestore(ByteArrayInputStream(corrupt),"broken.val_backup") {}}.isFailure)
         assertEquals(restored,wallet.observeCards().first())
     }
-    @Test fun fifty_cards_and_ten_thousand_same_millisecond_rows_stay_in_the_selected_month()=runBlocking {
+    // Enough same-millisecond rows for several pages; the card limit has its own test.
+    @Test fun same_millisecond_rows_page_through_the_selected_month_once_each()=runBlocking {
         val account=commands.testAccount("A");commands.execute(SetCashBalance(testOperationId(),account,"USD",1,null))
         val cash=RoomOverview(db).snapshot().cash.single();val source=db.cash().cashAccountMonthPage(cash.id,0,Long.MAX_VALUE,null,null,1).single().entry
-        repeat(50){wallet.save(null,null,"Card $it",cash.id,null)}
         val month=LedgerMonth(YearMonth.of(2024,2),ZoneId.of("Asia/Hong_Kong"))
         db.withTransaction {
             suspend fun entry(index:Int,time:Long) {
@@ -145,15 +145,15 @@ class WalletDataTest {
                 db.openHelper.writableDatabase.execSQL("INSERT INTO operations SELECT ?,kind,request_fingerprint,result_kind,result_id,created_at_ms FROM operations WHERE operation_id=?",arrayOf(operation,source.original_operation_id))
                 db.ledger().insert_entry(source.copy(id=0,original_operation_id=operation,occurred_at_ms=time,source_id=null))
             }
-            repeat(10000){entry(it,month.startMs)}
-            entry(10000,month.endMs-1);entry(10001,month.endMs)
+            repeat(120){entry(it,month.startMs)}
+            entry(120,month.endMs-1);entry(121,month.endMs)
         }
         val repository=RoomCash(db.cash());val ids=mutableSetOf<Long>();var cursor:LedgerCursor?=null
         do{val rows=repository.cashAccountMonthPage(cash.id,month,cursor,50)
             assertTrue(rows.all{it.occurred_at_ms>=month.startMs&&it.occurred_at_ms<month.endMs})
             rows.forEach{assertTrue(ids.add(it.id))};cursor=rows.lastOrNull()?.let{LedgerCursor(it.occurred_at_ms,it.id)}
         }while(cursor!=null)
-        assertEquals(10001,ids.size);assertEquals(50,wallet.observeCards().first().size)
+        assertEquals(121,ids.size)
         assertTrue(repository.cashAccountMonthPage(cash.id,LedgerMonth(YearMonth.of(2024,1),month.zone),null,50).isEmpty())
         assertEquals(month.startMs,repository.observeMonthBounds(cash.id).first().firstMs)
     }

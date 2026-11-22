@@ -40,21 +40,19 @@ class WebAdminReadRepositoryTest {
 
     @After fun close() = database.close()
 
-    @Test fun one_hundred_thousand_trades_are_server_paginated_and_stably_ordered() = runBlocking {
-        seedTrades(100_000)
-        val started = System.nanoTime()
+    // A few pages are enough to show the cursor; how fast a large book pages is for QueryPerformanceTest.
+    @Test fun trades_are_server_paginated_and_stably_ordered() = runBlocking {
+        seedTrades(300)
         val first = repository.records(WebRecordFilter(kind = WebRecordKind.TRADE, pageSize = 100))
-        val firstElapsedMs = (System.nanoTime() - started) / 1_000_000
         assertEquals(100, first.items.size)
         assertNotNull(first.nextCursor)
-        assertEquals(100_000L, first.items.first().id)
-        assertEquals(99_901L, first.items.last().id)
-        assertTrue("First 100k page took ${firstElapsedMs}ms", firstElapsedMs < 10_000)
+        assertEquals(300L, first.items.first().id)
+        assertEquals(201L, first.items.last().id)
 
         val second = repository.records(WebRecordFilter(kind = WebRecordKind.TRADE,
             cursor = first.nextCursor, pageSize = 100))
         assertEquals(100, second.items.size)
-        assertEquals(99_900L, second.items.first().id)
+        assertEquals(200L, second.items.first().id)
         assertTrue(first.items.map { it.id }.toSet().intersect(second.items.map { it.id }.toSet()).isEmpty())
     }
 

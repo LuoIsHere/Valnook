@@ -72,7 +72,10 @@ class StatisticsFxPerformanceTest {
         return output.size()
     }
 
+    /** Timed with limits that a slow emulator can miss: runs only with `-e statisticsTiming true`. */
     @Test fun three_years_of_daily_rates_for_ten_currencies() = runBlocking {
+        org.junit.Assume.assumeTrue(androidx.test.platform.app.InstrumentationRegistry.getArguments()
+            .getString("statisticsTiming") == "true")
         val name = "fx-performance-${UUID.randomUUID()}.db"
         val db = Room.databaseBuilder(context, ValnookDatabase::class.java, name).addCallback(ValnookDatabase.seed).build()
         try {

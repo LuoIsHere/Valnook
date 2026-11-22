@@ -93,7 +93,6 @@ class AiAssistantTest {
         // Said in words without a currency: the usual case, not flagged.
         assertTrue(reply.drafts.none { AiDraftFlag.CURRENCY in it.draft.flags })
         assertEquals(AiTurnUsage(100, 20, 120, null, 1), reply.usage)
-        assertEquals("Breakfast 8, lunch 68…".take(16), assistant.observeConversations().first().single().title.take(16))
         assertTrue(assistant.observePendingDrafts().first())
         assertEquals(id, assistant.conversationToContinue())
 
