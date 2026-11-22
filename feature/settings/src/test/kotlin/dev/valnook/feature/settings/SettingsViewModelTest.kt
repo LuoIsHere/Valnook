@@ -86,6 +86,8 @@ class SettingsViewModelTest {
         vm.updateRow(1, usd, "7")
         vm.saveRates()
         assertEquals(ErrorCode.DUPLICATE_CURRENCY, vm.state.value.error)
+        // Anything a save launched has run by now.
+        advanceUntilIdle()
         assertEquals(0, repository.writes)
     }
     @Test fun live_summary_updates_without_overwriting_a_dirty_draft_and_conflict_keeps_input() = runTest(dispatcher) {

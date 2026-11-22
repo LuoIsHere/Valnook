@@ -69,6 +69,7 @@ class CashViewModelTest {
         vm.update { it.copy(amountInput = "9") }
         vm.submit()
         runCurrent()
+        assertEquals(2, requests.size)
         assertEquals(requests.first(), requests.last())
     }
     @Test fun source_linked_entry_cannot_be_edited_as_manual_balance() = runTest(dispatcher) {

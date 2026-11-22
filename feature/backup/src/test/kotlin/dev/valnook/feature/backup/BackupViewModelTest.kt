@@ -111,8 +111,9 @@ class BackupViewModelTest {
         advanceUntilIdle()
 
         vm.prepareCloudRestore(descriptor)
-        val restoredState = withTimeout(5_000) {
-            vm.state.first { it.preview != null || it.error != null || it.cloudError != null }
+        // Staged and read on a real IO thread, so waited for in real time.
+        val restoredState = kotlinx.coroutines.withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(5_000) { vm.state.first { it.preview != null || it.error != null || it.cloudError != null } }
         }
 
         assertEquals(preview, restoredState.preview)
@@ -136,7 +137,9 @@ class BackupViewModelTest {
         vm.createBackup(vm.backupRequest(), { java.io.ByteArrayOutputStream() }) {
             reading.await(); ByteArrayInputStream(bytes)
         }
-        val verifying = withTimeout(5_000) { vm.state.first { it.stage == PortabilityStage.COMPLETE } }
+        val verifying = kotlinx.coroutines.withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(5_000) { vm.state.first { it.stage == PortabilityStage.COMPLETE } }
+        }
         // The engine is done, but the copy is still being read back: nothing else may start.
         assertTrue(verifying.busy)
         vm.cancelRestore()
@@ -198,6 +201,10 @@ class BackupViewModelTest {
         vm.prepareCloudRestore(descriptor)
         assertEquals(0, staged)
         reading.countDown()
+        // The backup finishes before the test ends, so its thread never outlives it.
+        kotlinx.coroutines.withContext(Dispatchers.Default.limitedParallelism(1)) {
+            withTimeout(5_000) { vm.state.first { it.completedFile != null } }
+        }
     }
 
     @Test fun cloud_backup_selection_toggles_and_is_cleared_when_the_file_disappears() = runTest(dispatcher) {

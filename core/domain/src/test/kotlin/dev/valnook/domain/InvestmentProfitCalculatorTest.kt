@@ -94,6 +94,7 @@ class InvestmentProfitCalculatorTest {
         val reopened = Calculator.calculate(asset("1", price = "200"), history)
         assertFalse(reopened.cost_complete); assertFalse(reopened.realizedComplete); assertNull(reopened.realized)
         decimal("0", reopened.remainingCost); assertNull(reopened.unrealized)
+        assertFalse(reopened.chronology_valid)
     }
     @Test fun allocation_precision_is_not_reduced_to_currency_scale() {
         val result = Calculator.calculate(asset("0.2", price = "2"), listOf(
@@ -103,10 +104,6 @@ class InvestmentProfitCalculatorTest {
         val closed = Calculator.calculate(asset("0"), listOf(trade(1, Direction.BUY, "0.3", "1.23"),
             trade(2, Direction.SELL, "0.1", "2"), trade(3, Direction.SELL, "0.2", "2")))
         decimal("0", closed.remainingCost); decimal("0.231", closed.realized); displayed("0.23", closed.realized)
-    }
-    @Test fun historical_sale_before_buy_conflict_is_explicit() {
-        val history = listOf(trade(1, Direction.SELL, "5", "120"), trade(2, Direction.BUY, "10", "100"))
-        assertFalse(Calculator.calculate(asset("5"), history).chronology_valid)
     }
     @Test fun exact_half_cent_display_is_rounded_only_at_boundary() {
         val result = Calculator.calculate(asset("2.99"), listOf(trade(1, Direction.BUY, "3", "0.5"),

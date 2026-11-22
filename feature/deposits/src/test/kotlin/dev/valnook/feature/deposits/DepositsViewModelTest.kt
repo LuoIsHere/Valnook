@@ -119,7 +119,7 @@ class DepositsViewModelTest {
         vm.update { it.copy(rateInput = "abc") }
         assertEquals(DepositFormSummary(75, null, null), vm.summary())
     }
-    @Test fun midnight_refresh_does_not_issue_financial_command() = runTest(dispatcher) {
+    @Test fun refresh_after_midnight_moves_today_to_the_next_local_day() = runTest(dispatcher) {
         var instant = Instant.parse("2026-09-30T23:59:59Z")
         val clock = object : Clock() {
             override fun getZone() = ZoneOffset.UTC

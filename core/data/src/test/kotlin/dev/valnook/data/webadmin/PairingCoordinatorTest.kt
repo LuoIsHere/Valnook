@@ -48,11 +48,13 @@ class PairingCoordinatorTest {
     @Test fun idle_waiting_and_pending_handshake_expire() {
         val waiting = coordinator()
         waiting.begin(0)
+        assertFalse(waiting.waitingExpired(WAITING_IDLE_TIMEOUT_MS - 1))
         assertTrue(waiting.waitingExpired(WAITING_IDLE_TIMEOUT_MS))
 
         val pending = coordinator()
         val state = pending.begin(0)
         pending.pairCode(requireNotNull(state.pairingCode), "10.0.0.2", 1)
+        assertFalse(pending.pendingExpired(PENDING_SOCKET_TIMEOUT_MS))
         assertTrue(pending.pendingExpired(PENDING_SOCKET_TIMEOUT_MS + 1))
         assertNotNull(pending.state().pairingCode)
     }

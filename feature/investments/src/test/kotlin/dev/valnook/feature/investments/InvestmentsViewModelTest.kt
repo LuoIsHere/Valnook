@@ -83,6 +83,7 @@ class InvestmentsViewModelTest {
         runCurrent()
         vm.submit()
         runCurrent()
+        assertEquals(2,requests.size)
         assertTrue(requests.first() is DeleteInvestmentTrade)
         assertEquals(requests.first(),requests.last())
     }
@@ -195,6 +196,7 @@ class InvestmentsViewModelTest {
         runCurrent()
         vm.submit()
         runCurrent()
+        assertEquals(2,requests.size)
         assertEquals(requests.first(),requests.last())
         assertFalse(requests.first().cash_linked)
     }

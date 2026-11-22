@@ -65,7 +65,10 @@ class WalletViewModelTest {
     }
     @Test fun removing_binding_clears_rows_and_pending_requests()=runTest(dispatcher) {
         val vm=WalletViewModel("test",repository,overview,pages,clock,SavedStateHandle());runCurrent()
-        vm.select(1);runCurrent();cards.value=cards.value.map{it.copy(boundCashAccountId=null)};advanceUntilIdle()
+        vm.select(1);runCurrent()
+        // The bound card did start loading, so clearing its rows below is not just the empty start.
+        assertTrue(requests.any{it.first==10L})
+        cards.value=cards.value.map{it.copy(boundCashAccountId=null)};advanceUntilIdle()
         assertTrue(vm.ledger.value.rows.isEmpty());assertFalse(vm.ledger.value.loading)
     }
 }

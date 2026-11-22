@@ -15,7 +15,6 @@ class DecimalRulesTest {
         assertEquals(Long.MAX_VALUE,R.replace_contribution(Long.MAX_VALUE,-1,-1))
         error(ErrorCode.OVERFLOW){R.replace_contribution(Long.MAX_VALUE,-1,0)}
         assertEquals("-1 234.56",R.format_display(-123456,2))
-        assertEquals(54,Currency.supported.size)
     }
     @Test fun converted_totals_round_half_up_and_group_like_stored_amounts() {
         assertEquals("1 629 953.23",R.format_display(java.math.BigDecimal("1629953.2346651"),2))
@@ -93,5 +92,11 @@ class DecimalRulesTest {
         assertEquals(1, R.displayed_sign(java.math.BigDecimal("0.005"), 2))
         assertEquals(-1, R.displayed_sign(java.math.BigDecimal("-0.005"), 2))
         assertEquals(0, R.displayed_sign(null, 2))
+        // Residue far below a cent, and amounts just either side of the rounding edge.
+        assertEquals(0, R.displayed_sign(java.math.BigDecimal("-0.000154"), 2))
+        assertEquals(0, R.displayed_sign(java.math.BigDecimal("0.004999"), 2))
+        assertEquals(-1, R.displayed_sign(java.math.BigDecimal("-0.10"), 2))
+        assertEquals(1, R.displayed_sign(java.math.BigDecimal("0.5"), 0))
+        assertEquals(0, R.displayed_sign(java.math.BigDecimal("0.4"), 0))
     }
 }

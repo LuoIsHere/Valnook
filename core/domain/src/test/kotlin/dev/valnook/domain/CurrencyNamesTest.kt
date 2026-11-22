@@ -11,6 +11,8 @@ class CurrencyNamesTest {
             assertTrue(it.code, it.english_name.all { char -> char.code < 128 })
         }
         assertEquals(Currency.supported.size, Currency.supported.map { it.english_name }.toSet().size)
+        // The list is part of backups and the currencies table; a change here needs a migration.
+        assertEquals(54, Currency.supported.size)
     }
 
     @Test fun options_follow_the_interface_language() {

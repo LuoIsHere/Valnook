@@ -30,6 +30,7 @@ class NavigationSettingsViewModelTest {
         vm.hide(NavigationItemId.SETTINGS)
         vm.reorderShown(listOf(NavigationItemId.STATISTICS, NavigationItemId.WALLET,
             NavigationItemId.INVESTMENTS, NavigationItemId.SETTINGS))
+        advanceUntilIdle()
         assertEquals(0, repository.writes)
         assertTrue(vm.state.value.dirty)
         assertEquals(listOf(NavigationItemId.BILLS, NavigationItemId.ACCOUNTS), vm.state.value.hidden)

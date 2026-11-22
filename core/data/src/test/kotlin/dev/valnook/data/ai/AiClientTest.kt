@@ -46,8 +46,8 @@ class AiClientTest {
     }
 
     @Test fun errors_say_what_went_wrong() = runTest {
-        fun problem(response: () -> AiHttpResponse): AiProblem? = try {
-            kotlinx.coroutines.runBlocking { client { response() }.chat(connection, "k", body(), false, 1000) }; null
+        suspend fun problem(response: () -> AiHttpResponse): AiProblem? = try {
+            client { response() }.chat(connection, "k", body(), false, 1000); null
         } catch (error: AiException) { error.problem }
         assertEquals(AiProblem.UNAUTHORIZED, problem { AiHttpResponse(401, "") })
         assertEquals(AiProblem.UNAUTHORIZED, problem { AiHttpResponse(403, "") })

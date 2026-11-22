@@ -18,8 +18,6 @@ class StatisticsFormatTest {
     @Test fun what_rounds_to_zero_has_no_sign_and_no_colour() {
         assertEquals("0.00 CNY", money(BigDecimal("0.004"), cny, signed = true))
         assertEquals("0.00 CNY", money(BigDecimal("-0.004"), cny, signed = true))
-        assertEquals(0, displayedSign(BigDecimal("0.004"), 2))
-        assertEquals(0, displayedSign(BigDecimal("-0.004"), 2))
         assertEquals("+12.35", signedNumber(BigDecimal("12.345"), 2))
     }
 }
