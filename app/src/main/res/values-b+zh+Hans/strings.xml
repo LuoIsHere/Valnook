@@ -5,10 +5,9 @@
     <string name="nav_settings">设置</string>
     <string name="nav_back">返回</string>
     <string name="nav_edit">编辑</string>
-    <string name="nav_add_account">新增账户</string>
+    <string name="nav_add_account">添加账户</string>
     <string name="nav_instrument_library">所有标的</string>
     <string name="title_edit_account">编辑账户</string>
-    <string name="title_all_instruments">所有标的</string>
     <string name="title_instrument_library">所有标的</string>
     <string name="title_exchange_rates">汇率</string>
     <string name="title_language">语言</string>
@@ -46,7 +45,7 @@
     <string name="title_new_bill">记一笔</string>
     <string name="title_edit_bill">编辑账单</string>
     <string name="title_bill_detail">账单详情</string>
-    <string name="title_reimbursements">报销 / 待回款</string>
+    <string name="title_reimbursements">报销回款</string>
     <string name="title_bill_refund">退款</string>
     <string name="title_bill_reimbursement">报销回款</string>
     <string name="title_bill_categories">账单分类</string>

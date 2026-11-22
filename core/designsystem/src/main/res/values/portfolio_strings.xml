@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="closed_investments">Closed positions</string>
-    <string name="pending_investments">Pending positions</string>
     <string name="settled_deposits">Settled deposits</string>
-    <string name="empty_closed_investments">No closed positions yet.</string>
-    <string name="empty_pending_investments">No pending positions yet.</string>
     <string name="empty_settled_deposits">No settled deposits yet.</string>
-    <string name="profit_summary">Historical P/L</string>
-    <string name="average_buy_cost">Average buy cost</string>
     <string name="realized_profit">Realized P/L</string>
-    <string name="unrealized_profit">Unrealized P/L</string>
-    <string name="profit_order_invalid">A sale occurs before enough holdings are available. Correct the trade date to view realized P/L.</string>
-    <string name="profit_rule">Cost uses the weighted average of all purchases. Sales do not change the average cost. Realized P/L uses the average cost at the time of sale.</string>
-    <string name="no_cost_yet">No purchase cost yet</string>
 </resources>

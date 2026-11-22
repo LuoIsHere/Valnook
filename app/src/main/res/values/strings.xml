@@ -9,7 +9,6 @@
     <string name="nav_add_account">Add account</string>
     <string name="nav_instrument_library">All instruments</string>
     <string name="title_edit_account">Edit account</string>
-    <string name="title_all_instruments">All instruments</string>
     <string name="title_instrument_library">All instruments</string>
     <string name="title_exchange_rates">Exchange rates</string>
     <string name="title_language">Language</string>
@@ -26,7 +25,7 @@
     <string name="cloud_failure_prepare">The local backup package could not be prepared.</string>
     <string name="nav_wallet">Wallet</string>
     <string name="wallet_delete_card">Delete card</string>
-    <string name="title_card_faces">Card faces</string>
+    <string name="title_card_faces">Card face library</string>
     <string name="onboarding_fx_auto_hint">Current rates are fetched after you finish; you can turn this off in Settings.</string>
     <string name="onboarding_fx_auto_later_hint">You can turn this on later in Settings › Exchange rates.</string>
     <string name="onboarding_no_base">Choose a base currency to finish setup.</string>

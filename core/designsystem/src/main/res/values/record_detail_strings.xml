@@ -8,9 +8,5 @@
     <string name="trade_amount">Trade amount</string>
     <string name="trade_fee">Transaction fee</string>
     <string name="record_cash_link">Cash link</string>
-    <string name="record_status">Status</string>
-    <string name="record_progress">Term progress</string>
     <string name="deposit_not_settled">Not settled</string>
-    <string name="trade_summary">%1$s · %2$s %3$s</string>
-    <string name="trade_quantity_price">%1$s units × %2$s %3$s</string>
 </resources>

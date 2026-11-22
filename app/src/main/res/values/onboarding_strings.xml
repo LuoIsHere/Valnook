@@ -8,7 +8,7 @@
     <string name="onboarding_finance_hint">Choose a base currency for your totals. Exchange rates are optional and can be changed later in Settings.</string>
     <string name="onboarding_finish">Finish setup</string>
     <string name="onboarding_saving">Saving…</string>
-    <string name="onboarding_save_error">Could not save setup. Please try again.</string>
+    <string name="onboarding_save_error">Could not save setup. Try again.</string>
     <string name="onboarding_retry">Retry</string>
     <string name="onboarding_change_base">Change base currency?</string>
     <string name="onboarding_change_base_hint">This clears the exchange rates entered here because their target currency will change.</string>

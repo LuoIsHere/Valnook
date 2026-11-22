@@ -32,7 +32,7 @@ import org.junit.Test
 import java.util.UUID
 import javax.inject.Inject
 
-/** Bookkeeping by chat against a scripted service, with synthetic accounts only; nothing reaches the network. */
+/** AI bookkeeping against a scripted service, with synthetic accounts only; nothing reaches the network. */
 @HiltAndroidTest
 class AiChatUiTest {
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)

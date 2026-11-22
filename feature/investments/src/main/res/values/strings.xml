@@ -1,5 +1,5 @@
 <resources>
-    <string name="investment_load_failed">Could not load investments. Please try again.</string>
+    <string name="investment_load_failed">Could not load investments. Try again.</string>
     <string name="investment_loading">Loading</string>
     <string name="investment_read_failed">Could not load</string>
     <string name="investment_set_base">Set a base currency</string>
@@ -9,7 +9,6 @@
     <string name="investment_missing_current_cost">Holding cost is incomplete</string>
     <string name="investment_missing_historical_cost">Historical cost is incomplete</string>
     <string name="investment_invalid_history">Transaction history is invalid</string>
-    <string name="investment_total_value">Total investment value</string>
     <string name="investment_total_unrealized">Unrealized P/L</string>
     <string name="investment_total_realized">Realized P/L to date</string>
     <string name="investment_no_holdings_summary">No current holdings. Historical realized P/L is still included.</string>
@@ -17,14 +16,12 @@
     <string name="investment_realized_value">Realized P/L %1$s</string>
     <string name="investment_unrealized_value">Unrealized P/L %1$s</string>
     <string name="investment_partial_summary">Partial total · check base currency or cost records</string>
-    <string name="investment_all_instruments">All instruments</string>
     <string name="investment_current_holdings">Current holdings</string>
-    <string name="investment_no_associations">No instruments associated with this account</string>
     <string name="investment_no_holdings">No current holdings</string>
     <string name="investment_add_to_account">Select instrument</string>
     <string name="investment_no_available_instruments">Every instrument in the library is already in this account</string>
     <string name="investment_name_symbol">Name / Symbol</string>
-    <string name="investment_value_quantity">Value / Quantity</string>
+    <string name="investment_value_quantity">Value / Units</string>
     <string name="investment_price_cost">Price / Cost</string>
     <string name="investment_unrealized">Unrealized P/L</string>
     <string name="investment_units">%1$s units</string>
@@ -36,10 +33,9 @@
     <string name="investment_review_retry">Review and retry</string>
     <string name="investment_confirm_delete">Confirm deletion</string>
     <string name="investment_save">Save</string>
-    <string name="investment_instrument">Instrument</string>
     <string name="investment_delete_hint">Deleting recalculates later costs and reverses this trade\'s cash effect.</string>
     <string name="investment_trade_direction">Trade direction</string>
-    <string name="investment_quantity">Quantity</string>
+    <string name="investment_quantity">Units</string>
     <string name="investment_execution_price">Trade price</string>
     <string name="investment_trade_fee">Transaction fee</string>
     <string name="investment_record_date">Trade date</string>
@@ -92,7 +88,7 @@
     <string name="instrument_delete">Delete instrument</string>
     <string name="instrument_delete_confirm">Delete</string>
     <string name="instrument_delete_simple">Delete “%1$s”? It has no trades.</string>
-    <string name="instrument_delete_scope">Removes its positions and history. Accounts: %1$d · Trades: %2$d · Price records: %3$d</string>
+    <string name="instrument_delete_scope">Removes its holdings and history. Accounts: %1$d · Trades: %2$d · Price records: %3$d</string>
     <string name="instrument_delete_value">Its current value of %1$s will be removed from your net assets.</string>
     <string name="instrument_delete_cash">Cash entries kept: %1$d. Balances do not change; past statistics are recalculated.</string>
     <string name="instrument_delete_code">Confirmation code: %1$s</string>
@@ -131,17 +127,15 @@
     <string name="investment_cost_includes_fees">Cost includes fees</string>
     <string name="investment_trade_history">Trade history</string>
     <string name="investment_no_trades">No trade records</string>
-    <string name="investment_load_more">Load more</string>
     <string name="instrument_not_found">Instrument not found</string>
     <string name="instrument_price_shared_hint">All accounts holding this instrument use this price.</string>
     <string name="instrument_types_failed_short">Could not load asset classes. Go back and try again.</string>
     <string name="instrument_types_loading_short">Loading asset classes</string>
     <string name="instrument_add_type">Add asset class</string>
-    <string name="investment_fx_summary">Converted at configured rates ⓘ</string>
     <string name="investment_search">Search name, symbol or currency</string>
     <string name="investment_catalogue">Manage instruments</string>
-    <string name="investment_closed_positions">Closed positions</string>
-    <string name="investment_no_closed_positions">No closed positions</string>
+    <string name="investment_closed_positions">Closed holdings</string>
+    <string name="investment_no_closed_positions">No closed holdings</string>
     <string name="instrument_quantity_label">Units held</string>
     <string name="instrument_average_label">Average cost</string>
     <string name="instrument_cost_label">Cost</string>

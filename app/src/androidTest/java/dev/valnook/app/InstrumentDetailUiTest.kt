@@ -90,7 +90,7 @@ class InstrumentDetailUiTest {
                 CompositionLocalProvider(LocalContext provides LocalContext.current.createConfigurationContext(config),
                     LocalConfiguration provides config, LocalPageTopBarHeight provides 56.dp) {
                     ValnookTheme { Surface(Modifier.fillMaxSize()) { Box(Modifier.padding(top = 56.dp).width(360.dp).height(720.dp)) {
-                        InstrumentDetail(vm, contextAccount, {}, { account, trade -> opened += account to trade },
+                        InstrumentDetail(vm, contextAccount, {}, { account, trade, _ -> opened += account to trade },
                             { account, position -> bought += account to position }, { account, position -> sold += account to position })
                     } } }
                 }
@@ -119,7 +119,7 @@ class InstrumentDetailUiTest {
         rule.onNodeWithTag("instrument-price", useUnmergedTree = true).assertTextContains("120 CNY")
         rule.onNodeWithTag("instrument-header-line").assertTextContains("更新", substring = true)
         rule.onNodeWithTag("instrument-price-update").assertHasClickAction()
-        rule.onNodeWithTag("instrument-value").assertTextContains("持仓总额 1 800.00 CNY")
+        rule.onNodeWithTag("instrument-value").assertTextContains("持仓合计 1 800.00 CNY")
         rule.onNodeWithTag("instrument-unrealized").assertTextContains("+200.00 (+12.50%)")
         // The total and its note read as one pair.
         val total = rule.onNodeWithTag("instrument-value").fetchSemanticsNode().boundsInRoot

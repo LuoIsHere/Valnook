@@ -56,7 +56,7 @@ internal fun EntryProviderScope<NavKey>.investmentEntries(graph: AppGraph, open:
         val vm = pageViewModel { InstrumentDetailViewModel(route.id, graph.overview, graph.investments, graph.instruments,
             createSavedStateHandle(), graph.clock, graph.commands) }
         InstrumentDetail(vm, route.accountId, { onTitleReserve(route, it) },
-            onTrade = { accountId, tradeId -> open(TradeDetailKey(accountId, tradeId)) },
+            onTrade = { accountId, tradeId, dividend -> open(TradeDetailKey(accountId, tradeId, dividend)) },
             onBuy = { accountId, positionId -> open(TradeFormKey(accountId, TradeFormMode.CREATE, route.id, positionId,
                 direction = Direction.BUY)) },
             onSell = { accountId, positionId -> open(TradeFormKey(accountId, TradeFormMode.CREATE, route.id, positionId,

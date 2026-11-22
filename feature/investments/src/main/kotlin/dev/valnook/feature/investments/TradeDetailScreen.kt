@@ -30,6 +30,7 @@ import java.time.ZoneId
     }
 }
 
+/** The record's rows and actions; its title is in the title bar, which knows a trade from a dividend before it loads. */
 @Composable fun TradeDetailContent(asset:Investment,trade:Trade,account_name:String,on_edit:()->Unit,on_delete:()->Unit) {
     val time=Instant.ofEpochMilli(trade.occurred_at_ms).atZone(ZoneId.systemDefault())
     val settledAmount=tradeAmountWithFee(trade.direction,trade.amount_minor,trade.fee_minor)
@@ -42,7 +43,7 @@ import java.time.ZoneId
             stringResource(R.string.dividend_received) to ("+"+Decimal.format_display(settledAmount,trade.currency.fraction_digits)+" "+trade.currency.code),
             stringResource(R.string.record_date) to time.toLocalDate().toString(),
             stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
-        RecordDetailLayout(stringResource(R.string.dividend_detail_title),dividendRows) {
+        RecordDetailLayout(null,dividendRows) {
             SecondaryButton(onClick=on_edit,modifier=Modifier.fillMaxWidth().testTag("dividend-edit")){Text(stringResource(R.string.edit_dividend))}
             DangerButton(onClick=on_delete,modifier=Modifier.fillMaxWidth().testTag("dividend-delete")){Text(stringResource(R.string.delete_dividend))}
         }
@@ -60,7 +61,7 @@ import java.time.ZoneId
         stringResource(R.string.trade_date) to time.toLocalDate().toString(),
         stringResource(R.string.trade_time) to time.format(rememberClockFormatter()),
         stringResource(R.string.record_cash_link) to stringResource(if(trade.cash_linked)R.string.linked else R.string.unlinked))
-    RecordDetailLayout(stringResource(R.string.trade_detail_title),rows) {
+    RecordDetailLayout(null,rows) {
         SecondaryButton(onClick=on_edit,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.edit_trade))}
         DangerButton(onClick=on_delete,modifier=Modifier.fillMaxWidth()){Text(stringResource(R.string.delete_trade))}
     }

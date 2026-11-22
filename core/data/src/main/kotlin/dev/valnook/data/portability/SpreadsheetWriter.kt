@@ -138,7 +138,7 @@ internal class SpreadsheetWriter(
             sheet.row(text(label(english, "主币种", "Base currency")), text(base))
             val automatic = snapshot.fx.autoEnabled
             sheet.row(text(label(english, "缺失汇率口径", "Missing FX rule")), text(
-                label(english, "没有可用汇率的币种不计入总额", "Currencies without any rate are left out of totals")))
+                label(english, "没有可用汇率的币种不计入合计", "Currencies without any rate are left out of totals")))
             if (snapshot.settings.rates.isNotEmpty()) sheet.row(header(label(english, "项目", "Item")),
                 header(label(english, "货币对", "Pair")), header(label(english, "汇率", "Rate")),
                 header(label(english, "来源", "Source")), header(label(english, "数据日期", "Data date")))

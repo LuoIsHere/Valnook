@@ -19,14 +19,12 @@
     <string name="accounts_missing_current_cost">持仓成本待补全</string>
     <string name="accounts_missing_historical_cost">历史成本待补全</string>
     <string name="accounts_invalid_history">历史记录异常</string>
-    <string name="accounts_empty">点按右上角 ＋ 新增账户</string>
+    <string name="accounts_empty">点按右上角 ＋ 添加账户</string>
     <string name="account_edit_load_failed">加载失败，请重试。</string>
     <string name="account_edit_title">编辑账户</string>
     <string name="account_name">名称</string>
     <string name="account_note">备注</string>
-    <string name="account_balance_accounts">账户</string>
     <string name="account_balance_name">子账户名称</string>
-    <string name="account_type">账户类型</string>
     <string name="account_type_savings">储蓄</string>
     <string name="account_type_credit">信用</string>
     <string name="account_credit_limit">信用额度</string>
@@ -42,10 +40,9 @@
     <string name="account_credit_usage">已用 %1$s / %2$s %3$s</string>
     <string name="account_credit_over_limit">已超出信用额度 %1$s %2$s</string>
     <string name="account_balance">余额</string>
-    <string name="account_cancel_balance_account">放弃新增子账户</string>
+    <string name="account_cancel_balance_account">放弃添加子账户</string>
     <string name="account_delete_balance_account">删除子账户</string>
     <string name="account_delete_title">删除这个账户？</string>
-    <string name="account_delete_message">仅可删除余额为零，且没有流水、存单、交易关联或共享额度成员的空账户。</string>
     <string name="account_delete_confirm">删除</string>
     <string name="account_add_balance_account">＋ 添加子账户</string>
     <string name="account_review_retry">核对并重试</string>
@@ -64,7 +61,7 @@
     <string name="account_groups_title">分类管理</string>
     <string name="account_groups_hint">拖动右侧手柄调整分类内的账户顺序，所有改动都会立即保存。</string>
     <string name="account_group_default">默认</string>
-    <string name="account_group_new">新增分类</string>
+    <string name="account_group_new">添加分类</string>
     <string name="account_group_sort">分类排序</string>
     <string name="account_group_name">分类名称</string>
     <string name="account_group_create">创建</string>

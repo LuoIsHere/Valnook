@@ -112,7 +112,7 @@ class AiPromptTest {
         // Only questions: no drafts made in conversation, and the user is told where to turn them on.
         val onlyQueries = AiPrompt.fixedRules(AiSettings(billChat = false, query = true), english = false, bills = false, queries = true)
         assertTrue(onlyQueries.contains("Recording bills here is turned off"))
-        assertTrue(onlyQueries.contains("对话记账"))
+        assertTrue(onlyQueries.contains("AI 记账"))
         val conversation = listOf(AiPrompt.message("user", "How much on food this month?"))
         assertEquals(listOf("create_bill_drafts", "query_summary", "query_bills", "query_distribution"),
             names(AiPrompt.chatRequest("s", conversation, false, bills = true, queries = true)))

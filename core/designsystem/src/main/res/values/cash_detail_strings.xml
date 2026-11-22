@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="cash_entry_detail">Cash entry details</string>
+    <string name="cash_entry_detail">Entry details</string>
     <string name="entry_source">Source</string>
     <string name="entry_account">Account</string>
     <string name="no_note">None</string>

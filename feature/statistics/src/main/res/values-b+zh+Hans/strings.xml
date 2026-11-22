@@ -1,24 +1,15 @@
 <resources>
-    <string name="statistics_title">统计</string>
-    <string name="statistics_change_month">本月资产变化</string>
     <string name="statistics_total">净资产</string>
     <string name="statistics_cash">可用现金</string>
     <string name="statistics_investment">投资市值</string>
     <string name="statistics_daily">按日</string>
     <string name="statistics_monthly">按月</string>
-    <string name="statistics_previous">上一期间</string>
-    <string name="statistics_next">下一期间</string>
     <string name="statistics_previous_month">上个月</string>
     <string name="statistics_next_month">下个月</string>
     <string name="statistics_previous_year">上一年</string>
     <string name="statistics_next_year">下一年</string>
-    <string name="statistics_current">当前</string>
-    <string name="statistics_unknown">历史数据不足，暂无法计算</string>
-    <string name="statistics_no_data">该期间暂无可靠数据</string>
     <string name="statistics_load_failed">统计数据加载失败</string>
     <string name="statistics_chart_description">%1$s图表，%2$s</string>
-    <string name="statistics_previous_point">上一个数据点</string>
-    <string name="statistics_next_point">下一个数据点</string>
     <string name="statistics_day_change">当日变化</string>
     <string name="statistics_month_change">当月变化</string>
     <string name="statistics_home_investment">投资总市值</string>

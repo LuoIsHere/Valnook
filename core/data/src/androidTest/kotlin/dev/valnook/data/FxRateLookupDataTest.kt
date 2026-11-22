@@ -153,14 +153,14 @@ class FxRateLookupDataTest {
         db.fx().setAutoEnabled(true)
         var rows = rows(summarySheet())
         assertTrue(rows.contains(listOf("报表格式", dev.valnook.data.portability.BackupContract.REPORT_FORMAT_VERSION.toString())))
-        assertTrue(rows.contains(listOf("缺失汇率口径", "没有可用汇率的币种不计入总额")))
+        assertTrue(rows.contains(listOf("缺失汇率口径", "没有可用汇率的币种不计入合计")))
         assertTrue(rows.contains(listOf("项目", "货币对", "汇率", "来源", "数据日期")))
         assertTrue(rows.toString(), rows.contains(listOf("汇率", "USD/CNY", "7.1", "自动", octoberFirst.toString())))
         assertTrue(rows.contains(listOf("汇率", "CNY/USD", "0.14", "自动", "")))   // another base has no data date
 
         db.fx().setAutoEnabled(false)
         rows = rows(summarySheet())
-        assertTrue(rows.contains(listOf("缺失汇率口径", "没有可用汇率的币种不计入总额")))
+        assertTrue(rows.contains(listOf("缺失汇率口径", "没有可用汇率的币种不计入合计")))
         assertTrue(rows.contains(listOf("汇率", "USD/CNY", "7.1", "手动", "")))
         assertFalse(rows.any { it.firstOrNull() == "手动汇率" })
     }

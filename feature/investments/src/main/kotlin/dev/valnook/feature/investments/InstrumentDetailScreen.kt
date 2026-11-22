@@ -57,7 +57,7 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
  * selling; it changes nothing else.
  */
 @Composable fun InstrumentDetail(vm: InstrumentDetailViewModel, contextAccountId: Long?, onTitleReserve: (Int) -> Unit,
-    onTrade: (accountId: Long, tradeId: Long) -> Unit, onBuy: (accountId: Long, positionId: Long?) -> Unit,
+    onTrade: (accountId: Long, tradeId: Long, dividend: Boolean) -> Unit, onBuy: (accountId: Long, positionId: Long?) -> Unit,
     onSell: (accountId: Long, positionId: Long) -> Unit, onDividend: (accountId: Long, positionId: Long) -> Unit = { _, _ -> }) {
     val state by vm.state.collectAsStateWithLifecycle()
     when (val current = state) {
@@ -70,7 +70,7 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
 }
 
 @Composable private fun InstrumentDetailContent(vm: InstrumentDetailViewModel, ready: InstrumentDetailState.Ready,
-    contextAccountId: Long?, onTitleReserve: (Int) -> Unit, onTrade: (Long, Long) -> Unit,
+    contextAccountId: Long?, onTitleReserve: (Int) -> Unit, onTrade: (Long, Long, Boolean) -> Unit,
     onBuy: (Long, Long?) -> Unit, onSell: (Long, Long) -> Unit, onDividend: (Long, Long) -> Unit) {
     val trades by vm.trades.collectAsStateWithLifecycle()
     // Grouped once per page of trades, not on every recomposition while the header scrolls.
@@ -133,7 +133,7 @@ private fun Trade.localDate(): LocalDate = Instant.ofEpochMilli(occurred_at_ms).
             // One card per day, newest first, as the pages arrive.
             tradeDays.forEach { (date, rows) ->
                 item("day-$date") { TradeDay(date, rows, accountNames) { trade ->
-                    accountNames[trade.investment_id]?.let { onTrade(it.id, trade.id) } } }
+                    accountNames[trade.investment_id]?.let { onTrade(it.id, trade.id, trade.direction == Direction.DIVIDEND) } } }
             }
             if (trades.hasMore) item("more") {
                 LaunchedEffect(trades.rows.size, month) { vm.loadMore() }

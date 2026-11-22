@@ -24,8 +24,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.valnook.designsystem.*
@@ -53,7 +51,7 @@ private fun displayedSign(total: ConvertedTotal): Int =
     if (onOpen == null) SummaryMetric(label, converted(total), modifier.heightIn(min = 48.dp), valueColor = valueColor)
     // The rounded press area reaches past the text by PressOutset on each side and pads it back by the same amount, so
     // the text stays level with the figure beside it and the corners never cut into its first letter.
-    else SummaryMetric(label, converted(total), modifier.fillMaxWidth().heightIn(min = 48.dp).outsetHorizontally(PressOutset)
+    else SummaryMetric(label, converted(total), modifier.fillMaxWidth().heightIn(min = 48.dp).bleedHorizontally(PressOutset)
         .clip(RoundedCornerShape(12.dp)).clickable(role = Role.Button, onClickLabel = openDescription, onClick = onOpen)
         .padding(horizontal = PressOutset), valueColor = valueColor) {
         FaIcon(FaIcons.chevronRight, null, Modifier.size(10.dp), MaterialTheme.colorScheme.onSurfaceVariant)
@@ -62,15 +60,6 @@ private fun displayedSign(total: ConvertedTotal): Int =
 }
 
 private val PressOutset = 8.dp
-
-/** Lays the content out [amount] wider on each side than its slot, centred on it, without moving its neighbours. */
-private fun Modifier.outsetHorizontally(amount: Dp): Modifier = layout { measurable, constraints ->
-    val extra = (amount * 2).roundToPx()
-    val placeable = measurable.measure(constraints.copy(
-        minWidth = constraints.minWidth + extra,
-        maxWidth = if (constraints.hasBoundedWidth) constraints.maxWidth + extra else constraints.maxWidth))
-    layout(placeable.width - extra, placeable.height) { placeable.place(-extra / 2, 0) }
-}
 
 /** Why a total is incomplete, in red under it; currencies without any rate are named together in one reason. */
 @Composable internal fun IncompleteReason(total: ConvertedTotal) {

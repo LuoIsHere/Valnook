@@ -1,6 +1,5 @@
 <resources>
     <string name="webadmin_title">网页端管理</string>
-    <string name="webadmin_summary">通过同一局域网中的浏览器管理此设备</string>
     <string name="webadmin_hero">在电脑上管理</string>
     <string name="webadmin_description">用同一局域网里的浏览器查看和编辑此设备的数据。</string>
     <string name="webadmin_description_demo">用同一局域网里的浏览器查看和编辑演示数据，不影响真实数据。</string>

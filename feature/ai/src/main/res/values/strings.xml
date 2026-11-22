@@ -168,7 +168,7 @@
     <string name="ai_enable_needs_checks">Available once the connection and tool call checks pass</string>
     <string name="ai_enable_notice_title">About AI features</string>
     <string name="ai_section_features">Features</string>
-    <string name="ai_feature_bill_chat">Bookkeeping by chat</string>
+    <string name="ai_feature_bill_chat">AI bookkeeping</string>
     <string name="ai_feature_bill_chat_summary">Opened from the button above + on the bills page</string>
     <string name="ai_feature_thinking">Deep thinking on by default</string>
     <string name="ai_feature_thinking_summary">New conversations start with deep thinking on; you can switch it on the chat page at any time. Deep thinking uses more tokens and takes longer. Not used when reading shared content.</string>
@@ -202,7 +202,7 @@
     <string name="ai_base_url_hint">For example https://api.example.com/v1</string>
     <string name="ai_model_hint">Enter a model name or choose one from the list</string>
     <string name="ai_notice_provider">Provider: AI features are provided by the service at the address you enter on this page. Valnook provides no AI service and neither handles nor keeps what passes between you and that service.</string>
-    <string name="ai_notice_when">When it connects: the app sends requests to that address only when you use bookkeeping by chat, ask about bills, read a share or run the checks.</string>
+    <string name="ai_notice_when">When it connects: the app sends requests to that address only when you use AI bookkeeping, ask about bills, read a share or run the checks.</string>
     <string name="ai_notice_sent">Data sent: the text and pictures you enter or share, and the earlier text of the same conversation (earlier pictures are not sent again); the current date, time and base currency; the names of bill categories that are not hidden; the names, currencies and types of the subaccounts shown on the Accounts page (up to 100), and which are favorites; My rules and both nicknames; with \"Send recent bills as hints\" on, the notes and categories of the last 20 bills; with \"Ask about bills\" on and when you ask, the query results: expense and income totals, the date, category, amount and note of up to 20 bills, and the shares of your assets by account, asset type and currency (percentages only). The API key is sent in a request header.</string>
     <string name="ai_notice_not_sent">Data not sent: account balances, credit limits, net worth, asset amounts, wallet contents, investment holdings and trades, avatars, and device information.</string>
     <string name="ai_notice_storage">API key storage: the API key is encrypted on this device only, with keys managed by Android Keystore and content encrypted with AES-GCM. It is never uploaded to Valnook (which has no server), never included in local or OneDrive backups or file exports, and cannot be accessed from Web administration. After uninstalling, clearing app data, clearing all data or moving to a new device, it must be entered again.</string>

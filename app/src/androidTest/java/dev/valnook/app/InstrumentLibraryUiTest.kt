@@ -180,7 +180,7 @@ class InstrumentLibraryUiTest {
         } } } } }
         rule.waitForIdle()
         rule.onNodeWithContentDescription("资产类型管理").assertIsEnabled().performClick()
-        rule.onNodeWithContentDescription("新增标的").assertIsEnabled().performClick()
+        rule.onNodeWithContentDescription("添加标的").assertIsEnabled().performClick()
         assertEquals(1, types); assertEquals(1, adds)
     }
 }

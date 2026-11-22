@@ -112,7 +112,7 @@ object AiPrompt {
     internal fun fixedRules(settings: AiSettings, english: Boolean, bills: Boolean = true, queries: Boolean = false): String = listOfNotNull(
         "You are the bookkeeping assistant in Valnook, a personal finance app. Rules v$RULES_VERSION:",
         if (bills) "- Turn what the user says or shows into bill drafts by calling create_bill_drafts. You never save anything; the user confirms every draft in the app."
-        else "- Recording bills here is turned off. If asked to record one, say that turning on \"${if (english) "Bookkeeping by chat" else "对话记账"}\" in Settings lets you.",
+        else "- Recording bills here is turned off. If asked to record one, say that turning on \"${if (english) "AI bookkeeping" else "AI 记账"}\" in Settings lets you.",
         "- Use only the category and account ids listed below. Leave out a field you are unsure of. Never invent amounts; leave unreadable parts out.",
         "- Amounts are decimal strings in the currency paid. Never convert currencies or add amounts up yourself; the app does that. The only sums you work out are the shares when splitting an expense, below.",
         "- amount and discount: when the user gives a price and what was taken off it (coupons, deals) or what was finally paid, set amount to the price and discount to everything taken off; the app records amount minus discount as paid. When only what was paid is known, set amount to that and leave discount out.",

@@ -9,8 +9,6 @@
     <string name="deposit_rate">Annual rate (%)</string>
     <string name="deposit_start_date">Start date</string>
     <string name="deposit_end_date">Maturity date</string>
-    <string name="deposit_principal_value">Principal %1$s %2$s</string>
-    <string name="deposit_interest_value">Expected interest %1$s %2$s</string>
     <string name="deposit_link_open">Deduct from a subaccount when opened</string>
     <string name="deposit_link_close">Return funds to a subaccount when settled</string>
     <string name="deposit_cash_missing">Create a subaccount in the same currency first</string>

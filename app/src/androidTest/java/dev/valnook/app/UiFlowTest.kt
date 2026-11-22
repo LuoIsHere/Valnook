@@ -410,6 +410,9 @@ class UiFlowTest {
         val buyId = runBlocking { graph.investments.trade_page(positionId, null).maxOf { it.id } }
         click_record("trade-record-$buyId")
         wait_text("交易详情")
+        // The title bar names the record; the page does not repeat it.
+        rule.onNode(hasText("交易详情") and hasAnyAncestor(hasTestTag("root-toolbar")), useUnmergedTree = true).assertExists()
+        assertEquals(1, rule.onAllNodesWithText("交易详情", useUnmergedTree = true).fetchSemanticsNodes().size)
         wait_text("181.50 CNY")
         wait_text("1.50 CNY")
         rule.activityRule.scenario.recreate()
@@ -426,6 +429,9 @@ class UiFlowTest {
         wait_text("交易历史")
         click_record("trade-record-$buyId")
         wait_text("交易详情")
+        // The title bar names the record; the page does not repeat it.
+        rule.onNode(hasText("交易详情") and hasAnyAncestor(hasTestTag("root-toolbar")), useUnmergedTree = true).assertExists()
+        assertEquals(1, rule.onAllNodesWithText("交易详情", useUnmergedTree = true).fetchSemanticsNodes().size)
         click_list("删除交易")
         wait_text("确认删除")
         rule.onNodeWithText("确认删除").performScrollTo().performClick()
@@ -637,7 +643,7 @@ class UiFlowTest {
         wait_text(localized(dev.valnook.feature.investments.R.string.instrument_closed_position))
         rule.onNodeWithContentDescription("返回").performClick()
         wait_text("暂无持仓")
-        // Closed positions have their own tab next to current holdings, so the label is always shown.
+        // Closed holdings have their own tab next to current holdings, so the label is always shown.
         rule.onNodeWithText("已清仓").assertExists()
         // The account's investment tab picks instruments through "选择标的".
         click_list(localized(dev.valnook.feature.investments.R.string.investment_add_to_account))
@@ -1401,6 +1407,7 @@ class UiFlowTest {
         // Its detail edits it in the dividend form, then deletes it.
         rule.onNodeWithTag("trade-record-$dividend").performClick()
         wait_text("派息记录")
+        rule.onNode(hasText("派息记录") and hasAnyAncestor(hasTestTag("root-toolbar")), useUnmergedTree = true).assertExists()
         rule.onNodeWithTag("dividend-edit").performScrollTo().performClick()
         wait_text("编辑派息")
         rule.onNodeWithTag("input-税后到账金额（CNY）").performTextReplacement("20")
@@ -1518,7 +1525,7 @@ class UiFlowTest {
         wait_text("合成账户 A")
         rule.onNode(hasText("投资") and hasClickAction()).performClick()
         wait_text("投资总市值")
-        rule.onNodeWithText("新增标的").assertDoesNotExist()
+        rule.onNodeWithText("添加标的").assertDoesNotExist()
         rule.onNodeWithText("资产类型管理").assertDoesNotExist()
         rule.onNodeWithContentDescription("所有标的").performClick()
         wait_text("尚无标的")
@@ -1532,7 +1539,7 @@ class UiFlowTest {
         rule.onNodeWithTag("type-default").assertHasNoClickAction()
         rule.onNodeWithTag("type-add").performClick()
         // The editor is named in the title bar and saves from there.
-        wait_text("新增资产类型")
+        wait_text("添加资产类型")
         rule.onNodeWithTag("type-delete-open").assertDoesNotExist()
         rule.onNodeWithTag("type-edit-save").assertIsNotEnabled()
         rule.onNodeWithTag("input-名称").performTextInput("ETF")
@@ -1542,7 +1549,7 @@ class UiFlowTest {
         rule.waitUntil(15000){rule.onAllNodes(hasText("ETF") and hasAnyAncestor(hasTestTag("type-list"))).fetchSemanticsNodes().isNotEmpty()}
         rule.onNodeWithContentDescription("返回").performClick()
         wait_text("尚无标的")
-        rule.onNodeWithContentDescription("新增标的").assertIsEnabled().performClick()
+        rule.onNodeWithContentDescription("添加标的").assertIsEnabled().performClick()
         wait_instrument_editor()
         rule.onNodeWithContentDescription("资产类型: 未分类").performScrollTo().assertExists()
         rule.onNodeWithText("名称").performScrollTo().performTextInput("新建测试标的")

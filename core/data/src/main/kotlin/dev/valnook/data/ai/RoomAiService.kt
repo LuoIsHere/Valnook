@@ -114,7 +114,7 @@ class RoomAiService(
             else emptyList()
         val system = AiPrompt.system(settings, choices.categories, choices.accounts,
             LocalDateTime.now(clock), base, english(), habits)
-        val placeholder = if (english()) "(what you type or share)" else "（你输入或分享的内容）"
+        val placeholder = if (english()) "(what you type or share)" else "（您输入或分享的内容）"
         // What a conversation sends: the bookkeeping tool, the query tools, or both, as switched on.
         val body = AiPrompt.chatRequest(system, listOf(AiPrompt.message("user", placeholder)), settings.thinking,
             bills = settings.billChat || !settings.query, queries = settings.query)

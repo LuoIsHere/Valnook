@@ -39,7 +39,7 @@
     <string name="wallet_use">使用中</string>
     <string name="wallet_not_use">未使用</string>
     <string name="wallet_unable_load_card_faces_reopen">卡面加载失败，请重新打开此页面重试。</string>
-    <string name="wallet_card_faces_stay_here_after">卡片换掉卡面或被删除后，卡面仍保留在这里，直到你删除它。正在使用的卡面不能删除。</string>
+    <string name="wallet_card_faces_stay_here_after">卡片换掉卡面或被删除后，卡面仍保留在这里，直到您删除它。正在使用的卡面不能删除。</string>
     <string name="wallet_no_card_faces_yet_tap">还没有卡面。点按 ＋ 上传，或在编辑卡片时选择图片。</string>
     <string name="wallet_delete_card_face">删除这张卡面？</string>
     <string name="wallet_removed_from_library_from_later">卡面将从卡面库删除，之后的备份不再包含它；已有备份不受影响。</string>

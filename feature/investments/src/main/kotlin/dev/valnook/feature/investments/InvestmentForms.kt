@@ -42,6 +42,13 @@ import java.time.*
  * A buy, sell or its edit. [onChooseAccount], given for a new trade opened from an instrument's page, shows the
  * account as a row that opens the choice of another; [accountName] names it.
  */
+/** The form's title, also the title bar's, so the form does not repeat it. */
+@Composable fun tradeFormTitle(mode: TradeFormMode, direction: Direction): String = stringResource(when (mode) {
+    TradeFormMode.CREATE -> if (direction == Direction.BUY) R.string.investment_buy else R.string.investment_sell
+    TradeFormMode.EDIT -> R.string.investment_edit_trade
+    TradeFormMode.DELETE -> R.string.investment_delete_trade
+})
+
 @Composable fun TradeForm(vm: TradeFormViewModel, onBack: () -> Unit, accountName: String = "",
     onChooseAccount: (() -> Unit)? = null) {
     val state by vm.state.collectAsStateWithLifecycle()
@@ -52,11 +59,7 @@ import java.time.*
         Text(stringResource(if (state.failed) R.string.investment_trade_load_failed else R.string.investment_loading))
         return
     }
-    val title = stringResource(when (state.mode) {
-        TradeFormMode.CREATE -> if (state.direction == Direction.BUY) R.string.investment_buy else R.string.investment_sell
-        TradeFormMode.EDIT -> R.string.investment_edit_trade
-        TradeFormMode.DELETE -> R.string.investment_delete_trade
-    })
+    val title = tradeFormTitle(state.mode, state.direction)
     FormLayout(title, submission.phase == SubmissionPhase.WORKING, submission.phase != SubmissionPhase.SUCCEEDED,
         vm::submit, if (submission.phase == SubmissionPhase.UNKNOWN) stringResource(R.string.investment_review_retry)
         else if (state.mode == TradeFormMode.DELETE) stringResource(R.string.investment_confirm_delete)

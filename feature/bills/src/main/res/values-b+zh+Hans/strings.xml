@@ -44,7 +44,7 @@
     <string name="bill_edit_category">编辑分类</string>
     <string name="bill_expense">支出</string>
     <string name="bill_external_account">外部账户</string>
-    <string name="bill_external_hint">转给别人或从别人处转入，不是你自己的账户</string>
+    <string name="bill_external_hint">转给别人或从别人处转入，不是您自己的账户</string>
     <string name="bill_favorites">收藏</string>
     <string name="bill_favorites_hint">点星标收藏常用账户，收藏的账户排在最前。</string>
     <string name="bill_fee">手续费</string>
@@ -61,7 +61,7 @@
     <string name="bill_paid">实付</string>
     <string name="bill_problem_account">请选择账户。</string>
     <string name="bill_problem_amount">请输入大于 0 的金额。</string>
-    <string name="bill_problem_both_external">至少一方要是你自己的账户。</string>
+    <string name="bill_problem_both_external">至少一方要是您自己的账户。</string>
     <string name="bill_problem_category">请选择分类。</string>
     <string name="bill_problem_discount">优惠金额必须小于金额。</string>
     <string name="bill_problem_divide">不能除以 0。</string>

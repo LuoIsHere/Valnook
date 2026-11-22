@@ -1,5 +1,4 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <string name="settings_title">Settings</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_system">System default</string>
     <string name="settings_theme_dark">Dark</string>
@@ -26,9 +25,7 @@
     <string name="settings_rate_of">%1$s rate</string>
     <string name="settings_change_currency">Change currency</string>
     <string name="settings_saved">Settings saved</string>
-    <string name="settings_saving">Saving…</string>
     <string name="settings_save">Save settings</string>
-    <string name="settings_apply">Apply</string>
     <string name="settings_reload_draft">Reload saved values</string>
     <string name="settings_error_currency">Choose a valid base currency.</string>
     <string name="settings_error_format">Check the entered value.</string>
@@ -46,7 +43,6 @@
     <string name="settings_red_gain">Red gains, green losses</string>
     <string name="settings_color_gain">Gain +100.00</string>
     <string name="settings_color_loss">Loss -100.00</string>
-    <string name="settings_color_zero">Zero 0.00</string>
     <string name="settings_clear_warning">This action cannot be undone in the app.</string>
     <string name="settings_clear_scope">All accounts and subaccounts, bills and bill categories, bill pictures on this device, deposits, instruments, holdings and trades, price history, asset classes, account groups and icons, Wallet cards and card faces (including private card backs), AI settings, the API key, check results, avatars and conversations, base currency, exchange rates, and change history will be cleared, and automatic exchange rates turned off. Language, theme, gain/loss colors, and navigation bar settings are kept.</string>
     <string name="settings_clear_input">Enter the confirmation code exactly</string>
@@ -59,7 +55,7 @@
     <string name="settings_backup_export">Backup &amp; export</string>
     <string name="settings_backup_export_summary">Local and OneDrive backup, restore, and Excel export</string>
     <string name="settings_backup_export_demo_summary">Export the demo data workbook</string>
-    <string name="settings_card_faces">Card faces</string>
+    <string name="settings_card_faces">Card face library</string>
     <string name="settings_card_faces_summary">View, upload, save and delete Wallet card faces</string>
     <string name="settings_webadmin">Web administration</string>
     <string name="settings_webadmin_summary">Manage this device from a browser on the same LAN</string>
@@ -71,13 +67,10 @@
     <string name="settings_nav_investments">Investments</string>
     <string name="settings_nav_statistics">Statistics</string>
     <string name="settings_nav_settings">Settings</string>
-    <string name="settings_edit">Edit</string>
     <string name="settings_cancel">Cancel</string>
     <string name="settings_move_up">Move up</string>
     <string name="settings_move_down">Move down</string>
     <string name="settings_reorder">Drag to reorder</string>
-    <string name="settings_visible">Visible</string>
-    <string name="settings_hidden">Hidden</string>
     <string name="settings_footer_copyright" translatable="false">Copyright © 2026 luoishere.</string>
     <string name="settings_footer_version" translatable="false">Version %1$s (%2$d)</string>
     <string name="settings_footer_internal" translatable="false">Internal build: %1$s</string>

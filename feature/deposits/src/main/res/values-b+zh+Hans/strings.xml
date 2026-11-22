@@ -9,8 +9,6 @@
     <string name="deposit_rate">年利率（%）</string>
     <string name="deposit_start_date">开始日期</string>
     <string name="deposit_end_date">到期日期</string>
-    <string name="deposit_principal_value">本金 %1$s %2$s</string>
-    <string name="deposit_interest_value">预计利息 %1$s %2$s</string>
     <string name="deposit_link_open">开立时从子账户扣款</string>
     <string name="deposit_link_close">结算时回款到子账户</string>
     <string name="deposit_cash_missing">请先创建同币种的子账户</string>

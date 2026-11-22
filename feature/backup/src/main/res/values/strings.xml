@@ -58,7 +58,6 @@
     <string name="cloud_no_backups">No Valnook cloud backups found.</string>
     <string name="cloud_verified">Verified</string>
     <string name="cloud_unverified">Not verified</string>
-    <string name="cloud_backup_detail">Backup details</string>
     <string name="cloud_expand_detail">Show backup details</string>
     <string name="cloud_collapse_detail">Hide backup details</string>
     <string name="cloud_drive_created">Cloud backup creation time</string>

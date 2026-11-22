@@ -1,5 +1,4 @@
 <resources>
-    <string name="settings_title">设置</string>
     <string name="settings_theme">主题</string>
     <string name="settings_theme_system">跟随系统</string>
     <string name="settings_theme_dark">深色</string>
@@ -9,7 +8,7 @@
     <string name="settings_base_currency">主币种</string>
     <string name="settings_not_set">未设置</string>
     <string name="settings_exchange_rates">汇率</string>
-    <string name="settings_fx_default">未设置汇率的外币不计入总额</string>
+    <string name="settings_fx_default">未设置汇率的外币不计入合计</string>
     <string name="settings_language">语言</string>
     <string name="settings_gain_loss_colors">涨跌配色</string>
     <string name="settings_demo_mode">演示模式</string>
@@ -26,9 +25,7 @@
     <string name="settings_rate_of">%1$s 汇率</string>
     <string name="settings_change_currency">更换币种</string>
     <string name="settings_saved">设置已保存</string>
-    <string name="settings_saving">正在保存…</string>
     <string name="settings_save">保存设置</string>
-    <string name="settings_apply">应用</string>
     <string name="settings_reload_draft">重新载入已保存值</string>
     <string name="settings_error_currency">请选择有效的主币种。</string>
     <string name="settings_error_format">请检查输入内容。</string>
@@ -46,7 +43,6 @@
     <string name="settings_red_gain">红涨绿跌</string>
     <string name="settings_color_gain">盈利 +100.00</string>
     <string name="settings_color_loss">亏损 -100.00</string>
-    <string name="settings_color_zero">零值 0.00</string>
     <string name="settings_clear_warning">此操作无法在应用内撤销。</string>
     <string name="settings_clear_scope">将清空全部账户与子账户、账单与账单分类、本机的账单图片、存单、标的、持仓与交易、价格历史、资产类型、账户分类与图标、卡包卡片与卡面（含卡片背面私密内容）、AI 设置与 API Key、检测结果、头像和对话记录、主币种、汇率和修改历史，并关闭自动获取汇率。语言、主题、涨跌配色和导航栏设置会保留。</string>
     <string name="settings_clear_input">请准确输入确认码</string>
@@ -71,13 +67,10 @@
     <string name="settings_nav_investments">投资</string>
     <string name="settings_nav_statistics">统计</string>
     <string name="settings_nav_settings">设置</string>
-    <string name="settings_edit">编辑</string>
     <string name="settings_cancel">取消</string>
     <string name="settings_move_up">上移</string>
     <string name="settings_move_down">下移</string>
     <string name="settings_reorder">拖动排序</string>
-    <string name="settings_visible">显示</string>
-    <string name="settings_hidden">隐藏</string>
     <string name="settings_about">关于 Valnook</string>
     <string name="settings_about_summary">应用信息、隐私政策、许可证与第三方声明</string>
     <string name="settings_privacy_policy">隐私政策</string>
@@ -116,7 +109,7 @@
     <string name="settings_fx_notice_accept">开启</string>
     <string name="settings_fx_auto_on">自动获取，每天更新</string>
     <string name="settings_fx_updated_today">今日已更新</string>
-    <string name="settings_fx_auto_empty">还没有使用外币的账户。新增后会在这里列出它的汇率。</string>
+    <string name="settings_fx_auto_empty">还没有使用外币的账户。添加后会在这里列出它的汇率。</string>
     <string name="settings_navigation_preview_label">预览</string>
     <string name="settings_navigation_preview">导航栏预览：%1$s</string>
     <string name="settings_navigation_separator">、</string>
@@ -132,7 +125,7 @@
     <string name="settings_fx_summary_unset">主币种未设置 · %1$s</string>
     <string name="settings_third_party">第三方声明</string>
     <string name="settings_third_party_summary">开源库、图标与商标</string>
-    <string name="settings_reimbursements">报销 / 待回款</string>
+    <string name="settings_reimbursements">报销回款</string>
     <string name="settings_ai">AI</string>
     <string name="settings_bill_images">账单图片</string>
     <string name="settings_quick_entry">快速记账</string>

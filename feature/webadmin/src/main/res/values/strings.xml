@@ -1,6 +1,5 @@
 <resources>
     <string name="webadmin_title">Web administration</string>
-    <string name="webadmin_summary">Manage this device from a browser on the same LAN</string>
     <string name="webadmin_hero">Manage from a computer</string>
     <string name="webadmin_description">View and edit this device\'s data in a browser on the same network.</string>
     <string name="webadmin_description_demo">View and edit the demo data in a browser on the same network. Real data is not affected.</string>

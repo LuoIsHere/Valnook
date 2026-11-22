@@ -63,6 +63,7 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     is TypeEditKey -> dev.valnook.feature.investments.typeEditTitle(current.id)
     TypesKey -> stringResource(dev.valnook.feature.investments.R.string.instrument_manage_types)
     is InstrumentEditKey -> dev.valnook.feature.investments.instrumentEditTitle(current.id)
+    is TradeFormKey -> dev.valnook.feature.investments.tradeFormTitle(current.mode, current.direction)
     is DividendFormKey -> dev.valnook.feature.investments.dividendFormTitle(current.tradeId == null)
     is InvestmentAccountPickKey -> dev.valnook.feature.investments.accountPickTitle(current.direction)
     is AccountInvestmentsKey -> stringResource(if (current.all) dev.valnook.feature.investments.R.string.investment_closed_positions else dev.valnook.feature.investments.R.string.investment_current_holdings)
@@ -72,6 +73,8 @@ internal fun rootTitle(current: NavKey, walletTitle: String?, accountName: (Long
     is CashBalanceEditKey -> stringResource(R.string.title_edit_balance)
     is CashEntryKey -> stringResource(dev.valnook.core.designsystem.R.string.cash_entry_detail)
     is CashEntryEditKey -> stringResource(R.string.title_edit_cash_entry)
+    is TradeDetailKey -> stringResource(if (current.dividend) dev.valnook.core.designsystem.R.string.dividend_detail_title
+        else dev.valnook.core.designsystem.R.string.trade_detail_title)
     is DepositFormKey -> dev.valnook.feature.deposits.depositFormTitle(current.mode)
     is DepositDetailKey -> stringResource(dev.valnook.core.designsystem.R.string.deposit_detail_title)
     is SettledDepositsKey -> stringResource(dev.valnook.core.designsystem.R.string.settled_deposits)

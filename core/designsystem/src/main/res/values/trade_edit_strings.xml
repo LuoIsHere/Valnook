@@ -1,6 +1,4 @@
 <resources>
     <string name="retry_load">Reload record</string>
     <string name="error_not_found">The record does not exist or was deleted. Go back and refresh.</string>
-    <string name="confirm_delete_trade">Confirm deletion</string>
-    <string name="trade_delete_hint">Deleting reverses this record’s effect on holdings and linked cash. If cash or holdings are insufficient, nothing is saved.</string>
 </resources>
