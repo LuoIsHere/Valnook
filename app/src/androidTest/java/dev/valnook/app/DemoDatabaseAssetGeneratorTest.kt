@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.platform.io.PlatformTestStorageRegistry
 import dev.valnook.app.di.AppGraph
+import dev.valnook.app.di.AppSessionManager
 import dev.valnook.app.di.DemoBillSeeder
 import dev.valnook.app.di.DemoDataSeeder
 import dev.valnook.app.di.createDatabaseGraph
@@ -66,7 +67,9 @@ class DemoDatabaseAssetGeneratorTest {
         context.deleteDatabase(EXPORT_DATABASE_NAME)
         val pictures = java.io.File(context.filesDir, "bill_images_${EXPORT_DATABASE_NAME.removeSuffix(".db")}")
         pictures.deleteRecursively()
-        val clock = Clock.fixed(Instant.parse("2026-11-21T04:00:00Z"), ZoneId.of("Asia/Shanghai"))
+        // Noon of the demo's own "today"; entering the demo moves every date from that day onto the real today.
+        val clock = Clock.fixed(AppSessionManager.DEMO_TODAY.atTime(12, 0).atZone(ZoneId.of("Asia/Shanghai")).toInstant(),
+            ZoneId.of("Asia/Shanghai"))
         val database = Room.databaseBuilder(context, ValnookDatabase::class.java, EXPORT_DATABASE_NAME)
             .addCallback(ValnookDatabase.seed)
             .setJournalMode(androidx.room.RoomDatabase.JournalMode.TRUNCATE)

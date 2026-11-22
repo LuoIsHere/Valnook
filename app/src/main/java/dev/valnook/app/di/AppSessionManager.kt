@@ -115,6 +115,10 @@ class AppSessionManager @Inject internal constructor(
         withContext(kotlinx.coroutines.Dispatchers.IO) { copyDemoImages(databaseName) }
         val database = ValnookDatabase.fromAsset(context, databaseName, DEMO_DATABASE_ASSET)
         try {
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                dev.valnook.data.database.DemoDateShift.shift(database.openHelper.writableDatabase,
+                    DEMO_TODAY, java.time.LocalDate.now(clock))
+            }
             val raw = createDatabaseGraph(context, database, clock, realDatabaseGraph.portability.buildInfo(), persistentPrivateCards = false)
             var fixtureSettings = raw.settings.observeSettings().first()
             fixtureSettings = raw.settingsWriter.applyChange(
@@ -739,9 +743,11 @@ class AppSessionManager @Inject internal constructor(
         var challengeGeneration: Long = -1
     )
 
-    private companion object {
-        const val DEMO_DATABASE_ASSET = "database/valnook-demo-v30.db"
-        const val DEMO_IMAGES_ASSET = "database/demo-bill-images"
-        const val DEMO_DATABASE_PREFIX = "valnook-demo-"
+    companion object {
+        /** The day the bundled demo dataset was made as "today"; entering the demo moves it onto the real today. */
+        val DEMO_TODAY: java.time.LocalDate = java.time.LocalDate.of(2026, 11, 21)
+        private const val DEMO_DATABASE_ASSET = "database/valnook-demo-v30.db"
+        private const val DEMO_IMAGES_ASSET = "database/demo-bill-images"
+        private const val DEMO_DATABASE_PREFIX = "valnook-demo-"
     }
 }

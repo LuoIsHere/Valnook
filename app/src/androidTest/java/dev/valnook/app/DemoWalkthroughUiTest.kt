@@ -91,7 +91,8 @@ class DemoWalkthroughUiTest {
             waitTag("account-cash-${salary.id}")
             capture("$name-accounts-expanded")
             rule.onNodeWithTag("account-cash-${salary.id}").performScrollTo().performClick()
-            waitText(words.salary)
+            // The ledger opens on this month, which may not have reached payday yet.
+            waitTag("cash-detail-header")
             capture("$name-ledger")
             back(context)
             waitTag("accounts-list")
@@ -148,9 +149,15 @@ class DemoWalkthroughUiTest {
      */
     private fun checkBills(graph: dev.valnook.app.di.AppGraph, words: Words) = runBlocking {
         val bills = requireNotNull(graph.bills)
-        val months = (9..11).map { java.time.YearMonth.of(2026, it) }
+        // The demo moves onto today: its bills run from about three months back to a week ahead.
+        val today = java.time.LocalDate.now(graph.clock)
+        val months = generateSequence(java.time.YearMonth.from(today.minusDays(100))) { it.plusMonths(1) }
+            .takeWhile { it <= java.time.YearMonth.from(today.plusDays(10)) }.toList()
         val all = months.flatMap { bills.observeMonth(it, graph.clock.zone).first() }
         check(all.size > 250) { "Only ${all.size} demo bills" }
+        val days = all.map { java.time.Instant.ofEpochMilli(it.occurredAtMs).atZone(graph.clock.zone).toLocalDate() }
+        check(today in days) { "No demo bill today, $today" }
+        check(days.max() <= today.plusDays(7) && days.min() >= today.minusDays(90)) { "Demo bills ${days.min()}..${days.max()}" }
         check(all.map { it.type }.toSet() == dev.valnook.domain.model.BillType.entries.toSet()) { "Missing bill kinds" }
         check(all.any { it.note == words.salary }) { "Bill notes not localised" }
         val pictured = all.filter { it.imageCount > 0 }
