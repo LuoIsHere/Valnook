@@ -29,7 +29,7 @@ data class BillCategoryEntity(
 /**
  * One bill: an expense, income, transfer, refund or reimbursement. Its money moves through cash_entries rows with
  * source_kind BILL (its own side) and BILL_TRANSFER_IN (a transfer's receiving side), source_id = [id].
- * Amounts are minor units; [rate] is decimal text. See `internal/plan/v0.0.19_part1.md` §2.1.
+ * Amounts are minor units; [rate] is decimal text.
  */
 @Entity(tableName = "bill_entries",
     foreignKeys = [
